@@ -119,7 +119,7 @@ func (s *Service) afterBoardChange(ctx context.Context, doc store.Document) {
 type TaskInput struct {
 	Title       string   `json:"title"`
 	Description string   `json:"description,omitempty"`
-	Column      string   `json:"column,omitempty"` // id or name; default: first column
+	Column      string   `json:"column,omitempty"`   // id or name; default: first column
 	Assignee    string   `json:"assignee,omitempty"` // user id or e-mail of a project member
 	Due         string   `json:"due,omitempty"`      // YYYY-MM-DD
 	Priority    int      `json:"priority,omitempty"` // 0 none … 3 high
