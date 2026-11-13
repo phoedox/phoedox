@@ -200,3 +200,18 @@ system-upgrade-controller von Rancher einsetzen).
 - Eine Phoedox-Instanz (`replicas: 1`): Die Live-Bearbeitung hält ihre Räume im Speicher. Für
   mehrere Instanzen kommt später die Verteilung über Postgres LISTEN/NOTIFY.
 - `local-path` liegt auf der Platte des Knotens – deshalb Backups nach S3.
+
+## Veröffentlichungen unter eigener Domain
+
+Veröffentlichungen (Einstellungen → Veröffentlichungen) sind unter `https://<app-domain>/pub/<kurzname>/`
+erreichbar. Für eine eigene Domain wie `docs.phoedox.com`:
+
+1. DNS-Eintrag (A/AAAA oder CNAME) auf den Server setzen.
+2. Im Chart ergänzen und `helm upgrade` ausführen – die Domain bekommt eine Ingress-Regel und ein Zertifikat:
+
+   ```yaml
+   publications:
+     domains: [docs.phoedox.com]
+   ```
+
+3. In Phoedox bei der Veröffentlichung dieselbe Domain eintragen.

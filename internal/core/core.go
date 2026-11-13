@@ -93,7 +93,11 @@ type Service struct {
 	OnContentChange func(ctx context.Context, documentID, by string)
 	// OnDraftEnd is called when a draft was published, cancelled or its page
 	// deleted (reason); live editors leave the edit mode.
-	OnDraftEnd func(ctx context.Context, documentID, reason, by string)
+	// HashPassword and VerifyPassword are set by the app (internal/auth);
+	// publications use them for their passwords.
+	HashPassword   func(string) (string, error)
+	VerifyPassword func(hash, pw string) bool
+	OnDraftEnd     func(ctx context.Context, documentID, reason, by string)
 	// Mail sends reminders about forgotten drafts; PublicURL builds links in
 	// them, DefaultLocale picks the language for users without one.
 	Mail          mail.Sender

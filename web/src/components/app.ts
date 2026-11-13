@@ -11,6 +11,7 @@ import { base } from "./shared";
 import "./auth-pages";
 import "./login";
 import "./profile";
+import "./publications";
 import "./security";
 import "./consent";
 import "./palette";
@@ -64,6 +65,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/oauth/authorize", render: () => html`<phx-consent></phx-consent>` },
     { path: "/settings/security", render: () => html`<phx-security></phx-security>` },
     { path: "/settings/tokens", render: () => html`<phx-tokens></phx-tokens>` },
+    { path: "/settings/publications", render: () => html`<phx-publications></phx-publications>` },
     { path: "/admin/users", render: () => html`<phx-users></phx-users>` },
     { path: "/admin/settings", render: () => html`<phx-admin-settings></phx-admin-settings>` },
     { path: "/admin/backups", render: () => html`<phx-backups></phx-backups>` },

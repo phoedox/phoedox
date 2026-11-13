@@ -81,6 +81,10 @@ func (a *api) routes(r chi.Router) {
 			r.Use(requireFull)
 			r.Patch("/me", a.updateProfile)
 			r.Put("/me/avatar", a.setAvatar)
+			r.Get("/publications", a.listPublications)
+			r.Post("/publications", a.createPublication)
+			r.Patch("/publications/{id}", a.updatePublication)
+			r.Delete("/publications/{id}", a.deletePublication)
 			r.Delete("/me/avatar", a.deleteAvatar)
 			r.Get("/images/user/{id}", a.userImage)
 			r.Post("/me/password", a.changePassword)
@@ -449,6 +453,35 @@ func (a *api) setProjectImage(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) deleteProjectImage(w http.ResponseWriter, r *http.Request) {
 	respond(w, map[string]bool{"ok": true}, a.core.DeleteProjectImage(r.Context(), actorOf(r), chi.URLParam(r, "p")))
+}
+
+func (a *api) listPublications(w http.ResponseWriter, r *http.Request) {
+	ps, err := a.core.Publications(r.Context(), actorOf(r))
+	respond(w, ps, err)
+}
+
+func (a *api) createPublication(w http.ResponseWriter, r *http.Request) {
+	var in core.PublicationInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	p, err := a.core.CreatePublication(r.Context(), actorOf(r), in)
+	respondStatus(w, http.StatusCreated, p, err)
+}
+
+func (a *api) updatePublication(w http.ResponseWriter, r *http.Request) {
+	var in core.PublicationInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	p, err := a.core.UpdatePublication(r.Context(), actorOf(r), chi.URLParam(r, "id"), in)
+	respond(w, p, err)
+}
+
+func (a *api) deletePublication(w http.ResponseWriter, r *http.Request) {
+	respond(w, map[string]bool{"ok": true}, a.core.DeletePublication(r.Context(), actorOf(r), chi.URLParam(r, "id")))
 }
 
 func (a *api) listTasks(w http.ResponseWriter, r *http.Request) {

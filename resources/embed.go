@@ -22,6 +22,19 @@ var prompts embed.FS
 //go:embed mail/*.md
 var mails embed.FS
 
+//go:embed publish/*.json
+var publishTexts embed.FS
+
+// PublishTexts returns the interface texts of published sites
+// (resources/publish/<locale>.json; "en" if the locale is unknown).
+func PublishTexts(locale string) []byte {
+	b, err := publishTexts.ReadFile("publish/" + locale + ".json")
+	if err != nil {
+		b, _ = publishTexts.ReadFile("publish/en.json")
+	}
+	return b
+}
+
 //go:embed kinds/core.json
 var coreKinds []byte
 

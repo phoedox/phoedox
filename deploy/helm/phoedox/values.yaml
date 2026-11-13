@@ -159,3 +159,9 @@ podSecurityContext:
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+# Publications (ADR-0006): own domains of published sites, e.g. docs.phoedox.com.
+# Each one gets an ingress rule and a certificate; set the same domain on the
+# publication in Phoedox (Settings → Publications). DNS must point here.
+publications:
+  domains: []

@@ -7,10 +7,13 @@ import (
 	"errors"
 	"github.com/phoedox/phoedox/internal/backup"
 	"github.com/phoedox/phoedox/internal/metrics"
+	"github.com/phoedox/phoedox/internal/publish"
 	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -40,6 +43,8 @@ type Deps struct {
 	Metrics *metrics.Metrics
 	// Backups for system admins; nil disables the backup routes.
 	Backups *backup.Manager
+	// Publish serves publications (/pub/<slug> and own domains); nil disables them.
+	Publish *publish.Site
 }
 
 // New returns the root handler.
@@ -56,6 +61,10 @@ func New(d Deps) http.Handler {
 		if d.Config.MetricsToken != "" {
 			r.Handle("/metrics", d.Metrics.Handler(d.Config.MetricsToken))
 		}
+	}
+	if d.Publish != nil {
+		// Own domains of publications come before tenant lookup by host.
+		r.Use(publicationByHost(d.Publish, d.Config.Domain))
 	}
 	if d.Config.MultiTenant && d.Core != nil {
 		r.Use(tenantByHost(d.Core.DB))
@@ -90,6 +99,19 @@ func New(d Deps) http.Handler {
 	}
 	if d.MCP != nil {
 		r.Handle("/mcp", d.MCP)
+	}
+	if d.Publish != nil && d.Core != nil {
+		servePub := func(w http.ResponseWriter, r *http.Request) {
+			slug := chi.URLParam(r, "slug")
+			p, err := d.Core.DB.GetPublication(r.Context(), slug)
+			if err != nil || p.Slug != slug {
+				http.NotFound(w, r)
+				return
+			}
+			d.Publish.Serve(w, r, p, "/pub/"+p.Slug)
+		}
+		r.Get("/pub/{slug}", servePub)
+		r.Handle("/pub/{slug}/*", http.HandlerFunc(servePub))
 	}
 	if d.Web != nil {
 		r.Handle("/*", spa(d.Web))
@@ -151,6 +173,49 @@ func writeErr(w http.ResponseWriter, err error) {
 
 // tenantByHost puts the tenant serving the request's host into the context
 // (hosted mode). Unknown hosts get 404 before anything else runs.
+// publicationByHost serves publications on their own domains (ADR-0006).
+// Lookups are cached briefly; the app's own domain is never a publication.
+func publicationByHost(site *publish.Site, appDomain string) func(http.Handler) http.Handler {
+	type entry struct {
+		p   store.Publication
+		ok  bool
+		exp time.Time
+	}
+	var mu sync.Mutex
+	cache := map[string]entry{}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			host := strings.ToLower(r.Host)
+			if h, _, err := net.SplitHostPort(host); err == nil {
+				host = h
+			}
+			if host == "" || host == strings.ToLower(appDomain) || host == "localhost" || net.ParseIP(host) != nil ||
+				r.URL.Path == "/healthz" || r.URL.Path == "/readyz" || r.URL.Path == "/metrics" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			mu.Lock()
+			e, hit := cache[host]
+			mu.Unlock()
+			if !hit || time.Now().After(e.exp) {
+				p, err := site.Core.DB.PublicationByDomain(r.Context(), host)
+				e = entry{p: p, ok: err == nil, exp: time.Now().Add(30 * time.Second)}
+				mu.Lock()
+				if len(cache) > 1000 {
+					cache = map[string]entry{}
+				}
+				cache[host] = e
+				mu.Unlock()
+			}
+			if !e.ok {
+				next.ServeHTTP(w, r)
+				return
+			}
+			site.Serve(w, r, e.p, "")
+		})
+	}
+}
+
 func tenantByHost(db *store.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

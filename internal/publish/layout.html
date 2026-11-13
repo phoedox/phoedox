@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="{{.Lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+{{if .Description}}<meta name="description" content="{{.Description}}">{{end}}
+{{if or .Pub.NoIndex (ne .Pub.Access "public")}}<meta name="robots" content="noindex">{{end}}
+{{if .Canonical}}<link rel="canonical" href="{{.Canonical}}">{{end}}
+{{range .Langs}}<link rel="alternate" hreflang="{{.Code}}" href="{{.URL}}">{{end}}
+<meta property="og:title" content="{{.Title}}">
+<meta property="og:type" content="article">
+{{if .Description}}<meta property="og:description" content="{{.Description}}">{{end}}
+{{range .CSS}}<link rel="stylesheet" href="{{$.Base}}/{{.}}?v={{$.Version}}">{{end}}
+{{if .JS}}<script type="module" src="{{.Base}}/{{.JS}}?v={{.Version}}"></script>{{end}}
+<style>:root{ {{.Accent}} } {{.Custom}}</style>
+</head>
+<body>
+<header class="top">
+  <button class="menu-toggle" type="button" aria-label="{{index .T "menu"}}">☰</button>
+  <a class="brand" href="{{.Base}}/">{{.Pub.Title}}</a>
+  {{if gt (len .Site) 1}}<nav class="projects" aria-label="{{index .T "pages"}}">{{range .Site}}<a href="{{$.Base}}/{{.Project.Slug}}" {{if and $.Project (eq $.Project.Project.ID .Project.ID)}}aria-current="page"{{end}}>{{.Project.Name}}</a>{{end}}</nav>{{end}}
+  {{if .Site}}<form action="{{.Base}}/search" role="search"><input type="search" name="q" value="{{.Search}}" placeholder="{{index .T "search_placeholder"}}" aria-label="{{index .T "search"}}"></form>{{end}}
+  {{if .Langs}}<nav class="langs" aria-label="{{index .T "language"}}">{{range .Langs}}<a href="{{.URL}}" hreflang="{{.Code}}" {{if .Current}}aria-current="true"{{end}}>{{.Code}}</a>{{end}}</nav>{{end}}
+</header>
+{{if .Login}}
+<div class="login">
+  <h1 style="font-size:20px;margin-top:0">{{index .T "password_title"}}</h1>
+  <p>{{index .T "password_hint"}}</p>
+  <form method="post" action="{{.Base}}/_login">
+    <label>{{index .T "password"}}<input type="password" name="password" required autofocus autocomplete="current-password"></label>
+    {{if .LoginError}}<p class="err" role="alert">{{index .T "password_wrong"}}</p>{{end}}
+    <button>{{index .T "open"}}</button>
+  </form>
+</div>
+{{else}}
+<div class="wrap">
+  <aside aria-label="{{index .T "pages"}}">
+    {{range .Nav}}<div class="lbl" {{if .Depth}}style="margin-left:{{.Depth}}0px"{{end}}>{{.Name}}</div>{{range .Links}}<a href="{{.URL}}" {{if .Current}}aria-current="page"{{end}}>{{.Title}}</a>{{end}}{{end}}
+  </aside>
+  <main>
+    <article>
+      {{if .Doc}}<h1>{{.Doc.Title}}</h1><div class="meta"><span>{{index .T "updated"}}: {{.Doc.UpdatedAt.Format "02.01.2006"}}</span></div>{{end}}
+      {{if .Note}}<p class="note" role="note">{{.Note}}</p>{{end}}
+      <div class="prose">{{.Body}}</div>
+    </article>
+  </main>
+</div>
+{{end}}
+<footer>{{index .T "made_with"}}</footer>
+</body>
+</html>

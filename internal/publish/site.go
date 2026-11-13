@@ -1,0 +1,563 @@
+package publish
+
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	_ "embed"
+	"encoding/hex"
+	"encoding/json"
+	"encoding/xml"
+	"fmt"
+	"html/template"
+	"io"
+	"io/fs"
+	"mime"
+	"net/http"
+	"net/url"
+	"path"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/phoedox/phoedox/internal/core"
+	"github.com/phoedox/phoedox/internal/store"
+	"github.com/phoedox/phoedox/resources"
+)
+
+//go:embed layout.html
+var layoutHTML string
+
+var layout = template.Must(template.New("layout").Parse(layoutHTML))
+
+// Site serves publications.
+type Site struct {
+	Core *core.Service
+	// Web is the built frontend (web/dist): islands under pub/ and assets/.
+	Web fs.FS
+	// Version busts caches of the islands.
+	Version string
+	// AppURL is the instance (for links back), e.g. https://app.example.org.
+	AppURL string
+}
+
+type texts map[string]string
+
+func textsFor(locale string) texts {
+	t := texts{}
+	_ = json.Unmarshal(resources.PublishTexts(locale), &t)
+	return t
+}
+
+// uiLocale picks de or en from ?lang, the cookie or Accept-Language.
+func uiLocale(r *http.Request) string {
+	for _, l := range []string{r.URL.Query().Get("lang"), cookie(r, "phx_lang")} {
+		if l == "de" || l == "en" {
+			return l
+		}
+	}
+	if strings.HasPrefix(strings.ToLower(r.Header.Get("Accept-Language")), "de") {
+		return "de"
+	}
+	return "en"
+}
+
+func cookie(r *http.Request, name string) string {
+	if c, err := r.Cookie(name); err == nil {
+		return c.Value
+	}
+	return ""
+}
+
+// islands returns the script and styles of web/src/pub from the Vite manifest.
+func (s *Site) islands() (js string, css []string) {
+	b, err := fs.ReadFile(s.Web, ".vite/manifest.json")
+	if err != nil {
+		return "", nil
+	}
+	var m map[string]struct {
+		File    string   `json:"file"`
+		CSS     []string `json:"css"`
+		Imports []string `json:"imports"`
+	}
+	if json.Unmarshal(b, &m) != nil {
+		return "", nil
+	}
+	seen := map[string]bool{}
+	var walk func(key string)
+	walk = func(key string) {
+		e, ok := m[key]
+		if !ok || seen[key] {
+			return
+		}
+		seen[key] = true
+		for _, i := range e.Imports {
+			walk(i)
+		}
+		css = append(css, e.CSS...)
+	}
+	walk("src/pub/main.ts")
+	return m["src/pub/main.ts"].File, css
+}
+
+// page is the data of the layout template.
+type page struct {
+	T           texts
+	Base        string
+	Pub         store.Publication
+	Site        []core.PubProject
+	Project     *core.PubProject
+	Doc         *store.Document
+	Title       string
+	Description string
+	Canonical   string
+	Body        template.HTML
+	Nav         []navGroup
+	Langs       []langLink
+	Search      string
+	Note        string
+	JS          string
+	CSS         []string
+	Version     string
+	Accent      template.CSS
+	Custom      template.CSS
+	Lang        string
+	Status      int
+	Login       bool
+	LoginError  bool
+}
+
+type navGroup struct {
+	Name  string
+	Depth int
+	Links []navLink
+}
+
+type navLink struct {
+	Title, URL string
+	Current    bool
+}
+
+type langLink struct {
+	Code, URL string
+	Current   bool
+}
+
+// Serve handles a request for publication p, mounted at base ("" for an own domain).
+func (s *Site) Serve(w http.ResponseWriter, r *http.Request, p store.Publication, base string) {
+	ctx := store.WithTenant(r.Context(), p.TenantID)
+	r = r.WithContext(ctx)
+	rel := strings.TrimPrefix(r.URL.Path, base)
+	if rel == "" {
+		rel = "/"
+	}
+	h := w.Header()
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+	// Islands load from here; embeds and iframes from https only.
+	h.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'self'")
+
+	switch {
+	case strings.HasPrefix(rel, "/pub/") || strings.HasPrefix(rel, "/assets/"):
+		s.asset(w, r, strings.TrimPrefix(rel, "/"))
+		return
+	case rel == "/robots.txt":
+		h.Set("Content-Type", "text/plain; charset=utf-8")
+		if p.NoIndex || p.Access != "public" {
+			_, _ = io.WriteString(w, "User-agent: *\nDisallow: /\n")
+		} else {
+			_, _ = fmt.Fprintf(w, "User-agent: *\nAllow: /\nSitemap: %s\n", s.absolute(r, base+"/sitemap.xml"))
+		}
+		return
+	}
+
+	t := textsFor(uiLocale(r))
+	if p.Access == "password" && !s.unlocked(r, p) {
+		if rel == "/_login" && r.Method == http.MethodPost {
+			if s.Core.VerifyPassword != nil && s.Core.VerifyPassword(p.PasswordHash, r.FormValue("password")) {
+				http.SetCookie(w, &http.Cookie{Name: "phx_pub_" + p.ID, Value: s.token(p), Path: base + "/", HttpOnly: true, Secure: r.TLS != nil || s.secure(r), SameSite: http.SameSiteLaxMode, MaxAge: 30 * 24 * 3600})
+				http.Redirect(w, r, base+"/", http.StatusSeeOther)
+				return
+			}
+			s.render(w, r, http.StatusUnauthorized, &page{T: t, Base: base, Pub: p, Title: t["password_title"], Login: true, LoginError: true})
+			return
+		}
+		s.render(w, r, http.StatusUnauthorized, &page{T: t, Base: base, Pub: p, Title: t["password_title"], Login: true})
+		return
+	}
+	if p.Access == "password" {
+		h.Set("Cache-Control", "private, no-store")
+		h.Set("X-Robots-Tag", "noindex")
+	}
+
+	site, err := s.Core.Site(r.Context(), p)
+	if err != nil {
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	parts := strings.Split(strings.Trim(rel, "/"), "/")
+	switch {
+	case rel == "/sitemap.xml":
+		s.sitemap(w, r, p, base, site)
+	case rel == "/search":
+		s.search(w, r, p, base, site, t)
+	case parts[0] == "_files" && len(parts) >= 2:
+		s.file(w, r, site, parts[1], r.URL.Query().Get("preview") != "")
+	case rel == "/":
+		if len(site) == 0 {
+			s.notFound(w, r, p, base, site, t)
+			return
+		}
+		{
+			if d := firstDoc(site[0]); d != "" {
+				http.Redirect(w, r, base+"/"+site[0].Project.Slug+"/"+d+keepLang(r), http.StatusFound)
+				return
+			}
+		}
+		s.notFound(w, r, p, base, site, t)
+	case len(parts) == 1:
+		for _, pp := range site {
+			if pp.Project.Slug == parts[0] {
+				if d := firstDoc(pp); d != "" {
+					http.Redirect(w, r, base+"/"+pp.Project.Slug+"/"+d+keepLang(r), http.StatusFound)
+					return
+				}
+			}
+		}
+		s.notFound(w, r, p, base, site, t)
+	case len(parts) == 2:
+		s.doc(w, r, p, base, site, parts[0], parts[1], t)
+	default:
+		s.notFound(w, r, p, base, site, t)
+	}
+}
+
+func keepLang(r *http.Request) string {
+	if l := r.URL.Query().Get("lang"); l != "" {
+		return "?lang=" + url.QueryEscape(l)
+	}
+	return ""
+}
+
+// firstDoc is the landing page of a project: the first text page in menu
+// order, else the first page.
+func firstDoc(pp core.PubProject) string {
+	t := textsFor("en")
+	for _, g := range nav("", pp, "", t, "") {
+		for _, l := range g.Links {
+			slug := l.URL[strings.LastIndex(l.URL, "/")+1:]
+			for _, d := range pp.Docs {
+				if d.Slug == slug && d.Type == store.DocMarkdown {
+					return d.Slug
+				}
+			}
+		}
+	}
+	if len(pp.Docs) > 0 {
+		return pp.Docs[0].Slug
+	}
+	return ""
+}
+
+func (s *Site) secure(r *http.Request) bool { return strings.HasPrefix(s.AppURL, "https://") }
+
+func (s *Site) absolute(r *http.Request, p string) string {
+	scheme := "https"
+	if r.TLS == nil && !s.secure(r) {
+		scheme = "http"
+	}
+	return scheme + "://" + r.Host + p
+}
+
+// token is the cookie value of an unlocked protected publication; it
+// changes with the password.
+func (s *Site) token(p store.Publication) string {
+	m := hmac.New(sha256.New, []byte(p.PasswordHash))
+	m.Write([]byte("phoedox-publication:" + p.ID))
+	return hex.EncodeToString(m.Sum(nil))
+}
+
+func (s *Site) unlocked(r *http.Request, p store.Publication) bool {
+	return p.PasswordHash != "" && hmac.Equal([]byte(cookie(r, "phx_pub_"+p.ID)), []byte(s.token(p)))
+}
+
+func (s *Site) asset(w http.ResponseWriter, r *http.Request, name string) {
+	b, err := fs.ReadFile(s.Web, path.Clean(name))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", mime.TypeByExtension(path.Ext(name)))
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	_, _ = w.Write(b)
+}
+
+func (s *Site) file(w http.ResponseWriter, r *http.Request, site []core.PubProject, id string, preview bool) {
+	fc, err := s.Core.PubFile(r.Context(), site, id, preview)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer fc.Reader.Close()
+	h := w.Header()
+	if fc.Mime != "" {
+		h.Set("Content-Type", fc.Mime)
+	}
+	h.Set("Content-Security-Policy", "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; media-src 'self'; sandbox")
+	h.Set("Cache-Control", "public, max-age=86400")
+	if !strings.HasPrefix(fc.Mime, "image/") && fc.Mime != "application/pdf" {
+		h.Set("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(fc.File.Name))
+	}
+	http.ServeContent(w, r, "", fc.File.CreatedAt.Time, fc.Reader)
+}
+
+// nav builds the sidebar of a project: categories as folders, without decisions.
+func nav(base string, pp core.PubProject, current string, t texts, lang string) []navGroup {
+	q := ""
+	if lang != "" {
+		q = "?lang=" + url.QueryEscape(lang)
+	}
+	groups := map[string]*navGroup{}
+	var order []string
+	var decisions []navLink
+	for _, d := range pp.Docs {
+		l := navLink{Title: d.Title, URL: base + "/" + pp.Project.Slug + "/" + d.Slug + q, Current: d.Slug == current}
+		if d.Type == store.DocADR {
+			l.Title = core.DecisionRef(d.Number) + " " + d.Title
+			decisions = append(decisions, l)
+			continue
+		}
+		cat := strings.Trim(d.Category, "/ ")
+		g, ok := groups[cat]
+		if !ok {
+			name := strings.ReplaceAll(cat, "/", " › ")
+			if cat == "" {
+				name = t["uncategorized"]
+			}
+			g = &navGroup{Name: name}
+			groups[cat] = g
+			order = append(order, cat)
+		}
+		g.Links = append(g.Links, l)
+	}
+	sort.SliceStable(order, func(i, j int) bool {
+		if order[i] == "" || order[j] == "" {
+			return order[j] == ""
+		}
+		return order[i] < order[j]
+	})
+	out := []navGroup{}
+	for _, c := range order {
+		out = append(out, *groups[c])
+	}
+	if len(decisions) > 0 {
+		out = append(out, navGroup{Name: t["decisions"], Links: decisions})
+	}
+	return out
+}
+
+func (s *Site) doc(w http.ResponseWriter, r *http.Request, p store.Publication, base string, site []core.PubProject, projectSlug, docSlug string, t texts) {
+	lang := r.URL.Query().Get("lang")
+	pp, d, err := s.Core.PubDocument(r.Context(), site, projectSlug, docSlug, lang)
+	if err != nil {
+		s.notFound(w, r, p, base, site, t)
+		return
+	}
+	links := s.links(r, base, site, pp)
+	c := map[string]any{}
+	_ = json.Unmarshal(d.Content, &c)
+	str := func(k string) string { v, _ := c[k].(string); return v }
+	var body strings.Builder
+	switch d.Type {
+	case store.DocMarkdown:
+		body.WriteString(Markdown(withoutTitle(str("markdown"), d.Title), links))
+	case store.DocADR:
+		status := str("status")
+		fmt.Fprintf(&body, `<p class="meta"><span class="chip">%s</span> <span class="chip">%s</span> <span class="chip">%s</span></p>`,
+			core.DecisionRef(d.Number), template.HTMLEscapeString(t["status_"+status]), template.HTMLEscapeString(str("date")))
+		for _, k := range []string{"context", "decision", "consequences", "alternatives"} {
+			if v := str(k); v != "" {
+				fmt.Fprintf(&body, `<section><h2>%s</h2>%s</section>`, template.HTMLEscapeString(t[k]), Markdown(v, links))
+			}
+		}
+	case store.DocLink:
+		u := str("url")
+		fmt.Fprintf(&body, `<p><a href="%s" rel="noopener external">%s</a></p>%s`, template.HTMLEscapeString(u), template.HTMLEscapeString(t["open_link"]), Markdown(str("description"), links))
+	case store.DocBoard:
+		body.WriteString(Markdown(str("description"), links))
+		body.WriteString(s.board(r, pp, d, t))
+	}
+	pg := &page{T: t, Base: base, Pub: p, Site: site, Project: &pp, Doc: &d, Title: d.Title + " – " + p.Title, Body: template.HTML(body.String()),
+		Nav: nav(base, pp, d.Slug, t, lang), Canonical: s.absolute(r, base+"/"+pp.Project.Slug+"/"+d.Slug), Lang: pp.Project.MainLocale}
+	pg.Description = summary(str("markdown") + str("decision") + str("description"))
+	if pp.Project.MainLocale != "" {
+		pg.Lang = pp.Project.MainLocale
+		if d.Translation != nil {
+			pg.Lang = d.Locale
+			if d.Translation.SourceVersion < d.Version {
+				pg.Note = t["outdated"]
+			}
+		} else if lang != "" && lang != pp.Project.MainLocale {
+			pg.Note = t["not_translated"]
+		}
+		for _, l := range append([]string{pp.Project.MainLocale}, pp.Project.Locales...) {
+			pg.Langs = append(pg.Langs, langLink{Code: l, URL: base + "/" + pp.Project.Slug + "/" + d.Slug + "?lang=" + l, Current: l == pg.Lang})
+		}
+	}
+	s.render(w, r, http.StatusOK, pg)
+}
+
+// withoutTitle drops a leading "# Heading" equal to the title.
+func withoutTitle(md, title string) string {
+	s := strings.TrimLeft(md, " \n")
+	if !strings.HasPrefix(s, "# ") {
+		return md
+	}
+	line, rest, _ := strings.Cut(s, "\n")
+	if strings.EqualFold(strings.TrimSpace(strings.Trim(strings.TrimPrefix(line, "# "), "#*_` ")), strings.TrimSpace(title)) {
+		return rest
+	}
+	return md
+}
+
+func summary(md string) string {
+	s := strings.Join(strings.Fields(strings.NewReplacer("#", "", "*", "", "`", "", ">", "", "|", " ").Replace(md)), " ")
+	if len([]rune(s)) > 160 {
+		s = string([]rune(s)[:157]) + "…"
+	}
+	return s
+}
+
+func (s *Site) links(r *http.Request, base string, site []core.PubProject, pp core.PubProject) Links {
+	return Links{
+		File: base + "/_files/",
+		Page: func(project, doc string) string {
+			for _, x := range site {
+				if x.Project.Slug == project {
+					for _, d := range x.Docs {
+						if d.Slug == doc {
+							return base + "/" + project + "/" + doc + keepLang(r)
+						}
+					}
+				}
+			}
+			return ""
+		},
+		Board: func(ref string) string {
+			for _, d := range pp.Docs {
+				if d.Type == store.DocBoard && (d.Slug == ref || d.ID == ref) {
+					return s.board(r, pp, d, textsFor(uiLocale(r)))
+				}
+			}
+			return ""
+		},
+	}
+}
+
+// board renders a board read-only.
+func (s *Site) board(r *http.Request, pp core.PubProject, d store.Document, t texts) string {
+	var b struct {
+		Columns []core.BoardColumn `json:"columns"`
+	}
+	_ = json.Unmarshal(d.Content, &b)
+	tasks, _ := s.Core.PubTasks(r.Context(), pp, d)
+	var out strings.Builder
+	out.WriteString(`<div class="board">`)
+	for _, c := range b.Columns {
+		fmt.Fprintf(&out, `<section class="col"><h3>%s</h3>`, template.HTMLEscapeString(c.Name))
+		n := 0
+		for _, x := range tasks {
+			if x.Column != c.ID {
+				continue
+			}
+			n++
+			cls := "card"
+			if c.Done {
+				cls += " done"
+			}
+			fmt.Fprintf(&out, `<div class="%s">%s`, cls, template.HTMLEscapeString(x.Title))
+			var meta []string
+			meta = append(meta, x.Labels...)
+			if x.Due != "" {
+				meta = append(meta, x.Due)
+			}
+			if len(meta) > 0 {
+				fmt.Fprintf(&out, `<small>%s</small>`, template.HTMLEscapeString(strings.Join(meta, " · ")))
+			}
+			out.WriteString(`</div>`)
+		}
+		if n == 0 {
+			fmt.Fprintf(&out, `<small class="muted">%s</small>`, template.HTMLEscapeString(t["board_empty"]))
+		}
+		out.WriteString(`</section>`)
+	}
+	out.WriteString(`</div>`)
+	return out.String()
+}
+
+func (s *Site) search(w http.ResponseWriter, r *http.Request, p store.Publication, base string, site []core.PubProject, t texts) {
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	var body strings.Builder
+	fmt.Fprintf(&body, `<h1>%s</h1>`, template.HTMLEscapeString(fmt.Sprintf(t["search_results"], q)))
+	hits := core.PubSearch(site, q)
+	if len(hits) == 0 {
+		fmt.Fprintf(&body, `<p>%s</p>`, template.HTMLEscapeString(t["search_none"]))
+	} else {
+		body.WriteString(`<ul class="hits">`)
+		for _, h := range hits {
+			fmt.Fprintf(&body, `<li><a href="%s/%s/%s">%s</a><small>%s · %s</small></li>`, base, h.Project.Project.Slug, h.Doc.Slug,
+				template.HTMLEscapeString(h.Doc.Title), template.HTMLEscapeString(h.Project.Project.Name), template.HTMLEscapeString(summary(h.Snippet)))
+		}
+		body.WriteString(`</ul>`)
+	}
+	pg := &page{T: t, Base: base, Pub: p, Site: site, Title: t["search"] + " – " + p.Title, Body: template.HTML(body.String()), Search: q}
+	if len(site) > 0 {
+		pg.Nav = nav(base, site[0], "", t, "")
+	}
+	w.Header().Set("X-Robots-Tag", "noindex")
+	s.render(w, r, http.StatusOK, pg)
+}
+
+func (s *Site) notFound(w http.ResponseWriter, r *http.Request, p store.Publication, base string, site []core.PubProject, t texts) {
+	pg := &page{T: t, Base: base, Pub: p, Site: site, Title: t["not_found"], Body: template.HTML("<h1>404</h1><p>" + template.HTMLEscapeString(t["not_found"]) + "</p>")}
+	s.render(w, r, http.StatusNotFound, pg)
+}
+
+type urlset struct {
+	XMLName xml.Name `xml:"http://www.sitemaps.org/schemas/sitemap/0.9 urlset"`
+	URLs    []struct {
+		Loc     string `xml:"loc"`
+		LastMod string `xml:"lastmod,omitempty"`
+	} `xml:"url"`
+}
+
+func (s *Site) sitemap(w http.ResponseWriter, r *http.Request, p store.Publication, base string, site []core.PubProject) {
+	var u urlset
+	for _, pp := range site {
+		for _, d := range pp.Docs {
+			u.URLs = append(u.URLs, struct {
+				Loc     string `xml:"loc"`
+				LastMod string `xml:"lastmod,omitempty"`
+			}{s.absolute(r, base+"/"+pp.Project.Slug+"/"+d.Slug), d.UpdatedAt.Format(time.DateOnly)})
+		}
+	}
+	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
+	_, _ = io.WriteString(w, xml.Header)
+	_ = xml.NewEncoder(w).Encode(u)
+}
+
+func (s *Site) render(w http.ResponseWriter, r *http.Request, status int, pg *page) {
+	pg.JS, pg.CSS = s.islands()
+	pg.Version = s.Version
+	if pg.Pub.Color != "" {
+		pg.Accent = template.CSS("--accent:" + pg.Pub.Color + ";")
+	}
+	pg.Custom = template.CSS(pg.Pub.CSS)
+	if pg.Lang == "" {
+		pg.Lang = uiLocale(r)
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	if err := layout.Execute(w, pg); err != nil {
+		_, _ = io.WriteString(w, "render error")
+	}
+}
