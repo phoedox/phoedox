@@ -169,6 +169,14 @@ func (a *Auth) OIDCCallback(ctx context.Context, base string, r *http.Request) (
 	if err != nil {
 		return nil, st.Return, err
 	}
+	if claim := a.OIDC.Config.GroupsClaim; claim != "" {
+		var all map[string]any
+		if idt.Claims(&all) == nil {
+			if err := a.DB.SyncOIDCGroups(ctx, u.ID, claimStrings(all[claim])); err != nil {
+				return nil, st.Return, err
+			}
+		}
+	}
 	session, err := a.startSession(ctx, u)
 	if err == nil {
 		_ = a.DB.AddEvent(ctx, "user:"+u.ID, "auth.login", u.ID, map[string]string{"method": "oidc"})
@@ -225,4 +233,21 @@ func (a *Auth) oidcUser(ctx context.Context, issuer string, c oidcClaims) (store
 	}
 	_ = a.DB.AddEvent(ctx, "user:"+u.ID, "auth.identity_link", u.ID, map[string]string{"issuer": issuer})
 	return u, nil
+}
+
+// claimStrings reads a claim that is a list of strings or one string.
+func claimStrings(v any) []string {
+	switch x := v.(type) {
+	case string:
+		return []string{x}
+	case []any:
+		out := make([]string, 0, len(x))
+		for _, e := range x {
+			if s, ok := e.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
 }

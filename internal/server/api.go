@@ -47,6 +47,10 @@ func (a *api) routes(r chi.Router) {
 		}
 		writeJSON(w, http.StatusOK, info)
 	})
+	r.Get("/shared/{token}", a.sharedView)
+	r.Get("/shared/{token}/documents/{d}", a.sharedDocument)
+	r.Get("/shared/{token}/files/{id}", a.sharedFile)
+	r.Get("/shared/{token}/files/{id}/{name}", a.sharedFile)
 	r.Get("/auth/oidc/start", a.oidcStart)
 	r.Get("/auth/oidc/callback", a.oidcCallback)
 	r.Group(func(r chi.Router) {
@@ -94,6 +98,19 @@ func (a *api) routes(r chi.Router) {
 			r.Post("/users/{id}/link", a.userLink)
 			r.Post("/users/{id}/reset-2fa", a.reset2FA)
 		})
+		r.With(requireFull).Route("/orgs", func(r chi.Router) {
+			r.Get("/", a.listOrgs)
+			r.Post("/", a.createOrg)
+			r.Get("/{o}", a.getOrg)
+			r.Patch("/{o}", a.updateOrg)
+			r.Put("/{o}/members", a.setOrgMember)
+			r.Delete("/{o}/members/{user}", a.removeOrgMember)
+			r.Post("/{o}/groups", a.saveGroup)
+			r.Patch("/{o}/groups/{g}", a.saveGroup)
+			r.Delete("/{o}/groups/{g}", a.deleteGroup)
+			r.Post("/{o}/groups/{g}/members", a.groupMember(true))
+			r.Post("/{o}/groups/{g}/members/remove", a.groupMember(false))
+		})
 		r.Head("/uploads/{id}", a.tusHead)
 		r.Patch("/uploads/{id}", a.tusPatch)
 		r.Delete("/uploads/{id}", a.tusDelete)
@@ -111,6 +128,17 @@ func (a *api) routes(r chi.Router) {
 			r.Patch("/", a.updateProject)
 			r.Get("/members", a.listMembers)
 			r.Put("/members", a.setMember)
+			r.Delete("/members/{user}", a.removeMember)
+			r.Get("/groups", a.listProjectGroups)
+			r.Put("/groups/{g}", a.setProjectGroup)
+			r.Delete("/groups/{g}", a.setProjectGroup)
+			r.Get("/documents/{d}/sharing", a.sharing)
+			r.Put("/documents/{d}/sharing", a.setRestricted)
+			r.Post("/documents/{d}/sharing/grants", a.shareDocument)
+			r.Delete("/documents/{d}/sharing/grants/{id}", a.unshareDocument)
+			r.Get("/share-links", a.listShareLinks)
+			r.Post("/share-links", a.createShareLink)
+			r.Delete("/share-links/{id}", a.revokeShareLink)
 			r.Get("/documents", a.listDocuments)
 			r.Post("/documents", a.createDocument)
 			r.Get("/documents/{d}", a.getDocument)
@@ -291,12 +319,17 @@ func (a *api) listMembers(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) setMember(w http.ResponseWriter, r *http.Request) {
-	var in struct{ Email, Role string }
+	var in struct{ Email, Role, Until string }
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)
 		return
 	}
-	respond(w, nil, a.core.SetMember(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.Email, in.Role))
+	until, err := parseUntil(in.Until)
+	if err != nil {
+		writeErr(w, core.Invalid("validation.guest_until", nil, "until must be a date"))
+		return
+	}
+	respond(w, nil, a.core.SetMemberUntil(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.Email, in.Role, until))
 }
 
 func (a *api) listDocuments(w http.ResponseWriter, r *http.Request) {

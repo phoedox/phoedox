@@ -167,8 +167,18 @@ func (s *Service) spool(r io.Reader) (spooled, error) {
 // instance limit, lowered by the project's own setting.
 func (s *Service) quotaBytes(ctx context.Context, p store.Project) int64 {
 	limit := s.instanceQuotaMB(ctx)
-	if own, err := s.DB.ProjectQuota(ctx, p.ID); err == nil && own > 0 && (limit == 0 || own < limit) {
-		limit = own
+	lower := func(mb int) {
+		if mb > 0 && (limit == 0 || mb < limit) {
+			limit = mb
+		}
+	}
+	if p.OrgID != "" {
+		if o, err := s.DB.OrgFor(ctx, p.OrgID, ""); err == nil {
+			lower(o.QuotaMB)
+		}
+	}
+	if own, err := s.DB.ProjectQuota(ctx, p.ID); err == nil {
+		lower(own)
 	}
 	return int64(limit) << 20
 }
@@ -234,7 +244,7 @@ func (s *Service) ingest(ctx context.Context, a Actor, p store.Project, sp spool
 
 // Files lists files of a project, optionally those of one document or entity.
 func (s *Service) Files(ctx context.Context, a Actor, ref string, ff FileFilter) ([]store.File, error) {
-	p, err := s.project(ctx, a, ref, store.RoleReader)
+	p, err := s.project(ctx, a, ref, store.RoleDoc)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +252,47 @@ func (s *Service) Files(ctx context.Context, a Actor, ref string, ff FileFilter)
 	if err != nil {
 		return nil, err
 	}
-	return s.DB.ListFiles(ctx, p.ID, store.FileFilter{DocumentID: docID, EntityID: entID})
+	fs, err := s.DB.ListFiles(ctx, p.ID, store.FileFilter{DocumentID: docID, EntityID: entID})
+	if err != nil {
+		return nil, err
+	}
+	allowed, err := s.fileRule(ctx, a, p)
+	if err != nil {
+		return nil, err
+	}
+	out := fs[:0]
+	for _, f := range fs {
+		if allowed(f) {
+			out = append(out, f)
+		}
+	}
+	return out, nil
+}
+
+// fileRule tells which files of a project the actor may read: files of a
+// page follow the page's rights, others need read access to the project.
+func (s *Service) fileRule(ctx context.Context, a Actor, p store.Project) (func(store.File) bool, error) {
+	see, err := s.docFilter(ctx, a, p)
+	if err != nil {
+		return nil, err
+	}
+	docs, err := s.DB.ListDocuments(ctx, p.ID, store.DocFilter{})
+	if err != nil {
+		return nil, err
+	}
+	restricted := map[string]bool{}
+	live := map[string]bool{}
+	for _, d := range docs {
+		live[d.ID] = true
+		restricted[d.ID] = d.Restricted
+	}
+	projectReader := rank[p.Role] >= rank[store.RoleReader]
+	return func(f store.File) bool {
+		if f.DocumentID != "" && live[f.DocumentID] {
+			return see(f.DocumentID, restricted[f.DocumentID])
+		}
+		return projectReader
+	}, nil
 }
 
 // FileContent is what OpenFile serves.
@@ -260,8 +310,14 @@ func (s *Service) OpenFile(ctx context.Context, a Actor, id string, version int,
 	if err != nil {
 		return FileContent{}, err
 	}
-	if _, err := s.project(ctx, a, f.ProjectID, store.RoleReader); err != nil {
+	p, err := s.project(ctx, a, f.ProjectID, store.RoleDoc)
+	if err != nil {
 		return FileContent{}, err
+	}
+	if allowed, err := s.fileRule(ctx, a, p); err != nil {
+		return FileContent{}, err
+	} else if !allowed(f) {
+		return FileContent{}, ErrNotFound
 	}
 	if s.Blobs == nil {
 		return FileContent{}, errNoBlobs
@@ -405,6 +461,11 @@ func (s *Service) fileIn(ctx context.Context, a Actor, ref, id, need string) (st
 	}
 	f, err := s.DB.GetFile(ctx, id)
 	if err != nil || f.ProjectID != p.ID {
+		return store.File{}, ErrNotFound
+	}
+	if allowed, err := s.fileRule(ctx, a, p); err != nil {
+		return f, err
+	} else if !allowed(f) {
 		return store.File{}, ErrNotFound
 	}
 	return f, nil

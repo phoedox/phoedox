@@ -14,11 +14,12 @@ import (
 // build their own requests around the project's secrets. Reading methods
 // need read access; others need edit access and are refused for AI clients.
 func (s *Service) RunRequest(ctx context.Context, a Actor, ref, docRef string, index int) (requests.Result, error) {
-	p, err := s.project(ctx, a, ref, store.RoleReader)
-	if err != nil {
+	// Request blocks use the project's secrets: project readers only, and
+	// only on documents they can see.
+	if _, err := s.project(ctx, a, ref, store.RoleReader); err != nil {
 		return requests.Result{}, err
 	}
-	doc, err := s.findDoc(ctx, p.ID, docRef)
+	p, doc, err := s.docAccess(ctx, a, ref, docRef, store.RoleReader)
 	if err != nil {
 		return requests.Result{}, err
 	}

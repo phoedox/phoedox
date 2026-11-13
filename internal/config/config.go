@@ -99,6 +99,10 @@ type OIDC struct {
 	// TrustEmail treats emails as verified even without email_verified
 	// (PHOEDOX_OIDC_TRUST_EMAIL), for providers like Entra ID that omit it.
 	TrustEmail bool
+	// GroupsClaim names the ID-token claim with the user's groups
+	// (PHOEDOX_OIDC_GROUPS_CLAIM, default "groups"). Organization groups with
+	// a matching "OIDC group" get the user as member at each sign-in.
+	GroupsClaim string
 }
 
 // Enabled reports whether OIDC is configured.
@@ -136,6 +140,7 @@ func FromEnv() (Config, error) {
 			AutoCreate:   os.Getenv("PHOEDOX_OIDC_AUTO_CREATE") == "true",
 			Domains:      splitList(os.Getenv("PHOEDOX_OIDC_DOMAINS")),
 			TrustEmail:   os.Getenv("PHOEDOX_OIDC_TRUST_EMAIL") == "true",
+			GroupsClaim:  getenv("PHOEDOX_OIDC_GROUPS_CLAIM", "groups"),
 		},
 		SMTP: SMTP{
 			Host:     os.Getenv("PHOEDOX_SMTP_HOST"),

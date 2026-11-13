@@ -4,6 +4,7 @@ import (
 	"context"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/phoedox/phoedox/internal/graph"
 	"github.com/phoedox/phoedox/internal/store"
@@ -19,6 +20,20 @@ type ProjectInput struct {
 	Description  string `json:"description,omitempty"`
 	PrimaryColor string `json:"primaryColor,omitempty"`
 	AIWriteMode  string `json:"aiWriteMode,omitempty"` // off | read | suggest | direct
+	// Org is the organization (slug or id); "" = personal, nil = unchanged.
+	Org *string `json:"org,omitempty"`
+}
+
+// orgFor resolves the organization a project goes to; the actor must be a member.
+func (s *Service) orgFor(ctx context.Context, a Actor, ref *string) (string, error) {
+	if ref == nil || *ref == "" {
+		return "", nil
+	}
+	o, err := s.org(ctx, a, *ref, "")
+	if err != nil {
+		return "", invalid("validation.org_unknown", map[string]any{"org": *ref}, "organization %q not found", *ref)
+	}
+	return o.ID, nil
 }
 
 func (in *ProjectInput) normalize() error {
@@ -81,12 +96,21 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, in ProjectInput) (
 	if err := in.normalize(); err != nil {
 		return store.Project{}, err
 	}
-	p, err := s.DB.CreateProject(ctx, store.Project{ID: newID(), Slug: in.Slug, Name: in.Name, Short: in.Short,
-		Description: in.Description, PrimaryColor: in.PrimaryColor, AIWriteMode: in.AIWriteMode, OwnerID: a.User.ID})
-	if err == nil {
-		s.event(ctx, a, "project.create", p.ID, in)
+	orgID, err := s.orgFor(ctx, a, in.Org)
+	if err != nil {
+		return store.Project{}, err
 	}
-	return p, err
+	p, err := s.DB.CreateProject(ctx, store.Project{ID: newID(), Slug: in.Slug, Name: in.Name, Short: in.Short,
+		Description: in.Description, PrimaryColor: in.PrimaryColor, AIWriteMode: in.AIWriteMode, OwnerID: a.User.ID, OrgID: orgID})
+	if err != nil {
+		return p, err
+	}
+	s.event(ctx, a, "project.create", p.ID, in)
+	if full, err := s.DB.ProjectFor(ctx, p.ID, a.User.ID); err == nil {
+		full.Role = store.RoleOwner
+		p = full
+	}
+	return p, nil
 }
 
 // UpdateProject changes settings (owner only). The slug stays.
@@ -101,6 +125,16 @@ func (s *Service) UpdateProject(ctx context.Context, a Actor, ref string, in Pro
 	}
 	if a.Via == "mcp" && in.AIWriteMode != p.AIWriteMode {
 		return p, ErrForbidden // AI clients cannot widen their own access
+	}
+	if in.Org != nil {
+		if a.Via == "mcp" {
+			return p, ErrForbidden
+		}
+		orgID, err := s.orgFor(ctx, a, in.Org)
+		if err != nil {
+			return p, err
+		}
+		p.OrgID = orgID
 	}
 	p.Name, p.Short, p.Description, p.PrimaryColor, p.AIWriteMode = in.Name, in.Short, in.Description, in.PrimaryColor, in.AIWriteMode
 	if err := s.DB.UpdateProject(ctx, p); err != nil {
@@ -121,16 +155,20 @@ func (s *Service) Projects(ctx context.Context, a Actor) ([]store.Project, error
 	}
 	out := ps[:0]
 	for _, p := range ps {
-		if s.visible(a, p) {
-			out = append(out, p)
+		if !s.visible(a, p) || (a.Via == "mcp" && p.OrgID != "" && !p.OrgAI) {
+			continue
 		}
+		if a.User.IsAdmin {
+			p.Role = store.RoleOwner
+		}
+		out = append(out, p)
 	}
 	return out, nil
 }
 
 // Project returns one project if the actor can read it.
 func (s *Service) Project(ctx context.Context, a Actor, ref string) (store.Project, error) {
-	return s.project(ctx, a, ref, store.RoleReader)
+	return s.project(ctx, a, ref, store.RoleDoc)
 }
 
 // Members lists members (readers may see them).
@@ -144,20 +182,76 @@ func (s *Service) Members(ctx context.Context, a Actor, ref string) ([]store.Mem
 
 // SetMember adds or changes a member by email (owner only).
 func (s *Service) SetMember(ctx context.Context, a Actor, ref, email, role string) error {
+	return s.SetMemberUntil(ctx, a, ref, email, role, time.Time{})
+}
+
+// SetMemberUntil adds or changes a member; with an expiry date the member is
+// a guest whose access ends then (owner only, not for the owner role).
+func (s *Service) SetMemberUntil(ctx context.Context, a Actor, ref, email, role string, until time.Time) error {
 	p, err := s.project(ctx, a, ref, store.RoleOwner)
 	if err != nil {
 		return err
 	}
-	if _, ok := rank[role]; !ok {
+	if a.Via == "mcp" {
+		return ErrForbidden
+	}
+	if role != store.RoleReader && role != store.RoleEditor && role != store.RoleOwner {
 		return invalid("validation.role", nil, "role must be reader, editor or owner")
 	}
-	u, err := s.DB.UserByEmail(ctx, email)
+	if !until.IsZero() && (role == store.RoleOwner || !until.After(time.Now())) {
+		return invalid("validation.guest_until", nil, "guests need a future date and cannot be owners")
+	}
+	u, err := s.DB.UserByEmail(ctx, strings.TrimSpace(email))
 	if err != nil {
 		return invalid("validation.user_not_found", map[string]any{"email": email}, "no user with email %s", email)
 	}
-	if err := s.DB.SetMember(ctx, p.ID, u.ID, role); err != nil {
+	if role != store.RoleOwner || !until.IsZero() {
+		if err := s.keepOwner(ctx, p.ID, u.ID); err != nil {
+			return err
+		}
+	}
+	var exp store.Time
+	if !until.IsZero() {
+		exp = store.Time{Time: until.UTC()}
+	}
+	if err := s.DB.SetMember(ctx, p.ID, u.ID, role, exp); err != nil {
 		return err
 	}
-	s.event(ctx, a, "project.member", p.ID, map[string]string{"user": u.ID, "role": role})
+	s.event(ctx, a, "project.member", p.ID, map[string]any{"user": u.ID, "role": role, "until": exp})
+	return nil
+}
+
+// keepOwner refuses to take away the last permanent owner of a project.
+func (s *Service) keepOwner(ctx context.Context, projectID, userID string) error {
+	ms, err := s.DB.ListMembers(ctx, projectID)
+	if err != nil {
+		return err
+	}
+	for _, m := range ms {
+		if m.UserID == userID && m.Role == store.RoleOwner && m.ExpiresAt.IsZero() {
+			if n, err := s.DB.CountOwners(ctx, projectID); err != nil || n <= 1 {
+				return invalid("validation.last_owner", nil, "a project needs at least one owner")
+			}
+		}
+	}
+	return nil
+}
+
+// RemoveMember removes a direct member (owner only).
+func (s *Service) RemoveMember(ctx context.Context, a Actor, ref, userID string) error {
+	p, err := s.project(ctx, a, ref, store.RoleOwner)
+	if err != nil {
+		return err
+	}
+	if a.Via == "mcp" {
+		return ErrForbidden
+	}
+	if err := s.keepOwner(ctx, p.ID, userID); err != nil {
+		return err
+	}
+	if err := s.DB.RemoveMember(ctx, p.ID, userID); err != nil {
+		return err
+	}
+	s.event(ctx, a, "project.member_remove", p.ID, map[string]string{"user": userID})
 	return nil
 }

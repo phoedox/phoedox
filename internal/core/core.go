@@ -100,9 +100,11 @@ func New(db *store.DB) *Service {
 	return &Service{DB: db, MaxDepth: 6, Preview: preview.Tools{MaxPixels: 60_000_000, MaxText: 2 << 20, Size: 480, MaxPages: 20, Timeout: 90 * time.Second}}
 }
 
-var rank = map[string]int{store.RoleReader: 1, store.RoleEditor: 2, store.RoleOwner: 3}
+var rank = map[string]int{store.RoleDoc: 0, store.RoleReader: 1, store.RoleEditor: 2, store.RoleOwner: 3}
 
 // project loads a project and checks that the actor has at least role need.
+// need may be store.RoleDoc for functions that also serve people who only
+// have single documents shared with them.
 func (s *Service) project(ctx context.Context, a Actor, ref, need string) (store.Project, error) {
 	p, err := s.DB.ProjectFor(ctx, ref, a.User.ID)
 	if err != nil {
@@ -113,26 +115,95 @@ func (s *Service) project(ctx context.Context, a Actor, ref, need string) (store
 	if !s.visible(a, p) {
 		return p, ErrNotFound
 	}
-	if a.Via == "mcp" && !s.AIEnabled(ctx) {
+	if a.Via == "mcp" && (!s.AIEnabled(ctx) || (p.OrgID != "" && !p.OrgAI)) {
 		return p, errAIDisabled()
 	}
-	readOnly := (a.Scope != nil && a.Scope.ReadOnly) || (a.Via == "mcp" && p.AIWriteMode == AIRead)
-	if readOnly && rank[need] > rank[store.RoleReader] {
+	if s.readOnly(a, p) && rank[need] > rank[store.RoleReader] {
 		return p, ErrForbidden
 	}
 	if a.User.IsAdmin {
-		if p.Role == "" {
-			p.Role = store.RoleOwner
-		}
+		p.Role = store.RoleOwner
 		return p, nil
 	}
 	if p.Role == "" {
 		return p, ErrNotFound
 	}
 	if rank[p.Role] < rank[need] {
+		if p.Role == store.RoleDoc {
+			return p, ErrNotFound // only single documents are shared: the rest stays invisible
+		}
 		return p, ErrForbidden
 	}
 	return p, nil
+}
+
+func (s *Service) readOnly(a Actor, p store.Project) bool {
+	return (a.Scope != nil && a.Scope.ReadOnly) || (a.Via == "mcp" && p.AIWriteMode == AIRead)
+}
+
+func maxRole(a, b string) string {
+	if a == "" || (b != "" && rank[b] > rank[a]) {
+		return b
+	}
+	return a
+}
+
+// docRole is the actor's role for one document: owners see everything;
+// restricted documents need a grant; grants can also raise the project role.
+func (s *Service) docRole(ctx context.Context, a Actor, p store.Project, doc store.Document) (string, error) {
+	if p.Role == store.RoleOwner {
+		return store.RoleOwner, nil
+	}
+	grants, err := s.DB.DocRoles(ctx, p.ID, a.User.ID)
+	if err != nil {
+		return "", err
+	}
+	base := p.Role
+	if doc.Restricted || base == store.RoleDoc {
+		base = ""
+	}
+	return maxRole(base, grants[doc.ID]), nil
+}
+
+// docAccess loads a document and checks the actor's role for it.
+func (s *Service) docAccess(ctx context.Context, a Actor, ref, docRef, need string) (store.Project, store.Document, error) {
+	p, err := s.project(ctx, a, ref, store.RoleDoc)
+	if err != nil {
+		return p, store.Document{}, err
+	}
+	doc, err := s.findDoc(ctx, p.ID, docRef)
+	if err != nil {
+		return p, doc, err
+	}
+	role, err := s.docRole(ctx, a, p, doc)
+	if err != nil {
+		return p, doc, err
+	}
+	if role == "" {
+		return p, store.Document{}, ErrNotFound
+	}
+	if rank[role] < rank[need] || (s.readOnly(a, p) && rank[need] > rank[store.RoleReader]) {
+		return p, doc, ErrForbidden
+	}
+	p.Role = role
+	return p, doc, nil
+}
+
+// docFilter tells which documents of a project the actor may see.
+func (s *Service) docFilter(ctx context.Context, a Actor, p store.Project) (func(id string, restricted bool) bool, error) {
+	if p.Role == store.RoleOwner {
+		return func(string, bool) bool { return true }, nil
+	}
+	grants, err := s.DB.DocRoles(ctx, p.ID, a.User.ID)
+	if err != nil {
+		return nil, err
+	}
+	return func(id string, restricted bool) bool {
+		if grants[id] != "" {
+			return true
+		}
+		return p.Role != store.RoleDoc && !restricted
+	}, nil
 }
 
 func newID() string { return string(graph.NewID()) }

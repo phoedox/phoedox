@@ -135,6 +135,34 @@ func TestOIDC(t *testing.T) {
 	if u, err := db.UserByIdentity(ctx, idp.URL, "s2"); err != nil || u.ID != admin.ID {
 		t.Fatalf("link: %v", err)
 	}
+	// groups from the identity provider fill matching organization groups
+	a.OIDC.Config.GroupsClaim = "groups"
+	org, _ := db.CreateOrg(ctx, store.Org{ID: "org1", Name: "Firma", Slug: "firma", UsageType: "commercial"}, admin.ID)
+	_ = db.SaveGroup(ctx, store.Group{ID: "g1", OrgID: org.ID, Name: "IT", OIDCGroup: "it-team"})
+	inGroup := func(userID string) bool {
+		gs, _ := db.Groups(ctx, org.ID)
+		for _, m := range gs[0].Members {
+			if m.UserID == userID {
+				return true
+			}
+		}
+		return false
+	}
+	if _, _, err := signIn(map[string]any{"sub": "s1", "email": "neu@example.org", "email_verified": yes, "groups": []string{"it-team", "other"}}, true); err != nil {
+		t.Fatal(err)
+	}
+	if !inGroup(created.ID) {
+		t.Fatal("OIDC group not applied")
+	}
+	if os, _ := db.ListOrgs(ctx, created.ID, false); len(os) != 1 || os[0].Role != "member" {
+		t.Fatalf("org membership from OIDC: %+v", os)
+	}
+	if _, _, err := signIn(map[string]any{"sub": "s1", "email": "neu@example.org", "email_verified": yes, "groups": "other"}, true); err != nil {
+		t.Fatal(err)
+	}
+	if inGroup(created.ID) {
+		t.Fatal("OIDC group must be removed when the provider drops it")
+	}
 	// foreign domains and disabled accounts are refused
 	if _, _, err := signIn(map[string]any{"sub": "s3", "email": "x@fremd.de", "email_verified": yes}, true); keyOf(err) != "validation.oidc_no_account" {
 		t.Fatalf("foreign domain: %v", err)

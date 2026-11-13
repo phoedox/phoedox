@@ -32,11 +32,7 @@ func (s *Service) contentChanged(ctx context.Context, a Actor, docID string) {
 
 // LiveDocument checks that the actor may edit a document live and returns it.
 func (s *Service) LiveDocument(ctx context.Context, a Actor, ref, docRef string) (store.Document, error) {
-	p, err := s.project(ctx, a, ref, store.RoleEditor)
-	if err != nil {
-		return store.Document{}, err
-	}
-	doc, err := s.findDoc(ctx, p.ID, docRef)
+	_, doc, err := s.docAccess(ctx, a, ref, docRef, store.RoleEditor)
 	if err != nil {
 		return doc, err
 	}
@@ -53,7 +49,7 @@ func (s *Service) LiveSave(ctx context.Context, a Actor, ref, docRef, markdown s
 	if err != nil {
 		return doc, err
 	}
-	p, err := s.project(ctx, a, ref, store.RoleEditor)
+	p, _, err := s.docAccess(ctx, a, ref, docRef, store.RoleEditor)
 	if err != nil {
 		return doc, err
 	}

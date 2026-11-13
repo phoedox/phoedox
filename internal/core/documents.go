@@ -172,20 +172,31 @@ func content(typ, markdown string, adr *ADR, link *Link) (store.JSON, string, er
 
 // Documents lists documents of a project without content.
 func (s *Service) Documents(ctx context.Context, a Actor, ref string, f store.DocFilter) ([]store.Document, error) {
-	p, err := s.project(ctx, a, ref, store.RoleReader)
+	p, err := s.project(ctx, a, ref, store.RoleDoc)
 	if err != nil {
 		return nil, err
 	}
-	return s.DB.ListDocuments(ctx, p.ID, f)
+	docs, err := s.DB.ListDocuments(ctx, p.ID, f)
+	if err != nil {
+		return nil, err
+	}
+	see, err := s.docFilter(ctx, a, p)
+	if err != nil {
+		return nil, err
+	}
+	out := docs[:0]
+	for _, d := range docs {
+		if see(d.ID, d.Restricted) {
+			out = append(out, d)
+		}
+	}
+	return out, nil
 }
 
 // Document returns one document with content.
 func (s *Service) Document(ctx context.Context, a Actor, ref, docRef string) (store.Document, error) {
-	p, err := s.project(ctx, a, ref, store.RoleReader)
-	if err != nil {
-		return store.Document{}, err
-	}
-	return s.findDoc(ctx, p.ID, docRef)
+	_, doc, err := s.docAccess(ctx, a, ref, docRef, store.RoleReader)
+	return doc, err
 }
 
 // Versions lists the history of a document.
@@ -269,11 +280,7 @@ func (s *Service) relatedEvents(ctx context.Context, a Actor, doc store.Document
 
 // UpdateDocument applies a patch and stores a new version.
 func (s *Service) UpdateDocument(ctx context.Context, a Actor, ref, docRef string, patch DocumentPatch) (DocResult, error) {
-	p, err := s.project(ctx, a, ref, store.RoleEditor)
-	if err != nil {
-		return DocResult{}, err
-	}
-	cur, err := s.findDoc(ctx, p.ID, docRef)
+	p, cur, err := s.docAccess(ctx, a, ref, docRef, store.RoleEditor)
 	if err != nil {
 		return DocResult{}, err
 	}
@@ -373,11 +380,7 @@ func (s *Service) updateDocument(ctx context.Context, a Actor, p store.Project, 
 
 // DeleteDocument moves a document to the trash.
 func (s *Service) DeleteDocument(ctx context.Context, a Actor, ref, docRef string) (DocResult, error) {
-	p, err := s.project(ctx, a, ref, store.RoleEditor)
-	if err != nil {
-		return DocResult{}, err
-	}
-	cur, err := s.findDoc(ctx, p.ID, docRef)
+	p, cur, err := s.docAccess(ctx, a, ref, docRef, store.RoleEditor)
 	if err != nil {
 		return DocResult{}, err
 	}
@@ -433,7 +436,7 @@ func (s *Service) Decisions(ctx context.Context, a Actor, ref, status string) ([
 	if status != "" && !adrStatus[status] {
 		return nil, invalid("validation.adr_status", nil, "status must be proposed, accepted, rejected, deprecated or superseded")
 	}
-	p, err := s.project(ctx, a, ref, store.RoleReader)
+	p, err := s.project(ctx, a, ref, store.RoleDoc)
 	if err != nil {
 		return nil, err
 	}
@@ -441,8 +444,15 @@ func (s *Service) Decisions(ctx context.Context, a Actor, ref, status string) ([
 	if err != nil {
 		return nil, err
 	}
+	see, err := s.docFilter(ctx, a, p)
+	if err != nil {
+		return nil, err
+	}
 	out := []DecisionSummary{}
 	for _, d := range docs {
+		if !see(d.ID, d.Restricted) {
+			continue
+		}
 		var c ADR
 		_ = json.Unmarshal(d.Content, &c)
 		if status != "" && c.Status != status {

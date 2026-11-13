@@ -108,7 +108,7 @@ func runStore(t *testing.T, d *DB) {
 	if ps, _ := d.ListProjects(ctx, other.ID, false); len(ps) != 0 {
 		t.Fatalf("non-member sees projects: %+v", ps)
 	}
-	if err := d.SetMember(ctx, p.ID, other.ID, RoleReader); err != nil {
+	if err := d.SetMember(ctx, p.ID, other.ID, RoleReader, Time{}); err != nil {
 		t.Fatal(err)
 	}
 	if ps, _ := d.ListProjects(ctx, other.ID, false); len(ps) != 1 || ps[0].Role != RoleReader {

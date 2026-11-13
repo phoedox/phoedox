@@ -210,7 +210,7 @@ func (s *Service) SetFavorite(ctx context.Context, a Actor, ref, docRef string, 
 	if err != nil {
 		return err
 	}
-	doc, err := s.findDoc(ctx, p.ID, docRef)
+	_, doc, err := s.docAccess(ctx, a, ref, docRef, store.RoleReader)
 	if err != nil {
 		return err
 	}

@@ -63,6 +63,12 @@ func (a *api) serveFile(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
+	a.writeFile(w, r, fc, version)
+}
+
+// writeFile sends file content with the safe headers.
+func (a *api) writeFile(w http.ResponseWriter, r *http.Request, fc core.FileContent, version int) {
+	q := r.URL.Query()
 	defer fc.Reader.Close()
 	ctype := fc.Mime
 	if ctype == "" { // preview images: JPEG or PNG

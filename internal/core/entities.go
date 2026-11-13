@@ -259,25 +259,76 @@ func (s *Service) Traverse(ctx context.Context, a Actor, ref, entRef, rel, dir s
 	return s.DB.Traverse(ctx, e.ID, rel, dir, depth)
 }
 
-// Search searches one project or all visible projects.
+// Search searches one project or all visible projects. Hits the actor may
+// not see (restricted pages, files of such pages, everything but shared
+// pages for people with single-page access) are dropped.
 func (s *Service) Search(ctx context.Context, a Actor, query, ref string, limit int) ([]store.Hit, error) {
-	var ids []string
+	var ps []store.Project
 	if ref != "" {
-		p, err := s.project(ctx, a, ref, store.RoleReader)
+		p, err := s.project(ctx, a, ref, store.RoleDoc)
 		if err != nil {
 			return nil, err
 		}
-		ids = []string{p.ID}
+		ps = []store.Project{p}
 	} else {
-		ps, err := s.Projects(ctx, a)
-		if err != nil {
+		var err error
+		if ps, err = s.Projects(ctx, a); err != nil {
 			return nil, err
-		}
-		for _, p := range ps {
-			ids = append(ids, p.ID)
 		}
 	}
-	return s.DB.Search(ctx, ids, query, limit)
+	byID := map[string]store.Project{}
+	ids := make([]string, 0, len(ps))
+	for _, p := range ps {
+		byID[p.ID] = p
+		ids = append(ids, p.ID)
+	}
+	hits, err := s.DB.Search(ctx, ids, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	docRules := map[string]func(string, bool) bool{}
+	fileRules := map[string]func(store.File) bool{}
+	restricted, err := s.DB.RestrictedDocs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	out := hits[:0]
+	for _, h := range hits {
+		p := byID[h.ProjectID]
+		if p.Role == store.RoleOwner {
+			out = append(out, h)
+			continue
+		}
+		switch h.Type {
+		case "document":
+			see, ok := docRules[p.ID]
+			if !ok {
+				if see, err = s.docFilter(ctx, a, p); err != nil {
+					return nil, err
+				}
+				docRules[p.ID] = see
+			}
+			if see(h.ID, restricted[h.ID]) {
+				out = append(out, h)
+			}
+		case "file":
+			allowed, ok := fileRules[p.ID]
+			if !ok {
+				if allowed, err = s.fileRule(ctx, a, p); err != nil {
+					return nil, err
+				}
+				fileRules[p.ID] = allowed
+			}
+			if f, err := s.DB.GetFile(ctx, h.ID); err == nil && allowed(f) {
+				out = append(out, h)
+			}
+		default:
+			if rank[p.Role] >= rank[store.RoleReader] {
+				out = append(out, h)
+			}
+		}
+	}
+	return out, nil
 }
 
 // Graph is the whole knowledge graph of a project.
