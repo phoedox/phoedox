@@ -153,7 +153,7 @@ func (s *Service) Projects(ctx context.Context, a Actor) ([]store.Project, error
 	if err != nil {
 		return nil, err
 	}
-	out := ps[:0]
+	out := make([]store.Project, 0, len(ps))
 	for _, p := range ps {
 		if !s.visible(a, p) || (a.Via == "mcp" && p.OrgID != "" && !p.OrgAI) {
 			continue

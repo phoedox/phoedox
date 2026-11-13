@@ -25,7 +25,7 @@ func (d *DB) CreateOAuthClient(ctx context.Context, c OAuthClient) (OAuthClient,
 		secret = c.SecretHash
 	}
 	_, err := d.Exec(ctx, `INSERT INTO oauth_clients (id, tenant_id, name, client_uri, redirect_uris, secret_hash, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		c.ID, DefaultTenant, c.Name, c.ClientURI, string(uris), secret, c.CreatedAt)
+		c.ID, TenantOf(ctx), c.Name, c.ClientURI, string(uris), secret, c.CreatedAt)
 	return c, err
 }
 
@@ -71,7 +71,7 @@ func (d *DB) UpsertGrant(ctx context.Context, g OAuthGrant) (OAuthGrant, error) 
 		case errors.Is(err, sql.ErrNoRows):
 			g.CreatedAt = Now()
 			_, err = tx.Exec(ctx, `INSERT INTO oauth_grants (id, tenant_id, client_id, user_id, scope, resource, created_at, access, projects) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				g.ID, DefaultTenant, g.ClientID, g.UserID, g.Scope, g.Resource, g.CreatedAt, g.Access, joinIDs(g.Projects))
+				g.ID, TenantOf(ctx), g.ClientID, g.UserID, g.Scope, g.Resource, g.CreatedAt, g.Access, joinIDs(g.Projects))
 			return err
 		case err != nil:
 			return err
@@ -129,7 +129,7 @@ func (d *DB) RevokeGrant(ctx context.Context, userID, grantID string) error {
 // CreateOAuthCode stores an authorization code for a grant.
 func (d *DB) CreateOAuthCode(ctx context.Context, hash, grantID, redirectURI, challenge string, expires Time) error {
 	_, err := d.Exec(ctx, `INSERT INTO oauth_codes (id, tenant_id, grant_id, redirect_uri, code_challenge, expires_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		hash, DefaultTenant, grantID, redirectURI, challenge, expires)
+		hash, TenantOf(ctx), grantID, redirectURI, challenge, expires)
 	return err
 }
 
@@ -171,7 +171,7 @@ func (d *DB) UseOAuthCode(ctx context.Context, hash string) (OAuthCode, error) {
 
 func (d *DB) CreateOAuthToken(ctx context.Context, hash, grantID, kind string, expires Time) error {
 	_, err := d.Exec(ctx, `INSERT INTO oauth_tokens (id, tenant_id, grant_id, kind, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		hash, DefaultTenant, grantID, kind, Now(), expires)
+		hash, TenantOf(ctx), grantID, kind, Now(), expires)
 	return err
 }
 

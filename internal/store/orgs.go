@@ -46,10 +46,10 @@ func (d *DB) CreateOrg(ctx context.Context, o Org, adminID string) (Org, error) 
 	o.CreatedAt = Now()
 	err := d.InTx(ctx, func(tx *Tx) error {
 		if _, err := tx.Exec(ctx, `INSERT INTO organizations (id, tenant_id, name, slug, usage_type, ai_enabled, quota_mb, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			o.ID, DefaultTenant, o.Name, o.Slug, o.UsageType, true, 0, o.CreatedAt); err != nil {
+			o.ID, TenantOf(ctx), o.Name, o.Slug, o.UsageType, true, 0, o.CreatedAt); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO org_members (org_id, user_id, tenant_id, role, created_at) VALUES (?, ?, ?, 'admin', ?)`, o.ID, adminID, DefaultTenant, o.CreatedAt)
+		_, err := tx.Exec(ctx, `INSERT INTO org_members (org_id, user_id, tenant_id, role, created_at) VALUES (?, ?, ?, 'admin', ?)`, o.ID, adminID, TenantOf(ctx), o.CreatedAt)
 		return err
 	})
 	o.AIEnabled, o.Role = true, OrgAdmin
@@ -60,7 +60,7 @@ func (d *DB) CreateOrg(ctx context.Context, o Org, adminID string) (Org, error) 
 func (d *DB) OrgFor(ctx context.Context, ref, userID string) (Org, error) {
 	return scanOrg(d.QueryRow(ctx, `SELECT `+orgCols+`, m.role FROM organizations o
 		LEFT JOIN org_members m ON m.org_id = o.id AND m.user_id = ?
-		WHERE o.tenant_id = ? AND (o.id = ? OR o.slug = ?)`, userID, DefaultTenant, ref, ref), true)
+		WHERE o.tenant_id = ? AND (o.id = ? OR o.slug = ?)`, userID, TenantOf(ctx), ref, ref), true)
 }
 
 // ListOrgs lists the organizations of a user (all for system admins).
@@ -69,7 +69,7 @@ func (d *DB) ListOrgs(ctx context.Context, userID string, all bool) ([]Org, erro
 	if !all {
 		q += ` AND m.role IS NOT NULL`
 	}
-	rows, err := d.Query(ctx, q+` ORDER BY o.name`, userID, DefaultTenant)
+	rows, err := d.Query(ctx, q+` ORDER BY o.name`, userID, TenantOf(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (d *DB) OrgMembers(ctx context.Context, orgID string) ([]OrgMember, error) 
 // SetOrgMember adds or changes a member.
 func (d *DB) SetOrgMember(ctx context.Context, orgID, userID, role string) error {
 	_, err := d.Exec(ctx, `INSERT INTO org_members (org_id, user_id, tenant_id, role, created_at) VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT (org_id, user_id) DO UPDATE SET role = excluded.role`, orgID, userID, DefaultTenant, role, Now())
+		ON CONFLICT (org_id, user_id) DO UPDATE SET role = excluded.role`, orgID, userID, TenantOf(ctx), role, Now())
 	return err
 }
 
@@ -202,7 +202,7 @@ func (d *DB) GetGroup(ctx context.Context, id string) (Group, error) {
 // SaveGroup creates or updates a group.
 func (d *DB) SaveGroup(ctx context.Context, g Group) error {
 	_, err := d.Exec(ctx, `INSERT INTO groups (id, tenant_id, org_id, name, oidc_group, created_at) VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT (id) DO UPDATE SET name = excluded.name, oidc_group = excluded.oidc_group`, g.ID, DefaultTenant, g.OrgID, g.Name, g.OIDCGroup, Now())
+		ON CONFLICT (id) DO UPDATE SET name = excluded.name, oidc_group = excluded.oidc_group`, g.ID, TenantOf(ctx), g.OrgID, g.Name, g.OIDCGroup, Now())
 	return err
 }
 
@@ -253,7 +253,7 @@ func (d *DB) SyncOIDCGroups(ctx context.Context, userID string, claims []string)
 					return err
 				}
 				if _, err := tx.Exec(ctx, `INSERT INTO org_members (org_id, user_id, tenant_id, role, created_at) VALUES (?, ?, ?, 'member', ?) ON CONFLICT (org_id, user_id) DO NOTHING`,
-					g[1], userID, DefaultTenant, Now()); err != nil {
+					g[1], userID, TenantOf(ctx), Now()); err != nil {
 					return err
 				}
 			}
@@ -336,7 +336,7 @@ func (d *DB) SetDocGrant(ctx context.Context, id, docID, userID, groupID, role s
 			return err
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO document_grants (id, tenant_id, document_id, user_id, group_id, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			id, DefaultTenant, docID, nullable(userID), nullable(groupID), role, Now())
+			id, TenantOf(ctx), docID, nullable(userID), nullable(groupID), role, Now())
 		return err
 	})
 }
@@ -439,7 +439,7 @@ func (d *DB) CreateShareLink(ctx context.Context, l ShareLink, tokenHash string)
 		exp = l.ExpiresAt
 	}
 	_, err := d.Exec(ctx, `INSERT INTO share_links (id, tenant_id, project_id, document_id, token_hash, label, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		l.ID, DefaultTenant, l.ProjectID, nullable(l.DocumentID), tokenHash, l.Label, l.CreatedBy, l.CreatedAt, exp)
+		l.ID, TenantOf(ctx), l.ProjectID, nullable(l.DocumentID), tokenHash, l.Label, l.CreatedBy, l.CreatedAt, exp)
 	return l, err
 }
 

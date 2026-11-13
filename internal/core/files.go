@@ -476,6 +476,8 @@ func (s *Service) freeBlobs(ctx context.Context, hashes []string) {
 	if s.Blobs == nil {
 		return
 	}
+	// Contents are shared across tenants: look at all of them.
+	ctx = store.System(ctx)
 	for _, h := range hashes {
 		used, err := s.DB.HashInUse(ctx, h)
 		if err != nil || used {

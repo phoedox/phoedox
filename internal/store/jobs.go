@@ -10,6 +10,7 @@ import (
 // Job is a unit of background work.
 type Job struct {
 	ID        string `json:"id"`
+	Tenant    string `json:"tenant"`
 	Kind      string `json:"kind"`
 	Payload   JSON   `json:"payload"`
 	Status    string `json:"status"`
@@ -25,7 +26,7 @@ func (d *DB) Enqueue(ctx context.Context, id, kind string, payload JSON, runAt T
 		runAt = now
 	}
 	_, err := d.Exec(ctx, `INSERT INTO jobs (id, tenant_id, kind, payload, status, attempts, run_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, 'queued', 0, ?, ?, ?)`, id, DefaultTenant, kind, payload, runAt, now, now)
+		VALUES (?, ?, ?, ?, 'queued', 0, ?, ?, ?)`, id, TenantOf(ctx), kind, payload, runAt, now, now)
 	return err
 }
 
@@ -43,8 +44,8 @@ func (d *DB) ClaimJob(ctx context.Context, lease time.Duration) (Job, error) {
 	err := d.QueryRow(ctx, `UPDATE jobs SET status = 'running', attempts = attempts + 1, locked_until = ?, updated_at = ?
 		WHERE id = (SELECT id FROM jobs WHERE (status = 'queued' AND run_at <= ?) OR (status = 'running' AND locked_until < ?)
 			ORDER BY run_at LIMIT 1`+lock+`)
-		RETURNING id, kind, payload, status, attempts, run_at, last_error`, until, now, now, now).
-		Scan(&j.ID, &j.Kind, &j.Payload, &j.Status, &j.Attempts, &j.RunAt, &j.LastError)
+		RETURNING id, tenant_id, kind, payload, status, attempts, run_at, last_error`, until, now, now, now).
+		Scan(&j.ID, &j.Tenant, &j.Kind, &j.Payload, &j.Status, &j.Attempts, &j.RunAt, &j.LastError)
 	if errors.Is(err, sql.ErrNoRows) {
 		return j, ErrNotFound
 	}

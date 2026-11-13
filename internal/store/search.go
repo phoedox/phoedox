@@ -33,8 +33,10 @@ func (d *DB) IndexPut(ctx context.Context, e IndexEntry) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM search_index WHERE ref_id = ?`, e.RefID); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO search_index (ref_id, kind, tenant_id, project_id, slug, subtype, title, body) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			e.RefID, e.Kind, DefaultTenant, e.ProjectID, e.Slug, e.Subtype, e.Title, e.Body)
+		// The tenant comes from the project: reindexing runs as system for all tenants.
+		_, err := tx.Exec(ctx, `INSERT INTO search_index (ref_id, kind, tenant_id, project_id, slug, subtype, title, body)
+			SELECT ?, ?, tenant_id, id, ?, ?, ?, ? FROM projects WHERE id = ?`,
+			e.RefID, e.Kind, e.Slug, e.Subtype, e.Title, e.Body, e.ProjectID)
 		return err
 	})
 }
@@ -128,7 +130,7 @@ func (d *DB) searchPostgres(ctx context.Context, projectIDs []string, query stri
 		args = append(args, pat, pat)
 	}
 	q := strings.ToLower(strings.Join(words, " "))
-	all := []any{tsq, q, DefaultTenant}
+	all := []any{tsq, q, TenantOf(ctx)}
 	for _, p := range projectIDs {
 		all = append(all, p)
 	}
@@ -160,7 +162,7 @@ func (d *DB) searchSQLite(ctx context.Context, projectIDs []string, words []stri
 		}
 	}
 	where := []string{`tenant_id = ?`, `project_id IN (` + placeholders(len(projectIDs)) + `)`}
-	args := []any{DefaultTenant}
+	args := []any{TenantOf(ctx)}
 	for _, p := range projectIDs {
 		args = append(args, p)
 	}

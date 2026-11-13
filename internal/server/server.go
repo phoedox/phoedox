@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/fs"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 
@@ -43,6 +44,9 @@ func New(d Deps) http.Handler {
 		r.Use(middleware.RealIP)
 	}
 	r.Use(middleware.Recoverer)
+	if d.Config.MultiTenant && d.Core != nil {
+		r.Use(tenantByHost(d.Core.DB))
+	}
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": Version})
@@ -114,5 +118,28 @@ func writeErr(w http.ResponseWriter, err error) {
 	default:
 		slog.Error("request failed", "err", err)
 		writeJSON(w, http.StatusInternalServerError, errBody("internal", "Internal error."))
+	}
+}
+
+// tenantByHost puts the tenant serving the request's host into the context
+// (hosted mode). Unknown hosts get 404 before anything else runs.
+func tenantByHost(db *store.DB) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/healthz" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			host := r.Host
+			if h, _, err := net.SplitHostPort(host); err == nil {
+				host = h
+			}
+			tenant, err := db.TenantByDomain(r.Context(), host)
+			if err != nil {
+				writeJSON(w, http.StatusNotFound, errBody("unknown_domain", "No Phoedox instance at this address."))
+				return
+			}
+			next.ServeHTTP(w, r.WithContext(store.WithTenant(r.Context(), tenant)))
+		})
 	}
 }

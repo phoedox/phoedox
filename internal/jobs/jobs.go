@@ -124,7 +124,9 @@ func (q *Queue) loop(ctx context.Context) {
 // RunOne claims and runs one due job; false if there was none.
 func (q *Queue) RunOne(ctx context.Context) bool {
 	q.defaults()
-	j, err := q.DB.ClaimJob(ctx, q.Lease)
+	// Jobs of all tenants are claimed; each runs in its own tenant.
+	sys := store.System(ctx)
+	j, err := q.DB.ClaimJob(sys, q.Lease)
 	if errors.Is(err, store.ErrNotFound) {
 		return false
 	}
@@ -141,7 +143,7 @@ func (q *Queue) RunOne(ctx context.Context) bool {
 	if h == nil {
 		jobErr = Permanent(fmt.Errorf("no handler for job kind %q", j.Kind))
 	} else {
-		jctx, cancel := context.WithTimeout(ctx, q.Lease)
+		jctx, cancel := context.WithTimeout(store.WithTenant(ctx, j.Tenant), q.Lease)
 		jobErr = safeRun(jctx, h, json.RawMessage(j.Payload))
 		cancel()
 	}
@@ -155,7 +157,7 @@ func (q *Queue) RunOne(ctx context.Context) bool {
 	if jobErr != nil {
 		slog.Warn("job failed", "kind", j.Kind, "id", j.ID, "attempt", j.Attempts, "retry", retry != nil, "err", jobErr)
 	}
-	if err := q.DB.FinishJob(context.WithoutCancel(ctx), j.ID, jobErr, retry); err != nil {
+	if err := q.DB.FinishJob(context.WithoutCancel(sys), j.ID, jobErr, retry); err != nil {
 		slog.Warn("finishing a job failed", "err", err)
 	}
 	return true

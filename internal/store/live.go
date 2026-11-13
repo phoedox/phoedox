@@ -36,7 +36,7 @@ func (d *DB) DocUpdates(ctx context.Context, documentID string) ([]DocUpdate, er
 // realtime hub assigns them per document).
 func (d *DB) AppendDocUpdate(ctx context.Context, documentID string, seq int64, data []byte) error {
 	_, err := d.Exec(ctx, `INSERT INTO doc_updates (document_id, seq, tenant_id, data, created_at) VALUES (?, ?, ?, ?, ?)`,
-		documentID, seq, DefaultTenant, data, Now())
+		documentID, seq, TenantOf(ctx), data, Now())
 	return err
 }
 
@@ -47,7 +47,7 @@ func (d *DB) CompactDocUpdates(ctx context.Context, documentID string, upto int6
 			return err
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO doc_updates (document_id, seq, tenant_id, data, created_at) VALUES (?, ?, ?, ?, ?)`,
-			documentID, upto, DefaultTenant, snapshot, Now())
+			documentID, upto, TenantOf(ctx), snapshot, Now())
 		return err
 	})
 }

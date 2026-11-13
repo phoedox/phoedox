@@ -45,7 +45,7 @@ func (d *DB) UpsertEntity(ctx context.Context, e Entity) (Entity, bool, error) {
 	case errors.Is(err, ErrNotFound):
 		e.CreatedAt, e.UpdatedAt = now, now
 		_, err = d.Exec(ctx, `INSERT INTO entities (id, tenant_id, project_id, kind, slug, name, attrs, source, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, e.ID, DefaultTenant, e.ProjectID, e.Kind, e.Slug, e.Name, e.Attrs, e.Source, now, now)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, e.ID, TenantOf(ctx), e.ProjectID, e.Kind, e.Slug, e.Name, e.Attrs, e.Source, now, now)
 		return e, true, err
 	default:
 		return e, false, err
@@ -146,7 +146,7 @@ func (d *DB) LinkEntities(ctx context.Context, e Edge) (Edge, error) {
 		return e, err
 	}
 	_, err = d.Exec(ctx, `INSERT INTO edges (id, tenant_id, from_id, rel, to_id, attrs, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		e.ID, DefaultTenant, e.From, e.Rel, e.To, e.Attrs, e.Source, Now())
+		e.ID, TenantOf(ctx), e.From, e.Rel, e.To, e.Attrs, e.Source, Now())
 	return e, err
 }
 

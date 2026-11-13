@@ -744,4 +744,5 @@ export const de = {
   "validation.org_unknown": "Die Organisation gibt es nicht oder du bist kein Mitglied.",
   "validation.share_days": "Die Gültigkeit muss zwischen 0 und 3650 Tagen liegen.",
   "settings.role.doc": "Einzelne Seiten",
+  "error.unknown_domain": "Unter dieser Adresse gibt es keine Phoedox-Instanz.",
 } as const;

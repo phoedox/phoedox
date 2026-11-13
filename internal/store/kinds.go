@@ -36,7 +36,7 @@ func (d *DB) SetProjectKind(ctx context.Context, k ProjectKind) error {
 			return err
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO project_kinds (tenant_id, project_id, kind, def, updated_by, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-			DefaultTenant, k.ProjectID, k.Kind, k.Def, k.UpdatedBy, Now())
+			TenantOf(ctx), k.ProjectID, k.Kind, k.Def, k.UpdatedBy, Now())
 		return err
 	})
 }

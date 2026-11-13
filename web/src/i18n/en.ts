@@ -746,4 +746,5 @@ export const en: Record<keyof typeof de, string> = {
   "validation.org_unknown": "The organization does not exist or you are not a member.",
   "validation.share_days": "Validity must be between 0 and 3650 days.",
   "settings.role.doc": "Single pages",
+  "error.unknown_domain": "There is no Phoedox instance at this address.",
 };

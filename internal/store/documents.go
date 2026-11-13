@@ -72,7 +72,7 @@ func (d *DB) CreateDocument(ctx context.Context, doc Document, actor string, rel
 			number = doc.Number
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO documents (id, tenant_id, project_id, doc_type, slug, title, category, position, content, version, created_by, created_at, updated_at, number)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, doc.ID, DefaultTenant, doc.ProjectID, doc.Type, doc.Slug, doc.Title, doc.Category, doc.Position, doc.Content, doc.Version, doc.CreatedBy, now, now, number); err != nil {
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, doc.ID, TenantOf(ctx), doc.ProjectID, doc.Type, doc.Slug, doc.Title, doc.Category, doc.Position, doc.Content, doc.Version, doc.CreatedBy, now, now, number); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO document_versions (document_id, version, title, content, actor, created_at) VALUES (?, ?, ?, ?, ?, ?)`,

@@ -14,7 +14,7 @@ func (d *DB) AddEvent(ctx context.Context, actor, kind, subject string, payload 
 		return err
 	}
 	_, err = d.Exec(ctx, `INSERT INTO events (tenant_id, actor, kind, subject, payload, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		DefaultTenant, actor, kind, subject, JSON(b), Now())
+		TenantOf(ctx), actor, kind, subject, JSON(b), Now())
 	return err
 }
 
@@ -34,7 +34,7 @@ type Suggestion struct {
 func (d *DB) CreateSuggestion(ctx context.Context, s Suggestion) (Suggestion, error) {
 	s.CreatedAt, s.Status = Now(), "pending"
 	_, err := d.Exec(ctx, `INSERT INTO suggestions (id, tenant_id, project_id, actor, op, summary, payload, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		s.ID, DefaultTenant, s.ProjectID, s.Actor, s.Op, s.Summary, s.Payload, s.Status, s.CreatedAt)
+		s.ID, TenantOf(ctx), s.ProjectID, s.Actor, s.Op, s.Summary, s.Payload, s.Status, s.CreatedAt)
 	return s, err
 }
 

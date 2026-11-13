@@ -32,7 +32,7 @@ func (d *DB) CreateLink(ctx context.Context, l AccountLink) (AccountLink, error)
 			return err
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO account_links (id, tenant_id, user_id, purpose, created_by, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			l.ID, DefaultTenant, l.UserID, l.Purpose, l.CreatedBy, l.CreatedAt, l.ExpiresAt)
+			l.ID, TenantOf(ctx), l.UserID, l.Purpose, l.CreatedBy, l.CreatedAt, l.ExpiresAt)
 		return err
 	})
 	return l, err

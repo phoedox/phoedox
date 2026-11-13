@@ -65,9 +65,10 @@ func main() {
 		t := time.NewTicker(6 * time.Hour)
 		defer t.Stop()
 		for {
-			a.Core.PurgeExpiredTrash(ctx, a.Config.TrashDays)
-			a.Core.CleanupUploads(ctx)
-			_, _ = a.DB.PruneJobs(ctx, store.Time{Time: time.Now().Add(-7 * 24 * time.Hour)})
+			sys := store.System(ctx) // housekeeping covers all tenants
+			a.Core.PurgeExpiredTrash(sys, a.Config.TrashDays)
+			a.Core.CleanupUploads(sys)
+			_, _ = a.DB.PruneJobs(sys, store.Time{Time: time.Now().Add(-7 * 24 * time.Hour)})
 			select {
 			case <-ctx.Done():
 				return

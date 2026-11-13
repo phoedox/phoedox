@@ -20,7 +20,7 @@ func (d *DB) SetTOTP(ctx context.Context, userID, secretEnc string) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM user_totp WHERE user_id = ?`, userID); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO user_totp (user_id, tenant_id, secret_enc, created_at) VALUES (?, ?, ?, ?)`, userID, DefaultTenant, secretEnc, Now())
+		_, err := tx.Exec(ctx, `INSERT INTO user_totp (user_id, tenant_id, secret_enc, created_at) VALUES (?, ?, ?, ?)`, userID, TenantOf(ctx), secretEnc, Now())
 		return err
 	})
 }
@@ -68,7 +68,7 @@ func (d *DB) ReplaceRecoveryCodes(ctx context.Context, userID string, hashes []s
 		}
 		now := Now()
 		for _, h := range hashes {
-			if _, err := tx.Exec(ctx, `INSERT INTO recovery_codes (code_hash, tenant_id, user_id, created_at) VALUES (?, ?, ?, ?)`, h, DefaultTenant, userID, now); err != nil {
+			if _, err := tx.Exec(ctx, `INSERT INTO recovery_codes (code_hash, tenant_id, user_id, created_at) VALUES (?, ?, ?, ?)`, h, TenantOf(ctx), userID, now); err != nil {
 				return err
 			}
 		}
@@ -101,7 +101,7 @@ type Passkey struct {
 func (d *DB) AddPasskey(ctx context.Context, p Passkey) (Passkey, error) {
 	p.CreatedAt = Now()
 	_, err := d.Exec(ctx, `INSERT INTO webauthn_credentials (id, tenant_id, user_id, name, credential, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		p.ID, DefaultTenant, p.UserID, p.Name, p.Credential, p.CreatedAt)
+		p.ID, TenantOf(ctx), p.UserID, p.Name, p.Credential, p.CreatedAt)
 	return p, err
 }
 
@@ -178,7 +178,7 @@ func (d *DB) CreateChallenge(ctx context.Context, c Challenge, expires Time) err
 	// Opportunistic cleanup keeps the table small.
 	_, _ = d.Exec(ctx, `DELETE FROM auth_challenges WHERE expires_at < ?`, Now())
 	_, err := d.Exec(ctx, `INSERT INTO auth_challenges (id, tenant_id, user_id, kind, data, expires_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		c.ID, DefaultTenant, user, c.Kind, c.Data, expires)
+		c.ID, TenantOf(ctx), user, c.Kind, c.Data, expires)
 	return err
 }
 

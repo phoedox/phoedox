@@ -50,12 +50,12 @@ func (d *DB) CreateFile(ctx context.Context, f File) (File, error) {
 	f.CreatedAt, f.Version = Now(), 1
 	err := d.InTx(ctx, func(tx *Tx) error {
 		if _, err := tx.Exec(ctx, `INSERT INTO files (id, tenant_id, project_id, sha256, name, mime, size, document_id, entity_id, created_by, created_at, version)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`, f.ID, DefaultTenant, f.ProjectID, f.SHA256, f.Name, f.Mime, f.Size,
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`, f.ID, TenantOf(ctx), f.ProjectID, f.SHA256, f.Name, f.Mime, f.Size,
 			nullable(f.DocumentID), nullable(f.EntityID), f.CreatedBy, f.CreatedAt); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO file_versions (file_id, version, tenant_id, sha256, mime, size, created_by, created_at) VALUES (?, 1, ?, ?, ?, ?, ?, ?)`,
-			f.ID, DefaultTenant, f.SHA256, f.Mime, f.Size, f.CreatedBy, f.CreatedAt)
+			f.ID, TenantOf(ctx), f.SHA256, f.Mime, f.Size, f.CreatedBy, f.CreatedAt)
 		return err
 	})
 	return f, err
@@ -80,7 +80,7 @@ func (d *DB) AddFileVersion(ctx context.Context, fileID string, v FileVersion) (
 			return err
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO file_versions (file_id, version, tenant_id, sha256, mime, size, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			fileID, v.Version, DefaultTenant, v.SHA256, v.Mime, v.Size, v.CreatedBy, v.CreatedAt); err != nil {
+			fileID, v.Version, TenantOf(ctx), v.SHA256, v.Mime, v.Size, v.CreatedBy, v.CreatedAt); err != nil {
 			return err
 		}
 		res, err := tx.Exec(ctx, `UPDATE files SET sha256 = ?, mime = ?, size = ?, version = ?, thumb_sha256 = '', text_status = '' WHERE id = ? AND deleted_at IS NULL`,
@@ -280,7 +280,7 @@ type Upload struct {
 // CreateUpload starts a resumable upload.
 func (d *DB) CreateUpload(ctx context.Context, u Upload) error {
 	_, err := d.Exec(ctx, `INSERT INTO uploads (id, tenant_id, project_id, user_id, length, received, meta, created_at, expires_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`,
-		u.ID, DefaultTenant, u.ProjectID, u.UserID, u.Length, u.Meta, Now(), u.ExpiresAt)
+		u.ID, TenantOf(ctx), u.ProjectID, u.UserID, u.Length, u.Meta, Now(), u.ExpiresAt)
 	return err
 }
 

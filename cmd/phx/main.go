@@ -29,6 +29,10 @@ Admin commands (run on the server, same environment as phoedox):
   phx admin reset-2fa --email E                    Remove TOTP, recovery codes and passkeys
   phx admin create-token --email E [--name N]     Personal API token (REST, MCP)
   phx admin reindex                                Rebuild the search index
+  phx admin create-tenant --id ID --name N --domain D   Hosted mode: new customer (domain may repeat)
+  phx admin tenants                                List tenants and domains
+
+In the hosted mode (PHOEDOX_MULTI_TENANT=true) add --tenant ID to user commands.
 
 Other:
   phx version`
@@ -64,10 +68,14 @@ func admin(args []string) error {
 	name := fs.String("name", "", "display name or token name")
 	password := fs.String("password", "", "password (asked interactively if empty)")
 	isAdmin := fs.Bool("admin", false, "make the user a system admin")
+	tenant := fs.String("tenant", store.DefaultTenant, "tenant (hosted mode)")
+	tenantID := fs.String("id", "", "tenant id (create-tenant)")
+	var domains multi
+	fs.Var(&domains, "domain", "domain of the tenant (repeatable)")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
-	if *email == "" && args[0] != "reindex" {
+	if *email == "" && args[0] != "reindex" && args[0] != "create-tenant" && args[0] != "tenants" {
 		return errors.New("--email is required")
 	}
 	ctx := context.Background()
@@ -76,8 +84,30 @@ func admin(args []string) error {
 		return err
 	}
 	defer a.DB.Close()
+	ctx = store.WithTenant(ctx, *tenant)
+	if args[0] == "reindex" {
+		ctx = store.System(ctx)
+	}
 
 	switch args[0] {
+	case "create-tenant":
+		if *tenantID == "" || *name == "" || len(domains) == 0 {
+			return errors.New("--id, --name and at least one --domain are required")
+		}
+		if err := a.DB.CreateTenant(ctx, store.Tenant{ID: *tenantID, Name: *name, Domains: domains}); err != nil {
+			return err
+		}
+		fmt.Printf("Tenant %s created for %s. Create its first admin with: phx admin create-user --tenant %s --admin --email …\n", *tenantID, strings.Join(domains, ", "), *tenantID)
+		return nil
+	case "tenants":
+		ts, err := a.DB.Tenants(ctx)
+		if err != nil {
+			return err
+		}
+		for _, t := range ts {
+			fmt.Printf("%-20s %-30s %s\n", t.ID, t.Name, strings.Join(t.Domains, ", "))
+		}
+		return nil
 	case "create-user":
 		if *name == "" {
 			*name = strings.Split(*email, "@")[0]
@@ -178,3 +208,9 @@ func passwordOr(p string) (string, error) {
 	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	return strings.TrimSpace(line), err
 }
+
+// multi collects a repeated string flag.
+type multi []string
+
+func (m *multi) String() string     { return strings.Join(*m, ",") }
+func (m *multi) Set(v string) error { *m = append(*m, v); return nil }

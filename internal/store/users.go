@@ -42,13 +42,13 @@ func (d *DB) CreateUser(ctx context.Context, u User) (User, error) {
 	u.Email = strings.ToLower(strings.TrimSpace(u.Email))
 	u.HasPassword = u.PasswordHash != ""
 	_, err := d.Exec(ctx, `INSERT INTO users (id, tenant_id, email, name, is_admin, password_hash, created_at, locale) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, DefaultTenant, u.Email, u.Name, u.IsAdmin, u.PasswordHash, u.CreatedAt, u.Locale)
+		u.ID, TenantOf(ctx), u.Email, u.Name, u.IsAdmin, u.PasswordHash, u.CreatedAt, u.Locale)
 	return u, err
 }
 
 // UserByEmail returns an active (not disabled) user.
 func (d *DB) UserByEmail(ctx context.Context, email string) (User, error) {
-	return scanUser(d.QueryRow(ctx, `SELECT `+userCols+` FROM users WHERE tenant_id = ? AND email = ? AND disabled_at IS NULL`, DefaultTenant, strings.ToLower(strings.TrimSpace(email))))
+	return scanUser(d.QueryRow(ctx, `SELECT `+userCols+` FROM users WHERE tenant_id = ? AND email = ? AND disabled_at IS NULL`, TenantOf(ctx), strings.ToLower(strings.TrimSpace(email))))
 }
 
 // UserByID returns a user, also a disabled one.
@@ -58,7 +58,7 @@ func (d *DB) UserByID(ctx context.Context, id string) (User, error) {
 
 // ListUsers returns all users of the instance, ordered by name.
 func (d *DB) ListUsers(ctx context.Context) ([]User, error) {
-	rows, err := d.Query(ctx, `SELECT `+userCols+` FROM users WHERE tenant_id = ? ORDER BY lower(name), email`, DefaultTenant)
+	rows, err := d.Query(ctx, `SELECT `+userCols+` FROM users WHERE tenant_id = ? ORDER BY lower(name), email`, TenantOf(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (d *DB) UpdateUser(ctx context.Context, u User) error {
 // CountActiveAdmins counts system admins that are not disabled.
 func (d *DB) CountActiveAdmins(ctx context.Context) (int, error) {
 	var n int
-	err := d.QueryRow(ctx, `SELECT count(*) FROM users WHERE tenant_id = ? AND is_admin = ? AND disabled_at IS NULL`, DefaultTenant, true).Scan(&n)
+	err := d.QueryRow(ctx, `SELECT count(*) FROM users WHERE tenant_id = ? AND is_admin = ? AND disabled_at IS NULL`, TenantOf(ctx), true).Scan(&n)
 	return n, err
 }
 
@@ -266,11 +266,11 @@ func (d *DB) UserByIdentity(ctx context.Context, provider, subject string) (User
 func (d *DB) LinkIdentity(ctx context.Context, provider, subject, userID, email string) error {
 	now := Now()
 	_, err := d.Exec(ctx, `INSERT INTO user_identities (provider, subject, tenant_id, user_id, email, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		provider, subject, DefaultTenant, userID, email, now, now)
+		provider, subject, TenantOf(ctx), userID, email, now, now)
 	return err
 }
 
 // UserByEmailAny returns a user by email, also a disabled one.
 func (d *DB) UserByEmailAny(ctx context.Context, email string) (User, error) {
-	return scanUser(d.QueryRow(ctx, `SELECT `+userCols+` FROM users WHERE tenant_id = ? AND email = ?`, DefaultTenant, strings.ToLower(strings.TrimSpace(email))))
+	return scanUser(d.QueryRow(ctx, `SELECT `+userCols+` FROM users WHERE tenant_id = ? AND email = ?`, TenantOf(ctx), strings.ToLower(strings.TrimSpace(email))))
 }

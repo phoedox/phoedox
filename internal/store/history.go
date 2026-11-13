@@ -222,7 +222,7 @@ func (d *DB) AddFavorite(ctx context.Context, id, projectID, documentID, userID 
 			user = userID
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO favorites (id, tenant_id, project_id, document_id, user_id, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			id, DefaultTenant, projectID, documentID, user, pos, Now())
+			id, TenantOf(ctx), projectID, documentID, user, pos, Now())
 		return err
 	})
 }

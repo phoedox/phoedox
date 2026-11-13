@@ -10,7 +10,7 @@ import (
 // Setting returns an instance setting or def if unset.
 func (d *DB) Setting(ctx context.Context, key, def string) (string, error) {
 	var v string
-	err := d.QueryRow(ctx, `SELECT value FROM instance_settings WHERE tenant_id = ? AND key = ?`, DefaultTenant, key).Scan(&v)
+	err := d.QueryRow(ctx, `SELECT value FROM instance_settings WHERE tenant_id = ? AND key = ?`, TenantOf(ctx), key).Scan(&v)
 	if errors.Is(err, sql.ErrNoRows) {
 		return def, nil
 	}
@@ -20,10 +20,10 @@ func (d *DB) Setting(ctx context.Context, key, def string) (string, error) {
 // SetSetting stores an instance setting.
 func (d *DB) SetSetting(ctx context.Context, key, value, by string) error {
 	return d.InTx(ctx, func(tx *Tx) error {
-		if _, err := tx.Exec(ctx, `DELETE FROM instance_settings WHERE tenant_id = ? AND key = ?`, DefaultTenant, key); err != nil {
+		if _, err := tx.Exec(ctx, `DELETE FROM instance_settings WHERE tenant_id = ? AND key = ?`, TenantOf(ctx), key); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO instance_settings (tenant_id, key, value, updated_by, updated_at) VALUES (?, ?, ?, ?, ?)`, DefaultTenant, key, value, by, Now())
+		_, err := tx.Exec(ctx, `INSERT INTO instance_settings (tenant_id, key, value, updated_by, updated_at) VALUES (?, ?, ?, ?, ?)`, TenantOf(ctx), key, value, by, Now())
 		return err
 	})
 }

@@ -43,9 +43,21 @@ func Open(ctx context.Context) (*App, error) {
 	} else if err := os.MkdirAll(filepath.Dir(cfg.DBURL), 0o750); err != nil {
 		return nil, fmt.Errorf("create data dir: %w", err)
 	}
-	db, err := store.Open(ctx, dialect, cfg.DBURL)
+	var opts []store.Option
+	if cfg.MultiTenant {
+		opts = append(opts, store.WithMultiTenant())
+	}
+	db, err := store.Open(ctx, dialect, cfg.DBURL, opts...)
 	if err != nil {
 		return nil, err
+	}
+	if cfg.MultiTenant {
+		// Row-level security is the second line of defence; a superuser
+		// would silently skip it.
+		if bypass, err := db.RLSBypassed(ctx); err != nil || bypass {
+			db.Close()
+			return nil, fmt.Errorf("PHOEDOX_MULTI_TENANT: the database user must not be a superuser or have BYPASSRLS (row-level security would be skipped)")
+		}
 	}
 	var sender mail.Sender = mail.Disabled{}
 	if cfg.SMTP.Host != "" {
@@ -81,7 +93,7 @@ func Open(ctx context.Context) (*App, error) {
 	}
 	queue := &jobs.Queue{DB: db, Workers: cfg.Workers}
 	svc.RegisterJobs(queue)
-	if err := svc.EnsureSearchIndex(ctx); err != nil {
+	if err := svc.EnsureSearchIndex(store.System(ctx)); err != nil {
 		slog.Warn("building the search index failed", "err", err)
 	}
 	return &App{Config: cfg, DB: db, Core: svc, Auth: a, Jobs: queue}, nil

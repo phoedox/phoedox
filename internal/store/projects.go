@@ -86,7 +86,7 @@ func (d *DB) CreateProject(ctx context.Context, p Project) (Project, error) {
 	p.CreatedAt = Now()
 	err := d.InTx(ctx, func(tx *Tx) error {
 		if _, err := tx.Exec(ctx, `INSERT INTO projects (id, tenant_id, owner_id, org_id, slug, name, short, description, primary_color, ai_write_mode, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, p.ID, DefaultTenant, p.OwnerID, nullable(p.OrgID), p.Slug, p.Name, p.Short, p.Description, p.PrimaryColor, p.AIWriteMode, p.CreatedAt); err != nil {
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, p.ID, TenantOf(ctx), p.OwnerID, nullable(p.OrgID), p.Slug, p.Name, p.Short, p.Description, p.PrimaryColor, p.AIWriteMode, p.CreatedAt); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO project_members (project_id, user_id, role, can_control) VALUES (?, ?, ?, ?)`, p.ID, p.OwnerID, RoleOwner, true)
@@ -99,14 +99,14 @@ func (d *DB) CreateProject(ctx context.Context, p Project) (Project, error) {
 // ProjectFor returns a project by id or slug together with the user's
 // effective role (empty if the user has no access).
 func (d *DB) ProjectFor(ctx context.Context, ref, userID string) (Project, error) {
-	args := append(rankArgs(userID), DefaultTenant, ref, ref)
+	args := append(rankArgs(userID), TenantOf(ctx), ref, ref)
 	return scanProject(d.QueryRow(ctx, `SELECT `+projectCols+`, `+d.rankExpr()+projectFrom+`
 		WHERE p.tenant_id = ? AND (p.id = ? OR p.slug = ?) AND p.deleted_at IS NULL`, args...), true)
 }
 
 // ListProjects returns the projects a user can see (all for admins).
 func (d *DB) ListProjects(ctx context.Context, userID string, all bool) ([]Project, error) {
-	args := append(rankArgs(userID), DefaultTenant)
+	args := append(rankArgs(userID), TenantOf(ctx))
 	query := `SELECT ` + projectCols + `, ` + d.rankExpr() + projectFrom + ` WHERE p.tenant_id = ? AND p.deleted_at IS NULL`
 	if !all {
 		query += ` AND ` + d.rankExpr() + ` > 0`

@@ -80,6 +80,7 @@ make build && ./bin/phoedox
 | `PHOEDOX_MAX_UPLOAD_MB` | `100` | Größte Datei pro Upload (größere Dateien laden fortsetzbar per tus hoch) |
 | `PHOEDOX_CLAMAV` | – | clamd-Adresse für den Virenscan, z. B. `clamav:3310` oder `unix:/run/clamav/clamd.ctl`; ohne Antwort werden Uploads abgelehnt |
 | `PHOEDOX_OCR`, `PHOEDOX_OCR_LANGS` | `true`, `deu+eng` | Texterkennung in Bildern und Scans, wenn tesseract installiert ist |
+| `PHOEDOX_MULTI_TENANT` | `false` | Gehosteter Modus: mehrere Kunden (Mandanten) in einer Postgres-Datenbank, getrennt per Row-Level-Security; Mandant aus der Domain (`phx admin create-tenant`). Der DB-Nutzer darf kein Superuser sein. |
 | `PHOEDOX_WORKERS` | `2` | Parallele Hintergrund-Jobs (Vorschauen, Text); `0` = keine in diesem Prozess |
 | `PHOEDOX_S3_ENDPOINT`, `_BUCKET`, `_REGION`, `_ACCESS_KEY`, `_SECRET_KEY`, `_PREFIX` | – | Dateien in einem S3-kompatiblen Bucket statt unter `<data>/files` |
 | `PHOEDOX_PROMPTS_DIR` | – | Ordner mit eigenen KI-Prompts, siehe [`resources/prompts`](resources/prompts) |
