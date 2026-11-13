@@ -282,6 +282,6 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 | `phoedox.com` | Webseite (Produkt). Bis sie steht, leitet das Helm-Chart dauerhaft auf `app.phoedox.com` weiter (`ingress.redirectFrom`). |
 | `app.phoedox.com` | Die Phoedox-Instanz (gehostet, später Mandantenmodus) |
 | `docs.phoedox.com` | Produkt-Doku als Phoedox-Veröffentlichung aus `app.phoedox.com` (T5e) |
-| Plugin-Store | eigener Dienst `phoedox-store`; Name der Subdomain siehe unten |
+| `store.phoedox.com` | Plugin-Store (eigener Dienst `phoedox-store`, Standard für `PHOEDOX_STORE_URL`) |
 
 Passkeys sind an die Domain gebunden (WebAuthn-RP-ID = Host): Nach einem Domainwechsel müssen sie neu registriert werden; Passwort und TOTP gelten weiter. Sitzungen enden (Cookies gehören zum Host).
