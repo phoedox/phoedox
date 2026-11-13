@@ -19,9 +19,6 @@ jobs:
       - name: Format
         run: test -z "$(gofmt -l .)"
       - run: go vet ./...
-      - name: Postgres schema applies
-        run: |
-          sed -n '/+goose Up/,/+goose Down/p' db/migrations/postgres/*.sql | PGPASSWORD=phoedox psql -h localhost -U phoedox -d phoedox -v ON_ERROR_STOP=1
       # -p 1: tests of several packages migrate the same Postgres database
       - run: go test -race -p 1 ./...
         env: { PHOEDOX_TEST_PG: "postgres://phoedox:phoedox@localhost:5432/phoedox?sslmode=disable" }
