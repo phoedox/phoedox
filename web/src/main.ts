@@ -1,1 +1,2 @@
-import "./components/app-shell";
+import "urlpattern-polyfill";
+import "./components/app";

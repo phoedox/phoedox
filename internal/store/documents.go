@@ -101,9 +101,10 @@ type DocFilter struct {
 	Category string
 }
 
-// ListDocuments returns documents without content, ordered for the sidebar.
+// ListDocuments returns documents ordered for the sidebar. Content is only
+// included for link documents (the sidebar needs their URL).
 func (d *DB) ListDocuments(ctx context.Context, projectID string, f DocFilter) ([]Document, error) {
-	query := `SELECT ` + docCols + ` FROM documents WHERE project_id = ? AND deleted_at IS NULL`
+	query := `SELECT ` + docCols + `, CASE WHEN doc_type = 'link' THEN content ELSE NULL END FROM documents WHERE project_id = ? AND deleted_at IS NULL`
 	args := []any{projectID}
 	if f.Type != "" {
 		query += ` AND doc_type = ?`
@@ -120,9 +121,12 @@ func (d *DB) ListDocuments(ctx context.Context, projectID string, f DocFilter) (
 	defer rows.Close()
 	var out []Document
 	for rows.Next() {
-		doc, err := scanDoc(rows, false)
+		doc, err := scanDoc(rows, true)
 		if err != nil {
 			return nil, err
+		}
+		if string(doc.Content) == "null" {
+			doc.Content = nil
 		}
 		out = append(out, doc)
 	}

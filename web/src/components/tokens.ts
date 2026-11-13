@@ -1,0 +1,81 @@
+import { LitElement, css, html } from "lit";
+import { ApiError, api, type Token } from "../api";
+import { formatDate, t } from "../i18n";
+import { icon } from "../icon";
+import { base } from "./shared";
+import { toast } from "./toasts";
+
+export class PhxTokens extends LitElement {
+  static properties = { tokens: { state: true }, secret: { state: true }, copied: { state: true } };
+  static styles = [base, css`
+    :host { display: block; max-width: 760px; margin: 0 auto; padding: 28px 16px; }
+    form { display: flex; gap: 8px; margin: 16px 0; flex-wrap: wrap; } form input { flex: 1; min-width: 200px; }
+    /* Shown once, rarely: a gentle reveal draws the eye to the secret. */
+    .secret { display: flex; flex-direction: column; gap: 8px; border-color: var(--accent);
+      transition: opacity var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
+      @starting-style { opacity: 0; transform: translateY(-4px); } }
+    @media (prefers-reduced-motion: reduce) { .secret { transition: opacity var(--dur) ease; @starting-style { opacity: 0; transform: none; } } }
+    code { font-family: var(--font-mono); font-size: 13px; word-break: break-all; background: var(--surface2); padding: 8px 10px; border-radius: 6px; display: block; user-select: all; }
+    ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    li { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+    pre { background: var(--surface2); padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; }
+  `];
+  tokens: Token[] = [];
+  secret = "";
+  copied = false;
+
+  async connectedCallback() {
+    super.connectedCallback();
+    await this.load();
+  }
+
+  private async load() {
+    this.tokens = (await api<Token[]>("GET", "/tokens").catch(() => [])) ?? [];
+  }
+
+  private async create(e: SubmitEvent) {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    try {
+      const res = await api<{ secret: string }>("POST", "/tokens", { name: new FormData(form).get("name") });
+      this.secret = res.secret;
+      this.copied = false;
+      form.reset();
+      await this.load();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+    }
+  }
+
+  private async copy() {
+    try {
+      await navigator.clipboard.writeText(this.secret);
+      this.copied = true;
+    } catch {
+      this.copied = false;
+    }
+  }
+
+  private async revoke(id: string) {
+    await api("DELETE", `/tokens/${id}`).catch((err) => toast(err instanceof ApiError ? err.text : t("error.unknown"), "error"));
+    await this.load();
+  }
+
+  render() {
+    const mcpUrl = `${location.origin}/mcp`;
+    return html`<div class="enter">
+      <h1>${t("tokens.title")}</h1>
+      <p class="muted">${t("tokens.intro")}</p>
+      <form @submit=${this.create}><input name="name" required placeholder=${t("tokens.name")} /><button type="submit">${icon("KeyRound", 14)} ${t("tokens.create")}</button></form>
+      ${this.secret ? html`<div class="card secret" role="status"><b>${t("tokens.secret")}</b><code>${this.secret}</code>
+        <div><button class="ghost" @click=${this.copy}>${icon(this.copied ? "Check" : "Copy", 14)} ${this.copied ? t("tokens.copied") : t("tokens.copy")}</button></div></div>` : ""}
+      ${this.tokens.length === 0 ? html`<p class="muted">${t("tokens.empty")}</p>` : html`<ul>${this.tokens.map((tk) => html`<li class="card">
+        <span><b>${tk.name}</b> <span class="mono muted">${tk.prefix}…</span><br /><span class="muted" style="font-size:13px">${tk.lastUsedAt ? t("tokens.last_used", { date: formatDate(tk.lastUsedAt) }) : t("tokens.never_used")}</span></span>
+        <button class="danger" @click=${() => this.revoke(tk.id)}>${t("tokens.revoke")}</button></li>`)}</ul>`}
+      <h2 style="font-size:18px;margin:24px 0 6px">${t("tokens.mcp_title")}</h2>
+      <p class="muted">${t("tokens.mcp_text")}</p>
+      <pre>${JSON.stringify({ mcpServers: { phoedox: { type: "http", url: mcpUrl, headers: { Authorization: "Bearer phx_…" } } } }, null, 2)}</pre>
+    </div>`;
+  }
+}
+customElements.define("phx-tokens", PhxTokens);

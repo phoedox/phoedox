@@ -23,3 +23,20 @@
   color-scheme: dark;
 }
 html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); }
+
+/* Motion tokens (see CLAUDE.md: transform/opacity only, ease-out, < 300ms). */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --dur-press: 120ms;
+  --dur-fast: 150ms;
+  --dur: 200ms;
+  --dur-enter: 280ms;
+}
+
+/* Project colour override (set by applyProjectColor). */
+[data-pc] { --accent: var(--pl); --accent-soft: color-mix(in srgb, var(--pl) 14%, var(--surface)); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) [data-pc] { --accent: var(--pd); --accent-soft: color-mix(in srgb, var(--pd) 20%, var(--surface)); }
+}
+:root[data-theme="dark"] [data-pc] { --accent: var(--pd); --accent-soft: color-mix(in srgb, var(--pd) 20%, var(--surface)); }
