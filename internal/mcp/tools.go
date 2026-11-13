@@ -83,11 +83,12 @@ type runRequestIn struct {
 }
 
 type createProjectIn struct {
-	Name         string `json:"name"`
-	Slug         string `json:"slug,omitempty" jsonschema:"optional, derived from name"`
-	Description  string `json:"description,omitempty"`
-	PrimaryColor string `json:"primary_color,omitempty" jsonschema:"hex color like #F26A1B"`
-	AIWriteMode  string `json:"ai_write_mode,omitempty" jsonschema:"suggest (default) or direct"`
+	Name         string   `json:"name"`
+	Slug         string   `json:"slug,omitempty" jsonschema:"optional, derived from name"`
+	Description  string   `json:"description,omitempty"`
+	PrimaryColor string   `json:"primary_color,omitempty" jsonschema:"hex color like #F26A1B"`
+	AIWriteMode  string   `json:"ai_write_mode,omitempty" jsonschema:"suggest (default) or direct"`
+	Features     []string `json:"features,omitempty" jsonschema:"optional tabs to switch on: decisions, graph, model, files (default none; pages and boards always exist)"`
 }
 
 type updateProjectIn struct {
@@ -98,6 +99,7 @@ type updateProjectIn struct {
 	AIWriteMode  *string   `json:"ai_write_mode,omitempty" jsonschema:"suggest or direct (owner only)"`
 	MainLocale   *string   `json:"main_locale,omitempty" jsonschema:"main language of the content, e.g. en (makes the project multilingual)"`
 	Locales      *[]string `json:"locales,omitempty" jsonschema:"further languages with translations, e.g. [de]"`
+	Features     *[]string `json:"features,omitempty" jsonschema:"optional tabs shown in the web app: decisions, graph, model, files (the full list replaces the old one)"`
 }
 
 type listDocsIn struct {
@@ -328,9 +330,9 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		return ov, nil
 	})
 	tool(s, "create_project", "Create a new project. You become its owner.", func(ctx context.Context, a core.Actor, in createProjectIn) (any, error) {
-		return svc.CreateProject(ctx, a, core.ProjectInput{Name: in.Name, Slug: in.Slug, Description: in.Description, PrimaryColor: in.PrimaryColor, AIWriteMode: in.AIWriteMode})
+		return svc.CreateProject(ctx, a, core.ProjectInput{Name: in.Name, Slug: in.Slug, Description: in.Description, PrimaryColor: in.PrimaryColor, AIWriteMode: in.AIWriteMode, Features: &in.Features})
 	})
-	tool(s, "update_project_settings", "Change name, description, color, AI write mode or languages of a project (owner only).", func(ctx context.Context, a core.Actor, in updateProjectIn) (any, error) {
+	tool(s, "update_project_settings", "Change name, description, color, AI write mode, languages or optional tabs (features) of a project (owner only).", func(ctx context.Context, a core.Actor, in updateProjectIn) (any, error) {
 		p, err := svc.Project(ctx, a, in.Project)
 		if err != nil {
 			return nil, err
@@ -340,7 +342,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		setIf(&upd.Description, in.Description)
 		setIf(&upd.PrimaryColor, in.PrimaryColor)
 		setIf(&upd.AIWriteMode, in.AIWriteMode)
-		upd.MainLocale, upd.Locales = in.MainLocale, in.Locales
+		upd.MainLocale, upd.Locales, upd.Features = in.MainLocale, in.Locales, in.Features
 		return svc.UpdateProject(ctx, a, p.Slug, upd)
 	})
 	tool(s, "list_documents", "List documents of a project (without content), optionally filtered by type or category.", func(ctx context.Context, a core.Actor, in listDocsIn) (any, error) {

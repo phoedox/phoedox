@@ -1120,4 +1120,13 @@ export const de = {
   "callout.caution": "Vorsicht",
   "callout.callout": "Eigene",
   "editor.slash_hint": "Tippe „/“ für Bausteine wie Tabelle, Hinweisbox, Formel, Einbettung oder Datum.",
+  "settings.features": "Reiter",
+  "settings.features_hint": "Seiten und Boards gibt es immer. Diese Bereiche erscheinen in der Seitenleiste erst, wenn du sie einschaltest; Inhalte bleiben beim Ausschalten erhalten.",
+  "feature.decisions": "Entscheidungen",
+  "feature.graph": "Wissensnetz",
+  "feature.model": "Datenmodell",
+  "feature.files": "Dateien",
+  "feature.off": "Dieser Bereich ist in diesem Projekt ausgeschaltet.",
+  "feature.enable": "In den Projekteinstellungen einschalten",
+  "validation.feature": "„{feature}“ ist kein bekannter Bereich.",
 } as const;

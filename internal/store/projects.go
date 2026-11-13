@@ -32,6 +32,8 @@ type Project struct {
 	// Locales are the further languages with translations (ADR-0028).
 	MainLocale string   `json:"mainLocale"`
 	Locales    []string `json:"locales"`
+	// Features are the optional tabs switched on (ADR-0032): decisions, graph, model, files.
+	Features []string `json:"features"`
 	// OrgAI is false when the organization switched off AI access.
 	OrgAI bool `json:"-"`
 	// Role of the requesting user: owner, editor, reader, or "doc" when only
@@ -42,7 +44,7 @@ type Project struct {
 // RoleDoc means access to single shared documents only.
 const RoleDoc = "doc"
 
-const projectCols = `p.id, p.slug, p.name, p.short, p.description, p.primary_color, p.ai_write_mode, p.owner_id, p.created_at, p.main_locale, p.locales,
+const projectCols = `p.id, p.slug, p.name, p.short, p.description, p.primary_color, p.ai_write_mode, p.owner_id, p.created_at, p.main_locale, p.locales, p.features,
 	COALESCE(p.org_id, ''), COALESCE(o.name, ''), COALESCE(o.ai_enabled, ` + "true" + `)`
 
 const projectFrom = ` FROM projects p LEFT JOIN organizations o ON o.id = p.org_id`
@@ -73,8 +75,8 @@ func rankArgs(userID string) []any { return []any{userID, Now(), userID, userID,
 
 func scanProject(r interface{ Scan(...any) error }, withRole bool) (Project, error) {
 	var p Project
-	var locales string
-	dest := []any{&p.ID, &p.Slug, &p.Name, &p.Short, &p.Description, &p.PrimaryColor, &p.AIWriteMode, &p.OwnerID, &p.CreatedAt, &p.MainLocale, &locales, &p.OrgID, &p.OrgName, &p.OrgAI}
+	var locales, features string
+	dest := []any{&p.ID, &p.Slug, &p.Name, &p.Short, &p.Description, &p.PrimaryColor, &p.AIWriteMode, &p.OwnerID, &p.CreatedAt, &p.MainLocale, &locales, &features, &p.OrgID, &p.OrgName, &p.OrgAI}
 	var rank int
 	if withRole {
 		dest = append(dest, &rank)
@@ -84,19 +86,23 @@ func scanProject(r interface{ Scan(...any) error }, withRole bool) (Project, err
 		return p, ErrNotFound
 	}
 	p.Role = rankRoles[rank]
-	p.Locales = []string{}
-	if locales != "" {
-		p.Locales = strings.Split(locales, ",")
-	}
+	p.Locales, p.Features = splitList(locales), splitList(features)
 	return p, err
+}
+
+func splitList(s string) []string {
+	if s == "" {
+		return []string{}
+	}
+	return strings.Split(s, ",")
 }
 
 // CreateProject inserts the project and makes the owner a member.
 func (d *DB) CreateProject(ctx context.Context, p Project) (Project, error) {
 	p.CreatedAt = Now()
 	err := d.InTx(ctx, func(tx *Tx) error {
-		if _, err := tx.Exec(ctx, `INSERT INTO projects (id, tenant_id, owner_id, org_id, slug, name, short, description, primary_color, ai_write_mode, created_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, p.ID, TenantOf(ctx), p.OwnerID, nullable(p.OrgID), p.Slug, p.Name, p.Short, p.Description, p.PrimaryColor, p.AIWriteMode, p.CreatedAt); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO projects (id, tenant_id, owner_id, org_id, slug, name, short, description, primary_color, ai_write_mode, created_at, features)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, p.ID, TenantOf(ctx), p.OwnerID, nullable(p.OrgID), p.Slug, p.Name, p.Short, p.Description, p.PrimaryColor, p.AIWriteMode, p.CreatedAt, strings.Join(p.Features, ",")); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO project_members (project_id, user_id, role, can_control) VALUES (?, ?, ?, ?)`, p.ID, p.OwnerID, RoleOwner, true)
@@ -140,8 +146,8 @@ func (d *DB) ListProjects(ctx context.Context, userID string, all bool) ([]Proje
 
 // UpdateProject updates the editable fields.
 func (d *DB) UpdateProject(ctx context.Context, p Project) error {
-	res, err := d.Exec(ctx, `UPDATE projects SET name = ?, short = ?, description = ?, primary_color = ?, ai_write_mode = ?, org_id = ?, main_locale = ?, locales = ? WHERE id = ?`,
-		p.Name, p.Short, p.Description, p.PrimaryColor, p.AIWriteMode, nullable(p.OrgID), p.MainLocale, strings.Join(p.Locales, ","), p.ID)
+	res, err := d.Exec(ctx, `UPDATE projects SET name = ?, short = ?, description = ?, primary_color = ?, ai_write_mode = ?, org_id = ?, main_locale = ?, locales = ?, features = ? WHERE id = ?`,
+		p.Name, p.Short, p.Description, p.PrimaryColor, p.AIWriteMode, nullable(p.OrgID), p.MainLocale, strings.Join(p.Locales, ","), strings.Join(p.Features, ","), p.ID)
 	return affected(res, err)
 }
 

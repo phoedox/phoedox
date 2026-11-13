@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -25,6 +26,26 @@ type ProjectInput struct {
 	// MainLocale and Locales make the project multilingual (ADR-0028); nil = unchanged.
 	MainLocale *string   `json:"mainLocale,omitempty"`
 	Locales    *[]string `json:"locales,omitempty"`
+	// Features switches optional tabs on (ADR-0032); nil = unchanged (none for new projects).
+	Features *[]string `json:"features,omitempty"`
+}
+
+// Features are the optional tabs of a project.
+var Features = []string{"decisions", "graph", "model", "files"}
+
+func normalizeFeatures(in []string) ([]string, error) {
+	out := []string{}
+	for _, f := range Features {
+		if slices.Contains(in, f) {
+			out = append(out, f)
+		}
+	}
+	for _, f := range in {
+		if !slices.Contains(Features, f) {
+			return nil, invalid("validation.feature", map[string]any{"feature": f}, "unknown feature %q", f)
+		}
+	}
+	return out, nil
 }
 
 // orgFor resolves the organization a project goes to; the actor must be a member.
@@ -103,8 +124,14 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, in ProjectInput) (
 	if err != nil {
 		return store.Project{}, err
 	}
+	features := []string{}
+	if in.Features != nil {
+		if features, err = normalizeFeatures(*in.Features); err != nil {
+			return store.Project{}, err
+		}
+	}
 	p, err := s.DB.CreateProject(ctx, store.Project{ID: newID(), Slug: in.Slug, Name: in.Name, Short: in.Short,
-		Description: in.Description, PrimaryColor: in.PrimaryColor, AIWriteMode: in.AIWriteMode, OwnerID: a.User.ID, OrgID: orgID})
+		Description: in.Description, PrimaryColor: in.PrimaryColor, AIWriteMode: in.AIWriteMode, OwnerID: a.User.ID, OrgID: orgID, Features: features})
 	if err != nil {
 		return p, err
 	}
@@ -149,6 +176,11 @@ func (s *Service) UpdateProject(ctx context.Context, a Actor, ref string, in Pro
 			others = *in.Locales
 		}
 		if p.MainLocale, p.Locales, err = normalizeLocales(main, others); err != nil {
+			return p, err
+		}
+	}
+	if in.Features != nil {
+		if p.Features, err = normalizeFeatures(*in.Features); err != nil {
 			return p, err
 		}
 	}

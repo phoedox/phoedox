@@ -1,8 +1,8 @@
 import { LitElement, css, html } from "lit";
-import type { Doc } from "../api";
+import { hasFeature, type Doc } from "../api";
 import { t } from "../i18n";
 import { icon } from "../icon";
-import { navigate } from "../state";
+import { currentProject, navigate } from "../state";
 import { base } from "./shared";
 
 type Step = "what" | "type" | "folder";
@@ -116,7 +116,7 @@ export class PhxCreateDialog extends LitElement {
       <div class="choices">
         ${this.choice("FileText", t("doc.type.markdown"), t("create.markdown_desc"),
           html`<span class="pv"><i class="h"></i><i></i><i class="s"></i><span class="tbl"><i></i><i></i><i></i><i></i><i></i><i></i></span><i class="xs"></i></span>`, () => this.create("markdown"))}
-        ${this.choice("Scale", t("doc.type.adr"), t("create.adr_desc"),
+        ${!hasFeature(currentProject.get(), "decisions") ? "" : this.choice("Scale", t("doc.type.adr"), t("create.adr_desc"),
           html`<span class="pv"><i class="h"></i><span class="chips"><b></b><b class="ok"></b></span><span class="sec">${t("adr.context")}</span><i class="s"></i><span class="sec">${t("adr.decision")}</span><i></i></span>`, () => this.create("adr"))}
         ${this.choice("SquareKanban", t("doc.type.board"), t("create.board_desc"),
           html`<span class="pv board"><span><i class="h"></i><b></b><b></b><b></b></span><span><i class="h"></i><b></b><b></b></span><span><i class="h"></i><b class="ok"></b></span></span>`, () => this.create("board"))}

@@ -1122,4 +1122,13 @@ export const en: Record<keyof typeof de, string> = {
   "callout.caution": "Caution",
   "callout.callout": "Custom",
   "editor.slash_hint": "Type “/” for blocks like table, callout, formula, embed or date.",
+  "settings.features": "Tabs",
+  "settings.features_hint": "Pages and boards are always there. These areas show in the sidebar once you switch them on; switching off keeps their content.",
+  "feature.decisions": "Decisions",
+  "feature.graph": "Knowledge graph",
+  "feature.model": "Data model",
+  "feature.files": "Files",
+  "feature.off": "This area is switched off in this project.",
+  "feature.enable": "Switch on in the project settings",
+  "validation.feature": "“{feature}” is not a known area.",
 };
