@@ -30,6 +30,15 @@ func TestParseMentions(t *testing.T) {
 	}
 }
 
+func TestMentionsNotInCode(t *testing.T) {
+	text := "Am @router: `ssh @nas` und ``a ` @b``.\n\n```sh\necho @server\n```\n~~~~\n@x\n```\n~~~~\nDanach @switch."
+	got := ParseMentions(text)
+	want := []Mention{{"", "router"}, {"", "switch"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+}
+
 func TestNewIDUnique(t *testing.T) {
 	a, b := NewID(), NewID()
 	if a == b || len(a) != 26 {

@@ -1,16 +1,30 @@
 import { describe, expect, test } from "bun:test";
 import { contrast, projectColors } from "./color";
-import { linkMentions } from "./md";
+import { markdownHTML, withoutTitle } from "./md";
 import { parseRequest, splitVars } from "./request";
 import { creationOptions, requestOptions } from "./webauthn";
 
 describe("mentions", () => {
   test("links @slug and @project/slug, but not e-mail addresses", () => {
-    const out = linkMentions("Der @router-flur und @homelab/pve-01, Mail an a@b.de", "lindenstrasse");
-    expect(out).toContain("[@router-flur](/p/lindenstrasse/e/router-flur");
-    expect(out).toContain("[@homelab/pve-01](/p/homelab/e/pve-01");
+    const out = markdownHTML("Der @router-flur und @homelab/pve-01, Mail an a@b.de", "lindenstrasse");
+    expect(out).toContain('<a href="/p/lindenstrasse/e/router-flur" title="mention">@router-flur</a>');
+    expect(out).toContain('<a href="/p/homelab/e/pve-01" title="mention">@homelab/pve-01</a>');
     expect(out).toContain("a@b.de");
     expect(out).not.toContain("/e/b");
+  });
+  test("a leading heading equal to the title is hidden", () => {
+    expect(withoutTitle("# Fahrplan und Stand\n\nText", "Fahrplan und Stand")).toBe("Text");
+    expect(withoutTitle("# Anders\n\nText", "Fahrplan")).toBe("# Anders\n\nText");
+    expect(withoutTitle("Text\n# Fahrplan", "Fahrplan")).toBe("Text\n# Fahrplan");
+  });
+  test("code stays literal", () => {
+    const out = markdownHTML("Am **@router**: `ssh @nas`\n\n```sh\necho @server\n```\n\n| a | b |\n|---|---|\n| @switch | `@x` |", "h");
+    expect(out).toContain('<strong><a href="/p/h/e/router" title="mention">@router</a></strong>');
+    expect(out).toContain("<code>ssh @nas</code>");
+    expect(out).toContain("echo @server");
+    expect(out).toContain('<td><a href="/p/h/e/switch" title="mention">@switch</a></td>');
+    expect(out).toContain("<code>@x</code>");
+    expect(out.match(/title="mention"/g)?.length).toBe(2);
   });
 });
 

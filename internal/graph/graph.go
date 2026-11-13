@@ -102,11 +102,83 @@ type Mention struct {
 // of an e-mail address, so "a@b.de" is not a mention.
 var mentionRe = regexp.MustCompile(`(?:^|[^\w@./-])@(?:([a-z0-9-]+)/)?([a-z0-9]+(?:-[a-z0-9]+)*)`)
 
-// ParseMentions finds all mentions in a text block.
+// ParseMentions finds all mentions in a text block. Fenced code blocks and
+// inline code spans are skipped: "@x" in code is literal text.
 func ParseMentions(text string) []Mention {
 	var out []Mention
-	for _, m := range mentionRe.FindAllStringSubmatch(text, -1) {
+	for _, m := range mentionRe.FindAllStringSubmatch(StripCode(text), -1) {
 		out = append(out, Mention{Project: m[1], Slug: m[2]})
 	}
 	return out
+}
+
+// StripCode replaces fenced code blocks and inline code spans with spaces.
+func StripCode(text string) string {
+	lines := strings.Split(text, "\n")
+	fence := ""
+	for i, l := range lines {
+		t := strings.TrimLeft(l, " ")
+		if fence != "" {
+			if strings.HasPrefix(t, fence) && strings.TrimSpace(strings.TrimLeft(t, fence[:1])) == "" {
+				fence = ""
+			}
+			lines[i] = ""
+			continue
+		}
+		if len(l)-len(t) < 4 {
+			for _, f := range []string{"```", "~~~"} {
+				if strings.HasPrefix(t, f) {
+					n := len(t) - len(strings.TrimLeft(t, f[:1]))
+					fence = strings.Repeat(f[:1], n)
+				}
+			}
+			if fence != "" {
+				lines[i] = ""
+				continue
+			}
+		}
+		lines[i] = stripSpans(l)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// stripSpans blanks inline code spans (a run of backticks up to the next
+// run of the same length).
+func stripSpans(l string) string {
+	b := []byte(l)
+	for i := 0; i < len(b); {
+		if b[i] != '`' {
+			i++
+			continue
+		}
+		n := 0
+		for i+n < len(b) && b[i+n] == '`' {
+			n++
+		}
+		end := -1
+		for j := i + n; j < len(b); {
+			if b[j] != '`' {
+				j++
+				continue
+			}
+			m := 0
+			for j+m < len(b) && b[j+m] == '`' {
+				m++
+			}
+			if m == n {
+				end = j + m
+				break
+			}
+			j += m
+		}
+		if end < 0 {
+			i += n
+			continue
+		}
+		for k := i; k < end; k++ {
+			b[k] = ' '
+		}
+		i = end
+	}
+	return string(b)
 }
