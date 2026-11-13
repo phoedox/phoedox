@@ -13,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/phoedox/phoedox/internal/auth"
@@ -51,7 +52,22 @@ func Open(ctx context.Context) (*App, error) {
 	if cfg.MultiTenant {
 		opts = append(opts, store.WithMultiTenant())
 	}
-	db, err := store.Open(ctx, dialect, cfg.DBURL, opts...)
+	// The database may start after us (Kubernetes, Docker Compose): wait up to two minutes.
+	var db *store.DB
+	for i := 0; ; i++ {
+		db, err = store.Open(ctx, dialect, cfg.DBURL, opts...)
+		if err == nil || i >= 60 || !strings.Contains(err.Error(), "store: connect") {
+			break
+		}
+		if i == 0 {
+			slog.Info("waiting for the database", "err", err)
+		}
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
 	if err != nil {
 		return nil, err
 	}

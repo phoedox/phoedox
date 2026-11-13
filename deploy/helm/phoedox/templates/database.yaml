@@ -1,0 +1,53 @@
+{{- if eq .Values.database.type "cnpg" }}
+{{- $c := .Values.database.cnpg }}
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "phoedox.dbCluster" . }}
+  labels:
+    {{- include "phoedox.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  instances: {{ $c.instances }}
+  imageName: {{ $c.imageName }}
+  # The application user owns the database but is no superuser, so
+  # row-level security applies to it.
+  bootstrap:
+    initdb:
+      database: phoedox
+      owner: phoedox
+  storage:
+    size: {{ $c.storage }}
+    {{- with $c.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  resources:
+    {{- toYaml $c.resources | nindent 4 }}
+  {{- if $c.backup.enabled }}
+  backup:
+    retentionPolicy: {{ $c.backup.retentionPolicy | quote }}
+    barmanObjectStore:
+      destinationPath: {{ $c.backup.destinationPath | quote }}
+      endpointURL: {{ $c.backup.endpointURL | quote }}
+      s3Credentials:
+        accessKeyId: { name: {{ $c.backup.credentialsSecret }}, key: ACCESS_KEY_ID }
+        secretAccessKey: { name: {{ $c.backup.credentialsSecret }}, key: ACCESS_SECRET_KEY }
+      wal:
+        compression: gzip
+      data:
+        compression: gzip
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ include "phoedox.dbCluster" . }}-daily
+  labels:
+    {{- include "phoedox.labels" . | nindent 4 }}
+spec:
+  schedule: {{ $c.backup.schedule | quote }}
+  backupOwnerReference: self
+  cluster:
+    name: {{ include "phoedox.dbCluster" . }}
+  {{- end }}
+{{- end }}

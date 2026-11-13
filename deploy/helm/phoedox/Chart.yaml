@@ -1,0 +1,10 @@
+apiVersion: v2
+name: phoedox
+description: Phoedox – documentation with a knowledge graph (server, web app, MCP)
+type: application
+version: 0.1.0
+appVersion: "main"
+home: https://github.com/phoedox/phoedox
+sources: ["https://github.com/phoedox/phoedox"]
+keywords: [documentation, knowledge-graph, mcp]
+kubeVersion: ">=1.28.0-0"

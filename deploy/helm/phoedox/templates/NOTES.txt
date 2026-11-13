@@ -1,0 +1,16 @@
+Phoedox is starting at {{ ternary "https" "http" .Values.ingress.tls.enabled }}://{{ .Values.domain }}
+
+{{- if eq .Values.database.type "cnpg" }}
+The database is created by CloudNativePG; the first start waits for it (about a minute).
+{{- end }}
+
+Create the first admin:
+  kubectl -n {{ .Release.Namespace }} exec -it deploy/{{ include "phoedox.fullname" . }} -- phx admin create-user --admin --email you@example.org --name "Your Name"
+
+Back up the master key (needed to read secrets after a restore):
+  kubectl -n {{ .Release.Namespace }} get secret {{ default (printf "%s-master-key" (include "phoedox.fullname" .)) .Values.masterKey.existingSecret }} -o jsonpath='{.data.master-key}' | base64 -d; echo
+{{- if .Values.metrics.enabled }}
+
+Metrics token:
+  kubectl -n {{ .Release.Namespace }} get secret {{ include "phoedox.fullname" . }}-metrics -o jsonpath='{.data.token}' | base64 -d; echo
+{{- end }}

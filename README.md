@@ -43,6 +43,11 @@ docker run -d --name phoedox -p 127.0.0.1:8080:8080 -v phoedox-data:/data ghcr.i
 docker exec -it phoedox phx admin create-user --admin --email du@example.org --name "Dein Name"
 ```
 
+### Kubernetes (k3s auf einem Server)
+
+Helm-Chart in [`deploy/helm/phoedox`](deploy/helm/phoedox), Schritt-für-Schritt-Anleitung mit k3s,
+CloudNativePG und cert-manager in [`docs/kubernetes.md`](docs/kubernetes.md).
+
 ### Ohne Docker
 
 ```bash

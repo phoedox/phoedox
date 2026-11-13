@@ -1,0 +1,19 @@
+{{- if not .Values.persistence.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "phoedox.fullname" . }}-data
+  labels:
+    {{- include "phoedox.labels" . | nindent 4 }}
+  annotations:
+    # Keep the data when the release is uninstalled.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+{{- end }}

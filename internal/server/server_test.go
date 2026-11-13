@@ -25,6 +25,11 @@ func TestHealthz(t *testing.T) {
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"ok"`) {
 		t.Fatalf("status %d body %q", rec.Code, rec.Body.String())
 	}
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"ready"`) {
+		t.Fatalf("readyz: %d %q", rec.Code, rec.Body.String())
+	}
 }
 
 func TestSPAFallback(t *testing.T) {

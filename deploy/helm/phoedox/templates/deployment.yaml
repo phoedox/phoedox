@@ -1,0 +1,161 @@
+{{- $fn := include "phoedox.fullname" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fn }}
+  labels:
+    {{- include "phoedox.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  # One server: live editing keeps its rooms in memory and the data volume
+  # is ReadWriteOnce. Recreate avoids two pods during an update.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "phoedox.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "phoedox.labels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+      annotations:
+        checksum/config: {{ toJson .Values | sha256sum | trunc 16 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: phoedox
+          image: {{ include "phoedox.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - { name: PHOEDOX_LISTEN, value: ":8080" }
+            - { name: PHOEDOX_DATA_DIR, value: /data }
+            - { name: PHOEDOX_DOMAIN, value: {{ .Values.domain | quote }} }
+            - { name: PHOEDOX_PUBLIC_URL, value: {{ printf "%s://%s" (ternary "https" "http" .Values.ingress.tls.enabled) .Values.domain | quote }} }
+            - { name: PHOEDOX_DEFAULT_LOCALE, value: {{ .Values.locale | quote }} }
+            # Traefik sets X-Forwarded-For; trust it for client addresses (login limits).
+            - { name: PHOEDOX_BEHIND_PROXY, value: "true" }
+            {{- if not .Values.ingress.tls.enabled }}
+            - { name: PHOEDOX_INSECURE_COOKIES, value: "true" }
+            {{- end }}
+            - name: PHOEDOX_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default (printf "%s-master-key" $fn) .Values.masterKey.existingSecret }}
+                  key: {{ .Values.masterKey.existingSecretKey }}
+            {{- if eq .Values.database.type "cnpg" }}
+            - { name: PHOEDOX_DB_DRIVER, value: postgres }
+            - name: PHOEDOX_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  # created by CloudNativePG for the application user
+                  name: {{ include "phoedox.dbCluster" . }}-app
+                  key: uri
+            {{- else if eq .Values.database.type "external" }}
+            - { name: PHOEDOX_DB_DRIVER, value: postgres }
+            {{- if .Values.database.external.existingSecret }}
+            - name: PHOEDOX_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.external.existingSecret }}
+                  key: {{ .Values.database.external.existingSecretKey }}
+            {{- else }}
+            - { name: PHOEDOX_DB_URL, value: {{ required "database.external.url or existingSecret is required" .Values.database.external.url | quote }} }
+            {{- end }}
+            {{- else }}
+            - { name: PHOEDOX_DB_DRIVER, value: sqlite }
+            {{- end }}
+            {{- if .Values.s3.enabled }}
+            - { name: PHOEDOX_S3_ENDPOINT, value: {{ .Values.s3.endpoint | quote }} }
+            - { name: PHOEDOX_S3_BUCKET, value: {{ .Values.s3.bucket | quote }} }
+            - { name: PHOEDOX_S3_REGION, value: {{ .Values.s3.region | quote }} }
+            - { name: PHOEDOX_S3_PREFIX, value: {{ .Values.s3.prefix | quote }} }
+            - name: PHOEDOX_S3_ACCESS_KEY
+              valueFrom: { secretKeyRef: { name: {{ .Values.s3.existingSecret }}, key: access-key } }
+            - name: PHOEDOX_S3_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: {{ .Values.s3.existingSecret }}, key: secret-key } }
+            {{- end }}
+            - { name: PHOEDOX_BACKUP_HOURS, value: {{ .Values.backups.hours | quote }} }
+            - { name: PHOEDOX_BACKUP_KEEP, value: {{ .Values.backups.keep | quote }} }
+            - { name: PHOEDOX_BACKUP_TARGET, value: {{ .Values.backups.target | quote }} }
+            {{- if .Values.mail.enabled }}
+            - { name: PHOEDOX_SMTP_HOST, value: {{ .Values.mail.host | quote }} }
+            - { name: PHOEDOX_SMTP_PORT, value: {{ .Values.mail.port | quote }} }
+            - { name: PHOEDOX_SMTP_TLS, value: {{ .Values.mail.tls | quote }} }
+            - { name: PHOEDOX_SMTP_FROM, value: {{ .Values.mail.from | quote }} }
+            - { name: PHOEDOX_SMTP_USER, value: {{ .Values.mail.user | quote }} }
+            {{- if .Values.mail.existingSecret }}
+            - name: PHOEDOX_SMTP_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.mail.existingSecret }}, key: password } }
+            {{- end }}
+            {{- end }}
+            {{- if .Values.oidc.enabled }}
+            - { name: PHOEDOX_OIDC_NAME, value: {{ .Values.oidc.name | quote }} }
+            - { name: PHOEDOX_OIDC_ISSUER, value: {{ required "oidc.issuer is required" .Values.oidc.issuer | quote }} }
+            - { name: PHOEDOX_OIDC_CLIENT_ID, value: {{ required "oidc.clientId is required" .Values.oidc.clientId | quote }} }
+            - name: PHOEDOX_OIDC_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: {{ required "oidc.existingSecret is required" .Values.oidc.existingSecret }}, key: client-secret } }
+            - { name: PHOEDOX_OIDC_AUTO_CREATE, value: {{ .Values.oidc.autoCreate | quote }} }
+            - { name: PHOEDOX_OIDC_DOMAINS, value: {{ .Values.oidc.domains | quote }} }
+            - { name: PHOEDOX_OIDC_GROUPS_CLAIM, value: {{ .Values.oidc.groupsClaim | quote }} }
+            {{- end }}
+            {{- if .Values.clamav.enabled }}
+            - { name: PHOEDOX_CLAMAV, value: {{ printf "%s-clamav:3310" $fn | quote }} }
+            {{- end }}
+            {{- if .Values.metrics.enabled }}
+            - name: PHOEDOX_METRICS_TOKEN
+              valueFrom: { secretKeyRef: { name: {{ $fn }}-metrics, key: token } }
+            {{- end }}
+            {{- range $k, $v := .Values.env }}
+            - { name: {{ $k }}, value: {{ $v | quote }} }
+            {{- end }}
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            # PDF and OCR tools write temporary files.
+            - { name: tmp, mountPath: /tmp }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          startupProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 3
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-data" $fn) .Values.persistence.existingClaim }}
+        - name: tmp
+          emptyDir: { sizeLimit: 2Gi }
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

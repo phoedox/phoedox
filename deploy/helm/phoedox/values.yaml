@@ -1,0 +1,152 @@
+# Phoedox Helm chart. Made for a single-node k3s cluster (Traefik ingress,
+# local-path storage), works on other clusters too. See docs/kubernetes.md.
+
+image:
+  repository: ghcr.io/phoedox/phoedox
+  # Default: the chart's appVersion ("main" = latest build of the main branch).
+  tag: ""
+  # "full" adds PDF previews, searchable PDFs and OCR (poppler, tesseract);
+  # "" is the minimal image.
+  variant: full
+  pullPolicy: IfNotPresent
+# While the repository is private: a pull secret for ghcr.io, e.g.
+#   kubectl create secret docker-registry ghcr --docker-server=ghcr.io --docker-username=<user> --docker-password=<token with read:packages>
+imagePullSecrets: []
+#  - name: ghcr
+
+# Public address of the instance (without https://).
+domain: docs.example.org
+# Language of emails to users without a language (de or en).
+locale: de
+
+ingress:
+  enabled: true
+  # k3s ships Traefik as ingress controller.
+  className: traefik
+  annotations: {}
+  tls:
+    enabled: true
+    # cert-manager ClusterIssuer that issues the certificate.
+    clusterIssuer: letsencrypt
+    # Default: <release>-tls
+    secretName: ""
+
+certManager:
+  # Create the ClusterIssuer "letsencrypt" (ACME HTTP-01 through the ingress).
+  # Needs cert-manager in the cluster. Set false if you have an issuer.
+  createIssuer: true
+  email: admin@example.org
+  # true uses the Let's Encrypt test endpoint (for trying things out).
+  staging: false
+
+# Data volume: uploaded files (unless on S3), backups, SQLite (if used).
+persistence:
+  size: 20Gi
+  # Empty = default class (k3s: local-path, i.e. a folder on the node).
+  storageClass: ""
+  existingClaim: ""
+
+database:
+  # cnpg: Postgres run by the CloudNativePG operator (recommended).
+  # external: an existing Postgres (url or existingSecret).
+  # sqlite: a file on the data volume (small instances, no extra pod).
+  type: cnpg
+  cnpg:
+    instances: 1
+    imageName: ghcr.io/cloudnative-pg/postgresql:17
+    storage: 10Gi
+    storageClass: ""
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { memory: 1Gi }
+    # Continuous backup of the database (WAL + daily base backup) to S3,
+    # e.g. Hetzner Object Storage. The secret holds ACCESS_KEY_ID and
+    # ACCESS_SECRET_KEY.
+    backup:
+      enabled: false
+      destinationPath: s3://my-bucket/phoedox-db
+      endpointURL: https://fsn1.your-objectstorage.com
+      credentialsSecret: phoedox-db-s3
+      retentionPolicy: 30d
+      # six fields, seconds first (CloudNativePG)
+      schedule: "0 30 2 * * *"
+  external:
+    url: ""
+    existingSecret: ""
+    existingSecretKey: url
+
+# Encrypts secrets at rest (project secrets, webhook secrets, 2FA). Without
+# an existing secret, one is generated on install and kept on uninstall.
+# Back it up: without it, backups cannot decrypt those secrets.
+masterKey:
+  existingSecret: ""
+  existingSecretKey: master-key
+
+# Files on S3 instead of the data volume (optional).
+s3:
+  enabled: false
+  endpoint: fsn1.your-objectstorage.com
+  bucket: phoedox-files
+  region: ""
+  prefix: ""
+  # Secret with keys access-key and secret-key.
+  existingSecret: phoedox-files-s3
+
+# Phoedox's own backups (database + files, portable SQLite <-> Postgres).
+backups:
+  hours: 24
+  keep: 14
+  # local = on the data volume (same disk!), s3 = into the S3 bucket above.
+  target: local
+
+mail:
+  enabled: false
+  host: smtp.example.org
+  port: 587
+  tls: starttls
+  from: "Phoedox <docs@example.org>"
+  user: ""
+  # Secret with key password.
+  existingSecret: ""
+
+oidc:
+  enabled: false
+  name: SSO
+  issuer: ""
+  clientId: ""
+  # Secret with key client-secret.
+  existingSecret: ""
+  autoCreate: false
+  domains: ""
+  groupsClaim: groups
+
+# Virus scan of uploads with ClamAV (needs about 1.5 GB RAM).
+clamav:
+  enabled: false
+  image: clamav/clamav:stable
+  resources:
+    requests: { cpu: 100m, memory: 1Gi }
+    limits: { memory: 2Gi }
+
+# Prometheus metrics at /metrics (bearer token generated into a secret).
+metrics:
+  enabled: false
+  serviceMonitor: false
+
+# More PHOEDOX_* settings, e.g. PHOEDOX_TRASH_DAYS: "30".
+env: {}
+
+resources:
+  requests: { cpu: 100m, memory: 256Mi }
+  limits: { memory: 1536Mi }
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile: { type: RuntimeDefault }
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

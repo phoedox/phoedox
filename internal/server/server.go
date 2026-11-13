@@ -2,6 +2,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"github.com/phoedox/phoedox/internal/backup"
@@ -60,8 +61,21 @@ func New(d Deps) http.Handler {
 		r.Use(tenantByHost(d.Core.DB))
 	}
 
+	// Liveness: the process answers. Readiness: the database answers too
+	// (Kubernetes sends traffic only then).
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": Version})
+	})
+	r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		if d.Core != nil {
+			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+			defer cancel()
+			if err := d.Core.DB.SQL.PingContext(ctx); err != nil {
+				writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "database unavailable"})
+				return
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ready", "version": Version})
 	})
 
 	if d.Core != nil && d.Auth != nil {
@@ -140,7 +154,7 @@ func writeErr(w http.ResponseWriter, err error) {
 func tenantByHost(db *store.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/healthz" || r.URL.Path == "/metrics" {
+			if r.URL.Path == "/healthz" || r.URL.Path == "/readyz" || r.URL.Path == "/metrics" {
 				next.ServeHTTP(w, r)
 				return
 			}

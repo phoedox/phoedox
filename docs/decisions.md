@@ -239,3 +239,13 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 | Durchsetzung | Jede Tabelle hat `tenant_id`; Postgres-Row-Level-Security (`FORCE`) filtert auf `current_setting('phoedox.tenant')`. Der Server setzt den Wert: einmal je Verbindung (`default`) oder im gehosteten Modus (`PHOEDOX_MULTI_TENANT=true`) vor jeder Anweisung aus dem Host der Anfrage; ohne Mandant ist nichts sichtbar. Systemarbeit (Migrationen, Job-Abholung, Aufräumen, Neuaufbau des Suchindex) läuft mit `*`, jeder Job dann in seinem Mandanten. Abfragen filtern zusätzlich selbst – RLS ist die zweite Linie. |
 | Schutz | Im gehosteten Modus startet der Server nicht als Superuser oder mit `BYPASSRLS`. Ein Test läuft mit einer Rolle ohne Sonderrechte und prüft Lesen, Schreiben und Einfügen über Mandantengrenzen. Dateiinhalte sind mandantenübergreifend nach Hash gespeichert; gelöscht wird erst, wenn kein Mandant sie mehr nutzt. |
 | Verwaltung | `phx admin create-tenant --id … --name … --domain …`, `phx admin tenants`, Nutzerbefehle mit `--tenant`. Unbekannte Hosts bekommen 404. Datenmigrationen ab Version 18 beginnen mit `SELECT set_config('phoedox.tenant', '*', true);`. |
+
+## Betrieb: Kubernetes auf einem Server
+
+| Bereich | Entscheidung |
+|---|---|
+| Distribution | **k3s** für Single-Node-Kubernetes auf einem vServer: ein Binary, wenig Speicher, Traefik-Ingress, local-path-Storage und ServiceLB eingebaut, CNCF-zertifiziert, später um Knoten erweiterbar. Verglichen mit MicroK8s (Snap), k0s (ohne Ingress/Storage), Talos (eigenes OS-Image) und kubeadm (aufwendig). Anleitung: `docs/kubernetes.md`. |
+| Paket | Helm-Chart `deploy/helm/phoedox`: Deployment (1 Replica, `Recreate`, nonroot, read-only Root-Dateisystem, `/tmp` als emptyDir), PVC, Service, Ingress (Traefik) mit cert-manager-ClusterIssuer für Let's Encrypt, Master-Key als einmal erzeugtes Secret (`resource-policy: keep`), optional ClamAV, Metriken mit ServiceMonitor, OIDC, SMTP, S3. Image-Variante `-full` als Standard. |
+| Datenbank | CloudNativePG (`Cluster` mit Anwendungsnutzer als Eigentümer, kein Superuser → RLS wirkt), optional fortlaufende Sicherung nach S3 (barman) + täglicher `ScheduledBackup`; alternativ externe Datenbank oder SQLite. Der Server wartet beim Start bis zu zwei Minuten auf die Datenbank. |
+| Gesundheit | `/healthz` (Prozess lebt) als Liveness, `/readyz` (Datenbank antwortet) als Startup/Readiness. |
+| Prüfung | CI: `helm lint` und alle Wertevarianten gerendert und mit kubeconform gegen die Kubernetes-Schemas geprüft. |

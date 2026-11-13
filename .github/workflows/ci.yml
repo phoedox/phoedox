@@ -22,7 +22,8 @@ jobs:
       - name: Postgres schema applies
         run: |
           sed -n '/+goose Up/,/+goose Down/p' db/migrations/postgres/*.sql | PGPASSWORD=phoedox psql -h localhost -U phoedox -d phoedox -v ON_ERROR_STOP=1
-      - run: go test -race ./...
+      # -p 1: tests of several packages migrate the same Postgres database
+      - run: go test -race -p 1 ./...
         env: { PHOEDOX_TEST_PG: "postgres://phoedox:phoedox@localhost:5432/phoedox?sslmode=disable" }
   web:
     runs-on: ubuntu-latest
@@ -33,3 +34,20 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun test
       - run: bun run build
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - run: helm lint deploy/helm/phoedox
+      - name: Render all variants and validate against the Kubernetes schemas
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
+          set -e
+          for v in "" \
+                   "--set database.type=sqlite --set ingress.tls.enabled=false" \
+                   "--set database.type=external --set database.external.url=postgres://u:p@db/phoedox --set image.variant=" \
+                   "--set clamav.enabled=true --set metrics.enabled=true --set metrics.serviceMonitor=true --set s3.enabled=true --set backups.target=s3 --set mail.enabled=true --set mail.existingSecret=mail --set database.cnpg.backup.enabled=true --set oidc.enabled=true --set oidc.issuer=https://id.example.org --set oidc.clientId=phx --set oidc.existingSecret=oidc"; do
+            echo "== helm template $v"
+            helm template t deploy/helm/phoedox $v | ./kubeconform -strict -ignore-missing-schemas -summary
+          done
