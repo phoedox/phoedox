@@ -5,6 +5,7 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { currentProject, navigate } from "../state";
 import { base } from "./shared";
+import { projectBadge } from "../pictures";
 
 /** Project picker in the header: a dropdown with search (prototype "Arbeitsplatz"). */
 export class PhxProjectSwitcher extends SignalWatcher(LitElement) {
@@ -106,7 +107,7 @@ export class PhxProjectSwitcher extends SignalWatcher(LitElement) {
     const role = (r: string) => (["owner", "editor", "reader"].includes(r) ? t(`settings.role.${r as "owner" | "editor" | "reader"}`) : "");
     return html`
       <button class="btn" aria-haspopup="listbox" aria-expanded=${this.open ? "true" : "false"} aria-label=${t("switcher.label")} @click=${this.toggle}>
-        ${inProject ? html`<span class="pi" style="background:${cur.primaryColor}">${cur.short}</span><span class="name">${cur.name}</span>`
+        ${inProject ? html`${projectBadge(cur, 24)}<span class="name">${cur.name}</span>`
           : html`<span class="pi none">${icon("FolderOpen", 13)}</span><span class="name">${t("switcher.choose")}</span>`}
         <span class="car">${icon("ChevronDown", 14)}</span>
       </button>
@@ -118,7 +119,7 @@ export class PhxProjectSwitcher extends SignalWatcher(LitElement) {
           : list.length ? html`<ul id="pp-list" role="listbox" aria-label=${t("nav.projects")}>${list.map((p, i) => html`
             <li id="pp-${p.slug}" role="option" aria-selected=${p.slug === cur?.slug ? "true" : "false"} class=${i === this.active ? "act" : ""}
               @pointerenter=${() => (this.active = i)} @click=${() => this.go(p)}>
-              <span class="pi" style="background:${p.primaryColor}">${p.short}</span>
+              ${projectBadge(p, 24)}
               <span><div class="n">${p.name}</div>${p.description || p.orgName ? html`<div class="s">${p.orgName ? `${p.orgName} · ` : ""}${p.description}</div>` : ""}</span>
               <span class="k">${role(p.role)}</span>
             </li>`)}</ul>`

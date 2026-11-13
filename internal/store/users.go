@@ -14,7 +14,8 @@ type User struct {
 	Name         string `json:"name"`
 	IsAdmin      bool   `json:"isAdmin"`
 	Disabled     bool   `json:"disabled"`
-	Locale       string `json:"locale"` // "" = follow the browser
+	Locale       string `json:"locale"`           // "" = follow the browser
+	Avatar       string `json:"avatar,omitempty"` // version of the profile picture, "" = none
 	HasPassword  bool   `json:"hasPassword"`
 	SecondFactor bool   `json:"secondFactor"` // filled by ListUsers
 	PasswordHash string `json:"-"`
@@ -22,12 +23,12 @@ type User struct {
 	LastLoginAt  Time   `json:"lastLoginAt"`
 }
 
-const userCols = `id, email, name, is_admin, password_hash, created_at, disabled_at, last_login_at, locale`
+const userCols = `id, email, name, is_admin, password_hash, created_at, disabled_at, last_login_at, locale, avatar`
 
 func scanUser(r interface{ Scan(...any) error }) (User, error) {
 	var u User
 	var disabled Time
-	err := r.Scan(&u.ID, &u.Email, &u.Name, &u.IsAdmin, &u.PasswordHash, &u.CreatedAt, &disabled, &u.LastLoginAt, &u.Locale)
+	err := r.Scan(&u.ID, &u.Email, &u.Name, &u.IsAdmin, &u.PasswordHash, &u.CreatedAt, &disabled, &u.LastLoginAt, &u.Locale, &u.Avatar)
 	if errors.Is(err, sql.ErrNoRows) {
 		return u, ErrNotFound
 	}

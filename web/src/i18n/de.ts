@@ -1129,4 +1129,12 @@ export const de = {
   "feature.off": "Dieser Bereich ist in diesem Projekt ausgeschaltet.",
   "feature.enable": "In den Projekteinstellungen einschalten",
   "validation.feature": "„{feature}“ ist kein bekannter Bereich.",
+  "picture.profile": "Profilbild",
+  "picture.project": "Projektbild",
+  "picture.choose": "Bild wählen",
+  "picture.remove": "Entfernen",
+  "picture.hint": "Wird quadratisch zugeschnitten und verkleinert (256 px).",
+  "picture.failed": "Das Bild konnte nicht gelesen werden.",
+  "validation.image": "Das Bild muss PNG, JPEG oder WebP sein, höchstens 512 KB und 1024 × 1024 Pixel.",
+  "picture.zoom": "Bild vergrößert",
 } as const;

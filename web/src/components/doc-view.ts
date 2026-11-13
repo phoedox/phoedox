@@ -30,7 +30,7 @@ export const prose = `
 `;
 
 export class PhxDocView extends SignalWatcher(LitElement) {
-  static properties = { project: {}, docSlug: {}, doc: { state: true }, draft: { state: true }, showDiff: { state: true }, lang: { state: true }, mainDiff: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true } };
+  static properties = { project: {}, docSlug: {}, zoom: { state: true }, doc: { state: true }, draft: { state: true }, showDiff: { state: true }, lang: { state: true }, mainDiff: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true } };
   static styles = [base, unsafeCSS(prose), css`
     /* Centred reading column; "full width" lifts the limit. */
     article { max-width: var(--reading-width, 820px); margin-inline: auto; }
@@ -39,6 +39,15 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
     section { margin-top: 18px; }
     section h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-family: var(--font-body); margin-bottom: 4px; }
+    .prose img { cursor: zoom-in; }
+    dialog.zoom { border: none; padding: 0; background: transparent; max-width: 94vw; max-height: 92vh; overflow: visible;
+      transition: opacity var(--dur) var(--ease-out), transform var(--dur) var(--ease-out); @starting-style { opacity: 0; transform: scale(.97); } }
+    dialog.zoom::backdrop { background: color-mix(in srgb, #000 70%, transparent); }
+    dialog.zoom figure { margin: 0; display: grid; gap: 8px; justify-items: center; }
+    dialog.zoom img { max-width: 94vw; max-height: 86vh; border-radius: 8px; object-fit: contain; cursor: zoom-out; }
+    dialog.zoom figcaption { color: #fff; font-size: 14px; }
+    dialog.zoom .close { position: fixed; top: 16px; right: 16px; background: var(--surface); }
+    @media (prefers-reduced-motion: reduce) { dialog.zoom { transition: opacity var(--dur) ease; @starting-style { opacity: 0; transform: none; } } }
     .notice.small-note { padding: 6px 12px; font-size: 13px; color: var(--muted); }
     .notice { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 14px; margin: 0 0 16px; border-radius: 8px;
       background: var(--surface2); border-left: 3px solid var(--accent); font-size: 14px; }
@@ -62,6 +71,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
   /** The open draft, shown to editors (ADR-0027). */
   draft?: DraftInfo;
   showDiff = false;
+  /** Image shown large (click on a picture in the page). */
+  zoom?: { src: string; alt: string };
   /** Requested language in multilingual projects. */
   lang = "";
   /** Changes of the main language since the shown translation was made. */
@@ -190,6 +201,24 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     return html`<a class="btn ghost icon" href="/p/${this.project}/d/${d.slug}/translate/${this.lang}" title=${label} aria-label=${label}>${icon("Languages", 15)}</a>`;
   }
 
+  /** Pictures in the text open large. */
+  private onClick = (e: Event) => {
+    const img = e.composedPath().find((n): n is HTMLImageElement => n instanceof HTMLImageElement);
+    if (!img || !img.closest(".prose") || img.closest("a")) return;
+    this.zoom = { src: img.currentSrc || img.src, alt: img.alt };
+    this.updateComplete.then(() => this.renderRoot.querySelector<HTMLDialogElement>("dialog.zoom")?.showModal());
+  };
+
+  private zoomDialog() {
+    const z = this.zoom;
+    if (!z) return "";
+    const close = () => { this.renderRoot.querySelector<HTMLDialogElement>("dialog.zoom")?.close(); };
+    return html`<dialog class="zoom" aria-label=${z.alt || t("picture.zoom")} @close=${() => (this.zoom = undefined)} @click=${close}>
+      <figure><img src=${z.src} alt=${z.alt}>${z.alt ? html`<figcaption>${z.alt}</figcaption>` : ""}</figure>
+      <button class="ghost icon close" aria-label=${t("board.close")} @click=${close}>${icon("X", 16)}</button>
+    </dialog>`;
+  }
+
   private draftNotice(d: Doc) {
     const dr = this.draft;
     // Drafts belong to the main language.
@@ -253,7 +282,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     const canEdit = ["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "");
     const wide = wideReading.get();
     // Boards need the room of the whole page.
-    return html`<article class=${wide || d.type === "board" ? "enter wide" : "enter"}>
+    return html`<article class=${wide || d.type === "board" ? "enter wide" : "enter"} @click=${this.onClick}>
       <header>
         <div>
           <h1>${d.title}</h1>
@@ -286,6 +315,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       ${this.body(d)}
       ${canEdit ? html`<phx-doc-share .project=${currentProject.get()} .doc=${d} @changed=${() => this.reload()}></phx-doc-share>` : ""}
       ${d.type !== "link" ? html`<phx-attachments style="margin-top:28px" .project=${this.project} .document=${d.id} .editable=${canEdit}></phx-attachments>` : ""}
+      ${this.zoomDialog()}
     </article>`;
   }
 }

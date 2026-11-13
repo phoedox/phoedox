@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/phoedox/phoedox/internal/backup"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -79,6 +80,9 @@ func (a *api) routes(r chi.Router) {
 		r.Group(func(r chi.Router) {
 			r.Use(requireFull)
 			r.Patch("/me", a.updateProfile)
+			r.Put("/me/avatar", a.setAvatar)
+			r.Delete("/me/avatar", a.deleteAvatar)
+			r.Get("/images/user/{id}", a.userImage)
 			r.Post("/me/password", a.changePassword)
 			r.Get("/me/security", a.security)
 			r.Post("/me/totp", a.totpSetup)
@@ -196,6 +200,9 @@ func (a *api) routes(r chi.Router) {
 			r.Put("/favorites/{d}", a.setFavorite(true))
 			r.Delete("/favorites/{d}", a.setFavorite(false))
 			r.Get("/decisions", a.listDecisions)
+			r.Get("/image", a.projectImage)
+			r.Put("/image", a.setProjectImage)
+			r.Delete("/image", a.deleteProjectImage)
 			r.Get("/tasks", a.listTasks)
 			r.Post("/boards/{d}/tasks", a.createTask)
 			r.Patch("/tasks/{id}", a.updateTask)
@@ -385,6 +392,63 @@ func (a *api) listDocuments(w http.ResponseWriter, r *http.Request) {
 func (a *api) listDecisions(w http.ResponseWriter, r *http.Request) {
 	ds, err := a.core.Decisions(r.Context(), actorOf(r), chi.URLParam(r, "p"), r.URL.Query().Get("status"), r.URL.Query().Get("q"))
 	respond(w, ds, err)
+}
+
+// readImage reads an uploaded picture (raw body, limited).
+func readImage(r *http.Request) ([]byte, error) {
+	return io.ReadAll(io.LimitReader(r.Body, 600<<10))
+}
+
+func serveImage(w http.ResponseWriter, img store.Image, err error) {
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	h := w.Header()
+	h.Set("Content-Type", img.Mime)
+	h.Set("X-Content-Type-Options", "nosniff")
+	h.Set("Content-Security-Policy", "default-src 'none'; sandbox")
+	// The URL carries the version (?v=…), so the picture can be cached for long.
+	h.Set("Cache-Control", "private, max-age=31536000, immutable")
+	_, _ = w.Write(img.Data)
+}
+
+func (a *api) setAvatar(w http.ResponseWriter, r *http.Request) {
+	data, err := readImage(r)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.SetAvatar(r.Context(), actorOf(r), data)
+	respond(w, map[string]string{"version": v}, err)
+}
+
+func (a *api) deleteAvatar(w http.ResponseWriter, r *http.Request) {
+	respond(w, map[string]bool{"ok": true}, a.core.DeleteAvatar(r.Context(), actorOf(r)))
+}
+
+func (a *api) userImage(w http.ResponseWriter, r *http.Request) {
+	img, err := a.core.UserImage(r.Context(), actorOf(r), chi.URLParam(r, "id"))
+	serveImage(w, img, err)
+}
+
+func (a *api) projectImage(w http.ResponseWriter, r *http.Request) {
+	img, err := a.core.ProjectImage(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	serveImage(w, img, err)
+}
+
+func (a *api) setProjectImage(w http.ResponseWriter, r *http.Request) {
+	data, err := readImage(r)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.SetProjectImage(r.Context(), actorOf(r), chi.URLParam(r, "p"), data)
+	respond(w, map[string]string{"version": v}, err)
+}
+
+func (a *api) deleteProjectImage(w http.ResponseWriter, r *http.Request) {
+	respond(w, map[string]bool{"ok": true}, a.core.DeleteProjectImage(r.Context(), actorOf(r), chi.URLParam(r, "p")))
 }
 
 func (a *api) listTasks(w http.ResponseWriter, r *http.Request) {

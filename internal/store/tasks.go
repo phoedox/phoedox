@@ -25,13 +25,14 @@ type Task struct {
 	UpdatedAt   Time     `json:"updatedAt"`
 	DoneAt      Time     `json:"doneAt"`
 	// Filled by queries that join: the assignee's name and the board.
-	AssigneeName string `json:"assigneeName,omitempty"`
-	BoardSlug    string `json:"boardSlug,omitempty"`
-	BoardTitle   string `json:"boardTitle,omitempty"`
+	AssigneeName   string `json:"assigneeName,omitempty"`
+	AssigneeAvatar string `json:"assigneeAvatar,omitempty"`
+	BoardSlug      string `json:"boardSlug,omitempty"`
+	BoardTitle     string `json:"boardTitle,omitempty"`
 }
 
 const taskCols = `t.id, t.project_id, t.board_id, t.column_id, t.position, t.title, t.description, COALESCE(t.assignee_id, ''), t.due, t.priority, t.labels,
-	t.created_by, t.created_at, t.updated_at, t.done_at, COALESCE(u.name, ''), d.slug, d.title`
+	t.created_by, t.created_at, t.updated_at, t.done_at, COALESCE(u.name, ''), COALESCE(u.avatar, ''), d.slug, d.title`
 
 const taskFrom = ` FROM tasks t JOIN documents d ON d.id = t.board_id LEFT JOIN users u ON u.id = t.assignee_id`
 
@@ -39,7 +40,7 @@ func scanTask(r interface{ Scan(...any) error }) (Task, error) {
 	var t Task
 	var labels string
 	err := r.Scan(&t.ID, &t.ProjectID, &t.BoardID, &t.Column, &t.Position, &t.Title, &t.Description, &t.AssigneeID, &t.Due, &t.Priority, &labels,
-		&t.CreatedBy, &t.CreatedAt, &t.UpdatedAt, &t.DoneAt, &t.AssigneeName, &t.BoardSlug, &t.BoardTitle)
+		&t.CreatedBy, &t.CreatedAt, &t.UpdatedAt, &t.DoneAt, &t.AssigneeName, &t.AssigneeAvatar, &t.BoardSlug, &t.BoardTitle)
 	if errors.Is(err, sql.ErrNoRows) {
 		return t, ErrNotFound
 	}

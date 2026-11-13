@@ -11,6 +11,8 @@ import "./webhooks";
 import "./project-plugins";
 import { toast } from "./toasts";
 import { contentLocales, languageName } from "../languages";
+import "./picture-picker";
+import { projectBadge } from "../pictures";
 
 type EnvVar = { name: string; value?: string; secret: boolean };
 
@@ -259,6 +261,9 @@ export class PhxProjectSettings extends LitElement {
     const canEdit = owner || p.role === "editor";
     return html`<div class="enter">
       <h1 style="margin-bottom:16px">${t("settings.title")}</h1>
+      ${owner ? html`<h2 style="font-size:18px;margin:0 0 8px">${t("picture.project")}</h2>
+        <phx-picture-picker style="margin-bottom:20px" .project=${p.slug} .has=${!!p.image}
+          @changed=${(e: CustomEvent<string>) => { this.p = { ...p, image: e.detail || undefined }; currentProject.set(this.p); }}>${projectBadge(p, 64)}</phx-picture-picker>` : ""}
       <form @submit=${this.save}>
         <label class="field">${t("projects.name")}<input name="name" .value=${p.name} ?disabled=${!owner} required /></label>
         <label class="field">${t("projects.description")}<input name="description" .value=${p.description} ?disabled=${!owner} /></label>

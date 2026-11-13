@@ -4,6 +4,7 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { currentProject, navigate } from "../state";
 import { base } from "./shared";
+import { projectBadge } from "../pictures";
 
 export class PhxProjects extends LitElement {
   static properties = { projects: { state: true }, orgs: { state: true }, error: { state: true } };
@@ -61,7 +62,7 @@ export class PhxProjects extends LitElement {
         ${name ? html`<h2 class="org">${icon(slug ? "Building2" : "UserRound", 15)} ${slug ? html`<a href="/orgs/${slug}">${name}</a>` : name}</h2>` : ""}
         <div class="grid">
           ${ps.map((p) => html`<a class="p card" href="/p/${p.slug}">
-            <span class="pi" style="background:${p.primaryColor}">${p.short}</span>
+            ${projectBadge(p, 36)}
             <span><b>${p.name}</b><br /><span class="muted" style="font-size:13px">${p.description || t(`settings.role.${p.role || "reader"}` as any)}</span></span>
           </a>`)}
         </div>`)}

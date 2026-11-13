@@ -37,7 +37,22 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   return data as T;
 }
 
+/** Sends a raw body (pictures). */
+export async function apiRaw<T = unknown>(method: string, path: string, body: Blob): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/v1${path}`, { method, credentials: "same-origin", headers: { "Content-Type": body.type || "application/octet-stream", "X-Phoedox": "1" }, body });
+  } catch {
+    throw new ApiError(0, "network", "error.network");
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new ApiError(res.status, data.code ?? "unknown", data.key ?? "error.unknown", data.params ?? {});
+  return data as T;
+}
+
 export interface User {
+  /** Version of the profile picture ("" or missing = none). */
+  avatar?: string;
   id: string; email: string; name: string; isAdmin: boolean; disabled: boolean;
   locale: "" | "de" | "en"; hasPassword: boolean; secondFactor?: boolean; createdAt: string; lastLoginAt: string | null;
 }
@@ -58,6 +73,8 @@ export interface Project {
   mainLocale: string; locales: string[];
   /** Optional tabs switched on (ADR-0032). */
   features: ProjectFeature[];
+  /** Version of the project image (missing = none; the short name is shown). */
+  image?: string;
   /** owner | editor | reader | doc (only single documents shared) */
   role: string;
   orgId?: string; orgName?: string;
@@ -92,7 +109,7 @@ export interface BoardColumn { id: string; name: string; done?: boolean }
 export interface Board { description?: string; columns: BoardColumn[] }
 export interface Task {
   id: string; projectId: string; boardId: string; column: string; position: number; title: string; description: string;
-  assigneeId?: string; assigneeName?: string; due?: string; priority: number; labels: string[];
+  assigneeId?: string; assigneeName?: string; assigneeAvatar?: string; due?: string; priority: number; labels: string[];
   createdBy: string; createdAt: string; updatedAt: string; doneAt?: string; boardSlug?: string; boardTitle?: string;
 }
 export interface TranslationMeta { documentId: string; locale: string; title: string; sourceVersion: number; machine: boolean; updatedAt: string }

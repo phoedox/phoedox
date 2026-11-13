@@ -6,6 +6,8 @@ import { currentUser, signedIn } from "../state";
 import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 import { toast } from "./toasts";
+import "./picture-picker";
+import { userAvatar } from "../pictures";
 
 /** Own name, language and password. */
 export class PhxProfile extends SignalWatcher(LitElement) {
@@ -63,6 +65,9 @@ export class PhxProfile extends SignalWatcher(LitElement) {
     return html`<div class="enter">
       <h1>${t("profile.title")}</h1>
       ${settingsNav("profile")}
+      <h2 style="margin-top:0">${t("picture.profile")}</h2>
+      <phx-picture-picker .has=${!!u.avatar} @changed=${(e: CustomEvent<string>) => signedIn({ ...u, avatar: e.detail })}>${userAvatar(u, 64)}</phx-picture-picker>
+      <h2>${t("profile.title")}</h2>
       <form @submit=${this.save}>
         <label class="field">${t("profile.email")}<input .value=${u.email} disabled /></label>
         <label class="field">${t("profile.name")}<input name="name" .value=${u.name} required autocomplete="name" /></label>

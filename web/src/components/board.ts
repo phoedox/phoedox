@@ -7,6 +7,7 @@ import { icon } from "../icon";
 import { renderMarkdown } from "../md";
 import { currentProject } from "../state";
 import { base } from "./shared";
+import { userAvatar } from "../pictures";
 import { toast } from "./toasts";
 
 const REFRESH = 15000;
@@ -52,7 +53,7 @@ export class PhxBoard extends LitElement {
     .label { background: var(--accent-soft); color: var(--fg); border-radius: 999px; padding: 0 7px; font-size: 11.5px; }
     .prio { display: inline-flex; align-items: center; gap: 2px; }
     .prio.p3 { color: var(--bad); } .prio.p2 { color: var(--warn, var(--accent)); }
-    .who { margin-left: auto; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--fg); font: 600 9.5px var(--font-mono); }
+    .who { margin-left: auto; display: inline-flex; }
     .add { display: flex; gap: 6px; }
     .add input { flex: 1; font-size: 13.5px; padding: 6px 8px; }
     .addbtn { background: none; border: none; color: var(--muted); justify-content: flex-start; padding: 6px 4px; font-size: 13.5px; }
@@ -295,7 +296,7 @@ export class PhxBoard extends LitElement {
         ${task.labels.map((l) => html`<span class="label">${l}</span>`)}
         ${task.priority ? html`<span class="prio p${task.priority}" title=${t(`board.priority.${task.priority}` as any)}>${icon("Flag", 12)}</span>` : ""}
         ${task.due ? html`<span class=${late ? "late" : ""} title=${t("board.due")}>${icon("CalendarDays", 12)} ${formatDay(task.due)}</span>` : ""}
-        ${task.assigneeName ? html`<span class="who" title=${task.assigneeName}>${task.assigneeName.slice(0, 2).toUpperCase()}</span>` : ""}
+        ${task.assigneeName ? html`<span class="who" title=${task.assigneeName}>${userAvatar({ id: task.assigneeId ?? "", name: task.assigneeName, avatar: task.assigneeAvatar }, 22)}</span>` : ""}
       </span>` : ""}
     </div>`;
   }

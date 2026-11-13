@@ -2,13 +2,9 @@ import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
 import { t } from "../i18n";
 import { icon } from "../icon";
+import { userAvatar } from "../pictures";
 import { currentUser } from "../state";
 import { base } from "./shared";
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  return ((parts[0]?.[0] ?? "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase() || "?";
-}
 
 /** Account menu in the app bar (menu button pattern, WAI-ARIA). */
 export class PhxUserMenu extends SignalWatcher(LitElement) {
@@ -111,7 +107,7 @@ export class PhxUserMenu extends SignalWatcher(LitElement) {
     return html`
       <button class="trigger" aria-haspopup="menu" aria-expanded=${this.open} aria-controls="menu" aria-label=${t("nav.user_menu")}
         @click=${() => this.setOpen(!this.open, this.open ? "none" : "first")} @keydown=${this.onTriggerKey}>
-        <span class="avatar" aria-hidden="true">${initials(u.name)}</span><span class="name">${u.name}</span><span class="chev">${icon("ChevronDown", 14)}</span>
+        ${userAvatar(u, 26)}<span class="name">${u.name}</span><span class="chev">${icon("ChevronDown", 14)}</span>
       </button>
       <div id="menu" role="menu" aria-label=${t("nav.user_menu")} @keydown=${this.onMenuKey}>
         <div class="head" role="presentation"><b>${u.name}</b><span>${u.email}</span></div>

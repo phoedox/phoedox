@@ -8,6 +8,8 @@ import { css } from "lit";
 export const base = css`
   :host { color: var(--fg); font-family: var(--font-body); }
   *, *::before, *::after { box-sizing: border-box; }
+  .avatar { border-radius: 50%; object-fit: cover; flex: none; display: inline-grid; place-items: center; background: var(--accent-soft); color: var(--fg);
+    font-family: var(--font-mono); font-weight: 600; vertical-align: middle; }
   a { color: var(--accent); }
   h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; margin: 0; text-wrap: balance; }
   .ico { display: inline-block; vertical-align: -3px; flex: none; }

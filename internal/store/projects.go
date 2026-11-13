@@ -34,6 +34,8 @@ type Project struct {
 	Locales    []string `json:"locales"`
 	// Features are the optional tabs switched on (ADR-0032): decisions, graph, model, files.
 	Features []string `json:"features"`
+	// Image is the version of the project image ("" = none; the short name is shown).
+	Image string `json:"image,omitempty"`
 	// OrgAI is false when the organization switched off AI access.
 	OrgAI bool `json:"-"`
 	// Role of the requesting user: owner, editor, reader, or "doc" when only
@@ -44,7 +46,7 @@ type Project struct {
 // RoleDoc means access to single shared documents only.
 const RoleDoc = "doc"
 
-const projectCols = `p.id, p.slug, p.name, p.short, p.description, p.primary_color, p.ai_write_mode, p.owner_id, p.created_at, p.main_locale, p.locales, p.features,
+const projectCols = `p.id, p.slug, p.name, p.short, p.description, p.primary_color, p.ai_write_mode, p.owner_id, p.created_at, p.main_locale, p.locales, p.features, p.image,
 	COALESCE(p.org_id, ''), COALESCE(o.name, ''), COALESCE(o.ai_enabled, ` + "true" + `)`
 
 const projectFrom = ` FROM projects p LEFT JOIN organizations o ON o.id = p.org_id`
@@ -76,7 +78,7 @@ func rankArgs(userID string) []any { return []any{userID, Now(), userID, userID,
 func scanProject(r interface{ Scan(...any) error }, withRole bool) (Project, error) {
 	var p Project
 	var locales, features string
-	dest := []any{&p.ID, &p.Slug, &p.Name, &p.Short, &p.Description, &p.PrimaryColor, &p.AIWriteMode, &p.OwnerID, &p.CreatedAt, &p.MainLocale, &locales, &features, &p.OrgID, &p.OrgName, &p.OrgAI}
+	dest := []any{&p.ID, &p.Slug, &p.Name, &p.Short, &p.Description, &p.PrimaryColor, &p.AIWriteMode, &p.OwnerID, &p.CreatedAt, &p.MainLocale, &locales, &features, &p.Image, &p.OrgID, &p.OrgName, &p.OrgAI}
 	var rank int
 	if withRole {
 		dest = append(dest, &rank)

@@ -1131,4 +1131,12 @@ export const en: Record<keyof typeof de, string> = {
   "feature.off": "This area is switched off in this project.",
   "feature.enable": "Switch on in the project settings",
   "validation.feature": "“{feature}” is not a known area.",
+  "picture.profile": "Profile picture",
+  "picture.project": "Project image",
+  "picture.choose": "Choose picture",
+  "picture.remove": "Remove",
+  "picture.hint": "Cropped to a square and scaled down (256 px).",
+  "picture.failed": "The picture could not be read.",
+  "validation.image": "The picture must be a PNG, JPEG or WebP of at most 512 KB and 1024 × 1024 pixels.",
+  "picture.zoom": "Enlarged picture",
 };
