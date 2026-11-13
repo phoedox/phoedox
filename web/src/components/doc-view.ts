@@ -41,7 +41,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     .notice { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 14px; margin: 0 0 16px; border-radius: 8px;
       background: var(--surface2); border-left: 3px solid var(--accent); font-size: 14px; }
     .ref { font-family: var(--font-mono); font-size: 13px; }
-    button.icon { padding: 7px 9px; }
+    button.icon, a.btn.icon { padding: 7px 9px; }
     button.icon[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
     button.icon[aria-pressed="true"] .ico { fill: currentColor; }
     .small { font-size: 13px; padding: 3px 9px; }
