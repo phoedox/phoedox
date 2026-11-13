@@ -54,6 +54,7 @@ make build && ./bin/phoedox
 | `PHOEDOX_DB_URL` | `<data>/phoedox.db` | SQLite-Pfad oder Postgres-DSN |
 | `PHOEDOX_BEHIND_PROXY` | `false` | `true` hinter einem Reverse-Proxy: Client-IP aus `X-Forwarded-For` (für das Login-Limit) |
 | `PHOEDOX_INSECURE_COOKIES` | `false` | `true` nur für reines HTTP ohne TLS (außer `localhost`) |
+| `PHOEDOX_TRASH_DAYS` | `30` | So lange bleiben gelöschte Dokumente und Einträge wiederherstellbar (`0` = unbegrenzt) |
 | `PHOEDOX_MASTER_KEY` | – | 32 Byte, base64 (`openssl rand -base64 32`). Verschlüsselt Geheimnisse wie TOTP-Schlüssel. Ohne Variable legt Phoedox `<data>/master.key` an – **zusammen mit der Datenbank sichern**, mehrere Server-Instanzen brauchen denselben Schlüssel |
 | `PHOEDOX_PUBLIC_URL` | – | Öffentliche Adresse, z. B. `https://docs.example.org` – für Links in E-Mails. Ohne sie (oder `PHOEDOX_DOMAIN`) gibt es kein „Passwort vergessen“ per E-Mail |
 | `PHOEDOX_DEFAULT_LOCALE` | `de` | Sprache für E-Mails an Nutzer ohne eigene Spracheinstellung |

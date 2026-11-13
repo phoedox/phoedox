@@ -549,3 +549,69 @@ func TestSnippet(t *testing.T) {
 		t.Fatalf("diacritics: %q", s)
 	}
 }
+
+func TestTrashFavoritesStore(t *testing.T) {
+	for name, d := range testDBs(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			u, _ := d.CreateUser(ctx, User{ID: id(), Email: "t@y.de", Name: "Tina"})
+			p, _ := d.CreateProject(ctx, Project{ID: id(), Slug: "p", Name: "P", Short: "P", PrimaryColor: "#F26A1B", AIWriteMode: "suggest", OwnerID: u.ID})
+			doc, _ := d.CreateDocument(ctx, Document{ID: id(), ProjectID: p.ID, Type: DocMarkdown, Slug: "a", Title: "A", Content: JSON(`{"markdown":"1"}`), CreatedBy: u.ID}, "user:"+u.ID)
+			doc2, _ := d.CreateDocument(ctx, Document{ID: id(), ProjectID: p.ID, Type: DocMarkdown, Slug: "b", Title: "B", Content: JSON(`{}`), CreatedBy: u.ID}, "user:"+u.ID)
+			if v, err := d.GetVersion(ctx, doc.ID, 1); err != nil || strings.ReplaceAll(string(v.Content), " ", "") != `{"markdown":"1"}` {
+				t.Fatalf("version: %v %+v", err, v)
+			}
+			if names, _ := d.UserNames(ctx, []string{u.ID, "x"}); names[u.ID] != "Tina" || len(names) != 1 {
+				t.Fatalf("names: %v", names)
+			}
+			// favorites
+			_ = d.AddFavorite(ctx, id(), p.ID, doc.ID, "")
+			_ = d.AddFavorite(ctx, id(), p.ID, doc2.ID, "")
+			_ = d.AddFavorite(ctx, id(), p.ID, doc.ID, u.ID)
+			if err := d.AddFavorite(ctx, id(), p.ID, doc.ID, ""); err != nil {
+				t.Fatalf("duplicate favorite: %v", err)
+			}
+			_ = d.ReorderFavorites(ctx, p.ID, "", []string{doc2.ID, doc.ID})
+			fs, err := d.Favorites(ctx, p.ID, u.ID)
+			if err != nil || len(fs) != 3 || fs[0].DocumentID != doc2.ID || fs[0].Personal || !fs[2].Personal {
+				t.Fatalf("favorites: %v %+v", err, fs)
+			}
+			_ = d.RemoveFavorite(ctx, p.ID, doc.ID, u.ID)
+			if fs, _ := d.Favorites(ctx, p.ID, u.ID); len(fs) != 2 {
+				t.Fatalf("remove: %+v", fs)
+			}
+			// trash with entity + edge restore
+			a, _, _ := d.UpsertEntity(ctx, Entity{ID: id(), ProjectID: p.ID, Kind: "router", Slug: "r", Name: "R", Attrs: JSON(`{}`), Source: "manual"})
+			b, _, _ := d.UpsertEntity(ctx, Entity{ID: id(), ProjectID: p.ID, Kind: "server", Slug: "s", Name: "S", Attrs: JSON(`{}`), Source: "manual"})
+			_, _ = d.LinkEntities(ctx, Edge{ID: id(), From: b.ID, Rel: "uplink", To: a.ID, Attrs: JSON(`{}`), Source: "manual"})
+			_ = d.DeleteDocument(ctx, doc.ID)
+			_ = d.DeleteEntity(ctx, a.ID)
+			items, err := d.Trash(ctx, p.ID)
+			if err != nil || len(items) != 2 || items[0].Kind == items[1].Kind {
+				t.Fatalf("trash: %v %+v", err, items)
+			}
+			if _, err := d.RestoreEntity(ctx, p.ID, a.ID); err != nil {
+				t.Fatal(err)
+			}
+			if es, _ := d.EdgesOf(ctx, a.ID); len(es) != 1 {
+				t.Fatal("edge not restored")
+			}
+			if _, err := d.RestoreDocument(ctx, p.ID, doc.ID); err != nil {
+				t.Fatal(err)
+			}
+			_ = d.DeleteDocument(ctx, doc.ID)
+			if err := d.Purge(ctx, p.ID, doc.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := d.GetVersion(ctx, doc.ID, 1); !errors.Is(err, ErrNotFound) {
+				t.Fatal("versions must go with the document")
+			}
+			_ = d.DeleteEntity(ctx, b.ID)
+			later := Now()
+			later.Time = later.Time.Add(1e9)
+			if n, err := d.PurgeBefore(ctx, later); err != nil || n != 1 {
+				t.Fatalf("purge before: %v %d", err, n)
+			}
+		})
+	}
+}

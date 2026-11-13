@@ -103,6 +103,15 @@ func (a *api) routes(r chi.Router) {
 			r.Patch("/documents/{d}", a.updateDocument)
 			r.Delete("/documents/{d}", a.deleteDocument)
 			r.Get("/documents/{d}/versions", a.listVersions)
+			r.Get("/documents/{d}/versions/{n}", a.getVersion)
+			r.Post("/documents/{d}/versions/{n}/restore", a.restoreVersion)
+			r.Get("/trash", a.listTrash)
+			r.Post("/trash/{id}/restore", a.restoreTrash)
+			r.Delete("/trash/{id}", a.purgeTrash)
+			r.Get("/favorites", a.listFavorites)
+			r.Put("/favorites", a.reorderFavorites)
+			r.Put("/favorites/{d}", a.setFavorite(true))
+			r.Delete("/favorites/{d}", a.setFavorite(false))
 			r.Get("/decisions", a.listDecisions)
 			r.Get("/entities", a.listEntities)
 			r.Post("/entities", a.upsertEntity)
@@ -289,7 +298,7 @@ func (a *api) deleteDocument(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) listVersions(w http.ResponseWriter, r *http.Request) {
-	vs, err := a.core.Versions(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"))
+	vs, err := a.core.VersionHistory(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"))
 	respond(w, vs, err)
 }
 

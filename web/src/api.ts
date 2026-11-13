@@ -72,6 +72,7 @@ export interface Hit {
 /** Snippet markers from the server around matches. */
 export const MARK_START = "\uE000";
 export const MARK_END = "\uE001";
+export interface Favorite { documentId: string; personal: boolean; position: number }
 export interface Entity { id: string; kind: string; slug: string; name: string; attrs: Record<string, unknown> }
 export interface Edge { id: string; from: string; rel: string; to: string; fromName: string; toName: string }
 export interface Suggestion { id: string; actor: string; op: string; summary: string; status: string; createdAt: string }

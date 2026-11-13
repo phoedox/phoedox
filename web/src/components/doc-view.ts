@@ -1,10 +1,11 @@
+import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html, unsafeCSS } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { ApiError, adrRef, api, type Decision, type Doc } from "../api";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
 import { renderMarkdown } from "../md";
-import { docsVersion, navigate } from "../state";
+import { currentProject, docsVersion, favorites, navigate } from "../state";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
@@ -17,7 +18,7 @@ export const prose = `
   .prose table { border-collapse: collapse; } .prose td, .prose th { border: 1px solid var(--line); padding: 6px 10px; }
 `;
 
-export class PhxDocView extends LitElement {
+export class PhxDocView extends SignalWatcher(LitElement) {
   static properties = { project: {}, docSlug: {}, doc: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true } };
   static styles = [base, unsafeCSS(prose), css`
     header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 14px; }
@@ -27,6 +28,9 @@ export class PhxDocView extends LitElement {
     .notice { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 14px; margin: 0 0 16px; border-radius: 8px;
       background: var(--surface2); border-left: 3px solid var(--accent); font-size: 14px; }
     .ref { font-family: var(--font-mono); font-size: 13px; }
+    button.icon { padding: 7px 9px; }
+    button.icon[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+    button.icon[aria-pressed="true"] .ico { fill: currentColor; }
   `];
   project = "";
   docSlug = "";
@@ -57,10 +61,35 @@ export class PhxDocView extends LitElement {
   }
 
   private async deleteDoc() {
+    const doc = this.doc;
     try {
       await api("DELETE", `/projects/${this.project}/documents/${this.docSlug}`);
       docsVersion.set(docsVersion.get() + 1);
       navigate(`/p/${this.project}`);
+      if (doc) {
+        const project = this.project;
+        toast(t("doc.trashed", { title: doc.title }), "ok", {
+          label: t("doc.undo"),
+          run: async () => {
+            try {
+              await api("POST", `/projects/${project}/trash/${doc.id}/restore`);
+              docsVersion.set(docsVersion.get() + 1);
+              navigate(`/p/${project}/d/${doc.slug}`);
+            } catch (err) {
+              toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+            }
+          },
+        });
+      }
+    } catch (e) {
+      toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
+    }
+  }
+
+  private async toggleFavorite(personal: boolean, on: boolean) {
+    try {
+      await api(on ? "PUT" : "DELETE", `/projects/${this.project}/favorites/${this.doc!.id}?scope=${personal ? "me" : "project"}`);
+      docsVersion.set(docsVersion.get() + 1);
     } catch (e) {
       toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
     }
@@ -84,6 +113,18 @@ export class PhxDocView extends LitElement {
     return html`<a href="/p/${this.project}/d/${slug}">${d ? html`<span class="ref">${d.ref}</span> ${d.title}` : slug}</a>`;
   }
 
+  private favoriteButtons(d: Doc) {
+    const favs = favorites.get();
+    const mine = favs.some((f) => f.documentId === d.id && f.personal);
+    const pinned = favs.some((f) => f.documentId === d.id && !f.personal);
+    const canEdit = ["editor", "owner"].includes(currentProject.get()?.role ?? "");
+    return html`
+      <button class="ghost icon" aria-pressed=${mine ? "true" : "false"} title=${t(mine ? "fav.remove_me" : "fav.add_me")} aria-label=${t(mine ? "fav.remove_me" : "fav.add_me")}
+        @click=${() => this.toggleFavorite(true, !mine)}>${icon("Star", 15)}</button>
+      ${canEdit ? html`<button class="ghost icon" aria-pressed=${pinned ? "true" : "false"} title=${t(pinned ? "fav.remove_project" : "fav.add_project")} aria-label=${t(pinned ? "fav.remove_project" : "fav.add_project")}
+        @click=${() => this.toggleFavorite(false, !pinned)}>${icon("Pin", 15)}</button>` : ""}`;
+  }
+
   render() {
     if (this.error) return html`<p class="error">${this.error}</p>`;
     const d = this.doc;
@@ -102,6 +143,8 @@ export class PhxDocView extends LitElement {
           </div>
         </div>
         <div class="row">
+          ${this.favoriteButtons(d)}
+          <a class="btn ghost" href="/p/${this.project}/d/${d.slug}/history">${icon("History", 14)} ${t("doc.history")}</a>
           <a class="btn ghost" href="/p/${this.project}/d/${d.slug}/edit">${icon("Pencil", 14)} ${t("doc.edit")}</a>
           ${this.confirming
             ? html`<span class="muted">${t("doc.delete_confirm")}</span><button class="danger" @click=${this.deleteDoc}>${t("doc.delete")}</button><button class="ghost" @click=${() => (this.confirming = false)}>${t("doc.cancel")}</button>`

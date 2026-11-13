@@ -50,6 +50,20 @@ func main() {
 		}
 	}()
 
+	// Housekeeping: empty the trash of old items now and every six hours.
+	go func() {
+		t := time.NewTicker(6 * time.Hour)
+		defer t.Stop()
+		for {
+			a.Core.PurgeExpiredTrash(ctx, a.Config.TrashDays)
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+			}
+		}
+	}()
+
 	<-ctx.Done()
 	shutdown, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

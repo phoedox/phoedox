@@ -48,6 +48,12 @@ type DB struct {
 
 // Open connects and runs all migrations.
 func Open(ctx context.Context, dialect Dialect, dsn string) (*DB, error) {
+	return openUpTo(ctx, dialect, dsn, 0)
+}
+
+// openUpTo migrates to the given version (0 = latest); tests use it to
+// check data migrations.
+func openUpTo(ctx context.Context, dialect Dialect, dsn string, version int64) (*DB, error) {
 	var driverName, gooseDialect string
 	switch dialect {
 	case Postgres:
@@ -78,7 +84,12 @@ func Open(ctx context.Context, dialect Dialect, dsn string) (*DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("store: migrations: %w", err)
 	}
-	if _, err := provider.Up(ctx); err != nil {
+	if version > 0 {
+		_, err = provider.UpTo(ctx, version)
+	} else {
+		_, err = provider.Up(ctx)
+	}
+	if err != nil {
 		return nil, fmt.Errorf("store: migrate: %w", err)
 	}
 	d := &DB{SQL: sqlDB, Dialect: dialect}

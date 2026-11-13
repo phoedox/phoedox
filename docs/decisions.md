@@ -163,3 +163,11 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 | SQLite | FTS5 mit Trigramm-Tokenizer (Wortteile, ohne Akzente); Wörter unter 3 Zeichen per LIKE. |
 | Treffer | Alle Wörter müssen vorkommen; Fundstellen mit Markierung werden in Go erzeugt (beide Datenbanken gleich), die Web-App rendert sie ohne `innerHTML`. |
 | Befehlspalette | ⌘K/Strg+K und Suchknopf: Aktionen, Projektwechsel, Treffer (aktuelles Projekt zuerst). Ohne Animation, da per Tastatur oft geöffnet. |
+
+## Verlauf, Papierkorb, Favoriten
+
+| Bereich | Entscheidung |
+|---|---|
+| Verlauf | Jede Version mit Autor (Name, „per KI“). Vergleich zeilenweise im Browser (Myers-Diff, eigene Umsetzung ohne Abhängigkeit), Entscheidungen als Text mit Abschnitten. Wiederherstellen speichert die alte Version als neue – über den normalen Änderungsweg (Vorschlagsmodus, Index, ADR-Verknüpfungen). MCP: `get_document_version`, `restore_document_version`. |
+| Papierkorb | Gelöschte Dokumente und Einträge (mit ihren Beziehungen) bleiben `PHOEDOX_TRASH_DAYS` Tage (Standard 30) wiederherstellbar; „Rückgängig“ direkt nach dem Löschen. Bearbeiter stellen wieder her, nur Besitzer löschen endgültig. Ist der Name inzwischen vergeben, muss erst umbenannt werden. Slugs gelöschter Einträge sind frei (Migration 9, SQLite-Tabellenumbau). |
+| Favoriten | Projekt-Favoriten (Pin, setzen Bearbeiter) und eigene (Stern) in einer leicht hervorgehobenen Gruppe oben in der Seitenleiste; Sortieren per Ziehen oder Alt+Pfeil. |

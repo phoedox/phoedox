@@ -1,15 +1,17 @@
 import { Routes } from "@lit-labs/router";
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
-import { adrRef, api, type Doc, type Project } from "../api";
+import { adrRef, api, type Doc, type Favorite, type Project } from "../api";
 import { applyProjectColor } from "../color";
 import { t } from "../i18n";
 import { icon } from "../icon";
-import { currentProject, docsVersion } from "../state";
+import { currentProject, docsVersion, favorites } from "../state";
 import { base } from "./shared";
 import "./doc-view";
 import "./doc-form";
 import "./decisions";
+import "./history";
+import "./trash";
 import "./entity-view";
 import "./suggestions";
 import "./project-settings";
@@ -18,7 +20,7 @@ const typeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scal
 
 /** Project layout: sidebar with documents by category + nested routes. */
 export class PhxProject extends SignalWatcher(LitElement) {
-  static properties = { slug: {}, docs: { state: true }, error: { state: true }, menuOpen: { state: true } };
+  static properties = { slug: {}, root: {}, docs: { state: true }, error: { state: true }, menuOpen: { state: true }, dropTarget: { state: true } };
   static styles = [base, css`
     :host { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: calc(100vh - var(--header-h)); }
     aside { border-right: 1px solid var(--line); padding: 14px 10px; display: flex; flex-direction: column; gap: 14px; background: var(--bg); }
@@ -30,6 +32,11 @@ export class PhxProject extends SignalWatcher(LitElement) {
     @media (hover: hover) and (pointer: fine) { aside a:hover { background: var(--surface2); color: var(--fg); } }
     aside a .ext { margin-left: auto; opacity: .7; }
     aside a .num { margin-left: auto; font-family: var(--font-mono); font-size: 11px; opacity: .8; }
+    /* Favorites: a slightly highlighted group at the top. */
+    .grp.favs { background: color-mix(in srgb, var(--accent-soft) 45%, transparent); border-radius: 8px; padding: 6px 0 4px; }
+    aside a .mark { margin-left: auto; opacity: .6; }
+    aside a[draggable="true"] { cursor: grab; }
+    aside a.drop { box-shadow: inset 0 2px 0 var(--accent); }
     .tools { margin-top: auto; display: flex; flex-direction: column; gap: 1px; }
     main { padding: 24px 32px 60px; min-width: 0; }
     .mbar, .scrim { display: none; }
@@ -57,15 +64,22 @@ export class PhxProject extends SignalWatcher(LitElement) {
     }
   `];
   slug = "";
+  /** True on /p/:project itself: show the overview. */
+  root = false;
   docs: Doc[] = [];
   error = "";
   /** Drawer state on small screens; ignored on wide screens. */
   menuOpen = false;
+  /** Favorite being dragged and the one it hovers. */
+  private dragging?: Favorite;
+  dropTarget = "";
   private loadedFor = "";
   private loadedVersion = -1;
 
   private routes = new Routes(this, [
     { path: "d/:doc/edit", render: ({ doc }) => html`<phx-doc-form .project=${this.slug} .docSlug=${doc!}></phx-doc-form>` },
+    { path: "d/:doc/history", render: ({ doc }) => html`<phx-history .project=${this.slug} .docSlug=${doc!}></phx-history>` },
+    { path: "trash", render: () => html`<phx-trash .project=${this.slug}></phx-trash>` },
     { path: "d/:doc", render: ({ doc }) => html`<phx-doc-view .project=${this.slug} .docSlug=${doc!}></phx-doc-view>` },
     { path: "new/:type", render: ({ type }) => html`<phx-doc-form .project=${this.slug} .type=${type!}></phx-doc-form>` },
     { path: "e/:entity", render: ({ entity }) => html`<phx-entity-view .project=${this.slug} .entity=${entity!}></phx-entity-view>` },
@@ -74,7 +88,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "settings", render: () => html`<phx-project-settings .project=${this.slug}></phx-project-settings>` },
   ], { fallback: { render: () => this.overview() } });
 
-  async willUpdate() {
+  async willUpdate(changed: Map<string, unknown>) {
+    if (this.root && (changed.has("root") || changed.has("slug"))) await this.routes.goto("");
     const v = docsVersion.get();
     if (this.slug && (this.slug !== this.loadedFor || v !== this.loadedVersion)) {
       this.loadedFor = this.slug;
@@ -84,6 +99,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
         currentProject.set(p);
         applyProjectColor(document.documentElement, p.primaryColor);
         this.docs = (await api<Doc[]>("GET", `/projects/${this.slug}/documents`)) ?? [];
+        favorites.set((await api<Favorite[]>("GET", `/projects/${this.slug}/favorites`).catch(() => [])) ?? []);
       } catch {
         this.error = t("error.not_found");
       }
@@ -124,11 +140,64 @@ export class PhxProject extends SignalWatcher(LitElement) {
     else if (restoreFocus) this.renderRoot.querySelector<HTMLElement>(".mbar button")?.focus();
   }
 
+  /** Saves a new order of one scope (project or personal). */
+  private async reorder(personal: boolean, ids: string[]) {
+    const others = favorites.get().filter((f) => f.personal !== personal);
+    const mine = ids.map((documentId, i) => ({ documentId, personal, position: i + 1 }));
+    favorites.set(personal ? [...others, ...mine] : [...mine, ...others]);
+    await api("PUT", `/projects/${this.slug}/favorites?scope=${personal ? "me" : "project"}`, { documents: ids }).catch(() => {});
+  }
+
+  private move(f: Favorite, to: Favorite) {
+    const ids = favorites.get().filter((x) => x.personal === f.personal).map((x) => x.documentId).filter((id) => id !== f.documentId);
+    ids.splice(ids.indexOf(to.documentId), 0, f.documentId);
+    return this.reorder(f.personal, ids);
+  }
+
+  /** Alt+Arrow moves a favorite with the keyboard. */
+  private onFavKey(e: KeyboardEvent, f: Favorite) {
+    if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+    e.preventDefault();
+    const ids = favorites.get().filter((x) => x.personal === f.personal).map((x) => x.documentId);
+    const i = ids.indexOf(f.documentId);
+    const j = e.key === "ArrowUp" ? i - 1 : i + 1;
+    if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    this.reorder(f.personal, ids).then(() => this.updateComplete).then(() =>
+      this.renderRoot.querySelector<HTMLElement>(`a[data-fav="${f.personal ? "me" : "p"}-${f.documentId}"]`)?.focus());
+  }
+
+  private favoritesGroup(here: string) {
+    const byId = new Map(this.docs.map((d) => [d.id, d]));
+    const canEdit = ["editor", "owner"].includes(currentProject.get()?.role ?? "");
+    const favs = favorites.get().filter((f) => byId.has(f.documentId));
+    if (!favs.length) return "";
+    return html`<div class="grp favs">
+      <div class="lbl">${t("nav.favorites")}</div>
+      ${favs.map((f) => {
+        const d = byId.get(f.documentId)!;
+        const movable = f.personal || canEdit;
+        return html`<a href="/p/${this.slug}/d/${d.slug}" data-fav="${f.personal ? "me" : "p"}-${d.id}"
+          class=${[here.startsWith(`/p/${this.slug}/d/${d.slug}`) ? "on" : "", this.dropTarget === `${f.personal}-${d.id}` ? "drop" : ""].join(" ")}
+          draggable=${movable ? "true" : "false"} title=${movable ? t("fav.reorder_hint") : ""}
+          @keydown=${(e: KeyboardEvent) => movable && this.onFavKey(e, f)}
+          @dragstart=${(e: DragEvent) => { this.dragging = f; e.dataTransfer!.effectAllowed = "move"; }}
+          @dragover=${(e: DragEvent) => { if (this.dragging && this.dragging.personal === f.personal && this.dragging !== f) { e.preventDefault(); this.dropTarget = `${f.personal}-${d.id}`; } }}
+          @dragleave=${() => (this.dropTarget = "")}
+          @drop=${(e: DragEvent) => { e.preventDefault(); this.dropTarget = ""; if (this.dragging) this.move(this.dragging, f); this.dragging = undefined; }}
+          @dragend=${() => { this.dragging = undefined; this.dropTarget = ""; }}>
+          ${icon(typeIcon[d.type], 15)} ${d.title}
+          <span class="mark" title=${t(f.personal ? "fav.personal" : "fav.project")}>${icon(f.personal ? "Star" : "Pin", 12)}</span></a>`;
+      })}
+    </div>`;
+  }
+
   /** Label of the current page for the mobile bar. */
   private where(here: string) {
     const doc = this.docs.find((d) => here.startsWith(`/p/${this.slug}/d/${d.slug}`));
     if (doc) return doc.title;
     if (here.endsWith("/decisions")) return t("nav.decisions");
+    if (here.endsWith("/trash")) return t("nav.trash");
     if (here.endsWith("/suggestions")) return t("nav.suggestions");
     if (here.endsWith("/settings")) return t("nav.settings");
     return t("project.overview");
@@ -162,6 +231,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
       </div>
       <div class=${this.menuOpen ? "scrim open" : "scrim"} @click=${() => this.setMenu(false, true)}></div>
       <aside id="nav" class=${this.menuOpen ? "open" : ""} aria-label=${t("nav.menu")} @click=${this.onAsideClick}>
+        ${this.favoritesGroup(here)}
         <div class="grp"><a href="/p/${this.slug}" class=${here === `/p/${this.slug}` ? "on" : ""}>${icon("House", 15)} ${t("project.overview")}</a>
           <a href="/p/${this.slug}/decisions" class=${here === `/p/${this.slug}/decisions` ? "on" : ""}>${icon("ListChecks", 15)} ${t("nav.decisions")}</a></div>
         ${[...groups].map(([cat, docs]) => html`<div class="grp">
@@ -175,6 +245,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
             <a href="/p/${this.slug}/new/markdown">${icon("FilePlus", 15)} ${t("doc.type.markdown")}</a>
             <a href="/p/${this.slug}/new/adr">${icon("Scale", 15)} ${t("doc.type.adr")}</a>
             <a href="/p/${this.slug}/new/link">${icon("Link", 15)} ${t("doc.type.link")}</a>` : ""}
+          ${canEdit ? html`<a href="/p/${this.slug}/trash" class=${here.endsWith("/trash") ? "on" : ""}>${icon("Trash2", 15)} ${t("nav.trash")}</a>` : ""}
           <a href="/p/${this.slug}/suggestions" class=${here.endsWith("/suggestions") ? "on" : ""}>${icon("Bot", 15)} ${t("nav.suggestions")}</a>
           <a href="/p/${this.slug}/settings" class=${here.endsWith("/settings") ? "on" : ""}>${icon("Settings", 15)} ${t("nav.settings")}</a>
         </div>

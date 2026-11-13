@@ -42,6 +42,9 @@ type Config struct {
 	PublicURL string
 	// DefaultLocale is used for emails to users without a language ("de").
 	DefaultLocale string
+	// TrashDays is how long deleted items stay restorable (PHOEDOX_TRASH_DAYS,
+	// default 30, 0 keeps them forever).
+	TrashDays int
 	// MasterKey encrypts secrets at rest (PHOEDOX_MASTER_KEY, 32 bytes
 	// base64). Without it, <DataDir>/master.key is used or created.
 	MasterKey string
@@ -114,6 +117,11 @@ func FromEnv() (Config, error) {
 			TLS:      strings.ToLower(getenv("PHOEDOX_SMTP_TLS", "starttls")),
 		},
 	}
+	td, err := strconv.Atoi(getenv("PHOEDOX_TRASH_DAYS", "30"))
+	if err != nil || td < 0 {
+		return c, fmt.Errorf("PHOEDOX_TRASH_DAYS: must be a number of days")
+	}
+	c.TrashDays = td
 	port := "587"
 	if c.SMTP.TLS == "tls" {
 		port = "465"

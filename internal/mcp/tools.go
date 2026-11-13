@@ -19,6 +19,12 @@ type docRef struct {
 	Document string `json:"document" jsonschema:"document slug, id or decision number like ADR-0003"`
 }
 
+type versionRef struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Document string `json:"document" jsonschema:"document slug, id or decision number like ADR-0003"`
+	Version  int    `json:"version" jsonschema:"version number from list_document_versions"`
+}
+
 type createProjectIn struct {
 	Name         string `json:"name"`
 	Slug         string `json:"slug,omitempty" jsonschema:"optional, derived from name"`
@@ -259,8 +265,14 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		return view(d), nil
 	})
-	tool(s, "list_document_versions", "List the version history of a document.", func(ctx context.Context, a core.Actor, in docRef) (any, error) {
-		return svc.Versions(ctx, a, in.Project, in.Document)
+	tool(s, "list_document_versions", "List the version history of a document (who changed it when).", func(ctx context.Context, a core.Actor, in docRef) (any, error) {
+		return svc.VersionHistory(ctx, a, in.Project, in.Document)
+	})
+	tool(s, "get_document_version", "Read an older version of a document with its content.", func(ctx context.Context, a core.Actor, in versionRef) (any, error) {
+		return svc.DocumentVersion(ctx, a, in.Project, in.Document, in.Version)
+	})
+	tool(s, "restore_document_version", "Make an older version the current one (stored as a new version).", func(ctx context.Context, a core.Actor, in versionRef) (any, error) {
+		return svc.RestoreVersion(ctx, a, in.Project, in.Document, in.Version)
 	})
 	tool(s, "create_document", "Create a Markdown page.", func(ctx context.Context, a core.Actor, in createDocIn) (any, error) {
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocMarkdown, Title: in.Title, Slug: in.Slug, Category: in.Category, Position: in.Position, Markdown: in.Markdown})

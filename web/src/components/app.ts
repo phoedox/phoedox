@@ -19,6 +19,8 @@ import "./projects";
 import "./project";
 import "./tokens";
 
+const projectView = (slug: string, root: boolean) => html`<phx-project .slug=${slug} .root=${root}></phx-project>`;
+
 /** Root element: top bar, session check and top-level routes. */
 export class PhxApp extends SignalWatcher(LitElement) {
   static properties = { ready: { state: true } };
@@ -56,8 +58,10 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/settings/security", render: () => html`<phx-security></phx-security>` },
     { path: "/settings/tokens", render: () => html`<phx-tokens></phx-tokens>` },
     { path: "/admin/users", render: () => html`<phx-users></phx-users>` },
-    { path: "/p/:project/*", render: ({ project }) => html`<phx-project .slug=${project!}></phx-project>` },
-    { path: "/p/:project", render: ({ project }) => html`<phx-project .slug=${project!}></phx-project>` },
+    // One template for both routes keeps the same element; root tells it to
+    // show the overview (the root route has no tail for the child routes).
+    { path: "/p/:project/*", render: ({ project }) => projectView(project!, false) },
+    { path: "/p/:project", render: ({ project }) => projectView(project!, true) },
   ]);
 
   async connectedCallback() {
