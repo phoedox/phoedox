@@ -2,14 +2,16 @@ import { LitElement, css, html } from "lit";
 import { ApiError, api, type Project } from "../api";
 import { applyProjectColor } from "../color";
 import { t } from "../i18n";
+import { icon } from "../icon";
 import { currentProject, docsVersion } from "../state";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
 type Member = { userId: string; email: string; name: string; role: string };
+type EnvVar = { name: string; value?: string; secret: boolean };
 
 export class PhxProjectSettings extends LitElement {
-  static properties = { project: {}, p: { state: true }, members: { state: true }, error: { state: true } };
+  static properties = { project: {}, p: { state: true }, members: { state: true }, env: { state: true }, error: { state: true } };
   static styles = [base, css`
     form { display: grid; gap: 12px; max-width: 560px; margin-bottom: 28px; }
     .color { display: flex; gap: 8px; align-items: center; } .color input[type=color] { width: 48px; padding: 2px; height: 38px; }
@@ -18,12 +20,59 @@ export class PhxProjectSettings extends LitElement {
   project = "";
   p?: Project;
   members: Member[] = [];
+  env: EnvVar[] = [];
   error = "";
 
   async connectedCallback() {
     super.connectedCallback();
     this.p = await api<Project>("GET", `/projects/${this.project}`).catch(() => undefined);
     this.members = (await api<Member[]>("GET", `/projects/${this.project}/members`).catch(() => [])) ?? [];
+    await this.loadEnv();
+  }
+
+  private async loadEnv() {
+    this.env = (await api<EnvVar[]>("GET", `/projects/${this.project}/env`).catch(() => [])) ?? [];
+  }
+
+  private async setVar(e: SubmitEvent) {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const f = new FormData(form);
+    try {
+      await api("PUT", `/projects/${this.project}/env/${encodeURIComponent(String(f.get("envname")))}`, { value: f.get("value") ?? "", secret: f.get("secret") === "on" });
+      form.reset();
+      toast(t("env.saved"));
+      await this.loadEnv();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+    }
+  }
+
+  private async deleteVar(name: string) {
+    try {
+      await api("DELETE", `/projects/${this.project}/env/${encodeURIComponent(name)}`);
+      await this.loadEnv();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+    }
+  }
+
+  private envSection(owner: boolean, canEdit: boolean) {
+    return html`<h2 style="font-size:18px;margin:28px 0 6px">${t("env.title")}</h2>
+      <p class="muted" style="max-width:640px;margin-top:0">${t("env.intro")}</p>
+      ${this.env.length === 0 ? html`<p class="muted">${t("env.empty")}</p>` : html`<table>${this.env.map((v) => html`<tr>
+        <td class="mono">${v.name}</td>
+        <td class="mono">${v.secret ? html`<span class="chip">${icon("KeyRound", 12)} ${t("env.secret")} · ${t("env.secret_set")}</span>` : v.value}</td>
+        <td style="text-align:right">${(v.secret ? owner : canEdit) ? html`<button class="danger" style="font-size:13px;padding:4px 10px" @click=${() => this.deleteVar(v.name)}>${t("env.delete")}</button>` : ""}</td></tr>`)}</table>`}
+      ${canEdit ? html`<form @submit=${this.setVar} style="margin-top:14px">
+        <div class="row">
+          <input name="envname" required pattern="[A-Za-z_][A-Za-z0-9_]{0,63}" placeholder=${t("env.name")} style="width:180px" class="mono" autocomplete="off" />
+          <input name="value" placeholder=${t("env.value")} style="flex:1;min-width:200px" autocomplete="off" />
+          ${owner ? html`<label class="row" style="gap:6px;font-size:14px"><input type="checkbox" name="secret" style="width:auto" /> ${t("env.secret")}</label>` : ""}
+          <button type="submit">${t("env.add")}</button>
+        </div>
+        ${owner ? "" : html`<p class="muted" style="font-size:13px">${t("env.owner_only")}</p>`}
+      </form>` : ""}`;
   }
 
   private async save(e: SubmitEvent) {
@@ -60,6 +109,7 @@ export class PhxProjectSettings extends LitElement {
     const p = this.p;
     if (!p) return html`<p class="muted">${t("app.loading")}</p>`;
     const owner = p.role === "owner";
+    const canEdit = owner || p.role === "editor";
     return html`<div class="enter">
       <h1 style="margin-bottom:16px">${t("settings.title")}</h1>
       <form @submit=${this.save}>
@@ -82,6 +132,7 @@ export class PhxProjectSettings extends LitElement {
           <select name="role" style="width:auto"><option value="reader">${t("settings.role.reader")}</option><option value="editor">${t("settings.role.editor")}</option><option value="owner">${t("settings.role.owner")}</option></select>
           <button type="submit">${t("settings.add_member")}</button></div>
       </form>` : ""}
+      ${this.envSection(owner, canEdit)}
     </div>`;
   }
 }

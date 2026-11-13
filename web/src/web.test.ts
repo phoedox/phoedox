@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { contrast, projectColors } from "./color";
 import { linkMentions } from "./md";
+import { parseRequest, splitVars } from "./request";
 import { creationOptions, requestOptions } from "./webauthn";
 
 describe("mentions", () => {
@@ -32,5 +33,18 @@ describe("webauthn", () => {
     expect(new Uint8Array(c.publicKey!.user.id as ArrayBuffer)).toEqual(new Uint8Array([255, 239]));
     const r = requestOptions({ publicKey: { challenge: "AQID", allowCredentials: [{ id: "AQ", type: "public-key" }] } });
     expect(new Uint8Array(r.publicKey!.allowCredentials![0].id as ArrayBuffer)).toEqual(new Uint8Array([1]));
+  });
+});
+
+
+describe("request blocks", () => {
+  test("parse like the server", () => {
+    const r = parseRequest("# Status\nPOST {{base}}/items\nContent-Type: application/json\n\n{\"a\": 1}\n\nexpect status == 201\nexpect $.id exists")!;
+    expect(r.method).toBe("POST");
+    expect(r.headers).toEqual([["Content-Type", "application/json"]]);
+    expect(r.body).toBe('{"a": 1}');
+    expect(r.expects).toEqual(["status == 201", "$.id exists"]);
+    expect(parseRequest("FETCH x")).toBeNull();
+    expect(splitVars("{{base}}/x?k={{ key }}")).toEqual([{ text: "base", variable: true }, { text: "/x?k=" }, { text: "key", variable: true }]);
   });
 });

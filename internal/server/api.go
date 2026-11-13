@@ -24,6 +24,8 @@ type api struct {
 	limiter *limiter
 	// regLimiter limits open OAuth client registrations per IP.
 	regLimiter *limiter
+	// runLimiter limits request block runs per user.
+	runLimiter *limiter
 }
 
 func clientIP(r *http.Request) string {
@@ -104,6 +106,10 @@ func (a *api) routes(r chi.Router) {
 			r.Delete("/documents/{d}", a.deleteDocument)
 			r.Get("/documents/{d}/versions", a.listVersions)
 			r.Put("/documents/{d}/live", a.liveSave)
+			r.Post("/documents/{d}/requests/{n}/run", a.runRequest)
+			r.Get("/env", a.listEnv)
+			r.Put("/env/{name}", a.setEnv)
+			r.Delete("/env/{name}", a.deleteEnv)
 			r.Get("/documents/{d}/versions/{n}", a.getVersion)
 			r.Post("/documents/{d}/versions/{n}/restore", a.restoreVersion)
 			r.Get("/trash", a.listTrash)

@@ -25,6 +25,12 @@ type versionRef struct {
 	Version  int    `json:"version" jsonschema:"version number from list_document_versions"`
 }
 
+type runRequestIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Document string `json:"document" jsonschema:"slug of the Markdown page with the request block"`
+	Index    int    `json:"index" jsonschema:"0-based number of the request block in the page"`
+}
+
 type createProjectIn struct {
 	Name         string `json:"name"`
 	Slug         string `json:"slug,omitempty" jsonschema:"optional, derived from name"`
@@ -315,6 +321,12 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "delete_document", "Move a document to the trash.", func(ctx context.Context, a core.Actor, in docRef) (any, error) {
 		return svc.DeleteDocument(ctx, a, in.Project, in.Document)
+	})
+	tool(s, "list_environment", "Variables of the project environment used by request blocks. Secret values are never shown.", func(ctx context.Context, a core.Actor, in projectRef) (any, error) {
+		return svc.Environment(ctx, a, in.Project)
+	})
+	tool(s, "run_request", "Run a request block (```request) of a page and check its expectations. Only reading requests (GET, HEAD, OPTIONS); secrets are masked.", func(ctx context.Context, a core.Actor, in runRequestIn) (any, error) {
+		return svc.RunRequest(ctx, a, in.Project, in.Document, in.Index)
 	})
 	tool(s, "search", "Search documents and entities in one or all visible projects.", func(ctx context.Context, a core.Actor, in searchIn) (any, error) {
 		return svc.Search(ctx, a, in.Query, in.Project, in.Limit)

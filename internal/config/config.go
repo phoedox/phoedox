@@ -42,6 +42,9 @@ type Config struct {
 	PublicURL string
 	// DefaultLocale is used for emails to users without a language ("de").
 	DefaultLocale string
+	// RequestsPrivate lets request blocks reach private networks and
+	// localhost (PHOEDOX_REQUESTS_PRIVATE, default true; false when hosted).
+	RequestsPrivate bool
 	// TrashDays is how long deleted items stay restorable (PHOEDOX_TRASH_DAYS,
 	// default 30, 0 keeps them forever).
 	TrashDays int
@@ -117,6 +120,7 @@ func FromEnv() (Config, error) {
 			TLS:      strings.ToLower(getenv("PHOEDOX_SMTP_TLS", "starttls")),
 		},
 	}
+	c.RequestsPrivate = getenv("PHOEDOX_REQUESTS_PRIVATE", map[bool]string{true: "false", false: "true"}[c.MultiTenant]) == "true"
 	td, err := strconv.Atoi(getenv("PHOEDOX_TRASH_DAYS", "30"))
 	if err != nil || td < 0 {
 		return c, fmt.Errorf("PHOEDOX_TRASH_DAYS: must be a number of days")

@@ -6,6 +6,7 @@ import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
 import { renderMarkdown } from "../md";
 import { currentProject, docsVersion, favorites, navigate } from "../state";
+import "./request-block";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
@@ -97,7 +98,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
 
   private body(d: Doc) {
     const c = d.content ?? {};
-    if (d.type === "markdown") return html`<div class="prose">${unsafeHTML(renderMarkdown(c.markdown ?? "", this.project))}</div>`;
+    if (d.type === "markdown") return html`<div class="prose">${unsafeHTML(renderMarkdown(c.markdown ?? "", this.project, d.id))}</div>`;
     if (d.type === "link") return html`<p><a class="btn" href=${c.url} target="_blank" rel="noopener external">${icon("ExternalLink", 15)} ${t("doc.open_link")}</a></p>
       <p class="mono muted">${c.url}</p>${c.description ? html`<div class="prose">${unsafeHTML(renderMarkdown(c.description, this.project))}</div>` : ""}`;
     const part = (key: "adr.context" | "adr.decision" | "adr.consequences" | "adr.alternatives", md: string) =>

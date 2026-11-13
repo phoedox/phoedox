@@ -9,6 +9,8 @@ import (
 	"fmt"
 
 	"github.com/phoedox/phoedox/internal/graph"
+	"github.com/phoedox/phoedox/internal/requests"
+	"github.com/phoedox/phoedox/internal/secret"
 	"github.com/phoedox/phoedox/internal/store"
 )
 
@@ -66,6 +68,10 @@ type Service struct {
 	DB *store.DB
 	// MaxDepth limits traversals (admin setting, default 6).
 	MaxDepth int
+	// Box decrypts project secrets for request blocks.
+	Box *secret.Box
+	// RequestPolicy limits which addresses request blocks may reach.
+	RequestPolicy requests.Policy
 	// OnContentChange is called when a document's content changed outside
 	// the live editor (the realtime hub resets live sessions).
 	OnContentChange func(ctx context.Context, documentID, by string)

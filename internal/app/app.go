@@ -13,6 +13,7 @@ import (
 	"github.com/phoedox/phoedox/internal/config"
 	"github.com/phoedox/phoedox/internal/core"
 	"github.com/phoedox/phoedox/internal/mail"
+	"github.com/phoedox/phoedox/internal/requests"
 	"github.com/phoedox/phoedox/internal/secret"
 	"github.com/phoedox/phoedox/internal/store"
 )
@@ -56,6 +57,8 @@ func Open(ctx context.Context) (*App, error) {
 		a.OIDC = &auth.OIDC{Config: cfg.OIDC}
 	}
 	svc := core.New(db)
+	svc.Box = box
+	svc.RequestPolicy = requests.Policy{AllowPrivate: cfg.RequestsPrivate}
 	if err := svc.EnsureSearchIndex(ctx); err != nil {
 		slog.Warn("building the search index failed", "err", err)
 	}

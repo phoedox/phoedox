@@ -659,3 +659,26 @@ func TestLiveStore(t *testing.T) {
 		})
 	}
 }
+
+func TestEnvStore(t *testing.T) {
+	for name, d := range testDBs(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			u, _ := d.CreateUser(ctx, User{ID: id(), Email: "e@y.de", Name: "E"})
+			p, _ := d.CreateProject(ctx, Project{ID: id(), Slug: "p", Name: "P", Short: "P", PrimaryColor: "#F26A1B", AIWriteMode: "suggest", OwnerID: u.ID})
+			_ = d.SetEnv(ctx, p.ID, EnvVar{Name: "base", Value: "http://x", UpdatedBy: u.ID})
+			_ = d.SetEnv(ctx, p.ID, EnvVar{Name: "token", Value: "v1:abc", Secret: true, UpdatedBy: u.ID})
+			_ = d.SetEnv(ctx, p.ID, EnvVar{Name: "base", Value: "http://y", UpdatedBy: u.ID})
+			vs, err := d.Env(ctx, p.ID)
+			if err != nil || len(vs) != 2 || vs[0].Value != "http://y" || vs[0].Secret || !vs[1].Secret {
+				t.Fatalf("env: %v %+v", err, vs)
+			}
+			if err := d.DeleteEnv(ctx, p.ID, "base"); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.DeleteEnv(ctx, p.ID, "base"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("delete twice: %v", err)
+			}
+		})
+	}
+}
