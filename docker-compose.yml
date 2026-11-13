@@ -1,21 +1,38 @@
-# Local development / small self-hosted setup with PostgreSQL.
-# For SQLite just run the image without the db service.
+# Self-hosted setup with PostgreSQL. For SQLite drop the db service and the
+# PHOEDOX_DB_* variables – the database then lives in the data volume.
+#
+#   docker compose up -d
+#   docker compose exec phoedox phx admin create-user --admin --email you@example.org --name "Your Name"
 services:
   phoedox:
+    # Prebuilt image (private while the repo is private: docker login ghcr.io).
+    # Comment out `image` to build from source instead.
+    image: ghcr.io/phoedox/phoedox:main
     build: .
-    ports: ["8080:8080"]
+    restart: unless-stopped
+    ports: ["127.0.0.1:8080:8080"]
     environment:
-      PHOEDOX_DOMAIN: localhost:8080
+      PHOEDOX_DOMAIN: ${PHOEDOX_DOMAIN:-localhost:8080}
       PHOEDOX_DB_DRIVER: postgres
-      PHOEDOX_DB_URL: postgres://phoedox:phoedox@db:5432/phoedox?sslmode=disable
+      PHOEDOX_DB_URL: postgres://phoedox:${POSTGRES_PASSWORD:-phoedox}@db:5432/phoedox?sslmode=disable
+      # Behind a TLS reverse proxy (Caddy, Traefik, nginx) – the default setup:
+      PHOEDOX_BEHIND_PROXY: "true"
+      # Only for plain HTTP without TLS (e.g. a LAN test on another host):
+      # PHOEDOX_INSECURE_COOKIES: "true"
     volumes: [phoedox-data:/data]
-    depends_on: [db]
+    depends_on:
+      db: { condition: service_healthy }
   db:
     image: pgvector/pgvector:pg17
+    restart: unless-stopped
     environment:
       POSTGRES_USER: phoedox
-      POSTGRES_PASSWORD: phoedox
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-phoedox}
       POSTGRES_DB: phoedox
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phoedox"]
+      interval: 5s
+      retries: 10
     volumes: [pg-data:/var/lib/postgresql/data]
 volumes:
   phoedox-data:

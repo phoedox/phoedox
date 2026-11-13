@@ -32,6 +32,9 @@ type Config struct {
 	// SecureCookies sets the Secure flag on cookies. Default true; set
 	// PHOEDOX_INSECURE_COOKIES=true only for local HTTP development.
 	SecureCookies bool
+	// BehindProxy trusts X-Forwarded-For / X-Real-IP for the client address
+	// (PHOEDOX_BEHIND_PROXY). Only enable it when a reverse proxy sets them.
+	BehindProxy bool
 }
 
 // FromEnv reads the configuration and applies defaults.
@@ -43,6 +46,7 @@ func FromEnv() (Config, error) {
 		DataDir:       getenv("PHOEDOX_DATA_DIR", "./data"),
 		MultiTenant:   os.Getenv("PHOEDOX_MULTI_TENANT") == "true",
 		SecureCookies: os.Getenv("PHOEDOX_INSECURE_COOKIES") != "true",
+		BehindProxy:   os.Getenv("PHOEDOX_BEHIND_PROXY") == "true",
 	}
 	c.DBURL = getenv("PHOEDOX_DB_URL", c.DataDir+"/phoedox.db")
 	return c, c.Validate()

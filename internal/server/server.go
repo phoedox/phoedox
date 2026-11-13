@@ -34,7 +34,12 @@ type Deps struct {
 // New returns the root handler.
 func New(d Deps) http.Handler {
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID, middleware.RealIP, middleware.Recoverer)
+	r.Use(middleware.RequestID)
+	if d.Config.BehindProxy {
+		// Forwarded headers can be spoofed unless a trusted proxy overwrites them.
+		r.Use(middleware.RealIP)
+	}
+	r.Use(middleware.Recoverer)
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": Version})

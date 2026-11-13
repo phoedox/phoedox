@@ -106,3 +106,12 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 | Geheimnisse & Konfiguration | Envelope-Verschlüsselung: Schlüssel pro Organisation, geschützt durch Master-Key (Datei/Umgebung), optional KMS/Vault. Konfiguration: Umgebung + optionale Datei für den Start, laufende Einstellungen in der DB über den Admin-Bereich. |
 | Entwicklung | Dev-Container (Go, Bun, Rust, Postgres). Fehlerberichte opt-in (Self-Hosting aus, Cloud an ohne Inhalte). |
 | Projektorganisation | GitHub Issues + Projects über alle Repos, später in Phoedox gespiegelt. Produkt-Doku `docs.phoedox.com` als Phoedox-Veröffentlichung. Beiträge mit CLA (CLA Assistant, Text rechtlich prüfen lassen; deutsches Recht: Nutzungsrechte), CONTRIBUTING, Code of Conduct, SECURITY.md mit privaten Meldungen, Issue-/PR-Vorlagen. |
+
+## Betrieb (erste Version)
+
+| Bereich | Entscheidung |
+|---|---|
+| Image | `ghcr.io/phoedox/phoedox`, distroless, nonroot; `:main` bei jedem Push, `:X.Y.Z`/`:X.Y`/`:latest` bei Releases (aus `release-please.yml` aufgerufen, da Tags per `GITHUB_TOKEN` keine Workflows auslösen). Tags ohne Komponentenpräfix (`vX.Y.Z`). |
+| Client-IP | `X-Forwarded-For` nur mit `PHOEDOX_BEHIND_PROXY=true` vertrauen – sonst ließe sich das Login-Limit per Header umgehen. |
+| Cookies | Standard `Secure`; `PHOEDOX_INSECURE_COOKIES=true` nur für HTTP ohne TLS. |
+| Zeiten in JSON | Nicht gesetzte Zeiten (z. B. „Token nie benutzt“) als `null`, nicht als Jahr 1. |
