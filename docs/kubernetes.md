@@ -1,6 +1,7 @@
 # Phoedox auf einem vServer mit k3s
 
 Diese Anleitung richtet Phoedox auf **einem** Server als Single-Node-Kubernetes ein.
+Soll Claude die Installation über ein Terminal-MCP (z. B. Tabby) erledigen: [install-mit-claude.md](install-mit-claude.md).
 
 ## Warum k3s
 
