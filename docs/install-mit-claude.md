@@ -331,6 +331,9 @@ Dem Nutzer zusammenfassen:
 cd /root/phoedox && git pull --ff-only && helm upgrade phoedox ./deploy/helm/phoedox -n phoedox -f /root/phoedox.yaml && kubectl -n phoedox rollout restart deploy/phoedox
 ```
 
+Das Chart lädt bewegliche Tags (`main`, `latest`) bei jedem Neustart neu (`pullPolicy` Always), daher
+genügt der Neustart, sobald das neue Image gebaut ist (GitHub Actions „docker“ grün).
+
 Ein Update macht noch kein automatisches Backup – vorher in der Oberfläche unter
 **Einstellungen → Backups** sichern oder:
 

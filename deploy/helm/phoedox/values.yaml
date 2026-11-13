@@ -8,7 +8,9 @@ image:
   # "full" adds PDF previews, searchable PDFs and OCR (poppler, tesseract);
   # "" is the minimal image.
   variant: full
-  pullPolicy: IfNotPresent
+  # "" = Always for moving tags (main, latest, full), otherwise IfNotPresent,
+  # so a restart picks up the newest build of a moving tag.
+  pullPolicy: ""
 # While the repository is private: a pull secret for ghcr.io, e.g.
 #   kubectl create secret docker-registry ghcr --docker-server=ghcr.io --docker-username=<user> --docker-password=<token with read:packages>
 imagePullSecrets: []
