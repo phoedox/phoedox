@@ -1046,4 +1046,6 @@ export const en: Record<keyof typeof de, string> = {
   "validation.ai_tasks_direct": "AI clients change tasks only in projects where AI writes directly.",
   "validation.assignee": "“{user}” is not a member of this project.",
   "validation.due": "The due date must be a date (YYYY-MM-DD).",
+  "lang.main": "Main language",
+  "lang.not_translated": "This page is not translated into {lang} yet – showing the main language ({main}).",
 };

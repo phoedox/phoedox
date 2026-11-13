@@ -6,6 +6,7 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { currentProject, currentUser, isPublicPath, loginURL, navigate, signedIn } from "../state";
 import "./project-switcher";
+import "./lang-switcher";
 import { base } from "./shared";
 import "./auth-pages";
 import "./login";
@@ -106,6 +107,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
         ? html`<header>
             <a class="brand" href="/"><img src="/logo.svg" alt="" /><span class="word">Phoedox</span></a>
             <phx-project-switcher .path=${location.pathname}></phx-project-switcher>
+            <phx-lang-switcher .path=${location.pathname}></phx-lang-switcher>
             <nav>
               <a href="/" aria-label=${t("nav.projects")}>${icon("FolderOpen", 15)} <span class="lbl">${t("nav.projects")}</span></a>
               <button class="ghost search" @click=${this.openPalette} aria-label=${t("palette.button")} aria-keyshortcuts="Control+K Meta+K">

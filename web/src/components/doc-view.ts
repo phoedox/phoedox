@@ -3,11 +3,11 @@ import { LitElement, css, html, unsafeCSS } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { ApiError, adrRef, api, type Decision, type Doc, type DraftInfo } from "../api";
 import { diffLines, fold, type Hunk } from "../diff";
-import { languageName, preferredLocale, rememberLocale } from "../languages";
+import { languageName } from "../languages";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
 import { renderMarkdown, withoutTitle } from "../md";
-import { currentProject, docsVersion, favorites, navigate, setWideReading, wideReading } from "../state";
+import { contentLocale, currentProject, docsVersion, favorites, navigate, setWideReading, wideReading } from "../state";
 import "./request-block";
 import "./board";
 import { base } from "./shared";
@@ -37,18 +37,13 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
     section { margin-top: 18px; }
     section h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-family: var(--font-body); margin-bottom: 4px; }
+    .notice.small-note { padding: 6px 12px; font-size: 13px; color: var(--muted); }
     .notice { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 14px; margin: 0 0 16px; border-radius: 8px;
       background: var(--surface2); border-left: 3px solid var(--accent); font-size: 14px; }
     .ref { font-family: var(--font-mono); font-size: 13px; }
     button.icon { padding: 7px 9px; }
     button.icon[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
     button.icon[aria-pressed="true"] .ico { fill: currentColor; }
-    .langs { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin: -4px 0 14px; color: var(--muted); }
-    .langs .lang { font-size: 13px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: none; border: 1px solid var(--line); color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
-    .langs .lang[aria-pressed="true"] { background: var(--accent-soft); color: var(--fg); border-color: transparent; }
-    .langs .lang[data-missing] { border-style: dashed; }
-    .langs .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warn, var(--accent)); }
-    .langs .btn { margin-left: auto; }
     .small { font-size: 13px; padding: 3px 9px; }
     .draft { border-left-color: var(--warn, var(--accent)); justify-content: space-between; }
     .draft .who { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -85,14 +80,14 @@ export class PhxDocView extends SignalWatcher(LitElement) {
   async willUpdate() {
     // The project's languages arrive with the project; reload once they are known.
     const proj0 = currentProject.get();
-    const key = this.project + "/" + this.docSlug + "/" + (proj0?.slug === this.project ? proj0.mainLocale + proj0.locales.join() : "?");
+    const key = this.project + "/" + this.docSlug + "/" + (proj0?.slug === this.project ? proj0.mainLocale + proj0.locales.join() : "?") + "/" + contentLocale.get();
     if (key !== this.loaded) {
       this.loaded = key;
       this.doc = undefined;
       this.confirming = false;
       try {
         const proj = currentProject.get();
-        this.lang = proj?.mainLocale ? preferredLocale(proj) : "";
+        this.lang = proj?.mainLocale ? contentLocale.get() || proj.mainLocale : "";
         this.mainDiff = undefined;
         const doc = await api<Doc>("GET", `/projects/${this.project}/documents/${this.docSlug}${this.lang ? `?lang=${this.lang}` : ""}`);
         if (doc.type === "adr" && (doc.content?.supersedes || doc.content?.supersededBy)) {
@@ -146,15 +141,6 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     }
   }
 
-  private async switchLang(code: string) {
-    const proj = currentProject.get();
-    if (!proj) return;
-    rememberLocale(proj.slug, code);
-    this.lang = code;
-    this.mainDiff = undefined;
-    await this.reload();
-  }
-
   /** Lines of a version's text for comparing. */
   private static lines(type: Doc["type"], c: any): string[] {
     if (type === "markdown") return (c?.markdown ?? "").replace(/\n$/, "").split("\n");
@@ -176,34 +162,30 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     }
   }
 
-  /** Language switcher and notes on the shown translation (ADR-0028). */
-  private languageBar(d: Doc, canEdit: boolean) {
+  /** Notes on the shown language (ADR-0028); the switcher sits in the header. */
+  private languageNotes(d: Doc) {
     const proj = currentProject.get();
     if (!proj?.mainLocale) return "";
     const main = proj.mainLocale;
-    const all = [main, ...proj.locales];
-    const has = new Map((d.translations ?? []).map((x) => [x.locale, x]));
     const tr = d.translation;
     const wanted = this.lang || main;
     const outdated = tr && tr.sourceVersion < d.version;
-    return html`<div class="langs" role="group" aria-label=${t("lang.switch")}>
-        ${icon("Globe", 14)}
-        ${all.map((code) => {
-          const x = has.get(code);
-          const stale = x && x.sourceVersion < d.version;
-          return html`<button class="lang" aria-pressed=${wanted === code ? "true" : "false"} ?data-missing=${code !== main && !x} @click=${() => this.switchLang(code)}>
-            ${languageName(code)}${stale ? html`<span class="dot" title=${t("lang.outdated_short")}></span>` : ""}</button>`;
-        })}
-        ${canEdit && wanted !== main ? html`<a class="btn ghost small" href="/p/${this.project}/d/${d.slug}/translate/${wanted}">${icon("Pencil", 13)} ${tr ? t("lang.edit_translation") : t("lang.translate")}</a>` : ""}
-      </div>
-      ${wanted !== main && !tr ? html`<p class="notice" role="note">${icon("Globe", 14)} ${t("lang.missing", { lang: languageName(wanted), main: languageName(main) })}</p>` : ""}
+    return html`
+      ${wanted !== main && !tr ? html`<p class="notice small-note" role="note">${icon("Globe", 14)} ${t("lang.not_translated", { lang: languageName(wanted), main: languageName(main) })}</p>` : ""}
       ${outdated ? html`<div class="notice" role="note">${icon("TriangleAlert", 14)} <span>${t("lang.outdated", { main: languageName(main) })}</span>
-          <button class="ghost small" aria-expanded=${this.mainDiff ? "true" : "false"} @click=${() => this.toggleMainDiff(d)}>${t(this.mainDiff ? "lang.hide_main_changes" : "lang.show_main_changes")}</button>
-          <button class="ghost small" @click=${() => this.switchLang(main)}>${languageName(main)}</button></div>
+          <button class="ghost small" aria-expanded=${this.mainDiff ? "true" : "false"} @click=${() => this.toggleMainDiff(d)}>${t(this.mainDiff ? "lang.hide_main_changes" : "lang.show_main_changes")}</button></div>
         ${this.mainDiff ? html`<div class="diff" role="region" aria-label=${t("lang.show_main_changes")}>${this.mainDiff.map((h) =>
           h.op === "…" ? html`<div class="fold">${h.count === 1 ? t("history.unchanged_one") : t("history.unchanged", { count: h.count })}</div>`
           : html`<div class=${h.op === "+" ? "add" : h.op === "-" ? "del" : ""}>${h.text}</div>`)}</div>` : ""}` : ""}
       ${tr?.machine ? html`<p class="notice" role="note">${icon("Bot", 14)} ${t("lang.machine")}</p>` : ""}`;
+  }
+
+  /** "Translate" next to "Edit" when a further language is chosen. */
+  private translateButton(d: Doc) {
+    const proj = currentProject.get();
+    if (!proj?.mainLocale || !this.lang || this.lang === proj.mainLocale) return "";
+    const label = d.translation ? t("lang.edit_translation") : t("lang.translate");
+    return html`<a class="btn ghost icon" href="/p/${this.project}/d/${d.slug}/translate/${this.lang}" title=${label} aria-label=${label}>${icon("Languages", 15)}</a>`;
   }
 
   private draftNotice(d: Doc) {
@@ -288,6 +270,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
             @click=${() => setWideReading(!wide)}>${icon(wide ? "Minimize2" : "Maximize2", 15)}</button>`}
           <a class="btn ghost" href="/p/${this.project}/d/${d.slug}/history">${icon("History", 14)} ${t("doc.history")}</a>
           ${canEdit ? html`<button class="ghost" @click=${() => this.renderRoot.querySelector<PhxDocShare>("phx-doc-share")!.open()}>${icon("Share2", 14)} ${t("share.button")}</button>
+          ${this.translateButton(d)}
           ${this.draft ? "" : html`<a class="btn ghost" href="/p/${this.project}/d/${d.slug}/edit">${icon("Pencil", 14)} ${t("doc.edit")}</a>`}
           ${this.confirming
             ? html`<span class="muted">${t("doc.delete_confirm")}</span><button class="danger" @click=${this.deleteDoc}>${t("doc.delete")}</button><button class="ghost" @click=${() => (this.confirming = false)}>${t("doc.cancel")}</button>`
@@ -296,7 +279,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       </header>
       ${d.type === "adr" && c.status === "superseded" && c.supersededBy
         ? html`<p class="notice" role="note">${t("adr.superseded_notice")} ${t("adr.superseded_by")}: ${this.decisionLink(c.supersededBy)}</p>` : ""}
-      ${this.languageBar(d, canEdit)}
+      ${this.languageNotes(d)}
       ${this.draftNotice(d)}
       ${this.body(d)}
       ${canEdit ? html`<phx-doc-share .project=${currentProject.get()} .doc=${d} @changed=${() => this.reload()}></phx-doc-share>` : ""}

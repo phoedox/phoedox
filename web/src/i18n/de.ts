@@ -1044,4 +1044,6 @@ export const de = {
   "validation.ai_tasks_direct": "KI-Clients ändern Aufgaben nur in Projekten, in denen die KI direkt schreibt.",
   "validation.assignee": "„{user}“ ist kein Mitglied dieses Projekts.",
   "validation.due": "Das Fälligkeitsdatum muss ein Datum sein (JJJJ-MM-TT).",
+  "lang.main": "Hauptsprache",
+  "lang.not_translated": "Diese Seite ist noch nicht auf {lang} übersetzt – angezeigt wird die Hauptsprache ({main}).",
 } as const;

@@ -6,7 +6,8 @@ import { api, type Doc, type DraftInfo, type Favorite, type Project } from "../a
 import { applyProjectColor } from "../color";
 import { t } from "../i18n";
 import { icon } from "../icon";
-import { currentProject, docsVersion, favorites } from "../state";
+import { contentLocale, currentProject, docsVersion, favorites } from "../state";
+import { preferredLocale } from "../languages";
 import { base } from "./shared";
 import "./doc-view";
 import "./doc-form";
@@ -135,6 +136,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
       try {
         const p = await api<Project>("GET", `/projects/${this.slug}`);
         currentProject.set(p);
+        contentLocale.set(p.mainLocale ? preferredLocale(p) : "");
         try {
           this.collapsed = new Set(JSON.parse(localStorage.getItem(`phx.collapsed.${p.slug}`) ?? "[]"));
         } catch {

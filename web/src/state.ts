@@ -10,6 +10,9 @@ export const favorites = signal<import("./api").Favorite[]>([]);
 /** Bumped when documents of the current project change, so the sidebar reloads. */
 export const docsVersion = signal(0);
 
+/** Content language chosen for the current multilingual project (ADR-0028); "" = main language. */
+export const contentLocale = signal("");
+
 /** Pages use the full width instead of a centred reading column (per browser). */
 export const wideReading = signal(readWide());
 function readWide(): boolean {

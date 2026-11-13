@@ -4,6 +4,7 @@ import { ApiError, api, type Doc, type TranslationInfo } from "../api";
 import { t } from "../i18n";
 import { icon } from "../icon";
 import { languageName, rememberLocale } from "../languages";
+import { contentLocale } from "../state";
 import { renderMarkdown } from "../md";
 import { currentProject, docsVersion, navigate } from "../state";
 import { prose } from "./doc-view";
@@ -74,6 +75,7 @@ export class PhxTranslate extends LitElement {
       await api("PUT", `/projects/${this.project}/documents/${d.id}/translations/${this.lang}`, body);
       toast(t("lang.saved"));
       rememberLocale(this.project, this.lang);
+      contentLocale.set(this.lang);
       docsVersion.set(docsVersion.get() + 1);
       navigate(`/p/${this.project}/d/${d.slug}`);
     } catch (err) {
