@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -206,5 +207,12 @@ func runStore(t *testing.T, d *DB) {
 	}
 	if hops, _ := d.Traverse(ctx, laptop.ID, "uplink", "out", 6); len(hops) != 0 {
 		t.Fatalf("deleted entity edges must be gone: %+v", hops)
+	}
+}
+
+func TestTimeJSONZeroIsNull(t *testing.T) {
+	b, err := json.Marshal(struct{ A Time }{})
+	if err != nil || string(b) != `{"A":null}` {
+		t.Fatalf("got %s, %v", b, err)
 	}
 }

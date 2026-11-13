@@ -210,6 +210,14 @@ func (t *Time) parse(s string) error {
 	return fmt.Errorf("store: cannot parse time %q", s)
 }
 
+// MarshalJSON encodes an unset time as null instead of year 1.
+func (t Time) MarshalJSON() ([]byte, error) {
+	if t.IsZero() {
+		return []byte("null"), nil
+	}
+	return t.Time.MarshalJSON()
+}
+
 // Value implements driver.Valuer. Text works for TIMESTAMPTZ and SQLite TEXT.
 func (t Time) Value() (driver.Value, error) {
 	if t.IsZero() {
