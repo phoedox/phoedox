@@ -263,7 +263,9 @@ type fakeStore struct {
 	sig     plugins.Signature
 }
 
-func (f *fakeStore) Catalog(context.Context, string, string) ([]CatalogEntry, error) { return f.catalog, nil }
+func (f *fakeStore) Catalog(context.Context, string, string) ([]CatalogEntry, error) {
+	return f.catalog, nil
+}
 func (f *fakeStore) Download(context.Context, string, string) ([]byte, plugins.Signature, error) {
 	return f.pkg, f.sig, nil
 }
