@@ -1167,4 +1167,5 @@ export const de = {
   "validation.pub_css": "Eigenes CSS darf kein „<“ enthalten und höchstens 20 000 Zeichen haben.",
   "validation.pub_password": "Für eine geschützte Veröffentlichung braucht es ein Passwort.",
   "validation.pub_taken": "Kurzname oder Domain sind schon vergeben.",
+  "perm.net_fetch_config": "Adressen aufrufen, die du in den Plugin-Einstellungen einträgst (z. B. url)",
 } as const;

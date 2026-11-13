@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"net/url"
 	"strings"
 
 	"github.com/phoedox/phoedox/internal/plugins"
@@ -198,6 +199,29 @@ func (e *pluginEnv) GraphApply(ctx context.Context, ops plugins.Ops, allow func(
 		}
 	}
 	return res, nil
+}
+
+// ConfiguredHosts returns the hosts of the plugin's address settings
+// (secrets named "url" or ending in "_url").
+func (e *pluginEnv) ConfiguredHosts(ctx context.Context) ([]string, error) {
+	pp, err := e.s.DB.GetProjectPlugin(ctx, e.p.ID, e.ap.row.ID)
+	if err != nil {
+		return nil, err
+	}
+	all, err := e.s.pluginSecrets(pp)
+	if err != nil {
+		return nil, err
+	}
+	var hosts []string
+	for name, v := range all {
+		if name != "url" && !strings.HasSuffix(name, "_url") {
+			continue
+		}
+		if u, err := url.Parse(strings.TrimSpace(v)); err == nil && u.Hostname() != "" {
+			hosts = append(hosts, u.Hostname())
+		}
+	}
+	return hosts, nil
 }
 
 func (e *pluginEnv) Secret(ctx context.Context, name string) (string, error) {

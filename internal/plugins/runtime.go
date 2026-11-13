@@ -30,6 +30,9 @@ type Env interface {
 	Secret(ctx context.Context, name string) (string, error)
 	KVGet(ctx context.Context, key string) (json.RawMessage, error)
 	KVSet(ctx context.Context, key string, value json.RawMessage) error
+	// ConfiguredHosts are the hosts of the addresses the project owner set
+	// for the plugin (secrets "url" or "*_url"); net:fetch:config allows them.
+	ConfiguredHosts(ctx context.Context) ([]string, error)
 }
 
 // Query searches entities of the project.
@@ -372,17 +375,17 @@ func (r *Runtime) dispatch(st *callState, req hostRequest) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		return r.fetch(ctx, m, f)
+		return r.fetch(ctx, m, f, st.env)
 	}
 	return nil, fmt.Errorf("%w: unknown operation %q", ErrInvalid, req.Op)
 }
 
-func (r *Runtime) fetch(ctx context.Context, m Manifest, f FetchRequest) (*FetchResponse, error) {
+func (r *Runtime) fetch(ctx context.Context, m Manifest, f FetchRequest, env Env) (*FetchResponse, error) {
 	u, err := url.Parse(f.URL)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil {
 		return nil, fmt.Errorf("%w: url must be http(s)://host/…", ErrInvalid)
 	}
-	if !m.CanFetch(u.Hostname()) {
+	if !m.CanFetch(u.Hostname()) && !configuredHost(ctx, m, env, u.Hostname()) {
 		return nil, fmt.Errorf("%w: net:fetch:%s", ErrDenied, strings.ToLower(u.Hostname()))
 	}
 	method := strings.ToUpper(f.Method)
@@ -472,4 +475,22 @@ func (r *Runtime) Logs(key string) []LogLine {
 		out = append(out, rg.lines[(rg.next-i+logLines)%logLines])
 	}
 	return out
+}
+
+// configuredHost tells whether net:fetch:config lets the plugin call host:
+// the project owner entered an address with this host for the plugin.
+func configuredHost(ctx context.Context, m Manifest, env Env, host string) bool {
+	if !m.Has("net:fetch:config") || env == nil {
+		return false
+	}
+	hosts, err := env.ConfiguredHosts(ctx)
+	if err != nil {
+		return false
+	}
+	for _, h := range hosts {
+		if strings.EqualFold(h, host) {
+			return true
+		}
+	}
+	return false
 }

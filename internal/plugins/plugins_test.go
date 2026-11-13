@@ -87,6 +87,7 @@ type fakeEnv struct {
 	mu      sync.Mutex
 	kv      map[string]json.RawMessage
 	applied []Ops
+	hosts   []string
 }
 
 func (f *fakeEnv) GraphGet(_ context.Context, ref string) (any, error) {
@@ -105,6 +106,19 @@ func (f *fakeEnv) GraphApply(_ context.Context, ops Ops, allow func(string) bool
 	return map[string]any{"applied": len(ops.Ops)}, nil
 }
 func (f *fakeEnv) Secret(_ context.Context, name string) (string, error) { return "s3cret", nil }
+func (f *fakeEnv) ConfiguredHosts(context.Context) ([]string, error)     { return f.hosts, nil }
+
+// TestConfiguredHosts: net:fetch:config allows only the hosts the owner set.
+func TestConfiguredHosts(t *testing.T) {
+	env := &fakeEnv{hosts: []string{"ha.lan"}}
+	with := Manifest{Permissions: []string{"net:fetch:config"}}
+	if !configuredHost(context.Background(), with, env, "HA.lan") || configuredHost(context.Background(), with, env, "evil.example") {
+		t.Fatal("configured host check")
+	}
+	if configuredHost(context.Background(), Manifest{}, env, "ha.lan") {
+		t.Fatal("without the permission nothing is allowed")
+	}
+}
 func (f *fakeEnv) KVGet(_ context.Context, key string) (json.RawMessage, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

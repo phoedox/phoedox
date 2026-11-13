@@ -1169,4 +1169,5 @@ export const en: Record<keyof typeof de, string> = {
   "validation.pub_css": "Custom CSS must not contain “<” and is limited to 20 000 characters.",
   "validation.pub_password": "A protected publication needs a password.",
   "validation.pub_taken": "Short name or domain are already in use.",
+  "perm.net_fetch_config": "Call the addresses you enter in the plugin settings (e.g. url)",
 };
