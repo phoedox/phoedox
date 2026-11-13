@@ -174,6 +174,9 @@ func (s *Service) model(ctx context.Context, projectID string) (Model, error) {
 			ext[d.Kind] = in
 			continue
 		}
+		if in.Attrs == nil {
+			in.Attrs = []Attr{} // clients rely on a list
+		}
 		own = append(own, Kind{ID: d.Kind, Name: in.Name, Description: in.Description, Group: "custom", Icon: in.Icon, Source: "project",
 			Attrs: in.Attrs, Relations: in.Relations})
 	}

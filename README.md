@@ -113,8 +113,8 @@ lesen**, **Vorschlagen** (Standard – Änderungen landen als Vorschläge, die e
 **Direkt**. Admins können KI-Zugriff unter **Einstellungen → Instanz** komplett abschalten.
 
 Werkzeuge: Projekte auflisten und anlegen, Projektüberblick, Dokumente (Markdown, Entscheidungen/ADRs,
-externe Links) lesen, anlegen, ändern und versionieren, Einträge und Beziehungen im Wissensnetz
-pflegen und durchsuchen.
+externe Links) lesen, anlegen, ändern und versionieren, das Datenmodell lesen und erweitern, Einträge
+und Beziehungen im Wissensnetz pflegen und durchsuchen.
 
 ## Repositories
 

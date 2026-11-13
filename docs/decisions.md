@@ -197,3 +197,12 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 | Umfang | Tokens und OAuth-Freigaben tragen `access` (`read`/`write`) und eine Projektliste (leer = alle eigenen). Gilt zusätzlich zu den Rollen des Besitzers – nie mehr als er. Eingeschränkte Zugänge sehen fremde Projekte als „nicht gefunden“, legen keine Projekte an und erreichen keine Konto- oder Admin-Routen. |
 | Projekt | KI-Modus `off` (Projekt für KI unsichtbar), `read`, `suggest` (Standard), `direct`. Nur Menschen ändern den Modus. |
 | Abschalten | Schalter `ai_enabled` (Tabelle `instance_settings`): aus → `/mcp` antwortet 403, OAuth-Freigaben sind gesperrt. Der System-Admin-Schalter bleibt als Hauptschalter für die ganze Instanz; mit den Organisationen kommt zusätzlich ein Schalter pro Organisation für deren Admins (KI nur, wenn beide an sind). |
+
+## Datenmodell & Wissensnetz
+
+| Bereich | Entscheidung |
+|---|---|
+| Arten | Kern-Arten in `resources/kinds/core.json` (Allgemein, Gebäude, Netzwerk, Infrastruktur, Strom, Software) mit Attributen (`text`, `number` mit Einheit, `bool`, `date`, `ip`, `url`, `select`), Pflichtfeldern und erlaubten Beziehungen. Namen und Beschriftungen kommen aus den i18n-Tabellen (ein Bun-Test prüft, dass alle übersetzt sind). Projekte erweitern Kern-Arten um Attribute/Beziehungen oder legen eigene Arten an (Tabelle `project_kinds`, Symbol aus einer festen Lucide-Liste). |
+| Prüfung | Einträge brauchen eine bekannte Art; bekannte Attribute werden geprüft und normalisiert (Zahlen aus Text, leere Werte entfallen), unbekannte bleiben erhalten. Beziehungen nur, wenn das Modell sie zwischen den Arten vorsieht; `related_to` und `depends_on` gehen immer. Ältere Einträge ohne Definition erscheinen als „Ohne Definition“. |
+| KI | `get_data_model` liefert pro Art ein JSON-Schema und die Beziehungen; `define_kind` legt Arten an (im Vorschlagsmodus als Vorschlag). Löschen von Arten nur durch Menschen. |
+| Oberfläche | Datenmodell-Seite (Arten, Schema-Graph, Einträge pro Art, Attribute/Beziehungen bearbeiten), Formular aus dem Schema, Eintragsseite mit direkten Nachbarn und „Verbinden“ (beide Richtungen, nur erlaubte Beziehungen), Wissensnetz-Ansicht mit Kraft-Layout (einmal berechnet, ohne Animation), Filter nach Art, Suche, Zoom/Verschieben. |

@@ -96,6 +96,12 @@ func (s *Service) Entity(ctx context.Context, a Actor, ref, entRef string) (Enti
 		return EntityDetail{}, err
 	}
 	docs, err := s.DB.DocumentsMentioning(ctx, e.ID)
+	if edges == nil {
+		edges = []store.Edge{}
+	}
+	if docs == nil {
+		docs = []store.Document{}
+	}
 	return EntityDetail{Entity: e, Edges: edges, Documents: docs}, err
 }
 
@@ -291,5 +297,11 @@ func (s *Service) ProjectGraph(ctx context.Context, a Actor, ref string) (Graph,
 		return Graph{}, err
 	}
 	edges, err := s.DB.EdgesOfProject(ctx, p.ID)
+	if es == nil {
+		es = []store.Entity{}
+	}
+	if edges == nil {
+		edges = []store.Edge{}
+	}
 	return Graph{Entities: es, Edges: edges}, err
 }

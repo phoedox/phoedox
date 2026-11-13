@@ -13,6 +13,9 @@ import "./decisions";
 import "./history";
 import "./trash";
 import "./entity-view";
+import "./entity-form";
+import "./data-model";
+import "./graph-view";
 import "./suggestions";
 import "./project-settings";
 
@@ -82,6 +85,10 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "trash", render: () => html`<phx-trash .project=${this.slug}></phx-trash>` },
     { path: "d/:doc", render: ({ doc }) => html`<phx-doc-view .project=${this.slug} .docSlug=${doc!}></phx-doc-view>` },
     { path: "new/:type", render: ({ type }) => html`<phx-doc-form .project=${this.slug} .type=${type!}></phx-doc-form>` },
+    { path: "e/:entity/edit", render: ({ entity }) => html`<phx-entity-form .project=${this.slug} .entity=${entity!}></phx-entity-form>` },
+    { path: "new-entity", render: () => html`<phx-entity-form .project=${this.slug}></phx-entity-form>` },
+    { path: "model", render: () => html`<phx-data-model .project=${this.slug}></phx-data-model>` },
+    { path: "graph", render: () => html`<phx-graph-view .project=${this.slug}></phx-graph-view>` },
     { path: "e/:entity", render: ({ entity }) => html`<phx-entity-view .project=${this.slug} .entity=${entity!}></phx-entity-view>` },
     { path: "decisions", render: () => html`<phx-decisions .project=${this.slug}></phx-decisions>` },
     { path: "suggestions", render: () => html`<phx-suggestions .project=${this.slug}></phx-suggestions>` },
@@ -198,6 +205,9 @@ export class PhxProject extends SignalWatcher(LitElement) {
     if (doc) return doc.title;
     if (here.endsWith("/decisions")) return t("nav.decisions");
     if (here.endsWith("/trash")) return t("nav.trash");
+    if (here.endsWith("/graph")) return t("nav.graph");
+    if (here.endsWith("/model")) return t("nav.model");
+    if (here.endsWith("/new-entity")) return t("entity.new");
     if (here.endsWith("/suggestions")) return t("nav.suggestions");
     if (here.endsWith("/settings")) return t("nav.settings");
     return t("project.overview");
@@ -233,7 +243,9 @@ export class PhxProject extends SignalWatcher(LitElement) {
       <aside id="nav" class=${this.menuOpen ? "open" : ""} aria-label=${t("nav.menu")} @click=${this.onAsideClick}>
         ${this.favoritesGroup(here)}
         <div class="grp"><a href="/p/${this.slug}" class=${here === `/p/${this.slug}` ? "on" : ""}>${icon("House", 15)} ${t("project.overview")}</a>
-          <a href="/p/${this.slug}/decisions" class=${here === `/p/${this.slug}/decisions` ? "on" : ""}>${icon("ListChecks", 15)} ${t("nav.decisions")}</a></div>
+          <a href="/p/${this.slug}/decisions" class=${here === `/p/${this.slug}/decisions` ? "on" : ""}>${icon("ListChecks", 15)} ${t("nav.decisions")}</a>
+          <a href="/p/${this.slug}/graph" class=${here === `/p/${this.slug}/graph` || here.startsWith(`/p/${this.slug}/e/`) ? "on" : ""}>${icon("Waypoints", 15)} ${t("nav.graph")}</a>
+          <a href="/p/${this.slug}/model" class=${here === `/p/${this.slug}/model` ? "on" : ""}>${icon("Shapes", 15)} ${t("nav.model")}</a></div>
         ${[...groups].map(([cat, docs]) => html`<div class="grp">
           <div class="lbl">${cat || t("nav.uncategorized")}</div>
           ${docs.map((d) => d.type === "link" && d.content?.url
@@ -244,7 +256,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
           ${canEdit ? html`
             <a href="/p/${this.slug}/new/markdown">${icon("FilePlus", 15)} ${t("doc.type.markdown")}</a>
             <a href="/p/${this.slug}/new/adr">${icon("Scale", 15)} ${t("doc.type.adr")}</a>
-            <a href="/p/${this.slug}/new/link">${icon("Link", 15)} ${t("doc.type.link")}</a>` : ""}
+            <a href="/p/${this.slug}/new/link">${icon("Link", 15)} ${t("doc.type.link")}</a>
+            <a href="/p/${this.slug}/new-entity" class=${here.endsWith("/new-entity") ? "on" : ""}>${icon("Plus", 15)} ${t("entity.new")}</a>` : ""}
           ${canEdit ? html`<a href="/p/${this.slug}/trash" class=${here.endsWith("/trash") ? "on" : ""}>${icon("Trash2", 15)} ${t("nav.trash")}</a>` : ""}
           <a href="/p/${this.slug}/suggestions" class=${here.endsWith("/suggestions") ? "on" : ""}>${icon("Bot", 15)} ${t("nav.suggestions")}</a>
           <a href="/p/${this.slug}/settings" class=${here.endsWith("/settings") ? "on" : ""}>${icon("Settings", 15)} ${t("nav.settings")}</a>
