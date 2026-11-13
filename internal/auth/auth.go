@@ -2,7 +2,7 @@
 //
 // MVP: password login with an HttpOnly session cookie and personal API tokens
 // (Bearer) for REST, MCP and CLI. TOTP, passkeys, OIDC, magic links, the
-// short-lived JWT and OAuth 2.1 for MCP follow (see docs/decisions.md).
+// short-lived JWT and OAuth 2.1 for MCP follow (decisions ADR-0011, ADR-0012).
 package auth
 
 import (

@@ -2,7 +2,7 @@ import { signal } from "@lit-labs/signals";
 import type { Project, User } from "./api";
 import { detectLocale, setLocale } from "./i18n";
 
-/** Shared app state as signals (see docs/decisions.md: signals + context). */
+/** Shared app state as signals (decision ADR-0007: signals + context). */
 export const currentUser = signal<User | null>(null);
 export const currentProject = signal<Project | null>(null);
 /** Favorites of the current project (project-wide and the user's own). */

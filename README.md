@@ -6,7 +6,7 @@ Dokumentation, die weiß, wie alles zusammenhängt. Phoedox verbindet Texte, Gru
 Serverschränke und Home Assistant zu einem Wissensnetz – steuerbar über die Web-App,
 die Flutter-App und jede KI per MCP.
 
-> Status: früh – Dokumente, Entscheidungen, Wissensnetz, Web-App und MCP laufen; Grundrisse, 3D, Plugins und Home Assistant folgen. Planung und Entscheidungen: [`docs/decisions.md`](docs/decisions.md).
+> Status: früh – Dokumente, Entscheidungen, Wissensnetz, Web-App und MCP laufen; Grundrisse, 3D, Plugins und Home Assistant folgen. Entscheidungen werden in Phoedox selbst geführt (Projekt `phoedox`, siehe [`docs/decisions.md`](docs/decisions.md)).
 
 ## Installation
 

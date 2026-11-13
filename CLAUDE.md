@@ -1,8 +1,10 @@
 # Phoedox – App (Server + Web)
 
 Dokumentation mit Wissensnetz: Go-Server mit eingebettetem Lit-Frontend.
-Alle Produkt- und Technik-Entscheidungen stehen in `docs/decisions.md` – vor größeren Änderungen lesen
-und bei neuen Entscheidungen dort nachtragen. Der klickbare Prototyp liegt in `docs/prototype/`.
+Alle Produkt- und Technik-Entscheidungen stehen in **Phoedox selbst**: https://app.phoedox.com, Projekt
+`phoedox`, Kategorie „Entscheidungen“ (ADR-0001 …). Vor größeren Änderungen per MCP lesen (`list_decisions`,
+`get_document`), neue Entscheidungen mit `create_decision` anlegen (bei Ersatz `supersedes`). Ohne MCP-Zugang
+den Nutzer fragen. `docs/decisions.md` ist nur noch ein Verweis (ADR-0026). Der klickbare Prototyp liegt in `docs/prototype/`.
 
 ## Aufbau
 
