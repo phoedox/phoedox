@@ -226,6 +226,10 @@ func TestFetch(t *testing.T) {
 func TestLimits(t *testing.T) {
 	p := testPackage(t, testManifest)
 	r := newRuntime(t)
+	// Compile first: the measured time is only the call (slow under -race).
+	if _, err := r.Call(context.Background(), p, "t", "hello", map[string]string{"name": "x"}, &fakeEnv{}); err != nil {
+		t.Fatal(err)
+	}
 	r.Timeout = 500 * time.Millisecond
 	start := time.Now()
 	if _, err := r.Call(context.Background(), p, "t", "spin", nil, &fakeEnv{}); err == nil || !strings.Contains(err.Error(), "longer than") {
