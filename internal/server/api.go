@@ -26,6 +26,8 @@ type api struct {
 	regLimiter *limiter
 	// runLimiter limits request block runs per user.
 	runLimiter *limiter
+	// root is the whole router (for the OpenAPI description).
+	root chi.Routes
 }
 
 func clientIP(r *http.Request) string {
@@ -47,6 +49,7 @@ func (a *api) routes(r chi.Router) {
 		}
 		writeJSON(w, http.StatusOK, info)
 	})
+	r.Get("/openapi.json", a.serveOpenAPI)
 	r.Get("/shared/{token}", a.sharedView)
 	r.Get("/shared/{token}/documents/{d}", a.sharedDocument)
 	r.Get("/shared/{token}/files/{id}", a.sharedFile)
@@ -136,6 +139,12 @@ func (a *api) routes(r chi.Router) {
 			r.Put("/documents/{d}/sharing", a.setRestricted)
 			r.Post("/documents/{d}/sharing/grants", a.shareDocument)
 			r.Delete("/documents/{d}/sharing/grants/{id}", a.unshareDocument)
+			r.Get("/webhooks", a.listWebhooks)
+			r.Post("/webhooks", a.createWebhook)
+			r.Patch("/webhooks/{id}", a.updateWebhook)
+			r.Delete("/webhooks/{id}", a.deleteWebhook)
+			r.Get("/webhooks/{id}/deliveries", a.webhookDeliveries)
+			r.Post("/webhooks/{id}/test", a.testWebhook)
 			r.Get("/share-links", a.listShareLinks)
 			r.Post("/share-links", a.createShareLink)
 			r.Delete("/share-links/{id}", a.revokeShareLink)

@@ -745,4 +745,6 @@ export const de = {
   "validation.share_days": "Die Gültigkeit muss zwischen 0 und 3650 Tagen liegen.",
   "settings.role.doc": "Einzelne Seiten",
   "error.unknown_domain": "Unter dieser Adresse gibt es keine Phoedox-Instanz.",
+  "validation.webhook_url": "Die Adresse muss mit https:// (oder http://) beginnen.",
+  "validation.webhook_event": "Unbekanntes Ereignis {event}.",
 } as const;

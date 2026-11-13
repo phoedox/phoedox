@@ -28,6 +28,7 @@ type fileJob struct {
 // RegisterJobs connects the service's background work to the queue.
 func (s *Service) RegisterJobs(q *jobs.Queue) {
 	s.Jobs = q
+	s.registerWebhookJobs(q)
 	q.Handle(JobFileProcess, func(ctx context.Context, payload json.RawMessage) error {
 		var j fileJob
 		if err := json.Unmarshal(payload, &j); err != nil {

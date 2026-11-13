@@ -380,3 +380,20 @@ func (h *Hub) Editors(documentID string) int {
 	defer r.mu.Unlock()
 	return len(r.clients)
 }
+
+// TotalEditors counts all connected live editors (for metrics).
+func (h *Hub) TotalEditors() int {
+	h.mu.Lock()
+	rooms := make([]*room, 0, len(h.rooms))
+	for _, r := range h.rooms {
+		rooms = append(rooms, r)
+	}
+	h.mu.Unlock()
+	n := 0
+	for _, r := range rooms {
+		r.mu.Lock()
+		n += len(r.clients)
+		r.mu.Unlock()
+	}
+	return n
+}

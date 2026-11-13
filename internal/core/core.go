@@ -210,4 +210,5 @@ func newID() string { return string(graph.NewID()) }
 
 func (s *Service) event(ctx context.Context, a Actor, kind, subject string, payload any) {
 	_ = s.DB.AddEvent(ctx, a.String(), kind, subject, payload)
+	s.emitWebhooks(ctx, a, kind, subject, payload)
 }

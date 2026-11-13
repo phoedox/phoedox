@@ -62,6 +62,9 @@ type Config struct {
 	// installed (PHOEDOX_OCR, default true); OCRLangs e.g. "deu+eng".
 	OCR      bool
 	OCRLangs string
+	// MetricsToken enables /metrics for Prometheus with this bearer token
+	// (PHOEDOX_METRICS_TOKEN); empty disables it.
+	MetricsToken string
 	// Workers is the number of background jobs run in parallel
 	// (PHOEDOX_WORKERS, default 2; 0 runs no jobs in this process).
 	Workers int
@@ -162,6 +165,7 @@ func FromEnv() (Config, error) {
 	}
 	c.MaxUploadMB = mu
 	c.ClamAV = os.Getenv("PHOEDOX_CLAMAV")
+	c.MetricsToken = os.Getenv("PHOEDOX_METRICS_TOKEN")
 	c.OCR = getenv("PHOEDOX_OCR", "true") == "true"
 	c.OCRLangs = getenv("PHOEDOX_OCR_LANGS", "deu+eng")
 	wk, err := strconv.Atoi(getenv("PHOEDOX_WORKERS", "2"))

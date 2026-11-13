@@ -4,6 +4,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"github.com/phoedox/phoedox/internal/metrics"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -33,6 +34,8 @@ type Deps struct {
 	Web    fs.FS
 	// Hub serves live editing (/rt); nil disables it.
 	Hub *realtime.Hub
+	// Metrics counts requests; /metrics is served if Config.MetricsToken is set.
+	Metrics *metrics.Metrics
 }
 
 // New returns the root handler.
@@ -44,6 +47,12 @@ func New(d Deps) http.Handler {
 		r.Use(middleware.RealIP)
 	}
 	r.Use(middleware.Recoverer)
+	if d.Metrics != nil {
+		r.Use(d.Metrics.Middleware)
+		if d.Config.MetricsToken != "" {
+			r.Handle("/metrics", d.Metrics.Handler(d.Config.MetricsToken))
+		}
+	}
 	if d.Config.MultiTenant && d.Core != nil {
 		r.Use(tenantByHost(d.Core.DB))
 	}
@@ -55,6 +64,7 @@ func New(d Deps) http.Handler {
 	if d.Core != nil && d.Auth != nil {
 		api := &api{core: d.Core, auth: d.Auth, cfg: d.Config, limiter: newLimiter(10, 5*time.Minute), regLimiter: newLimiter(30, time.Hour), runLimiter: newLimiter(30, time.Minute)}
 		r.Route("/api/v1", api.routes)
+		api.root = r
 		api.oauthRoutes(r)
 		if d.Hub != nil {
 			r.With(api.requireActor).Get("/rt/doc/{p}/{d}", api.live(d.Hub))
@@ -126,7 +136,7 @@ func writeErr(w http.ResponseWriter, err error) {
 func tenantByHost(db *store.DB) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/healthz" {
+			if r.URL.Path == "/healthz" || r.URL.Path == "/metrics" {
 				next.ServeHTTP(w, r)
 				return
 			}

@@ -747,4 +747,6 @@ export const en: Record<keyof typeof de, string> = {
   "validation.share_days": "Validity must be between 0 and 3650 days.",
   "settings.role.doc": "Single pages",
   "error.unknown_domain": "There is no Phoedox instance at this address.",
+  "validation.webhook_url": "The URL must start with https:// (or http://).",
+  "validation.webhook_event": "Unknown event {event}.",
 };

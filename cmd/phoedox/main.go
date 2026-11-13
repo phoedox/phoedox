@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"errors"
+	"github.com/phoedox/phoedox/internal/metrics"
 	"github.com/phoedox/phoedox/internal/store"
 	"log/slog"
 	"net/http"
@@ -37,13 +38,16 @@ func main() {
 
 	hub := realtime.NewHub(a.DB)
 	a.Core.OnContentChange = hub.Reset
+	m := metrics.New(metrics.Sources{DB: a.DB.SQL, Version: server.Version, LiveEditors: hub.TotalEditors,
+		JobCounts: func(ctx context.Context) (map[string]int, error) { return a.DB.JobCounts(store.System(ctx)) }})
 	handler := server.New(server.Deps{
-		Hub:    hub,
-		Config: a.Config,
-		Core:   a.Core,
-		Auth:   a.Auth,
-		MCP:    mcp.Handler(a.Core, a.Auth, server.Version, server.BaseURL(a.Config)),
-		Web:    web.Dist(),
+		Metrics: m,
+		Hub:     hub,
+		Config:  a.Config,
+		Core:    a.Core,
+		Auth:    a.Auth,
+		MCP:     mcp.Handler(a.Core, a.Auth, server.Version, server.BaseURL(a.Config)),
+		Web:     web.Dist(),
 	})
 	srv := &http.Server{Addr: a.Config.Listen, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
 
