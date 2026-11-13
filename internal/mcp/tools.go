@@ -92,6 +92,7 @@ func (f decisionFields) adr() core.ADR {
 type listDecisionsIn struct {
 	Project string `json:"project" jsonschema:"project slug"`
 	Status  string `json:"status,omitempty" jsonschema:"only decisions with this status: proposed, accepted, rejected, deprecated or superseded"`
+	Query   string `json:"query,omitempty" jsonschema:"only decisions whose number, title or text contain all these words"`
 }
 
 type createDecisionIn struct {
@@ -328,7 +329,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocADR, Title: in.Title, Slug: in.Slug, Category: in.Category, ADR: &adr})
 	})
 	tool(s, "list_decisions", "The decision log of a project: number (ADR-0003), title, status, date and which decision supersedes which, ordered by number.", func(ctx context.Context, a core.Actor, in listDecisionsIn) (any, error) {
-		return svc.Decisions(ctx, a, in.Project, in.Status)
+		return svc.Decisions(ctx, a, in.Project, in.Status, in.Query)
 	})
 	tool(s, "update_decision", "Update a decision. Given fields replace the current ones, others stay.", func(ctx context.Context, a core.Actor, in updateDecisionIn) (any, error) {
 		cur, err := svc.Document(ctx, a, in.Project, in.Document)

@@ -376,7 +376,7 @@ func (a *api) listDocuments(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) listDecisions(w http.ResponseWriter, r *http.Request) {
-	ds, err := a.core.Decisions(r.Context(), actorOf(r), chi.URLParam(r, "p"), r.URL.Query().Get("status"))
+	ds, err := a.core.Decisions(r.Context(), actorOf(r), chi.URLParam(r, "p"), r.URL.Query().Get("status"), r.URL.Query().Get("q"))
 	respond(w, ds, err)
 }
 

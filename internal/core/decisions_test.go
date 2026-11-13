@@ -127,16 +127,23 @@ func TestDecisions(t *testing.T) {
 	}
 
 	// decision log with status filter
-	all, err := s.Decisions(ctx, reader, p.Slug, "")
+	all, err := s.Decisions(ctx, reader, p.Slug, "", "")
 	if err != nil || len(all) != 3 || all[0].Ref != "ADR-0001" || all[1].Number != 3 || all[2].Number != 4 {
 		t.Fatalf("decisions: %v %+v", err, all)
 	}
-	sup, err := s.Decisions(ctx, reader, p.Slug, "superseded")
+	sup, err := s.Decisions(ctx, reader, p.Slug, "superseded", "")
 	if err != nil || len(sup) != 1 || sup[0].SupersededBy != "datenbank-neu" {
 		t.Fatalf("superseded filter: %v %+v", err, sup)
 	}
-	if _, err := s.Decisions(ctx, reader, p.Slug, "maybe"); invalidKey(err) != "validation.adr_status" {
+	if _, err := s.Decisions(ctx, reader, p.Slug, "maybe", ""); invalidKey(err) != "validation.adr_status" {
 		t.Fatalf("invalid filter: %v", err)
+	}
+	// text search over number, title and text; all words must match
+	if q, _ := s.Decisions(ctx, reader, p.Slug, "", "adr-0003"); len(q) != 1 || q[0].Number != 3 {
+		t.Fatalf("search by number: %+v", q)
+	}
+	if q, _ := s.Decisions(ctx, reader, p.Slug, "", "gibt es nicht"); len(q) != 0 {
+		t.Fatalf("search without match: %+v", q)
 	}
 
 	// AI suggestions supersede only when accepted

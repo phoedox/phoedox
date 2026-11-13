@@ -222,7 +222,7 @@ var apiDocs = map[string]op{
 	"PUT /projects/{p}/documents/{d}/sharing":                {Tag: "sharing", Summary: "Restrict a page to owners and shares.", In: restrictIn{}, Out: core.DocSharing{}},
 	"POST /projects/{p}/documents/{d}/sharing/grants":        {Tag: "sharing", Summary: "Share a page with a person or group.", In: core.GrantInput{}, Out: core.DocSharing{}},
 	"DELETE /projects/{p}/documents/{d}/sharing/grants/{id}": {Tag: "sharing", Summary: "Stop sharing.", Out: core.DocSharing{}},
-	"GET /projects/{p}/decisions":                            {Tag: "documents", Summary: "Decision log (ADR numbers, status, supersedes).", Out: []core.DecisionSummary{}, Query: []string{"status"}},
+	"GET /projects/{p}/decisions":                            {Tag: "documents", Summary: "Decision log (ADR numbers, status, supersedes).", Out: []core.DecisionSummary{}, Query: []string{"status", "q"}},
 	"GET /search":                                            {Tag: "documents", Summary: "Full-text search over pages, entries and files.", Out: []store.Hit{}, Query: []string{"q", "project", "limit"}},
 
 	"GET /projects/{p}/model":                 {Tag: "graph", Summary: "Data model: kinds, attributes, allowed relations.", Out: core.Model{}},

@@ -964,4 +964,9 @@ export const de = {
   "create.markdown_desc": "Freier Text mit Tabellen, Listen, Bildern und Erwähnungen. Mehrere bearbeiten gleichzeitig.",
   "create.adr_desc": "Eine Entscheidung mit Status, Kontext, Entscheidung und Folgen; wird automatisch nummeriert.",
   "create.link_desc": "Verweist auf eine Doku an anderer Stelle, z. B. ein Handbuch oder Wiki.",
+  "decisions.search": "Entscheidungen durchsuchen",
+  "decisions.pages": "Seiten",
+  "decisions.range": "{from}–{to} von {total}",
+  "decisions.prev": "Vorherige Seite",
+  "decisions.next": "Nächste Seite",
 } as const;

@@ -966,4 +966,9 @@ export const en: Record<keyof typeof de, string> = {
   "create.markdown_desc": "Free text with tables, lists, images and mentions. Several people can edit at once.",
   "create.adr_desc": "A decision with status, context, decision and consequences; numbered automatically.",
   "create.link_desc": "Points to documentation elsewhere, such as a manual or wiki.",
+  "decisions.search": "Search decisions",
+  "decisions.pages": "Pages",
+  "decisions.range": "{from}–{to} of {total}",
+  "decisions.prev": "Previous page",
+  "decisions.next": "Next page",
 };

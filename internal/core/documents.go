@@ -450,7 +450,10 @@ type DecisionSummary struct {
 
 // Decisions lists the decisions of a project by number, optionally only
 // those with one status.
-func (s *Service) Decisions(ctx context.Context, a Actor, ref, status string) ([]DecisionSummary, error) {
+// Decisions lists the decision log. status filters by status; query keeps
+// decisions whose number, title or text contain every word of it.
+func (s *Service) Decisions(ctx context.Context, a Actor, ref, status, query string) ([]DecisionSummary, error) {
+	words := strings.Fields(strings.ToLower(query))
 	if status != "" && !adrStatus[status] {
 		return nil, invalid("validation.adr_status", nil, "status must be proposed, accepted, rejected, deprecated or superseded")
 	}
@@ -476,9 +479,24 @@ func (s *Service) Decisions(ctx context.Context, a Actor, ref, status string) ([
 		if status != "" && c.Status != status {
 			continue
 		}
+		if len(words) > 0 {
+			text := strings.ToLower(strings.Join([]string{DecisionRef(d.Number), d.Title, c.Context, c.Decision, c.Consequences, c.Alternatives}, "\n"))
+			if !containsAll(text, words) {
+				continue
+			}
+		}
 		out = append(out, DecisionSummary{Ref: DecisionRef(d.Number), Number: d.Number, Slug: d.Slug, Title: d.Title, Status: c.Status, Date: c.Date,
 			Category: d.Category, Supersedes: c.Supersedes, SupersededBy: c.SupersededBy, Version: d.Version, UpdatedAt: d.UpdatedAt})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Number < out[j].Number })
 	return out, nil
+}
+
+func containsAll(text string, words []string) bool {
+	for _, w := range words {
+		if !strings.Contains(text, w) {
+			return false
+		}
+	}
+	return true
 }
