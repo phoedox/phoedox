@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"github.com/phoedox/phoedox/internal/backup"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -70,21 +71,27 @@ type webhookList struct {
 
 // apiDocs describes every route of /api/v1; a test makes sure none is missing.
 var apiDocs = map[string]op{
-	"POST /auth/login":                {Tag: "auth", Summary: "Sign in with email and password (sets the session cookie; may ask for a second factor).", In: loginIn{}, Public: true},
-	"POST /auth/logout":               {Tag: "auth", Summary: "Sign out.", Public: true},
-	"POST /auth/login/totp":           {Tag: "auth", Summary: "Second step: TOTP code.", Public: true},
-	"POST /auth/login/recovery":       {Tag: "auth", Summary: "Second step: recovery code.", Public: true},
-	"POST /auth/login/passkey/begin":  {Tag: "auth", Summary: "Start signing in with a passkey.", Public: true},
-	"POST /auth/login/passkey/finish": {Tag: "auth", Summary: "Finish signing in with a passkey.", Public: true},
-	"POST /auth/passkey/begin":        {Tag: "auth", Summary: "Second step with a passkey: start.", Public: true},
-	"POST /auth/passkey/finish":       {Tag: "auth", Summary: "Second step with a passkey: finish.", Public: true},
-	"POST /auth/reset-request":        {Tag: "auth", Summary: "Send a password reset link.", In: emailIn{}, Public: true},
-	"GET /auth/links/{token}":         {Tag: "auth", Summary: "Read an invitation or reset link.", Public: true},
-	"POST /auth/links/{token}":        {Tag: "auth", Summary: "Set the password with an invitation or reset link.", Public: true},
-	"GET /auth/oidc/start":            {Tag: "auth", Summary: "Start single sign-on (redirect).", Public: true},
-	"GET /auth/oidc/callback":         {Tag: "auth", Summary: "Single sign-on callback (redirect).", Public: true},
-	"GET /instance":                   {Tag: "auth", Summary: "Version and sign-in options of this instance.", Public: true},
-	"GET /openapi.json":               {Tag: "auth", Summary: "This description (OpenAPI 3.1).", Public: true},
+	"GET /admin/backups":                 {Tag: "admin", Summary: "Backups, schedule and target.", Out: backup.Status{}},
+	"POST /admin/backups":                {Tag: "admin", Summary: "Make a backup now (201 done, 202 still running)."},
+	"POST /admin/backups/upload":         {Tag: "admin", Summary: "Upload a backup file (e.g. from another instance).", Raw: true, Out: backup.Info{}},
+	"GET /admin/backups/{name}":          {Tag: "admin", Summary: "Download a backup."},
+	"DELETE /admin/backups/{name}":       {Tag: "admin", Summary: "Delete a backup.", Out: ok{}},
+	"POST /admin/backups/{name}/restore": {Tag: "admin", Summary: "Replace all data with a backup (confirm = name); a backup of the current state is made first.", Out: backup.Manifest{}},
+	"POST /auth/login":                   {Tag: "auth", Summary: "Sign in with email and password (sets the session cookie; may ask for a second factor).", In: loginIn{}, Public: true},
+	"POST /auth/logout":                  {Tag: "auth", Summary: "Sign out.", Public: true},
+	"POST /auth/login/totp":              {Tag: "auth", Summary: "Second step: TOTP code.", Public: true},
+	"POST /auth/login/recovery":          {Tag: "auth", Summary: "Second step: recovery code.", Public: true},
+	"POST /auth/login/passkey/begin":     {Tag: "auth", Summary: "Start signing in with a passkey.", Public: true},
+	"POST /auth/login/passkey/finish":    {Tag: "auth", Summary: "Finish signing in with a passkey.", Public: true},
+	"POST /auth/passkey/begin":           {Tag: "auth", Summary: "Second step with a passkey: start.", Public: true},
+	"POST /auth/passkey/finish":          {Tag: "auth", Summary: "Second step with a passkey: finish.", Public: true},
+	"POST /auth/reset-request":           {Tag: "auth", Summary: "Send a password reset link.", In: emailIn{}, Public: true},
+	"GET /auth/links/{token}":            {Tag: "auth", Summary: "Read an invitation or reset link.", Public: true},
+	"POST /auth/links/{token}":           {Tag: "auth", Summary: "Set the password with an invitation or reset link.", Public: true},
+	"GET /auth/oidc/start":               {Tag: "auth", Summary: "Start single sign-on (redirect).", Public: true},
+	"GET /auth/oidc/callback":            {Tag: "auth", Summary: "Single sign-on callback (redirect).", Public: true},
+	"GET /instance":                      {Tag: "auth", Summary: "Version and sign-in options of this instance.", Public: true},
+	"GET /openapi.json":                  {Tag: "auth", Summary: "This description (OpenAPI 3.1).", Public: true},
 
 	"GET /me":                          {Tag: "account", Summary: "The signed-in user.", Out: store.User{}},
 	"PATCH /me":                        {Tag: "account", Summary: "Change name or language."},

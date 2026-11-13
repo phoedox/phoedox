@@ -16,6 +16,7 @@ import (
 
 	"github.com/phoedox/phoedox/internal/app"
 	"github.com/phoedox/phoedox/internal/auth"
+	"github.com/phoedox/phoedox/internal/backup"
 	"github.com/phoedox/phoedox/internal/core"
 	"github.com/phoedox/phoedox/internal/store"
 )
@@ -29,6 +30,8 @@ Admin commands (run on the server, same environment as phoedox):
   phx admin reset-2fa --email E                    Remove TOTP, recovery codes and passkeys
   phx admin create-token --email E [--name N]     Personal API token (REST, MCP)
   phx admin reindex                                Rebuild the search index
+  phx admin backup [--file F]                      Make a backup (to the backup target, or to file F)
+  phx admin restore --file F --yes                 Replace ALL data with the backup in file F
   phx admin create-tenant --id ID --name N --domain D   Hosted mode: new customer (domain may repeat)
   phx admin tenants                                List tenants and domains
 
@@ -70,12 +73,14 @@ func admin(args []string) error {
 	isAdmin := fs.Bool("admin", false, "make the user a system admin")
 	tenant := fs.String("tenant", store.DefaultTenant, "tenant (hosted mode)")
 	tenantID := fs.String("id", "", "tenant id (create-tenant)")
+	file := fs.String("file", "", "backup file")
+	yes := fs.Bool("yes", false, "confirm the restore")
 	var domains multi
 	fs.Var(&domains, "domain", "domain of the tenant (repeatable)")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
-	if *email == "" && args[0] != "reindex" && args[0] != "create-tenant" && args[0] != "tenants" {
+	if *email == "" && args[0] != "reindex" && args[0] != "create-tenant" && args[0] != "tenants" && args[0] != "backup" && args[0] != "restore" {
 		return errors.New("--email is required")
 	}
 	ctx := context.Background()
@@ -85,11 +90,52 @@ func admin(args []string) error {
 	}
 	defer a.DB.Close()
 	ctx = store.WithTenant(ctx, *tenant)
-	if args[0] == "reindex" {
+	if args[0] == "reindex" || args[0] == "backup" || args[0] == "restore" {
 		ctx = store.System(ctx)
 	}
 
 	switch args[0] {
+	case "backup":
+		if *file != "" {
+			f, err := os.Create(*file)
+			if err != nil {
+				return err
+			}
+			m, err := backup.Export(ctx, a.DB, a.Core.Blobs, a.Config.BackupFiles, "phx", a.Core.Box.KeyID(), f)
+			if cerr := f.Close(); err == nil {
+				err = cerr
+			}
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Backup written to %s (%d files).\n", *file, m.Blobs)
+			return nil
+		}
+		if a.Backups == nil {
+			return errors.New("no backups in the hosted mode")
+		}
+		info, err := a.Backups.Create(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Backup %s (%d bytes) stored (%s).\n", info.Name, info.Size, a.Backups.Target)
+		return nil
+	case "restore":
+		if *file == "" || !*yes {
+			return errors.New("--file and --yes are required: the restore replaces ALL data")
+		}
+		m, err := backup.Restore(ctx, a.DB, a.Core.Blobs, a.Core.TempDir, *file)
+		if err != nil {
+			return err
+		}
+		if _, err := a.Core.Reindex(ctx); err != nil {
+			return err
+		}
+		fmt.Printf("Restored the backup from %s (made by %s on %s). Restart the server.\n", m.CreatedAt.Format("2006-01-02 15:04"), m.App, m.Dialect)
+		if m.KeyID != "" && m.KeyID != a.Core.Box.KeyID() {
+			fmt.Println("WARNING: the backup was made with another master key. Use that key (PHOEDOX_MASTER_KEY or master.key), otherwise secrets, webhook secrets and two-factor settings cannot be read.")
+		}
+		return nil
 	case "create-tenant":
 		if *tenantID == "" || *name == "" || len(domains) == 0 {
 			return errors.New("--id, --name and at least one --domain are required")

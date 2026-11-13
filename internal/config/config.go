@@ -62,6 +62,16 @@ type Config struct {
 	// installed (PHOEDOX_OCR, default true); OCRLangs e.g. "deu+eng".
 	OCR      bool
 	OCRLangs string
+	// Backups: automatic every BackupHours (PHOEDOX_BACKUP_HOURS, default 24,
+	// 0 = off), the newest BackupKeep kept (PHOEDOX_BACKUP_KEEP, default 14),
+	// stored in BackupDir (PHOEDOX_BACKUP_DIR, default <data>/backups) or the
+	// S3 bucket (PHOEDOX_BACKUP_TARGET=s3). BackupFiles includes file contents
+	// (PHOEDOX_BACKUP_FILES, default true unless files are on S3).
+	BackupHours  int
+	BackupKeep   int
+	BackupDir    string
+	BackupTarget string
+	BackupFiles  bool
 	// MetricsToken enables /metrics for Prometheus with this bearer token
 	// (PHOEDOX_METRICS_TOKEN); empty disables it.
 	MetricsToken string
@@ -166,6 +176,18 @@ func FromEnv() (Config, error) {
 	c.MaxUploadMB = mu
 	c.ClamAV = os.Getenv("PHOEDOX_CLAMAV")
 	c.MetricsToken = os.Getenv("PHOEDOX_METRICS_TOKEN")
+	if c.BackupHours, err = strconv.Atoi(getenv("PHOEDOX_BACKUP_HOURS", "24")); err != nil || c.BackupHours < 0 {
+		return c, fmt.Errorf("PHOEDOX_BACKUP_HOURS: must be 0 or more")
+	}
+	if c.BackupKeep, err = strconv.Atoi(getenv("PHOEDOX_BACKUP_KEEP", "14")); err != nil || c.BackupKeep < 0 {
+		return c, fmt.Errorf("PHOEDOX_BACKUP_KEEP: must be 0 or more")
+	}
+	c.BackupDir = getenv("PHOEDOX_BACKUP_DIR", c.DataDir+"/backups")
+	c.BackupTarget = getenv("PHOEDOX_BACKUP_TARGET", "local")
+	if c.BackupTarget != "local" && c.BackupTarget != "s3" {
+		return c, fmt.Errorf("PHOEDOX_BACKUP_TARGET: use local or s3")
+	}
+	c.BackupFiles = getenv("PHOEDOX_BACKUP_FILES", map[bool]string{true: "false", false: "true"}[c.S3.Endpoint != ""]) == "true"
 	c.OCR = getenv("PHOEDOX_OCR", "true") == "true"
 	c.OCRLangs = getenv("PHOEDOX_OCR_LANGS", "deu+eng")
 	wk, err := strconv.Atoi(getenv("PHOEDOX_WORKERS", "2"))

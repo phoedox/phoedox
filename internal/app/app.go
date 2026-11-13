@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/phoedox/phoedox/internal/backup"
 	"github.com/phoedox/phoedox/internal/blob"
 	"github.com/phoedox/phoedox/internal/jobs"
 	"github.com/phoedox/phoedox/internal/preview"
@@ -12,6 +13,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/phoedox/phoedox/internal/auth"
 	"github.com/phoedox/phoedox/internal/config"
@@ -29,6 +31,8 @@ type App struct {
 	Core   *core.Service
 	Auth   *auth.Auth
 	Jobs   *jobs.Queue
+	// Backups is nil in the hosted mode (the database is backed up as a whole there).
+	Backups *backup.Manager
 }
 
 // Open loads the configuration, connects to the database and runs migrations.
@@ -96,5 +100,28 @@ func Open(ctx context.Context) (*App, error) {
 	if err := svc.EnsureSearchIndex(store.System(ctx)); err != nil {
 		slog.Warn("building the search index failed", "err", err)
 	}
-	return &App{Config: cfg, DB: db, Core: svc, Auth: a, Jobs: queue}, nil
+	app := &App{Config: cfg, DB: db, Core: svc, Auth: a, Jobs: queue}
+	if !cfg.MultiTenant {
+		var target backup.Target = backup.Local{Dir: cfg.BackupDir}
+		if cfg.BackupTarget == "s3" {
+			if cfg.S3.Endpoint == "" {
+				db.Close()
+				return nil, fmt.Errorf("PHOEDOX_BACKUP_TARGET=s3 needs PHOEDOX_S3_*")
+			}
+			t, err := backup.NewS3(blob.S3Config(cfg.S3))
+			if err != nil {
+				db.Close()
+				return nil, err
+			}
+			target = t
+		}
+		app.Backups = &backup.Manager{DB: db, Blobs: svc.Blobs, Target: target, TmpDir: filepath.Join(cfg.DataDir, "tmp"),
+			WithFiles: cfg.BackupFiles, KeyID: box.KeyID(), Keep: cfg.BackupKeep, Every: time.Duration(cfg.BackupHours) * time.Hour,
+			AfterRestore: func(ctx context.Context) {
+				if _, err := svc.Reindex(store.System(ctx)); err != nil {
+					slog.Warn("rebuilding the search index after a restore failed", "err", err)
+				}
+			}}
+	}
+	return app, nil
 }

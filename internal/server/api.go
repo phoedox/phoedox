@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"github.com/phoedox/phoedox/internal/backup"
 	"net"
 	"net/http"
 	"strconv"
@@ -28,6 +29,8 @@ type api struct {
 	runLimiter *limiter
 	// root is the whole router (for the OpenAPI description).
 	root chi.Routes
+	// backups is nil in the hosted mode.
+	backups *backup.Manager
 }
 
 func clientIP(r *http.Request) string {
@@ -93,6 +96,12 @@ func (a *api) routes(r chi.Router) {
 		r.Get("/oauth/grants", a.listGrants)
 		r.Route("/admin", func(r chi.Router) {
 			r.Use(requireFull)
+			r.Get("/backups", a.listBackups)
+			r.Post("/backups", a.createBackup)
+			r.Post("/backups/upload", a.uploadBackup)
+			r.Get("/backups/{name}", a.downloadBackup)
+			r.Delete("/backups/{name}", a.deleteBackup)
+			r.Post("/backups/{name}/restore", a.restoreBackup)
 			r.Get("/settings", a.getSettings)
 			r.Put("/settings", a.putSettings)
 			r.Get("/users", a.listUsers)

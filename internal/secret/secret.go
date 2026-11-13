@@ -119,3 +119,12 @@ func (b *Box) Open(sealed, context string) ([]byte, error) {
 	}
 	return plain, nil
 }
+
+// KeyID identifies the current master key (not secret: derived from the key
+// by a one-way hash). Backups record it to warn about a different key.
+func (b *Box) KeyID() string {
+	if b == nil {
+		return ""
+	}
+	return b.current
+}

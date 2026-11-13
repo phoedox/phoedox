@@ -749,4 +749,8 @@ export const en: Record<keyof typeof de, string> = {
   "error.unknown_domain": "There is no Phoedox instance at this address.",
   "validation.webhook_url": "The URL must start with https:// (or http://).",
   "validation.webhook_event": "Unknown event {event}.",
+  "validation.backup_busy": "A backup or restore is already running.",
+  "validation.backup_newer": "The backup was made by a newer Phoedox version. Please update first.",
+  "validation.backup_failed": "The backup failed: {reason}",
+  "validation.backup_confirm": "Please type the backup's name to confirm.",
 };

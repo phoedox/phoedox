@@ -397,3 +397,19 @@ func (h *Hub) TotalEditors() int {
 	}
 	return n
 }
+
+// CloseAll disconnects every live editor and forgets the rooms (after a
+// restore the stored state changed underneath them); editors reconnect.
+func (h *Hub) CloseAll() {
+	h.mu.Lock()
+	rooms := h.rooms
+	h.rooms = map[string]*room{}
+	h.mu.Unlock()
+	for _, r := range rooms {
+		r.mu.Lock()
+		for c := range r.clients {
+			_ = c.conn.Close(websocket.StatusServiceRestart, "restored")
+		}
+		r.mu.Unlock()
+	}
+}

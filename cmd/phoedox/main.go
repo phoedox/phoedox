@@ -40,7 +40,17 @@ func main() {
 	a.Core.OnContentChange = hub.Reset
 	m := metrics.New(metrics.Sources{DB: a.DB.SQL, Version: server.Version, LiveEditors: hub.TotalEditors,
 		JobCounts: func(ctx context.Context) (map[string]int, error) { return a.DB.JobCounts(store.System(ctx)) }})
+	if a.Backups != nil {
+		a.Backups.App = server.Version
+		after := a.Backups.AfterRestore
+		a.Backups.AfterRestore = func(ctx context.Context) {
+			hub.CloseAll()
+			after(ctx)
+		}
+		go a.Backups.Run(ctx, log.Info)
+	}
 	handler := server.New(server.Deps{
+		Backups: a.Backups,
 		Metrics: m,
 		Hub:     hub,
 		Config:  a.Config,

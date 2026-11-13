@@ -747,4 +747,8 @@ export const de = {
   "error.unknown_domain": "Unter dieser Adresse gibt es keine Phoedox-Instanz.",
   "validation.webhook_url": "Die Adresse muss mit https:// (oder http://) beginnen.",
   "validation.webhook_event": "Unbekanntes Ereignis {event}.",
+  "validation.backup_busy": "Gerade läuft schon eine Sicherung oder Wiederherstellung.",
+  "validation.backup_newer": "Die Sicherung stammt von einer neueren Phoedox-Version. Bitte zuerst aktualisieren.",
+  "validation.backup_failed": "Die Sicherung ist fehlgeschlagen: {reason}",
+  "validation.backup_confirm": "Bitte gib zur Bestätigung den Namen der Sicherung ein.",
 } as const;

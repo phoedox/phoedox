@@ -4,6 +4,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"github.com/phoedox/phoedox/internal/backup"
 	"github.com/phoedox/phoedox/internal/metrics"
 	"io/fs"
 	"log/slog"
@@ -36,6 +37,8 @@ type Deps struct {
 	Hub *realtime.Hub
 	// Metrics counts requests; /metrics is served if Config.MetricsToken is set.
 	Metrics *metrics.Metrics
+	// Backups for system admins; nil disables the backup routes.
+	Backups *backup.Manager
 }
 
 // New returns the root handler.
@@ -65,6 +68,7 @@ func New(d Deps) http.Handler {
 		api := &api{core: d.Core, auth: d.Auth, cfg: d.Config, limiter: newLimiter(10, 5*time.Minute), regLimiter: newLimiter(30, time.Hour), runLimiter: newLimiter(30, time.Minute)}
 		r.Route("/api/v1", api.routes)
 		api.root = r
+		api.backups = d.Backups
 		api.oauthRoutes(r)
 		if d.Hub != nil {
 			r.With(api.requireActor).Get("/rt/doc/{p}/{d}", api.live(d.Hub))
