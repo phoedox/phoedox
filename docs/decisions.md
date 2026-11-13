@@ -196,4 +196,4 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 |---|---|
 | Umfang | Tokens und OAuth-Freigaben tragen `access` (`read`/`write`) und eine Projektliste (leer = alle eigenen). Gilt zusätzlich zu den Rollen des Besitzers – nie mehr als er. Eingeschränkte Zugänge sehen fremde Projekte als „nicht gefunden“, legen keine Projekte an und erreichen keine Konto- oder Admin-Routen. |
 | Projekt | KI-Modus `off` (Projekt für KI unsichtbar), `read`, `suggest` (Standard), `direct`. Nur Menschen ändern den Modus. |
-| Abschalten | Schalter `ai_enabled` (Tabelle `instance_settings`): aus → `/mcp` antwortet 403, OAuth-Freigaben sind gesperrt. Vorerst für System-Admins; wandert mit den Organisationen zu den Organisations-Admins. |
+| Abschalten | Schalter `ai_enabled` (Tabelle `instance_settings`): aus → `/mcp` antwortet 403, OAuth-Freigaben sind gesperrt. Der System-Admin-Schalter bleibt als Hauptschalter für die ganze Instanz; mit den Organisationen kommt zusätzlich ein Schalter pro Organisation für deren Admins (KI nur, wenn beide an sind). |
