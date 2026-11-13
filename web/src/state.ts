@@ -10,6 +10,24 @@ export const favorites = signal<import("./api").Favorite[]>([]);
 /** Bumped when documents of the current project change, so the sidebar reloads. */
 export const docsVersion = signal(0);
 
+/** Pages use the full width instead of a centred reading column (per browser). */
+export const wideReading = signal(readWide());
+function readWide(): boolean {
+  try {
+    return localStorage.getItem("phx.wide") === "1";
+  } catch {
+    return false;
+  }
+}
+export function setWideReading(on: boolean) {
+  wideReading.set(on);
+  try {
+    localStorage.setItem("phx.wide", on ? "1" : "0");
+  } catch {
+    /* private mode: only for this visit */
+  }
+}
+
 /** Navigates within the app (the router listens to popstate). */
 export function navigate(path: string) {
   if (location.pathname === path) return;

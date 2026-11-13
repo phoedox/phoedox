@@ -2,7 +2,7 @@ import { Routes } from "@lit-labs/router";
 import { loadProjectPlugins } from "../plugin-host";
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
-import { adrRef, api, type Doc, type DraftInfo, type Favorite, type Project } from "../api";
+import { api, type Doc, type DraftInfo, type Favorite, type Project } from "../api";
 import { applyProjectColor } from "../color";
 import { t } from "../i18n";
 import { icon } from "../icon";
@@ -20,15 +20,30 @@ import "./graph-view";
 import "./project-files";
 import "./suggestions";
 import "./project-settings";
+import "./create-dialog";
+import type { PhxCreateDialog } from "./create-dialog";
 
 const typeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scale", link: "ExternalLink" };
 
 /** Project layout: sidebar with documents by category + nested routes. */
 export class PhxProject extends SignalWatcher(LitElement) {
-  static properties = { slug: {}, root: {}, docs: { state: true }, drafts: { state: true }, error: { state: true }, menuOpen: { state: true }, dropTarget: { state: true } };
+  static properties = { slug: {}, root: {}, docs: { state: true }, drafts: { state: true }, collapsed: { state: true }, newOpen: { state: true }, error: { state: true }, menuOpen: { state: true }, dropTarget: { state: true } };
   static styles = [base, css`
     :host { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: calc(100vh - var(--header-h)); }
-    aside { border-right: 1px solid var(--line); padding: 14px 10px; display: flex; flex-direction: column; gap: 14px; background: var(--bg); }
+    /* The sidebar stays in place; only its page tree scrolls, the actions stay visible. */
+    aside { border-right: 1px solid var(--line); display: flex; flex-direction: column; background: var(--bg);
+      position: sticky; top: var(--header-h); height: calc(100dvh - var(--header-h)); }
+    .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 10px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: thin; }
+    .lbl { display: flex; align-items: center; gap: 4px; }
+    .lbl .fold { all: unset; display: flex; align-items: center; gap: 4px; cursor: pointer; flex: 1; min-width: 0; border-radius: 4px; }
+    .lbl .fold:focus-visible { outline: 2px solid var(--accent); }
+    .lbl .fold .ico { transition: transform var(--dur-fast) var(--ease-out); flex: none; }
+    .lbl .fold[aria-expanded="false"] .ico { transform: rotate(-90deg); }
+    .lbl .add { all: unset; display: grid; place-items: center; width: 20px; height: 20px; border-radius: 5px; color: var(--muted); cursor: pointer; opacity: 0; }
+    .lbl .add:focus-visible { opacity: 1; outline: 2px solid var(--accent); }
+    @media (hover: hover) and (pointer: fine) { .grp:hover > .lbl .add { opacity: 1; } .lbl .add:hover { background: var(--surface2); color: var(--fg); } }
+    @media (hover: none) { .lbl .add { opacity: 1; } }
+    .sub { margin-left: 10px; padding-left: 6px; border-left: 1px solid var(--line); }
     .grp { display: flex; flex-direction: column; gap: 1px; }
     .lbl { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 0 8px 4px; }
     aside a { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; color: var(--muted); text-decoration: none; font-size: 14px;
@@ -42,7 +57,13 @@ export class PhxProject extends SignalWatcher(LitElement) {
     aside a .mark { margin-left: auto; opacity: .6; }
     aside a[draggable="true"] { cursor: grab; }
     aside a.drop { box-shadow: inset 0 2px 0 var(--accent); }
-    .tools { margin-top: auto; display: flex; flex-direction: column; gap: 1px; }
+    .tools { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px 10px; border-top: 1px solid var(--line); background: var(--surface); }
+    .tools .new { position: relative; }
+    .tools .new > button { width: 100%; justify-content: flex-start; }
+    .tools .menu { position: absolute; bottom: calc(100% + 4px); left: 0; right: 0; z-index: 10; display: flex; flex-direction: column; gap: 1px; padding: 4px;
+      background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgb(0 0 0 / .12);
+      transform-origin: bottom left; transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+      @starting-style { opacity: 0; transform: scale(.97); } }
     main { padding: 24px 32px 60px; min-width: 0; }
     .mbar, .scrim { display: none; }
 
@@ -54,7 +75,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
         padding: 8px 12px; background: var(--bg); border-bottom: 1px solid var(--line); }
       .mbar button { padding: 6px 10px; }
       .mbar .where { color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-      aside { position: fixed; inset: 0 auto 0 0; z-index: 30; width: min(300px, 86vw); overflow-y: auto;
+      aside { position: fixed; inset: 0 auto 0 0; z-index: 30; width: min(300px, 86vw); height: 100dvh; top: 0;
         border-right: 1px solid var(--line); box-shadow: 0 0 40px rgb(0 0 0 / .18);
         transform: translateX(-100%); visibility: hidden;
         transition: transform var(--dur-drawer) var(--ease-drawer), visibility 0s linear var(--dur-drawer); }
@@ -74,6 +95,9 @@ export class PhxProject extends SignalWatcher(LitElement) {
   docs: Doc[] = [];
   /** Pages with an open draft (editors only). */
   drafts = new Set<string>();
+  /** Collapsed category paths (remembered per browser and project). */
+  collapsed = new Set<string>();
+  newOpen = false;
   error = "";
   /** Drawer state on small screens; ignored on wide screens. */
   menuOpen = false;
@@ -109,6 +133,11 @@ export class PhxProject extends SignalWatcher(LitElement) {
       try {
         const p = await api<Project>("GET", `/projects/${this.slug}`);
         currentProject.set(p);
+        try {
+          this.collapsed = new Set(JSON.parse(localStorage.getItem(`phx.collapsed.${p.slug}`) ?? "[]"));
+        } catch {
+          this.collapsed = new Set();
+        }
         void loadProjectPlugins(p.slug);
         applyProjectColor(document.documentElement, p.primaryColor);
         this.docs = (await api<Doc[]>("GET", `/projects/${this.slug}/documents`)) ?? [];
@@ -124,12 +153,14 @@ export class PhxProject extends SignalWatcher(LitElement) {
     super.connectedCallback();
     addEventListener("popstate", this.onNavigate);
     addEventListener("keydown", this.onKey);
+    addEventListener("click", this.closeNew);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     removeEventListener("popstate", this.onNavigate);
     removeEventListener("keydown", this.onKey);
+    removeEventListener("click", this.closeNew);
     this.setMenu(false);
     delete document.documentElement.dataset.pc;
   }
@@ -233,13 +264,79 @@ export class PhxProject extends SignalWatcher(LitElement) {
     </div>`;
   }
 
+  private closeNew = () => {
+    if (this.newOpen) this.newOpen = false;
+  };
+
+  private toggleCategory(path: string) {
+    const c = new Set(this.collapsed);
+    if (c.has(path)) c.delete(path);
+    else c.add(path);
+    this.collapsed = c;
+    try {
+      localStorage.setItem(`phx.collapsed.${this.slug}`, JSON.stringify([...c]));
+    } catch {
+      /* not remembered */
+    }
+  }
+
+  private create(category: string, step: "what" | "type" = "what") {
+    this.newOpen = false;
+    this.renderRoot.querySelector<PhxCreateDialog>("phx-create-dialog")!.open(category, step);
+  }
+
+  private docLink(d: Doc, here: string) {
+    return d.type === "link" && d.content?.url
+      ? html`<a href=${d.content.url} target="_blank" rel="noopener external" title=${t("nav.external")}>${icon("Link", 15)} ${d.title}<span class="ext">${icon("ExternalLink", 13)}</span></a>`
+      : html`<a href="/p/${this.slug}/d/${d.slug}" class=${here.startsWith(`/p/${this.slug}/d/${d.slug}`) ? "on" : ""}>${icon(typeIcon[d.type], 15)} ${d.title}${this.drafts.has(d.id) ? html`<span class="ext" title=${t("draft.sidebar")} aria-label=${t("draft.sidebar")}>${icon("FilePen", 11)}</span>` : ""}${d.restricted ? html`<span class="ext" title=${t("share.restricted")}>${icon("Lock", 11)}</span>` : ""}</a>`;
+  }
+
+  /**
+   * Pages by category as a tree: "Betrieb/Server" is the folder "Server"
+   * inside "Betrieb". Decisions are not listed here; they have their own page.
+   */
+  private tree(here: string, canEdit: boolean) {
+    type Node = { path: string; name: string; docs: Doc[]; children: Node[] };
+    const root: Node = { path: "", name: "", docs: [], children: [] };
+    const nodes = new Map<string, Node>([["", root]]);
+    const node = (path: string): Node => {
+      let n = nodes.get(path);
+      if (n) return n;
+      const i = path.lastIndexOf("/");
+      const parent = node(i < 0 ? "" : path.slice(0, i));
+      n = { path, name: path.slice(i + 1), docs: [], children: [] };
+      parent.children.push(n);
+      nodes.set(path, n);
+      return n;
+    };
+    const uncategorized: Doc[] = [];
+    for (const d of this.docs) {
+      if (d.type === "adr") continue;
+      const c = (d.category || "").split("/").map((x) => x.trim()).filter(Boolean).join("/");
+      if (!c) uncategorized.push(d);
+      else node(c).docs.push(d);
+    }
+    const group = (n: Node, depth: number): unknown => {
+      const open = !this.collapsed.has(n.path);
+      const id = `cat-${n.path.replace(/[^a-z0-9]+/gi, "-")}`;
+      return html`<div class=${depth ? "grp sub" : "grp"}>
+        <div class="lbl">
+          <button class="fold" aria-expanded=${open ? "true" : "false"} aria-controls=${id} @click=${() => this.toggleCategory(n.path)}>${icon("ChevronDown", 12)}<span>${n.name}</span></button>
+          ${canEdit ? html`<button class="add" title=${t("create.here", { category: n.name })} aria-label=${t("create.here", { category: n.name })} @click=${() => this.create(n.path)}>${icon("Plus", 13)}</button>` : ""}
+        </div>
+        ${open ? html`<div id=${id} class="grp">${n.docs.map((d) => this.docLink(d, here))}${n.children.map((c) => group(c, depth + 1))}</div>` : ""}
+      </div>`;
+    };
+    return html`${root.children.map((c) => group(c, 0))}
+      ${uncategorized.length ? html`<div class="grp">
+        <div class="lbl"><span style="flex:1">${t("nav.uncategorized")}</span>
+          ${canEdit ? html`<button class="add" title=${t("create.here", { category: t("nav.uncategorized") })} aria-label=${t("create.here", { category: t("nav.uncategorized") })} @click=${() => this.create("")}>${icon("Plus", 13)}</button>` : ""}</div>
+        ${uncategorized.map((d) => this.docLink(d, here))}</div>` : ""}`;
+  }
+
   render() {
     if (this.error) return html`<main><p class="error">${this.error}</p></main>`;
-    const groups = new Map<string, Doc[]>();
-    for (const d of this.docs) {
-      const c = d.category || "";
-      groups.set(c, [...(groups.get(c) ?? []), d]);
-    }
+    const decisions = this.docs.filter((d) => d.type === "adr").length;
     const here = location.pathname;
     const canEdit = ["editor", "owner"].includes(currentProject.get()?.role ?? "");
     // Only single pages are shared with this person: no project-wide views.
@@ -251,28 +348,31 @@ export class PhxProject extends SignalWatcher(LitElement) {
       </div>
       <div class=${this.menuOpen ? "scrim open" : "scrim"} @click=${() => this.setMenu(false, true)}></div>
       <aside id="nav" class=${this.menuOpen ? "open" : ""} aria-label=${t("nav.menu")} @click=${this.onAsideClick}>
-        ${this.favoritesGroup(here)}
-        <div class="grp"><a href="/p/${this.slug}" class=${here === `/p/${this.slug}` ? "on" : ""}>${icon("House", 15)} ${t("project.overview")}</a>
-          <a href="/p/${this.slug}/decisions" class=${here === `/p/${this.slug}/decisions` ? "on" : ""}>${icon("ListChecks", 15)} ${t("nav.decisions")}</a>
-          ${docOnly ? "" : html`<a href="/p/${this.slug}/graph" class=${here === `/p/${this.slug}/graph` || here.startsWith(`/p/${this.slug}/e/`) ? "on" : ""}>${icon("Waypoints", 15)} ${t("nav.graph")}</a>
-          <a href="/p/${this.slug}/model" class=${here === `/p/${this.slug}/model` ? "on" : ""}>${icon("Shapes", 15)} ${t("nav.model")}</a>
-          <a href="/p/${this.slug}/files" class=${here === `/p/${this.slug}/files` ? "on" : ""}>${icon("Paperclip", 15)} ${t("nav.files")}</a>`}</div>
-        ${[...groups].map(([cat, docs]) => html`<div class="grp">
-          <div class="lbl">${cat || t("nav.uncategorized")}</div>
-          ${docs.map((d) => d.type === "link" && d.content?.url
-            ? html`<a href=${d.content.url} target="_blank" rel="noopener external" title=${t("nav.external")}>${icon("Link", 15)} ${d.title}<span class="ext">${icon("ExternalLink", 13)}</span></a>`
-            : html`<a href="/p/${this.slug}/d/${d.slug}" class=${here.startsWith(`/p/${this.slug}/d/${d.slug}`) ? "on" : ""}>${icon(typeIcon[d.type], 15)} ${d.title}${this.drafts.has(d.id) ? html`<span class="ext" title=${t("draft.sidebar")} aria-label=${t("draft.sidebar")}>${icon("FilePen", 11)}</span>` : ""}${d.restricted ? html`<span class="ext" title=${t("share.restricted")}>${icon("Lock", 11)}</span>` : ""}${d.number ? html`<span class="num" title=${adrRef(d.number)}>${String(d.number).padStart(4, "0")}</span>` : ""}</a>`)}
-        </div>`)}
+        <div class="scroll">
+          ${this.favoritesGroup(here)}
+          <div class="grp"><a href="/p/${this.slug}" class=${here === `/p/${this.slug}` ? "on" : ""}>${icon("House", 15)} ${t("project.overview")}</a>
+            <a href="/p/${this.slug}/decisions" class=${here === `/p/${this.slug}/decisions` || this.docs.some((d) => d.type === "adr" && here.startsWith(`/p/${this.slug}/d/${d.slug}`)) ? "on" : ""}>${icon("ListChecks", 15)} ${t("nav.decisions")}
+              ${decisions ? html`<span class="num">${decisions}</span>` : ""}</a>
+            ${docOnly ? "" : html`<a href="/p/${this.slug}/graph" class=${here === `/p/${this.slug}/graph` || here.startsWith(`/p/${this.slug}/e/`) ? "on" : ""}>${icon("Waypoints", 15)} ${t("nav.graph")}</a>
+            <a href="/p/${this.slug}/model" class=${here === `/p/${this.slug}/model` ? "on" : ""}>${icon("Shapes", 15)} ${t("nav.model")}</a>
+            <a href="/p/${this.slug}/files" class=${here === `/p/${this.slug}/files` ? "on" : ""}>${icon("Paperclip", 15)} ${t("nav.files")}</a>`}</div>
+          ${this.tree(here, canEdit)}
+        </div>
         <div class="tools">
-          ${canEdit ? html`
-            <a href="/p/${this.slug}/new/markdown">${icon("FilePlus", 15)} ${t("doc.type.markdown")}</a>
-            <a href="/p/${this.slug}/new/adr">${icon("Scale", 15)} ${t("doc.type.adr")}</a>
-            <a href="/p/${this.slug}/new/link">${icon("Link", 15)} ${t("doc.type.link")}</a>
-            <a href="/p/${this.slug}/new-entity" class=${here.endsWith("/new-entity") ? "on" : ""}>${icon("Plus", 15)} ${t("entity.new")}</a>` : ""}
-          ${canEdit ? html`<a href="/p/${this.slug}/trash" class=${here.endsWith("/trash") ? "on" : ""}>${icon("Trash2", 15)} ${t("nav.trash")}</a>` : ""}
+          ${canEdit ? html`<div class="new">
+            <button class="ghost" aria-expanded=${this.newOpen ? "true" : "false"} aria-haspopup="menu" @click=${(e: Event) => { e.stopPropagation(); this.newOpen = !this.newOpen; }}>${icon("Plus", 15)} ${t("create.new")}</button>
+            ${this.newOpen ? html`<div class="menu" role="menu" @keydown=${(e: KeyboardEvent) => e.key === "Escape" && (this.newOpen = false)}>
+              <a role="menuitem" href="#" @click=${(e: Event) => { e.preventDefault(); this.create("", "type"); }}>${icon("FilePlus", 15)} ${t("create.page")}</a>
+              <a role="menuitem" href="#" @click=${(e: Event) => { e.preventDefault(); this.create(""); }}>${icon("FolderPlus", 15)} ${t("create.folder")}</a>
+              <a role="menuitem" href="/p/${this.slug}/new/adr" @click=${() => (this.newOpen = false)}>${icon("Scale", 15)} ${t("doc.type.adr")}</a>
+              <a role="menuitem" href="/p/${this.slug}/new-entity" @click=${() => (this.newOpen = false)}>${icon("Plus", 15)} ${t("entity.new")}</a>
+            </div>` : ""}
+          </div>
+          <a href="/p/${this.slug}/trash" class=${here.endsWith("/trash") ? "on" : ""}>${icon("Trash2", 15)} ${t("nav.trash")}</a>` : ""}
           ${docOnly ? "" : html`<a href="/p/${this.slug}/suggestions" class=${here.endsWith("/suggestions") ? "on" : ""}>${icon("Bot", 15)} ${t("nav.suggestions")}</a>
           <a href="/p/${this.slug}/settings" class=${here.endsWith("/settings") ? "on" : ""}>${icon("Settings", 15)} ${t("nav.settings")}</a>`}
         </div>
+        <phx-create-dialog .project=${this.slug}></phx-create-dialog>
       </aside>
       <main>${this.routes.outlet()}</main>
     `;

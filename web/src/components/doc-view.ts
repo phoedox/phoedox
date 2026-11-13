@@ -6,7 +6,7 @@ import { diffLines, fold, type Hunk } from "../diff";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
 import { renderMarkdown, withoutTitle } from "../md";
-import { currentProject, docsVersion, favorites, navigate } from "../state";
+import { currentProject, docsVersion, favorites, navigate, setWideReading, wideReading } from "../state";
 import "./request-block";
 import { base } from "./shared";
 import "./attachments";
@@ -15,7 +15,7 @@ import type { PhxDocShare } from "./doc-share";
 import { toast } from "./toasts";
 
 export const prose = `
-  .prose { max-width: 72ch; line-height: 1.65; }
+  .prose { line-height: 1.65; }
   .prose h1, .prose h2, .prose h3 { margin: 1.4em 0 .5em; }
   .prose pre { background: var(--surface2); padding: 12px 14px; border-radius: 8px; overflow-x: auto; }
   .prose code { font-family: var(--font-mono); font-size: .9em; }
@@ -28,6 +28,9 @@ export const prose = `
 export class PhxDocView extends SignalWatcher(LitElement) {
   static properties = { project: {}, docSlug: {}, doc: { state: true }, draft: { state: true }, showDiff: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true } };
   static styles = [base, unsafeCSS(prose), css`
+    /* Centred reading column; "full width" lifts the limit. */
+    article { max-width: var(--reading-width, 820px); margin-inline: auto; }
+    article.wide { max-width: none; }
     header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 14px; }
     .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
     section { margin-top: 18px; }
@@ -183,7 +186,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     const c = d.content ?? {};
     // The role for this page can differ from the project role (restricted or shared pages).
     const canEdit = ["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "");
-    return html`<article class="enter">
+    const wide = wideReading.get();
+    return html`<article class=${wide ? "enter wide" : "enter"}>
       <header>
         <div>
           <h1>${d.title}</h1>
@@ -198,6 +202,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         </div>
         <div class="row">
           ${this.favoriteButtons(d)}
+          <button class="ghost icon" aria-pressed=${wide ? "true" : "false"} title=${t(wide ? "doc.narrow" : "doc.wide")} aria-label=${t(wide ? "doc.narrow" : "doc.wide")}
+            @click=${() => setWideReading(!wide)}>${icon(wide ? "Minimize2" : "Maximize2", 15)}</button>
           <a class="btn ghost" href="/p/${this.project}/d/${d.slug}/history">${icon("History", 14)} ${t("doc.history")}</a>
           ${canEdit ? html`<button class="ghost" @click=${() => this.renderRoot.querySelector<PhxDocShare>("phx-doc-share")!.open()}>${icon("Share2", 14)} ${t("share.button")}</button>
           ${this.draft ? "" : html`<a class="btn ghost" href="/p/${this.project}/d/${d.slug}/edit">${icon("Pencil", 14)} ${t("doc.edit")}</a>`}

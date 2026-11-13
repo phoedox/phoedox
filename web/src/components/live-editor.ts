@@ -13,7 +13,7 @@ import { createLiveEditor, type LiveEditor, type Peer, type Status } from "../ed
 import { lossless } from "../editor/markdown";
 import { t } from "../i18n";
 import { icon } from "../icon";
-import { currentUser, docsVersion, navigate } from "../state";
+import { currentUser, docsVersion, navigate, wideReading } from "../state";
 import { prose } from "./doc-view";
 import { base } from "./shared";
 import { fileURL, isImage, uploadFile } from "../files";
@@ -34,6 +34,8 @@ export class PhxLiveEditor extends LitElement {
   static properties = { project: {}, docSlug: {}, doc: { state: true }, draft: { state: true }, source: { state: true }, status: { state: true }, saving: { state: true },
     peers: { state: true }, error: { state: true }, asking: { state: true }, inTable: { state: true } };
   static styles = [base, unsafeCSS(prose), css`
+    :host { display: block; max-width: var(--reading-width, 820px); margin-inline: auto; }
+    :host([wide]) { max-width: none; }
     header { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 10px; }
     header .title { flex: 2; min-width: 220px; } header .cat { flex: 1; min-width: 160px; }
     .title input { font: 700 26px var(--font-display); padding: 6px 10px; }
@@ -365,6 +367,7 @@ export class PhxLiveEditor extends LitElement {
   }
 
   render() {
+    this.toggleAttribute("wide", wideReading.get());
     if (this.error) return html`<p class="error">${this.error}</p>`;
     const d = this.doc;
     const dr = this.draft;

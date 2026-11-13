@@ -30,6 +30,7 @@ export function sharedHTML(md: string, token: string): string {
 export class PhxSharedView extends LitElement {
   static properties = { token: {}, doc: {}, view: { state: true }, current: { state: true }, error: { state: true } };
   static styles = [base, unsafeCSS(prose), css`
+    .prose { max-width: 72ch; }
     :host { display: block; min-height: 100vh; }
     header { display: flex; align-items: center; gap: 10px; padding: 0 16px; height: var(--header-h); border-bottom: 1px solid var(--line); background: var(--surface); }
     header .pi { width: 22px; height: 22px; border-radius: 6px; background: var(--accent); }

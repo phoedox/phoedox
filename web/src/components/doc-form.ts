@@ -111,7 +111,7 @@ export class PhxDocForm extends LitElement {
       <h1>${d ? d.title : t(`doc.type.${this.type}` as any)}</h1>
       <div class="two">
         <label class="field">${t("doc.title")}<input name="title" .value=${d?.title ?? ""} required /></label>
-        <label class="field">${t("doc.category")}<input name="category" .value=${d?.category ?? (this.type === "adr" ? "Entscheidungen" : "")} /></label>
+        <label class="field">${t("doc.category")}<input name="category" .value=${d?.category ?? (new URLSearchParams(location.search).get("category") ?? (this.type === "adr" ? "Entscheidungen" : ""))} /></label>
       </div>
 
       ${this.type === "link" ? html`
