@@ -338,6 +338,49 @@ Ein Update macht noch kein automatisches Backup – vorher in der Oberfläche un
 kubectl -n phoedox exec deploy/phoedox -- phx admin backup
 ```
 
+## Domain wechseln
+
+Beispiel: Die Instanz lief unter `phoedox.com` und soll nach `app.phoedox.com`; `phoedox.com` (und
+`www.`) leiten so lange dorthin weiter. Vorher dem Nutzer sagen: Passkeys müssen danach neu
+registriert werden, alle müssen sich neu anmelden; Passwort, TOTP, Daten und Tokens bleiben.
+
+1. DNS: A-Eintrag (und AAAA) für die neue Domain auf den Server; mit Schritt 1 prüfen. Für die
+   weiterleitenden Hosts müssen die Einträge ebenfalls auf den Server zeigen.
+2. Backup (siehe „Updates später“).
+3. Repo aktualisieren (die Weiterleitung braucht das Chart ab Commit „chart: redirect hosts“):
+
+```bash
+cd /root/phoedox && git pull --ff-only
+```
+
+4. In `/root/phoedox.yaml` `domain:` ändern und die Weiterleitung ergänzen – erst zeigen, dann
+   ändern:
+
+```bash
+sed -i 's/^domain: .*/domain: app.phoedox.com/' /root/phoedox.yaml && grep -q redirectFrom /root/phoedox.yaml || printf 'ingress:\n  redirectFrom: [phoedox.com, www.phoedox.com]\n' >> /root/phoedox.yaml; cat /root/phoedox.yaml
+```
+
+   Gibt es in der Datei schon einen `ingress:`-Block, `redirectFrom` dort einfügen statt einen
+   zweiten anzuhängen. `www.` nur aufnehmen, wenn es dafür einen DNS-Eintrag gibt.
+
+5. Ausrollen und prüfen:
+
+```bash
+helm upgrade phoedox /root/phoedox/deploy/helm/phoedox -n phoedox -f /root/phoedox.yaml && kubectl -n phoedox rollout restart deploy/phoedox
+```
+
+```bash
+kubectl -n phoedox get ingress,certificate
+```
+
+```bash
+curl -sI https://phoedox.com/projects | grep -i location; curl -s https://app.phoedox.com/readyz; echo
+```
+
+Erwartet: Zertifikate `READY True` (ein bis zwei Minuten), `location: https://app.phoedox.com/projects`
+und `ready`. Danach meldet sich der Nutzer unter der neuen Adresse an; MCP-Clients und Skripte
+brauchen die neue URL.
+
 ## Wenn etwas schiefgeht
 
 | Zeichen | Ursache und Lösung |

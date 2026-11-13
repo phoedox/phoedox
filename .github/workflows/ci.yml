@@ -42,7 +42,8 @@ jobs:
           curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
           set -e
           for v in "" \
-                   "--set database.type=sqlite --set ingress.tls.enabled=false" \
+                   "--set database.type=sqlite --set ingress.tls.enabled=false --set ingress.redirectFrom={example.org}" \
+                   "--set ingress.redirectFrom={example.org,www.example.org} --set ingress.httpsRedirect=false" \
                    "--set database.type=external --set database.external.url=postgres://u:p@db/phoedox --set image.variant=" \
                    "--set clamav.enabled=true --set metrics.enabled=true --set metrics.serviceMonitor=true --set s3.enabled=true --set backups.target=s3 --set mail.enabled=true --set mail.existingSecret=mail --set database.cnpg.backup.enabled=true --set oidc.enabled=true --set oidc.issuer=https://id.example.org --set oidc.clientId=phx --set oidc.existingSecret=oidc"; do
             echo "== helm template $v"

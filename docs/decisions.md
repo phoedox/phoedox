@@ -274,3 +274,14 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 | Lizenzen | Lizenzdatei offline mit den Store-Schlüsseln geprüft, gebunden an Mandant (`orgId`) + Instanz-ID (pro Mandant zufällig, `instance_settings`). `license.paid` → ohne gültige Lizenz (oder Testphase ab Installation) nicht einschaltbar; `license.commercial` → nur Hinweis. Einlösen per Code über den Store oder Datei einfügen. |
 | Store-Server | Eigenes Repo `phoedox-store`, nur PostgreSQL. Autoren-Token, erste Version reserviert die ID. Pakete werden **nie ausgeführt**: Analyse liest Manifest, Dateien, WASM-Import-/Export-Abschnitte und durchsucht Skripte nach Mustern (`eval`, Cookies, externe Requests …). Moderation im Browser (Basic-Auth mit Admin-Token, Same-Origin-Prüfung) mit Diff zur letzten freigegebenen Version; Freigeben signiert. Rückruf als Warnung oder kritisch (dann kein Download mehr). Gratis-Schlüssel im Monatskontingent, Autorenanteil nur über Admin-API. |
 | Offen | Blöcke im Editor aus Plugins, Dokumenttypen, `docs:*`/`assets:*`/`ha:*`/`ai:*`-Operationen (Rechte sind im Manifest schon erlaubt, der Host lehnt sie noch ab), Bezahlung, Autorenportal im Browser, SDK als öffentliches Paket (`@phoedox/sdk`, Go-Modul getaggt). |
+
+## Domains von phoedox.com
+
+| Adresse | Inhalt |
+|---|---|
+| `phoedox.com` | Webseite (Produkt). Bis sie steht, leitet das Helm-Chart dauerhaft auf `app.phoedox.com` weiter (`ingress.redirectFrom`). |
+| `app.phoedox.com` | Die Phoedox-Instanz (gehostet, später Mandantenmodus) |
+| `docs.phoedox.com` | Produkt-Doku als Phoedox-Veröffentlichung aus `app.phoedox.com` (T5e) |
+| Plugin-Store | eigener Dienst `phoedox-store`; Name der Subdomain siehe unten |
+
+Passkeys sind an die Domain gebunden (WebAuthn-RP-ID = Host): Nach einem Domainwechsel müssen sie neu registriert werden; Passwort und TOTP gelten weiter. Sitzungen enden (Cookies gehören zum Host).

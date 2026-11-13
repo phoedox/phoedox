@@ -24,6 +24,13 @@ ingress:
   # k3s ships Traefik as ingress controller.
   className: traefik
   annotations: {}
+  # Traefik only: send http:// permanently to https://.
+  httpsRedirect: true
+  # Traefik only: more hosts that redirect permanently to the domain, keeping
+  # the path – e.g. the bare domain until a website runs there:
+  #   redirectFrom: [phoedox.com, www.phoedox.com]
+  # Each host needs a DNS record to this server; its certificate is issued too.
+  redirectFrom: []
   tls:
     enabled: true
     # cert-manager ClusterIssuer that issues the certificate.

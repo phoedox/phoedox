@@ -192,6 +192,8 @@ system-upgrade-controller von Rancher einsetzen).
 | `metrics.enabled: true` | `/metrics` für Prometheus, Token im Secret `phoedox-metrics`; `metrics.serviceMonitor` für den Prometheus-Operator |
 | `oidc.enabled: true` | Anmeldung per SSO (Authentik, Keycloak, Entra ID …) inklusive Gruppen |
 | `s3.enabled: true` | Dateien im Bucket statt auf dem Volume |
+| `ingress.redirectFrom: [example.org]` | Weitere Hosts leiten dauerhaft auf `domain` weiter (mit Zertifikat), z. B. die nackte Domain, solange dort keine Webseite läuft |
+| `ingress.httpsRedirect` (Standard `true`) | `http://` dauerhaft auf `https://` umleiten |
 
 ## Grenzen
 
