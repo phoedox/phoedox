@@ -255,3 +255,56 @@ func TestPluginLicense(t *testing.T) {
 }
 
 func b64(b []byte) string { return base64.StdEncoding.EncodeToString(b) }
+
+type fakeStore struct {
+	catalog []CatalogEntry
+	recalls map[string]Recall
+	pkg     []byte
+	sig     plugins.Signature
+}
+
+func (f *fakeStore) Catalog(context.Context, string, string) ([]CatalogEntry, error) { return f.catalog, nil }
+func (f *fakeStore) Download(context.Context, string, string) ([]byte, plugins.Signature, error) {
+	return f.pkg, f.sig, nil
+}
+func (f *fakeStore) Redeem(context.Context, string, string, string, string) (json.RawMessage, error) {
+	return nil, errors.New("no")
+}
+func (f *fakeStore) Recalls(context.Context, map[string]string) (map[string]Recall, error) {
+	return f.recalls, nil
+}
+
+func TestPluginStoreSync(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _, priv := pluginSetup(t)
+	admin := owner
+	admin.User.IsAdmin = true
+	data := plugintest.Package(t, plugintest.Manifest)
+	fs := &fakeStore{pkg: data, sig: *signed(t, priv, data), catalog: []CatalogEntry{{ID: "de.example.ups", Version: "1.2.0"}}}
+	s.Plugins.Store = fs
+	if _, err := s.InstallFromStore(ctx, admin, "de.example.ups", "1.2.0"); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := s.PluginCatalog(ctx, admin)
+	if list[0].Installed != "1.2.0" {
+		t.Fatalf("catalog: %+v", list)
+	}
+	fs.catalog[0].Version = "1.3.0"
+	fs.recalls = map[string]Recall{"de.example.ups": {Level: "critical", Note: "leak"}}
+	if err := s.SyncPluginStore(ctx); err != nil {
+		t.Fatal(err)
+	}
+	row, _ := s.DB.GetPlugin(ctx, "de.example.ups")
+	if row.Latest != "1.3.0" || row.Recall != "critical" || row.RecallNote != "leak" {
+		t.Fatalf("sync: %+v", row)
+	}
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Haus"})
+	if err := s.SetProjectPlugin(ctx, owner, p.Slug, "de.example.ups", true); invalidKey(err) != "validation.plugin_unusable" {
+		t.Fatalf("recalled plugins cannot be enabled: %v", err)
+	}
+	fs.recalls = map[string]Recall{}
+	_ = s.SyncPluginStore(ctx)
+	if row, _ := s.DB.GetPlugin(ctx, "de.example.ups"); row.Recall != "" {
+		t.Fatal("lifted recall")
+	}
+}
