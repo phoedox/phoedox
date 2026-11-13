@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,6 +57,9 @@ func (a *api) routes(r chi.Router) {
 	r.Get("/openapi.json", a.serveOpenAPI)
 	r.Get("/shared/{token}", a.sharedView)
 	r.Get("/shared/{token}/documents/{d}", a.sharedDocument)
+	// Agents (ADR-0033): their own token, not a user session.
+	r.Post("/agent/enroll", a.agentEnroll)
+	r.Post("/agent/report", a.agentReport)
 	r.Get("/shared/{token}/files/{id}", a.sharedFile)
 	r.Get("/shared/{token}/files/{id}/{name}", a.sharedFile)
 	r.Get("/auth/oidc/start", a.oidcStart)
@@ -204,6 +208,9 @@ func (a *api) routes(r chi.Router) {
 			r.Put("/favorites/{d}", a.setFavorite(true))
 			r.Delete("/favorites/{d}", a.setFavorite(false))
 			r.Get("/decisions", a.listDecisions)
+			r.Get("/agents", a.listAgents)
+			r.Post("/agents/enrollments", a.createEnrollment)
+			r.Delete("/agents/{id}", a.revokeAgent)
 			r.Get("/image", a.projectImage)
 			r.Put("/image", a.setProjectImage)
 			r.Delete("/image", a.deleteProjectImage)
@@ -453,6 +460,48 @@ func (a *api) setProjectImage(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) deleteProjectImage(w http.ResponseWriter, r *http.Request) {
 	respond(w, map[string]bool{"ok": true}, a.core.DeleteProjectImage(r.Context(), actorOf(r), chi.URLParam(r, "p")))
+}
+
+func (a *api) agentEnroll(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Code     string `json:"code"`
+		Hostname string `json:"hostname"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	if !a.limiter.allow("enroll:" + clientIP(r)) {
+		writeJSON(w, http.StatusTooManyRequests, errBody("rate_limited", "Too many attempts."))
+		return
+	}
+	e, err := a.core.EnrollAgent(r.Context(), in.Code, in.Hostname)
+	respondStatus(w, http.StatusCreated, e, err)
+}
+
+func (a *api) agentReport(w http.ResponseWriter, r *http.Request) {
+	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	// Lenient: newer agents may send more fields.
+	var in core.Report
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2<<20)).Decode(&in); err != nil {
+		writeErr(w, &core.InvalidError{Key: "validation.json", Msg: "invalid JSON: " + err.Error()})
+		return
+	}
+	respond(w, map[string]bool{"ok": true}, a.core.AgentReport(r.Context(), token, in))
+}
+
+func (a *api) listAgents(w http.ResponseWriter, r *http.Request) {
+	list, err := a.core.Agents(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, list, err)
+}
+
+func (a *api) createEnrollment(w http.ResponseWriter, r *http.Request) {
+	e, err := a.core.CreateEnrollment(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respondStatus(w, http.StatusCreated, e, err)
+}
+
+func (a *api) revokeAgent(w http.ResponseWriter, r *http.Request) {
+	respond(w, map[string]bool{"ok": true}, a.core.RevokeAgent(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id")))
 }
 
 func (a *api) listPublications(w http.ResponseWriter, r *http.Request) {
