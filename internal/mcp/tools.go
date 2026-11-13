@@ -143,6 +143,12 @@ type upsertEntityIn struct {
 	Attrs   map[string]any `json:"attrs,omitempty" jsonschema:"attribute values as described by the kind's schema; replaces all attributes"`
 }
 
+type listFilesIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Document string `json:"document,omitempty" jsonschema:"only files attached to this document (slug)"`
+	Entity   string `json:"entity,omitempty" jsonschema:"only files attached to this entity (slug)"`
+}
+
 type defineKindIn struct {
 	Project     string          `json:"project" jsonschema:"project slug"`
 	ID          string          `json:"id" jsonschema:"kind id, lowercase with _, e.g. solar_inverter; a core kind id extends that kind"`
@@ -365,6 +371,9 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "define_kind", "Define an own kind of entity for a project, or extend a core kind with extra attributes and relations. Replaces the project's previous definition of this kind, so repeat existing extras you want to keep.", func(ctx context.Context, a core.Actor, in defineKindIn) (any, error) {
 		return svc.DefineKind(ctx, a, in.Project, core.KindInput{ID: in.ID, Name: in.Name, Description: in.Description, Icon: in.Icon, Attrs: in.Attrs, Relations: in.Relations})
+	})
+	tool(s, "list_files", "List uploaded files of a project (name, type, size, where attached). Contents are not returned.", func(ctx context.Context, a core.Actor, in listFilesIn) (any, error) {
+		return svc.Files(ctx, a, in.Project, core.FileFilter{Document: in.Document, Entity: in.Entity})
 	})
 	tool(s, "list_entities", "List entities of a project, optionally of one kind.", func(ctx context.Context, a core.Actor, in listEntitiesIn) (any, error) {
 		return svc.Entities(ctx, a, in.Project, in.Kind)

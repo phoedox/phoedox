@@ -132,6 +132,12 @@ func (s *Service) RestoreFromTrash(ctx context.Context, a Actor, ref, id string)
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return store.TrashItem{}, err
 	}
+	if f, err := s.DB.RestoreFile(ctx, p.ID, id); err == nil {
+		s.event(ctx, a, "file.restore", f.ID, nil)
+		return store.TrashItem{ID: f.ID, Kind: "file", Type: f.Mime, Slug: f.ID, Title: f.Name}, nil
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return store.TrashItem{}, err
+	}
 	e, err := s.DB.RestoreEntity(ctx, p.ID, id)
 	if errors.Is(err, store.ErrConflict) {
 		return store.TrashItem{}, invalid("validation.slug_taken", nil, "another entry uses this slug now")
@@ -150,9 +156,14 @@ func (s *Service) PurgeFromTrash(ctx context.Context, a Actor, ref, id string) e
 	if err != nil {
 		return err
 	}
+	hashes, err := s.DB.TrashedFileHashes(ctx, p.ID, id)
+	if err != nil {
+		return err
+	}
 	if err := s.DB.Purge(ctx, p.ID, id); err != nil {
 		return err
 	}
+	s.freeBlobs(ctx, hashes)
 	s.event(ctx, a, "trash.purge", id, nil)
 	return nil
 }
@@ -164,6 +175,12 @@ func (s *Service) PurgeExpiredTrash(ctx context.Context, days int) {
 	}
 	before := store.Now()
 	before.Time = before.Time.Add(-time.Duration(days) * 24 * time.Hour)
+	hashes, err := s.DB.ExpiredFileHashes(ctx, before)
+	if err != nil {
+		slog.Warn("emptying the trash failed", "err", err)
+		return
+	}
+	defer s.freeBlobs(ctx, hashes)
 	if n, err := s.DB.PurgeBefore(ctx, before); err != nil {
 		slog.Warn("emptying the trash failed", "err", err)
 	} else if n > 0 {

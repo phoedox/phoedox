@@ -8,6 +8,7 @@ import { renderMarkdown } from "../md";
 import { currentProject, docsVersion, favorites, navigate } from "../state";
 import "./request-block";
 import { base } from "./shared";
+import "./attachments";
 import { toast } from "./toasts";
 
 export const prose = `
@@ -17,6 +18,8 @@ export const prose = `
   .prose code { font-family: var(--font-mono); font-size: .9em; }
   .prose a[title="mention"] { background: var(--accent-soft); padding: 0 5px; border-radius: 4px; text-decoration: none; }
   .prose table { border-collapse: collapse; } .prose td, .prose th { border: 1px solid var(--line); padding: 6px 10px; }
+  .prose img, .prose .ed-img img { max-width: 100%; height: auto; border-radius: 8px; vertical-align: middle; }
+  .prose .ed-img { display: inline-block; max-width: 100%; }
 `;
 
 export class PhxDocView extends SignalWatcher(LitElement) {
@@ -131,6 +134,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     const d = this.doc;
     if (!d) return html`<p class="muted">${t("app.loading")}</p>`;
     const c = d.content ?? {};
+    const canEdit = ["editor", "owner"].includes(currentProject.get()?.role ?? "");
     return html`<article class="enter">
       <header>
         <div>
@@ -155,6 +159,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       ${d.type === "adr" && c.status === "superseded" && c.supersededBy
         ? html`<p class="notice" role="note">${t("adr.superseded_notice")} ${t("adr.superseded_by")}: ${this.decisionLink(c.supersededBy)}</p>` : ""}
       ${this.body(d)}
+      ${d.type !== "link" ? html`<phx-attachments style="margin-top:28px" .project=${this.project} .document=${d.id} .editable=${canEdit}></phx-attachments>` : ""}
     </article>`;
   }
 }

@@ -4,22 +4,30 @@
 import { CodeHighlightNode, CodeNode } from "@lexical/code";
 import { $toggleLink, AutoLinkNode, LinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { ListItemNode, ListNode, registerList } from "@lexical/list";
-import { $convertFromMarkdownString, $convertToMarkdownString, registerMarkdownShortcuts, TRANSFORMERS } from "@lexical/markdown";
+import { $convertFromMarkdownString, $convertToMarkdownString, registerMarkdownShortcuts, TRANSFORMERS as BASE } from "@lexical/markdown";
 import { HeadingNode, QuoteNode, registerRichText } from "@lexical/rich-text";
 import {
   createBinding, createUndoManager, initLocalState, setLocalStateFocus, syncCursorPositions,
   syncLexicalUpdateToYjs, syncYjsChangesToLexical, type Provider,
 } from "@lexical/yjs";
 import {
-  $getRoot, BLUR_COMMAND, COMMAND_PRIORITY_EDITOR, createEditor, FOCUS_COMMAND, HISTORY_MERGE_TAG,
-  type LexicalEditor, mergeRegister, REDO_COMMAND, SKIP_COLLAB_TAG, UNDO_COMMAND,
+  $createParagraphNode, $createTextNode, $getRoot, $getSelection, $insertNodes, BLUR_COMMAND, COMMAND_PRIORITY_EDITOR, COMMAND_PRIORITY_HIGH, createEditor, DROP_COMMAND, FOCUS_COMMAND,
+  HISTORY_MERGE_TAG, type LexicalEditor, mergeRegister, PASTE_COMMAND, REDO_COMMAND, SKIP_COLLAB_TAG, UNDO_COMMAND,
 } from "lexical";
+import { $createLinkNode } from "@lexical/link";
+import { $insertNodeToNearestRoot } from "@lexical/utils";
+import { $createImageNode, IMAGE, ImageNode } from "./image";
 import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
 import { WebsocketProvider } from "y-websocket";
 import * as Y from "yjs";
 
 export type Status = "connecting" | "connected" | "disconnected";
+
+/** Images before links: ![a](b) must not become a link. */
+const TRANSFORMERS = [IMAGE, ...BASE];
+
+export interface Uploaded { url: string; name: string; image: boolean }
 export interface Peer { name: string; color: string }
 
 export interface LiveEditorOptions {
@@ -38,6 +46,9 @@ export interface LiveEditorOptions {
   onSaving?: (saving: boolean) => void;
   onPeers?: (peers: Peer[]) => void;
   onReset?: (by: string) => void;
+  /** Uploads a pasted or dropped file; images are inserted, other files linked. */
+  upload?: (file: File) => Promise<Uploaded>;
+  onUploadError?: (err: unknown) => void;
 }
 
 export interface LiveEditor {
@@ -46,6 +57,8 @@ export interface LiveEditor {
   markInput(): void;
   /** Saves pending changes now. */
   flush(): Promise<void>;
+  /** Uploads files and inserts them at the cursor. */
+  insertFiles(files: File[]): void;
   destroy(): Promise<void>;
 }
 
@@ -56,6 +69,7 @@ const theme = {
   list: { ul: "ed-ul", ol: "ed-ol", listitem: "ed-li", nested: { listitem: "ed-nested" } },
   code: "ed-code",
   link: "ed-link",
+  image: "ed-img",
   text: { bold: "ed-bold", italic: "ed-italic", code: "ed-tcode", strikethrough: "ed-strike", underline: "ed-underline" },
 };
 
@@ -70,7 +84,7 @@ export function markdownOf(editor: LexicalEditor): string {
 export function createLiveEditor(o: LiveEditorOptions): LiveEditor {
   const editor = createEditor({
     namespace: "phoedox",
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, AutoLinkNode, CodeNode, CodeHighlightNode],
+    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, AutoLinkNode, CodeNode, CodeHighlightNode, ImageNode],
     theme,
     editable: o.editable,
     onError: (e) => console.error(e),
@@ -166,7 +180,38 @@ export function createLiveEditor(o: LiveEditorOptions): LiveEditor {
   provider.on("sync", onSync);
   provider.on("status", (e: { status: Status }) => o.onStatus?.(e.status));
 
+  // Files pasted or dropped into the text are uploaded and inserted.
+  const insertFiles = (files: File[]) => {
+    if (!o.upload || !o.editable) return;
+    for (const file of files) {
+      o.upload(file).then((u) => {
+        markInput();
+        editor.update(() => {
+          if (!$getSelection()) $getRoot().selectEnd();
+          // Images get their own paragraph; other files become a link in the text.
+          if (u.image) $insertNodeToNearestRoot($createParagraphNode().append($createImageNode(u.url, u.name.replace(/\.[^.]+$/, ""))));
+          else $insertNodes([$createLinkNode(u.url).append($createTextNode(u.name))]);
+        });
+      }, (err) => o.onUploadError?.(err));
+    }
+  };
+  const filesOf = (dt: DataTransfer | null) => Array.from(dt?.files ?? []);
+
   const unregister = mergeRegister(
+    editor.registerCommand(PASTE_COMMAND, (e) => {
+      const files = filesOf((e as ClipboardEvent).clipboardData ?? null);
+      if (!files.length || !o.upload) return false;
+      e.preventDefault();
+      insertFiles(files);
+      return true;
+    }, COMMAND_PRIORITY_HIGH),
+    editor.registerCommand(DROP_COMMAND, (e) => {
+      const files = filesOf(e.dataTransfer);
+      if (!files.length || !o.upload) return false;
+      e.preventDefault();
+      insertFiles(files);
+      return true;
+    }, COMMAND_PRIORITY_HIGH),
     registerRichText(editor),
     registerList(editor),
     registerMarkdownShortcuts(editor, TRANSFORMERS),
@@ -195,6 +240,7 @@ export function createLiveEditor(o: LiveEditorOptions): LiveEditor {
     editor,
     markInput,
     flush: save,
+    insertFiles,
     async destroy() {
       await save().catch(() => {});
       window.removeEventListener("pagehide", leave);

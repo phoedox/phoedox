@@ -4,9 +4,10 @@ import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
 import { currentProject, docsVersion } from "../state";
 import { base } from "./shared";
+import { fileIcon } from "../files";
 import { toast } from "./toasts";
 
-interface TrashItem { id: string; kind: "document" | "entity"; type: string; slug: string; title: string; deletedAt: string }
+interface TrashItem { id: string; kind: "document" | "entity" | "file"; type: string; slug: string; title: string; deletedAt: string }
 
 const typeIcon: Record<string, string> = { markdown: "FileText", adr: "Scale", link: "ExternalLink" };
 
@@ -72,8 +73,8 @@ export class PhxTrash extends LitElement {
       <p class="muted">${this.days > 0 ? t("trash.intro", { days: this.days }) : t("trash.intro_forever")}</p>
       ${!this.items ? html`<p class="muted">${t("app.loading")}</p>` : this.items.length === 0 ? html`<p class="muted">${t("trash.empty")}</p>` : html`<ul>
         ${this.items.map((it) => html`<li>
-          <div class="what">${icon(it.kind === "entity" ? "Box" : typeIcon[it.type] ?? "FileText", 16)}
-            <div><b>${it.title}</b><div class="sub">${it.kind === "entity" ? `${t("trash.entity")} · ${it.type} · ` : ""}${t("trash.deleted", { date: formatDate(it.deletedAt) })}</div></div></div>
+          <div class="what">${icon(it.kind === "entity" ? "Box" : it.kind === "file" ? fileIcon(it.type) : typeIcon[it.type] ?? "FileText", 16)}
+            <div><b>${it.title}</b><div class="sub">${it.kind === "entity" ? `${t("trash.entity")} · ${it.type} · ` : it.kind === "file" ? `${t("trash.file")} · ` : ""}${t("trash.deleted", { date: formatDate(it.deletedAt) })}</div></div></div>
           <div class="acts">
             ${this.confirming === it.id
               ? html`<span class="muted" style="font-size:13px">${t("trash.purge_confirm", { title: it.title })}</span>

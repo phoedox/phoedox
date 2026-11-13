@@ -75,6 +75,8 @@ make build && ./bin/phoedox
 | `PHOEDOX_SMTP_TLS` | `starttls` | `starttls`, `tls` oder `none` (nur lokales Relay) |
 | `PHOEDOX_SMTP_USER` / `PHOEDOX_SMTP_PASSWORD` | – | Anmeldung am SMTP-Server |
 | `PHOEDOX_SMTP_FROM` | – | Absender, z. B. `Phoedox <noreply@example.org>` (Pflicht mit SMTP) |
+| `PHOEDOX_MAX_UPLOAD_MB` | `100` | Größte Datei pro Upload |
+| `PHOEDOX_S3_ENDPOINT`, `_BUCKET`, `_REGION`, `_ACCESS_KEY`, `_SECRET_KEY`, `_PREFIX` | – | Dateien in einem S3-kompatiblen Bucket statt unter `<data>/files` |
 | `PHOEDOX_PROMPTS_DIR` | – | Ordner mit eigenen KI-Prompts, siehe [`resources/prompts`](resources/prompts) |
 | `PHOEDOX_MAIL_DIR` | – | Ordner mit eigenen E-Mail-Vorlagen, siehe [`resources/mail`](resources/mail) |
 

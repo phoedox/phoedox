@@ -51,10 +51,25 @@ type Config struct {
 	// MasterKey encrypts secrets at rest (PHOEDOX_MASTER_KEY, 32 bytes
 	// base64). Without it, <DataDir>/master.key is used or created.
 	MasterKey string
+	// MaxUploadMB limits the size of one uploaded file (PHOEDOX_MAX_UPLOAD_MB, default 100).
+	MaxUploadMB int
+	// S3 stores files in a bucket instead of <DataDir>/files when Endpoint is set.
+	S3 S3
 	// OIDC enables sign-in with an external identity provider.
 	OIDC OIDC
 	// SMTP enables emails (invitations, password resets) when Host is set.
 	SMTP SMTP
+}
+
+// S3 is an S3-compatible bucket for files (PHOEDOX_S3_*).
+type S3 struct {
+	Endpoint  string // host[:port]
+	Bucket    string
+	Region    string
+	AccessKey string
+	SecretKey string
+	Prefix    string
+	Insecure  bool // plain HTTP, only for local test setups
 }
 
 // OIDC is an OpenID Connect provider (PHOEDOX_OIDC_*), e.g. Authentik,
@@ -126,6 +141,14 @@ func FromEnv() (Config, error) {
 		return c, fmt.Errorf("PHOEDOX_TRASH_DAYS: must be a number of days")
 	}
 	c.TrashDays = td
+	mu, err := strconv.Atoi(getenv("PHOEDOX_MAX_UPLOAD_MB", "100"))
+	if err != nil || mu < 1 {
+		return c, fmt.Errorf("PHOEDOX_MAX_UPLOAD_MB: must be a positive number")
+	}
+	c.MaxUploadMB = mu
+	c.S3 = S3{Endpoint: os.Getenv("PHOEDOX_S3_ENDPOINT"), Bucket: os.Getenv("PHOEDOX_S3_BUCKET"), Region: os.Getenv("PHOEDOX_S3_REGION"),
+		AccessKey: os.Getenv("PHOEDOX_S3_ACCESS_KEY"), SecretKey: os.Getenv("PHOEDOX_S3_SECRET_KEY"), Prefix: os.Getenv("PHOEDOX_S3_PREFIX"),
+		Insecure: os.Getenv("PHOEDOX_S3_INSECURE") == "true"}
 	port := "587"
 	if c.SMTP.TLS == "tls" {
 		port = "465"

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/phoedox/phoedox/internal/blob"
 
 	"github.com/phoedox/phoedox/internal/graph"
 	"github.com/phoedox/phoedox/internal/requests"
@@ -77,6 +78,11 @@ type Service struct {
 	// OnContentChange is called when a document's content changed outside
 	// the live editor (the realtime hub resets live sessions).
 	OnContentChange func(ctx context.Context, documentID, by string)
+	// Blobs stores file contents; TempDir holds uploads while they are
+	// hashed; MaxUpload limits one file (bytes).
+	Blobs     blob.Store
+	TempDir   string
+	MaxUpload int64
 }
 
 // New returns a service with defaults.

@@ -56,7 +56,7 @@ func ActorUserID(actor string) string {
 // TrashItem is a deleted document or entity.
 type TrashItem struct {
 	ID        string `json:"id"`
-	Kind      string `json:"kind"` // document | entity
+	Kind      string `json:"kind"` // document | entity | file
 	Type      string `json:"type"` // document type or entity kind
 	Slug      string `json:"slug"`
 	Title     string `json:"title"`
@@ -67,7 +67,8 @@ type TrashItem struct {
 func (d *DB) Trash(ctx context.Context, projectID string) ([]TrashItem, error) {
 	rows, err := d.Query(ctx, `SELECT id, 'document', doc_type, slug, title, deleted_at FROM documents WHERE project_id = ? AND deleted_at IS NOT NULL
 		UNION ALL SELECT id, 'entity', kind, slug, name, deleted_at FROM entities WHERE project_id = ? AND deleted_at IS NOT NULL
-		ORDER BY 6 DESC, 5`, projectID, projectID)
+		UNION ALL SELECT id, 'file', mime, id, name, deleted_at FROM files WHERE project_id = ? AND deleted_at IS NOT NULL
+		ORDER BY 6 DESC, 5`, projectID, projectID, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -127,6 +128,12 @@ func (d *DB) Purge(ctx context.Context, projectID, id string) error {
 		}
 		if n, _ := res.RowsAffected(); n == 0 {
 			res, err = tx.Exec(ctx, `DELETE FROM entities WHERE id = ? AND project_id = ? AND deleted_at IS NOT NULL`, id, projectID)
+			if err != nil {
+				return err
+			}
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			res, err = tx.Exec(ctx, `DELETE FROM files WHERE id = ? AND project_id = ? AND deleted_at IS NOT NULL`, id, projectID)
 			if err := affected(res, err); err != nil {
 				return err
 			}
@@ -145,6 +152,7 @@ func (d *DB) PurgeBefore(ctx context.Context, before Time) (int, error) {
 			`DELETE FROM documents WHERE deleted_at IS NOT NULL AND deleted_at < ?`,
 			`DELETE FROM edges WHERE deleted_at IS NOT NULL AND deleted_at < ?`,
 			`DELETE FROM entities WHERE deleted_at IS NOT NULL AND deleted_at < ?`,
+			`DELETE FROM files WHERE deleted_at IS NOT NULL AND deleted_at < ?`,
 		} {
 			res, err := tx.Exec(ctx, q, before)
 			if err != nil {

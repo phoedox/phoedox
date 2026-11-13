@@ -206,3 +206,13 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 | Prüfung | Einträge brauchen eine bekannte Art; bekannte Attribute werden geprüft und normalisiert (Zahlen aus Text, leere Werte entfallen), unbekannte bleiben erhalten. Beziehungen nur, wenn das Modell sie zwischen den Arten vorsieht; `related_to` und `depends_on` gehen immer. Ältere Einträge ohne Definition erscheinen als „Ohne Definition“. |
 | KI | `get_data_model` liefert pro Art ein JSON-Schema und die Beziehungen; `define_kind` legt Arten an (im Vorschlagsmodus als Vorschlag). Löschen von Arten nur durch Menschen. |
 | Oberfläche | Datenmodell-Seite (Arten, Schema-Graph, Einträge pro Art, Attribute/Beziehungen bearbeiten), Formular aus dem Schema, Eintragsseite mit direkten Nachbarn und „Verbinden“ (beide Richtungen, nur erlaubte Beziehungen), Wissensnetz-Ansicht mit Kraft-Layout (einmal berechnet, ohne Animation), Filter nach Art, Suche, Zoom/Verschieben. |
+
+## Dateien
+
+| Bereich | Entscheidung |
+|---|---|
+| Speicher | Inhalt einmal pro SHA-256 (`internal/blob`): lokal unter `<data>/files/ab/cd/<hash>` oder S3-kompatibel (`PHOEDOX_S3_*`, minio-go). Tabelle `files` hält Name, Typ, Größe, Projekt und Anhang (Dokument oder Eintrag). Inhalte werden erst gelöscht, wenn keine Zeile – auch im Papierkorb, auch in anderen Projekten – sie mehr nutzt. |
+| Upload | Roher Body (`POST /projects/{p}/files?name=&document=&entity=`), beim Lesen gehasht, Grenze `PHOEDOX_MAX_UPLOAD_MB` (Standard 100). **Abweichung vom Plan:** tus (fortsetzbare Uploads) kommt später, für die ersten Versionen reicht ein Upload mit Fortschritt. Bearbeiter laden hoch; KI per MCP nur `list_files`. |
+| Typ & Auslieferung | Typ aus dem Inhalt (Sniffing), der Name nur bei allgemeinen Ergebnissen; die Angabe des Browsers zählt nie. Auslieferung unter `/api/v1/files/{id}/{name}` mit `nosniff`, CSP `sandbox` (außer PDF), `Cross-Origin-Resource-Policy: same-origin`, ETag = Hash, Range-Anfragen. Nur Bilder, PDF, Audio/Video und Text werden angezeigt, alles andere heruntergeladen. |
+| Oberfläche | Anhänge an Seiten und Einträgen (Ziehen, Hochladen mit Fortschritt, Umbenennen, Papierkorb mit Rückgängig). Im Live-Editor Bilder einfügen, hineinziehen oder über die Werkzeugleiste: als eigener Absatz `![alt](/api/v1/files/…)`; andere Dateien als Link. Im Editor werden nur eigene Dateien und https-Bilder angezeigt. |
+| Später | Vorschaubilder, Volltextsuche in PDFs, OCR, Virenscan, Kontingente (hierarchisch wie der Papierkorb), Versionen einer Datei. |

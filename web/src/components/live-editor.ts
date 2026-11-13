@@ -12,6 +12,9 @@ import { icon } from "../icon";
 import { currentUser, docsVersion, navigate } from "../state";
 import { prose } from "./doc-view";
 import { base } from "./shared";
+import { fileURL, isImage, uploadFile } from "../files";
+import type { PhxAttachments } from "./attachments";
+import "./attachments";
 import { toast } from "./toasts";
 
 /** Stable caret color per user from the collaboration tokens. */
@@ -53,6 +56,7 @@ export class PhxLiveEditor extends LitElement {
     .ed-tcode { font-family: var(--font-mono); font-size: .9em; background: var(--surface2); padding: 1px 4px; border-radius: 4px; }
     .ed-bold { font-weight: 700; } .ed-italic { font-style: italic; } .ed-strike { text-decoration: line-through; } .ed-underline { text-decoration: underline; }
     .ed-link { color: var(--accent); }
+    .ed-img { display: inline-block; max-width: 100%; } .ed-img img { max-width: 100%; height: auto; border-radius: 8px; vertical-align: middle; }
     .hint { font-size: 13px; color: var(--muted); }
   `];
   project = "";
@@ -103,6 +107,12 @@ export class PhxLiveEditor extends LitElement {
       onStatus: (s) => (this.status = s),
       onSaving: (s) => (this.saving = s),
       onPeers: (p) => (this.peers = p),
+      upload: async (file) => {
+        const f = await uploadFile(this.project, file, { document: this.doc!.id });
+        this.renderRoot.querySelector<PhxAttachments>("phx-attachments")?.refresh();
+        return { url: fileURL(f), name: f.name, image: isImage(f.mime) };
+      },
+      onUploadError: (err) => toast(err instanceof ApiError ? err.text : t("error.unknown"), "error"),
       onReset: (by) => {
         toast(t("editor.reset", { by }));
         this.loaded = "";
@@ -186,6 +196,9 @@ export class PhxLiveEditor extends LitElement {
         ${tool("ListOrdered", t("editor.ol"), () => { this.live?.markInput(); this.live?.editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined); })}
         ${tool("Quote", t("editor.quote"), () => this.block("quote"))}
         ${tool("SquareCode", t("editor.codeblock"), () => this.block("code"))}
+        <span class="sep"></span>
+        ${tool("Image", t("editor.insert_file"), () => this.renderRoot.querySelector<HTMLInputElement>("input.pick")!.click())}
+        <input class="pick" type="file" multiple hidden @change=${(e: Event) => { const i = e.target as HTMLInputElement; if (i.files) this.live?.insertFiles(Array.from(i.files)); i.value = ""; }}>
         <span class="state" aria-live="polite">
           ${this.peers.length ? html`<span class="avatars" title=${t("editor.peers", { names: this.peers.map((p) => p.name).join(", ") })}>
             ${this.peers.map((p) => html`<span style="background:${p.color}">${p.name.slice(0, 2).toUpperCase()}</span>`)}</span>` : ""}
@@ -198,7 +211,8 @@ export class PhxLiveEditor extends LitElement {
         ${this.empty ? html`<div class="placeholder">${t("editor.placeholder")}</div>` : ""}
         <div class="cursors"></div>
       </div>
-      <p class="hint">${t("doc.mention_hint")}</p>`;
+      <p class="hint">${t("doc.mention_hint")} ${t("editor.files_hint")}</p>
+      ${d ? html`<phx-attachments style="margin-top:20px" .project=${this.project} .document=${d.id} .editable=${true}></phx-attachments>` : ""}`;
   }
 }
 customElements.define("phx-live-editor", PhxLiveEditor);

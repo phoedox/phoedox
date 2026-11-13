@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/phoedox/phoedox/internal/blob"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -59,6 +60,17 @@ func Open(ctx context.Context) (*App, error) {
 	svc := core.New(db)
 	svc.Box = box
 	svc.RequestPolicy = requests.Policy{AllowPrivate: cfg.RequestsPrivate}
+	svc.Blobs = blob.Local{Dir: filepath.Join(cfg.DataDir, "files")}
+	if cfg.S3.Endpoint != "" {
+		s3, err := blob.NewS3(blob.S3Config(cfg.S3))
+		if err != nil {
+			db.Close()
+			return nil, err
+		}
+		svc.Blobs = s3
+	}
+	svc.TempDir = filepath.Join(cfg.DataDir, "tmp")
+	svc.MaxUpload = int64(cfg.MaxUploadMB) << 20
 	if err := svc.EnsureSearchIndex(ctx); err != nil {
 		slog.Warn("building the search index failed", "err", err)
 	}
