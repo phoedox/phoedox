@@ -146,7 +146,7 @@ func admin(args []string) error {
 		if *name == "" {
 			*name = "CLI"
 		}
-		_, plain, err := a.Auth.CreateToken(ctx, u.ID, *name)
+		_, plain, err := a.Auth.CreateToken(ctx, u.ID, *name, "write", nil)
 		if err != nil {
 			return err
 		}

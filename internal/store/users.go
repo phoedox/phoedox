@@ -175,28 +175,35 @@ type Token struct {
 	Prefix     string `json:"prefix"`
 	CreatedAt  Time   `json:"createdAt"`
 	LastUsedAt Time   `json:"lastUsedAt"`
+	// Access is "read" or "write"; Projects limits the token to these
+	// project ids (empty = all projects of the user).
+	Access   string   `json:"access"`
+	Projects []string `json:"projects"`
 }
 
 func (d *DB) CreateToken(ctx context.Context, t Token, hash string) (Token, error) {
 	t.CreatedAt = Now()
-	_, err := d.Exec(ctx, `INSERT INTO api_tokens (id, user_id, name, token_hash, prefix, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		t.ID, t.UserID, t.Name, hash, t.Prefix, t.CreatedAt)
+	if t.Access == "" {
+		t.Access = AccessWrite
+	}
+	_, err := d.Exec(ctx, `INSERT INTO api_tokens (id, user_id, name, token_hash, prefix, created_at, access, projects) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		t.ID, t.UserID, t.Name, hash, t.Prefix, t.CreatedAt, t.Access, joinIDs(t.Projects))
 	return t, err
 }
 
 // UserByToken returns the active owner of a valid token and records its use.
 func (d *DB) UserByToken(ctx context.Context, hash string) (User, Token, error) {
 	var t Token
-	row := d.QueryRow(ctx, `SELECT t.id, t.name, t.prefix, `+prefixCols("u.", userCols)+`
+	row := d.QueryRow(ctx, `SELECT t.id, t.name, t.prefix, t.access, t.projects, `+prefixCols("u.", userCols)+`
 		FROM api_tokens t JOIN users u ON u.id = t.user_id WHERE t.token_hash = ? AND t.revoked_at IS NULL AND u.disabled_at IS NULL`, hash)
-	var tok [3]string
+	var tok [5]string
 	u, err := scanUser(scanFunc(func(dest ...any) error {
-		return row.Scan(append([]any{&tok[0], &tok[1], &tok[2]}, dest...)...)
+		return row.Scan(append([]any{&tok[0], &tok[1], &tok[2], &tok[3], &tok[4]}, dest...)...)
 	}))
 	if err != nil {
 		return u, t, err
 	}
-	t.ID, t.Name, t.Prefix, t.UserID = tok[0], tok[1], tok[2], u.ID
+	t.ID, t.Name, t.Prefix, t.Access, t.Projects, t.UserID = tok[0], tok[1], tok[2], tok[3], splitIDs(tok[4]), u.ID
 	_, _ = d.Exec(ctx, `UPDATE api_tokens SET last_used_at = ? WHERE id = ?`, Now(), t.ID)
 	return u, t, nil
 }
@@ -207,7 +214,7 @@ type scanFunc func(dest ...any) error
 func (f scanFunc) Scan(dest ...any) error { return f(dest...) }
 
 func (d *DB) ListTokens(ctx context.Context, userID string) ([]Token, error) {
-	rows, err := d.Query(ctx, `SELECT id, user_id, name, prefix, created_at, last_used_at FROM api_tokens
+	rows, err := d.Query(ctx, `SELECT id, user_id, name, prefix, created_at, last_used_at, access, projects FROM api_tokens
 		WHERE user_id = ? AND revoked_at IS NULL ORDER BY created_at DESC`, userID)
 	if err != nil {
 		return nil, err
@@ -216,9 +223,11 @@ func (d *DB) ListTokens(ctx context.Context, userID string) ([]Token, error) {
 	var out []Token
 	for rows.Next() {
 		var t Token
-		if err := rows.Scan(&t.ID, &t.UserID, &t.Name, &t.Prefix, &t.CreatedAt, &t.LastUsedAt); err != nil {
+		var projects string
+		if err := rows.Scan(&t.ID, &t.UserID, &t.Name, &t.Prefix, &t.CreatedAt, &t.LastUsedAt, &t.Access, &projects); err != nil {
 			return nil, err
 		}
+		t.Projects = splitIDs(projects)
 		out = append(out, t)
 	}
 	return out, rows.Err()

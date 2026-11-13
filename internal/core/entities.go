@@ -243,9 +243,12 @@ func (s *Service) Search(ctx context.Context, a Actor, query, ref string, limit 
 		}
 		ids = []string{p.ID}
 	} else {
-		var err error
-		if ids, err = s.DB.VisibleProjectIDs(ctx, a.User.ID, a.User.IsAdmin); err != nil {
+		ps, err := s.Projects(ctx, a)
+		if err != nil {
 			return nil, err
+		}
+		for _, p := range ps {
+			ids = append(ids, p.ID)
 		}
 	}
 	return s.DB.Search(ctx, ids, query, limit)

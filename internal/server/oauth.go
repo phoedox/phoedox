@@ -9,6 +9,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 
 	"github.com/phoedox/phoedox/internal/auth"
+	"github.com/phoedox/phoedox/internal/core"
 )
 
 // oauthRoutes serves the OAuth 2.1 authorization server for MCP clients.
@@ -135,6 +136,10 @@ func authRequestFrom(q url.Values) auth.AuthRequest {
 }
 
 func (a *api) oauthRequest(w http.ResponseWriter, r *http.Request) {
+	if !a.core.AIEnabled(r.Context()) {
+		writeErr(w, core.Invalid("validation.ai_disabled", nil, "AI access is disabled on this instance"))
+		return
+	}
 	info, err := a.auth.CheckAuthRequest(r.Context(), authRequestFrom(r.URL.Query()), a.baseURL(r))
 	respond(w, info, err)
 }
@@ -142,13 +147,24 @@ func (a *api) oauthRequest(w http.ResponseWriter, r *http.Request) {
 func (a *api) oauthAuthorize(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		auth.AuthRequest
-		Approve bool `json:"approve"`
+		Approve  bool     `json:"approve"`
+		Access   string   `json:"access"`
+		Projects []string `json:"projects"`
 	}
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)
 		return
 	}
-	redirect, err := a.auth.Authorize(r.Context(), actorOf(r), in.AuthRequest, a.baseURL(r), in.Approve)
+	if !a.core.AIEnabled(r.Context()) {
+		writeErr(w, core.Invalid("validation.ai_disabled", nil, "AI access is disabled on this instance"))
+		return
+	}
+	access, projects, err := a.core.TokenScope(r.Context(), actorOf(r), in.Access, in.Projects)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	redirect, err := a.auth.Authorize(r.Context(), actorOf(r), in.AuthRequest, a.baseURL(r), in.Approve, access, projects)
 	respond(w, map[string]string{"redirect": redirect}, err)
 }
 

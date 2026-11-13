@@ -42,14 +42,14 @@ export interface User {
   locale: "" | "de" | "en"; hasPassword: boolean; secondFactor?: boolean; createdAt: string; lastLoginAt: string | null;
 }
 export interface Instance { version: string; domain: string; passwordReset: boolean; oidc?: { name: string } }
-export interface Grant { id: string; clientId: string; clientName: string; clientUri?: string; createdAt: string; lastUsedAt: string | null }
+export interface Grant { id: string; clientId: string; clientName: string; clientUri?: string; createdAt: string; lastUsedAt: string | null; access: "read" | "write"; projects: string[] | null }
 export interface LinkInfo { purpose: "invite" | "reset"; email: string; name: string; expiresAt: string }
 export interface LinkResult { user: User; purpose: "invite" | "reset"; link: string; mailed: boolean; expiresAt: string }
 /** Minimum password length, same as the server (auth.MinPasswordLen). */
 export const minPasswordLength = 10;
 export interface Project {
   id: string; slug: string; name: string; short: string; description: string;
-  primaryColor: string; aiWriteMode: "suggest" | "direct"; role: string;
+  primaryColor: string; aiWriteMode: "off" | "read" | "suggest" | "direct"; role: string;
 }
 export interface Doc {
   id: string; projectId: string; type: "markdown" | "adr" | "link"; slug: string; title: string;
@@ -76,4 +76,4 @@ export interface Favorite { documentId: string; personal: boolean; position: num
 export interface Entity { id: string; kind: string; slug: string; name: string; attrs: Record<string, unknown> }
 export interface Edge { id: string; from: string; rel: string; to: string; fromName: string; toName: string }
 export interface Suggestion { id: string; actor: string; op: string; summary: string; status: string; createdAt: string }
-export interface Token { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null }
+export interface Token { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null; access: "read" | "write"; projects: string[] | null }

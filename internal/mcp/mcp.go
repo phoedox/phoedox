@@ -38,6 +38,12 @@ func Handler(svc *core.Service, a *phxauth.Auth, version string, baseURL func(*h
 	}
 	h := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return server }, &sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !svc.AIEnabled(r.Context()) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":"AI access (MCP) is disabled on this instance."}`))
+			return
+		}
 		// Personal API tokens have no expiry (they are revoked in the UI).
 		opts := &auth.RequireBearerTokenOptions{AllowMissingExpiration: true, ClockSkew: 30 * time.Second}
 		if baseURL != nil {

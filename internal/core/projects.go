@@ -18,7 +18,7 @@ type ProjectInput struct {
 	Short        string `json:"short,omitempty"`
 	Description  string `json:"description,omitempty"`
 	PrimaryColor string `json:"primaryColor,omitempty"`
-	AIWriteMode  string `json:"aiWriteMode,omitempty"` // suggest | direct
+	AIWriteMode  string `json:"aiWriteMode,omitempty"` // off | read | suggest | direct
 }
 
 func (in *ProjectInput) normalize() error {
@@ -48,8 +48,10 @@ func (in *ProjectInput) normalize() error {
 	if in.AIWriteMode == "" {
 		in.AIWriteMode = "suggest"
 	}
-	if in.AIWriteMode != "suggest" && in.AIWriteMode != "direct" {
-		return invalid("validation.ai_write_mode", nil, "aiWriteMode must be suggest or direct")
+	switch in.AIWriteMode {
+	case AIOff, AIRead, AISuggest, AIDirect:
+	default:
+		return invalid("validation.ai_write_mode", nil, "aiWriteMode must be off, read, suggest or direct")
 	}
 	return nil
 }
@@ -70,6 +72,12 @@ func shortOf(name string) string {
 
 // CreateProject creates a project owned by the actor.
 func (s *Service) CreateProject(ctx context.Context, a Actor, in ProjectInput) (store.Project, error) {
+	if a.Via == "mcp" && !s.AIEnabled(ctx) {
+		return store.Project{}, errAIDisabled()
+	}
+	if a.Restricted() {
+		return store.Project{}, ErrForbidden
+	}
 	if err := in.normalize(); err != nil {
 		return store.Project{}, err
 	}
@@ -91,6 +99,9 @@ func (s *Service) UpdateProject(ctx context.Context, a Actor, ref string, in Pro
 	if err := in.normalize(); err != nil {
 		return p, err
 	}
+	if a.Via == "mcp" && in.AIWriteMode != p.AIWriteMode {
+		return p, ErrForbidden // AI clients cannot widen their own access
+	}
 	p.Name, p.Short, p.Description, p.PrimaryColor, p.AIWriteMode = in.Name, in.Short, in.Description, in.PrimaryColor, in.AIWriteMode
 	if err := s.DB.UpdateProject(ctx, p); err != nil {
 		return p, err
@@ -101,7 +112,20 @@ func (s *Service) UpdateProject(ctx context.Context, a Actor, ref string, in Pro
 
 // Projects lists projects visible to the actor.
 func (s *Service) Projects(ctx context.Context, a Actor) ([]store.Project, error) {
-	return s.DB.ListProjects(ctx, a.User.ID, a.User.IsAdmin)
+	if a.Via == "mcp" && !s.AIEnabled(ctx) {
+		return nil, errAIDisabled()
+	}
+	ps, err := s.DB.ListProjects(ctx, a.User.ID, a.User.IsAdmin)
+	if err != nil {
+		return nil, err
+	}
+	out := ps[:0]
+	for _, p := range ps {
+		if s.visible(a, p) {
+			out = append(out, p)
+		}
+	}
+	return out, nil
 }
 
 // Project returns one project if the actor can read it.

@@ -15,6 +15,7 @@ import "./palette";
 import type { PhxPalette } from "./palette";
 import "./user-menu";
 import "./users";
+import "./admin-settings";
 import "./projects";
 import "./project";
 import "./tokens";
@@ -58,6 +59,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/settings/security", render: () => html`<phx-security></phx-security>` },
     { path: "/settings/tokens", render: () => html`<phx-tokens></phx-tokens>` },
     { path: "/admin/users", render: () => html`<phx-users></phx-users>` },
+    { path: "/admin/settings", render: () => html`<phx-admin-settings></phx-admin-settings>` },
     // One template for both routes keeps the same element; root tells it to
     // show the overview (the root route has no tail for the child routes).
     { path: "/p/:project/*", render: ({ project }) => projectView(project!, false) },

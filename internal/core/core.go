@@ -47,6 +47,8 @@ type Actor struct {
 	User    store.User
 	Via     string // web | token | mcp | cli
 	TokenID string
+	// Scope narrows the rights of tokens and OAuth grants (nil = full).
+	Scope *Scope
 }
 
 // String is the actor as stored in events and versions.
@@ -87,6 +89,18 @@ func (s *Service) project(ctx context.Context, a Actor, ref, need string) (store
 	p, err := s.DB.ProjectFor(ctx, ref, a.User.ID)
 	if err != nil {
 		return p, err
+	}
+	// Narrowed tokens and AI clients are checked before anything else,
+	// also for admins.
+	if !s.visible(a, p) {
+		return p, ErrNotFound
+	}
+	if a.Via == "mcp" && !s.AIEnabled(ctx) {
+		return p, errAIDisabled()
+	}
+	readOnly := (a.Scope != nil && a.Scope.ReadOnly) || (a.Via == "mcp" && p.AIWriteMode == AIRead)
+	if readOnly && rank[need] > rank[store.RoleReader] {
+		return p, ErrForbidden
 	}
 	if a.User.IsAdmin {
 		if p.Role == "" {

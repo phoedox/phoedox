@@ -48,15 +48,17 @@ func (d *DB) OAuthClientByID(ctx context.Context, id string) (OAuthClient, error
 
 // OAuthGrant is a user's consent for a client.
 type OAuthGrant struct {
-	ID         string `json:"id"`
-	ClientID   string `json:"clientId"`
-	ClientName string `json:"clientName"`
-	ClientURI  string `json:"clientUri,omitempty"`
-	UserID     string `json:"-"`
-	Scope      string `json:"scope"`
-	Resource   string `json:"resource"`
-	CreatedAt  Time   `json:"createdAt"`
-	LastUsedAt Time   `json:"lastUsedAt"`
+	ID         string   `json:"id"`
+	ClientID   string   `json:"clientId"`
+	ClientName string   `json:"clientName"`
+	ClientURI  string   `json:"clientUri,omitempty"`
+	UserID     string   `json:"-"`
+	Scope      string   `json:"scope"`
+	Resource   string   `json:"resource"`
+	CreatedAt  Time     `json:"createdAt"`
+	LastUsedAt Time     `json:"lastUsedAt"`
+	Access     string   `json:"access"`   // read | write
+	Projects   []string `json:"projects"` // empty = all
 }
 
 // UpsertGrant returns the active grant of user and client, creating it or
@@ -68,27 +70,29 @@ func (d *DB) UpsertGrant(ctx context.Context, g OAuthGrant) (OAuthGrant, error) 
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
 			g.CreatedAt = Now()
-			_, err = tx.Exec(ctx, `INSERT INTO oauth_grants (id, tenant_id, client_id, user_id, scope, resource, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				g.ID, DefaultTenant, g.ClientID, g.UserID, g.Scope, g.Resource, g.CreatedAt)
+			_, err = tx.Exec(ctx, `INSERT INTO oauth_grants (id, tenant_id, client_id, user_id, scope, resource, created_at, access, projects) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				g.ID, DefaultTenant, g.ClientID, g.UserID, g.Scope, g.Resource, g.CreatedAt, g.Access, joinIDs(g.Projects))
 			return err
 		case err != nil:
 			return err
 		}
 		g.ID = id
-		_, err = tx.Exec(ctx, `UPDATE oauth_grants SET scope = ?, resource = ? WHERE id = ?`, g.Scope, g.Resource, id)
+		_, err = tx.Exec(ctx, `UPDATE oauth_grants SET scope = ?, resource = ?, access = ?, projects = ? WHERE id = ?`, g.Scope, g.Resource, g.Access, joinIDs(g.Projects), id)
 		return err
 	})
 	return g, err
 }
 
-const grantCols = `g.id, g.client_id, c.name, c.client_uri, g.user_id, g.scope, g.resource, g.created_at, g.last_used_at`
+const grantCols = `g.id, g.client_id, c.name, c.client_uri, g.user_id, g.scope, g.resource, g.created_at, g.last_used_at, g.access, g.projects`
 
 func scanGrant(r interface{ Scan(...any) error }) (OAuthGrant, error) {
 	var g OAuthGrant
-	err := r.Scan(&g.ID, &g.ClientID, &g.ClientName, &g.ClientURI, &g.UserID, &g.Scope, &g.Resource, &g.CreatedAt, &g.LastUsedAt)
+	var projects string
+	err := r.Scan(&g.ID, &g.ClientID, &g.ClientName, &g.ClientURI, &g.UserID, &g.Scope, &g.Resource, &g.CreatedAt, &g.LastUsedAt, &g.Access, &projects)
 	if errors.Is(err, sql.ErrNoRows) {
 		return g, ErrNotFound
 	}
+	g.Projects = splitIDs(projects)
 	return g, err
 }
 
@@ -142,17 +146,16 @@ type OAuthCode struct {
 func (d *DB) UseOAuthCode(ctx context.Context, hash string) (OAuthCode, error) {
 	var c OAuthCode
 	var used, expires Time
-	err := d.QueryRow(ctx, `SELECT `+grantCols+`, o.redirect_uri, o.code_challenge, o.used_at, o.expires_at
+	row := d.QueryRow(ctx, `SELECT `+grantCols+`, o.redirect_uri, o.code_challenge, o.used_at, o.expires_at
 		FROM oauth_codes o JOIN oauth_grants g ON g.id = o.grant_id JOIN oauth_clients c ON c.id = g.client_id
-		WHERE o.id = ? AND g.revoked_at IS NULL`, hash).
-		Scan(&c.Grant.ID, &c.Grant.ClientID, &c.Grant.ClientName, &c.Grant.ClientURI, &c.Grant.UserID, &c.Grant.Scope, &c.Grant.Resource,
-			&c.Grant.CreatedAt, &c.Grant.LastUsedAt, &c.RedirectURI, &c.CodeChallenge, &used, &expires)
-	if errors.Is(err, sql.ErrNoRows) {
-		return c, ErrNotFound
-	}
+		WHERE o.id = ? AND g.revoked_at IS NULL`, hash)
+	g, err := scanGrant(scanFunc(func(dest ...any) error {
+		return row.Scan(append(dest, &c.RedirectURI, &c.CodeChallenge, &used, &expires)...)
+	}))
 	if err != nil {
 		return c, err
 	}
+	c.Grant = g
 	c.Used = !used.IsZero()
 	c.Expired = !expires.After(Now().Time)
 	if !c.Used {
@@ -185,14 +188,13 @@ type OAuthToken struct {
 func (d *DB) OAuthTokenByHash(ctx context.Context, hash string) (OAuthToken, error) {
 	var t OAuthToken
 	var used Time
-	err := d.QueryRow(ctx, `SELECT `+grantCols+`, t.kind, t.expires_at, t.used_at
+	row := d.QueryRow(ctx, `SELECT `+grantCols+`, t.kind, t.expires_at, t.used_at
 		FROM oauth_tokens t JOIN oauth_grants g ON g.id = t.grant_id JOIN oauth_clients c ON c.id = g.client_id
-		WHERE t.id = ? AND g.revoked_at IS NULL`, hash).
-		Scan(&t.Grant.ID, &t.Grant.ClientID, &t.Grant.ClientName, &t.Grant.ClientURI, &t.Grant.UserID, &t.Grant.Scope, &t.Grant.Resource,
-			&t.Grant.CreatedAt, &t.Grant.LastUsedAt, &t.Kind, &t.ExpiresAt, &used)
-	if errors.Is(err, sql.ErrNoRows) {
-		return t, ErrNotFound
-	}
+		WHERE t.id = ? AND g.revoked_at IS NULL`, hash)
+	g, err := scanGrant(scanFunc(func(dest ...any) error {
+		return row.Scan(append(dest, &t.Kind, &t.ExpiresAt, &used)...)
+	}))
+	t.Grant = g
 	t.Used = !used.IsZero()
 	return t, err
 }

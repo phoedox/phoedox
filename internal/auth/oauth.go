@@ -223,7 +223,7 @@ func (a *Auth) CheckAuthRequest(ctx context.Context, req AuthRequest, base strin
 
 // Authorize records the user's decision and returns where to send the
 // browser: the client's redirect URI with a code or an error.
-func (a *Auth) Authorize(ctx context.Context, actor core.Actor, req AuthRequest, base string, approve bool) (string, error) {
+func (a *Auth) Authorize(ctx context.Context, actor core.Actor, req AuthRequest, base string, approve bool, access string, projects []string) (string, error) {
 	if actor.Via != "web" {
 		return "", core.ErrForbidden // only a signed-in browser may approve
 	}
@@ -240,7 +240,10 @@ func (a *Auth) Authorize(ctx context.Context, actor core.Actor, req AuthRequest,
 		_ = a.DB.AddEvent(ctx, actor.String(), "oauth.deny", req.ClientID, nil)
 		return withQuery(req.RedirectURI, q), nil
 	}
-	g, err := a.DB.UpsertGrant(ctx, store.OAuthGrant{ID: string(graph.NewID()), ClientID: req.ClientID, UserID: actor.User.ID, Scope: OAuthScope, Resource: info.Resource})
+	if access == "" {
+		access = store.AccessWrite
+	}
+	g, err := a.DB.UpsertGrant(ctx, store.OAuthGrant{ID: string(graph.NewID()), ClientID: req.ClientID, UserID: actor.User.ID, Scope: OAuthScope, Resource: info.Resource, Access: access, Projects: projects})
 	if err != nil {
 		return "", err
 	}
@@ -392,7 +395,7 @@ func (a *Auth) oauthActor(ctx context.Context, token string) (core.Actor, time.T
 	if err != nil || u.Disabled {
 		return core.Actor{}, time.Time{}, store.ErrNotFound
 	}
-	return core.Actor{User: u, Via: "mcp", TokenID: "oauth:" + t.Grant.ID}, t.ExpiresAt.Time, nil
+	return core.Actor{User: u, Via: "mcp", TokenID: "oauth:" + t.Grant.ID, Scope: core.NewScope(t.Grant.Access, t.Grant.Projects)}, t.ExpiresAt.Time, nil
 }
 
 // Grants lists the apps the actor connected via OAuth.

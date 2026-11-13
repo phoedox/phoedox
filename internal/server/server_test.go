@@ -185,3 +185,44 @@ func TestAccountAPI(t *testing.T) {
 		t.Fatalf("list: %d", code) // array body decodes to nil map
 	}
 }
+
+func TestNarrowedTokens(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, store.SQLite, filepath.Join(t.TempDir(), "n.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	au := &auth.Auth{DB: db}
+	u, _ := au.CreateUser(ctx, "admin@coph.dev", "Admin", "sehr-geheimes-passwort", true)
+	svc := core.New(db)
+	h := New(Deps{Core: svc, Auth: au, MCP: mcpHandlerForTest(svc, au)})
+	_, ro, _ := au.CreateToken(ctx, u.ID, "ro", "read", nil)
+	c := &client{t: t, h: h, bearer: ro}
+	if code, _ := c.do("GET", "/api/v1/projects", nil, false); code != 200 {
+		t.Fatalf("read: %d", code)
+	}
+	for _, p := range []string{"/api/v1/tokens", "/api/v1/admin/users"} {
+		if code, _ := c.do("POST", p, map[string]any{"name": "x", "email": "a@b.de"}, false); code != 403 {
+			t.Fatalf("%s with read-only token: %d", p, code)
+		}
+	}
+	if code, _ := c.do("POST", "/api/v1/projects", map[string]string{"name": "X"}, false); code != 403 {
+		t.Fatalf("create project: %d", code)
+	}
+	// a full token can create a narrowed one
+	_, full, _ := au.CreateToken(ctx, u.ID, "full", "write", nil)
+	f := &client{t: t, h: h, bearer: full}
+	f.do("POST", "/api/v1/projects", map[string]string{"name": "Haus"}, false)
+	code, body := f.do("POST", "/api/v1/tokens", map[string]any{"name": "nur haus", "access": "read", "projects": []string{"haus"}}, false)
+	tok, _ := body["token"].(map[string]any)
+	if code != 201 || tok["access"] != "read" || len(tok["projects"].([]any)) != 1 {
+		t.Fatalf("narrowed token: %d %v", code, body)
+	}
+	// switching AI off closes /mcp
+	_, _ = svc.UpdateSettings(ctx, core.Actor{User: u, Via: "web"}, core.InstanceSettings{AIEnabled: false})
+	m := &client{t: t, h: h, bearer: full}
+	if code, _ := m.do("POST", "/mcp", map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, false); code != 403 {
+		t.Fatalf("mcp while disabled: %d", code)
+	}
+}

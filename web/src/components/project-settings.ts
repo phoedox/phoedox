@@ -120,6 +120,8 @@ export class PhxProjectSettings extends LitElement {
             @input=${(e: Event) => applyProjectColor(document.documentElement, (e.target as HTMLInputElement).value)} /><span class="mono">${p.primaryColor}</span></span></label>
         <label class="field">${t("settings.ai_mode")}
           <select name="mode" ?disabled=${!owner}>
+            <option value="off" ?selected=${p.aiWriteMode === "off"}>${t("settings.ai_mode.off")}</option>
+            <option value="read" ?selected=${p.aiWriteMode === "read"}>${t("settings.ai_mode.read")}</option>
             <option value="suggest" ?selected=${p.aiWriteMode === "suggest"}>${t("settings.ai_mode.suggest")}</option>
             <option value="direct" ?selected=${p.aiWriteMode === "direct"}>${t("settings.ai_mode.direct")}</option>
           </select></label>

@@ -37,7 +37,7 @@ func NewPasswordHash(pw string) (string, error) {
 
 // requireAdmin allows system admins via web, API token or CLI – not AI clients.
 func requireAdmin(a core.Actor) error {
-	if !a.User.IsAdmin || a.Via == "mcp" {
+	if !a.User.IsAdmin || a.Via == "mcp" || a.Restricted() {
 		return core.ErrForbidden
 	}
 	return nil

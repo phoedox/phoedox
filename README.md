@@ -106,9 +106,11 @@ Verbundene Apps siehst und widerrufst du unter **API-Tokens & MCP**.
    claude mcp add --transport http phoedox https://docs.example.org/mcp --header "Authorization: Bearer phx_…"
    ```
 
-Die KI arbeitet mit den Rechten des Token-Besitzers. In Projekten mit KI-Modus **Vorschlagen**
-(Standard) landen ihre Änderungen als Vorschläge, die ein Mensch annimmt; mit **Direkt** schreibt sie
-sofort. Umschalten in den Projekteinstellungen.
+Die KI arbeitet höchstens mit den Rechten des Token-Besitzers. Beim Erzeugen eines Tokens bzw. bei
+der Freigabe einer App wählst du **Nur lesen** oder **Lesen und schreiben** und **alle Projekte** oder
+**nur ausgewählte**. Pro Projekt legt der KI-Modus fest, was KI dort darf: **Kein Zugriff**, **Nur
+lesen**, **Vorschlagen** (Standard – Änderungen landen als Vorschläge, die ein Mensch annimmt) oder
+**Direkt**. Admins können KI-Zugriff unter **Einstellungen → Instanz** komplett abschalten.
 
 Werkzeuge: Projekte auflisten und anlegen, Projektüberblick, Dokumente (Markdown, Entscheidungen/ADRs,
 externe Links) lesen, anlegen, ändern und versionieren, Einträge und Beziehungen im Wissensnetz

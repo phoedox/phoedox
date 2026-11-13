@@ -155,7 +155,7 @@ func TestAccounts(t *testing.T) {
 	}
 
 	// disabling ends sessions and tokens; admins cannot lock themselves out
-	_, plain, _ := a.CreateToken(ctx, jan.ID, "t")
+	_, plain, _ := a.CreateToken(ctx, jan.ID, "t", "write", nil)
 	if _, err := a.UpdateUser(ctx, admin, jan.ID, UserPatch{Disabled: boolp(true)}); err != nil {
 		t.Fatal(err)
 	}

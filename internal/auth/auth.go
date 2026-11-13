@@ -169,7 +169,7 @@ func (a *Auth) FromRequestWithExpiry(r *http.Request, via string) (core.Actor, t
 		if err != nil {
 			return core.Actor{}, time.Time{}, false, err
 		}
-		return core.Actor{User: u, Via: via, TokenID: t.ID}, time.Time{}, false, nil
+		return core.Actor{User: u, Via: via, TokenID: t.ID, Scope: core.NewScope(t.Access, t.Projects)}, time.Time{}, false, nil
 	}
 	c, err := r.Cookie(CookieName)
 	if err != nil {
@@ -182,16 +182,17 @@ func (a *Auth) FromRequestWithExpiry(r *http.Request, via string) (core.Actor, t
 	return core.Actor{User: u, Via: "web"}, time.Time{}, true, nil
 }
 
-// CreateToken creates a personal API token and returns the plain value once.
-func (a *Auth) CreateToken(ctx context.Context, userID, name string) (store.Token, string, error) {
+// CreateToken creates a personal API token. access is read or write;
+// projects (ids) limits it, empty means all projects of the user.
+func (a *Auth) CreateToken(ctx context.Context, userID, name, access string, projects []string) (store.Token, string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		name = "Token"
 	}
 	plain, hash := NewSecret("phx_")
-	t, err := a.DB.CreateToken(ctx, store.Token{ID: string(graph.NewID()), UserID: userID, Name: name, Prefix: plain[:10]}, hash)
+	t, err := a.DB.CreateToken(ctx, store.Token{ID: string(graph.NewID()), UserID: userID, Name: name, Prefix: plain[:10], Access: access, Projects: projects}, hash)
 	if err == nil {
-		_ = a.DB.AddEvent(ctx, "user:"+userID, "token.create", t.ID, map[string]string{"name": name})
+		_ = a.DB.AddEvent(ctx, "user:"+userID, "token.create", t.ID, map[string]any{"name": name, "access": t.Access, "projects": projects})
 	}
 	return t, plain, err
 }

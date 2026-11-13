@@ -203,3 +203,30 @@ func errKey(err error) string {
 	}
 	return "validation.oidc_failed"
 }
+
+// requireFull refuses narrowed tokens (read-only or limited to projects)
+// for account and admin changes, so they cannot widen their own rights.
+func requireFull(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if actorOf(r).Restricted() {
+			writeJSON(w, http.StatusForbidden, errBody("forbidden", "This token cannot change the account."))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (a *api) getSettings(w http.ResponseWriter, r *http.Request) {
+	s, err := a.core.Settings(r.Context(), actorOf(r))
+	respond(w, s, err)
+}
+
+func (a *api) putSettings(w http.ResponseWriter, r *http.Request) {
+	var in core.InstanceSettings
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	s, err := a.core.UpdateSettings(r.Context(), actorOf(r), in)
+	respond(w, s, err)
+}

@@ -65,22 +65,29 @@ func (a *api) routes(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(a.requireActor)
 		r.Get("/me", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, actorOf(r).User) })
-		r.Patch("/me", a.updateProfile)
-		r.Post("/me/password", a.changePassword)
-		r.Get("/me/security", a.security)
-		r.Post("/me/totp", a.totpSetup)
-		r.Post("/me/totp/confirm", a.totpConfirm)
-		r.Post("/me/totp/disable", a.totpDisable)
-		r.Post("/me/recovery-codes", a.recoveryCodes)
-		r.Post("/me/passkeys/begin", a.passkeyRegisterBegin)
-		r.Post("/me/passkeys/finish", a.passkeyRegisterFinish)
-		r.Patch("/me/passkeys/{id}", a.passkeyRename)
-		r.Delete("/me/passkeys/{id}", a.passkeyDelete)
-		r.Get("/oauth/request", a.oauthRequest)
-		r.Post("/oauth/authorize", a.oauthAuthorize)
+		// Account changes need the full rights of the user (no narrowed token).
+		r.Group(func(r chi.Router) {
+			r.Use(requireFull)
+			r.Patch("/me", a.updateProfile)
+			r.Post("/me/password", a.changePassword)
+			r.Get("/me/security", a.security)
+			r.Post("/me/totp", a.totpSetup)
+			r.Post("/me/totp/confirm", a.totpConfirm)
+			r.Post("/me/totp/disable", a.totpDisable)
+			r.Post("/me/recovery-codes", a.recoveryCodes)
+			r.Post("/me/passkeys/begin", a.passkeyRegisterBegin)
+			r.Post("/me/passkeys/finish", a.passkeyRegisterFinish)
+			r.Patch("/me/passkeys/{id}", a.passkeyRename)
+			r.Delete("/me/passkeys/{id}", a.passkeyDelete)
+			r.Get("/oauth/request", a.oauthRequest)
+			r.Post("/oauth/authorize", a.oauthAuthorize)
+			r.Delete("/oauth/grants/{id}", a.revokeGrant)
+		})
 		r.Get("/oauth/grants", a.listGrants)
-		r.Delete("/oauth/grants/{id}", a.revokeGrant)
 		r.Route("/admin", func(r chi.Router) {
+			r.Use(requireFull)
+			r.Get("/settings", a.getSettings)
+			r.Put("/settings", a.putSettings)
 			r.Get("/users", a.listUsers)
 			r.Post("/users", a.inviteUser)
 			r.Patch("/users/{id}", a.updateUser)
@@ -88,8 +95,8 @@ func (a *api) routes(r chi.Router) {
 			r.Post("/users/{id}/reset-2fa", a.reset2FA)
 		})
 		r.Get("/tokens", a.listTokens)
-		r.Post("/tokens", a.createToken)
-		r.Delete("/tokens/{id}", a.revokeToken)
+		r.With(requireFull).Post("/tokens", a.createToken)
+		r.With(requireFull).Delete("/tokens/{id}", a.revokeToken)
 
 		r.Get("/search", a.search)
 		r.Get("/projects", a.listProjects)
@@ -195,12 +202,21 @@ func (a *api) listTokens(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) createToken(w http.ResponseWriter, r *http.Request) {
-	var in struct{ Name string }
+	var in struct {
+		Name     string   `json:"name"`
+		Access   string   `json:"access"`
+		Projects []string `json:"projects"`
+	}
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)
 		return
 	}
-	t, plain, err := a.auth.CreateToken(r.Context(), actorOf(r).User.ID, in.Name)
+	access, projects, err := a.core.TokenScope(r.Context(), actorOf(r), in.Access, in.Projects)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	t, plain, err := a.auth.CreateToken(r.Context(), actorOf(r).User.ID, in.Name, access, projects)
 	if err != nil {
 		writeErr(w, err)
 		return

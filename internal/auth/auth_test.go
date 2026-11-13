@@ -49,7 +49,7 @@ func TestLoginAndTokens(t *testing.T) {
 		t.Fatalf("session: %v", err)
 	}
 
-	_, plain, err := a.CreateToken(ctx, u.ID, "Claude")
+	_, plain, err := a.CreateToken(ctx, u.ID, "Claude", "write", nil)
 	if err != nil || !strings.HasPrefix(plain, "phx_") {
 		t.Fatalf("token: %v %q", err, plain)
 	}

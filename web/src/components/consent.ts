@@ -5,6 +5,8 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { currentUser, loginURL, navigate } from "../state";
 import { authPage } from "./login";
+import "./scope-picker";
+import type { PhxScopePicker } from "./scope-picker";
 import { base } from "./shared";
 
 interface RequestInfo { clientName: string; clientUri?: string; redirectHost: string; resource: string }
@@ -40,7 +42,13 @@ export class PhxConsent extends SignalWatcher(LitElement) {
     this.busy = true;
     try {
       const params = Object.fromEntries(new URLSearchParams(location.search));
-      const { redirect } = await api<{ redirect: string }>("POST", "/oauth/authorize", { ...params, approve });
+      const scope = this.renderRoot.querySelector<PhxScopePicker>("phx-scope-picker")?.value;
+      if (approve && !scope) {
+        this.error = t("scope.none_selected");
+        this.busy = false;
+        return;
+      }
+      const { redirect } = await api<{ redirect: string }>("POST", "/oauth/authorize", { ...params, ...(scope ?? {}), approve });
       location.href = redirect; // the client's redirect URI (may be an app scheme)
     } catch (err) {
       this.error = err instanceof ApiError ? err.text : t("error.unknown");
@@ -60,6 +68,7 @@ export class PhxConsent extends SignalWatcher(LitElement) {
       <div class="who"><span class="app" aria-hidden="true">${icon("Bot", 20)}</span>
         <p>${t("consent.request", { client: i.clientName, user: u?.name ?? "" })}</p></div>
       <p class="scope">${t("consent.scope")}</p>
+      <div><b style="font-size:14px">${t("consent.access_title")}</b><phx-scope-picker style="display:block;margin-top:8px"></phx-scope-picker></div>
       <p class="muted" style="font-size:14px">${t("consent.redirect", { host: i.redirectHost })}</p>
       <p class="warn">${t("consent.warning")}</p>
       <div class="actions">

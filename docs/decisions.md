@@ -189,3 +189,11 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 | Format | Markdown-Codeblock ```` ```request ```` (oder `http`): Methode + URL, Header, Leerzeile, Body, Zeilen `expect …` (Status, `time`, `header X`, JSONPath-Teilmenge `$.a.b[0].c`, `.length`; `== != < <= > >= contains exists !exists`). Im Live-Editor ein normaler Codeblock, in der Ansicht interaktiv. |
 | Umgebung | Pro Projekt Variablen (Bearbeiter) und Geheimnisse (Besitzer, AES-256-GCM mit Master-Key, an Projekt und Namen gebunden, nur schreibbar). Mehrere Umgebungen (Test/Produktion) später. |
 | Ausführung | Nur gespeicherte Blöcke laufen (Dokument + Nummer), nie Text vom Browser – Leser können so keine eigenen Anfragen um Geheimnisse bauen. GET/HEAD/OPTIONS ab Leserecht, andere Methoden ab Bearbeiter mit Bestätigung, für KI gesperrt. Geheimnisse werden in URL, Headern, Body und Prüfwerten maskiert. 15 s, 1 MB, 3 Weiterleitungen, 30 Ausführungen/min pro Person; Adressprüfung nach DNS-Auflösung, Link-Local immer gesperrt, private Netze abschaltbar. MCP: `list_environment`, `run_request`. |
+
+## KI-Zugriff
+
+| Bereich | Entscheidung |
+|---|---|
+| Umfang | Tokens und OAuth-Freigaben tragen `access` (`read`/`write`) und eine Projektliste (leer = alle eigenen). Gilt zusätzlich zu den Rollen des Besitzers – nie mehr als er. Eingeschränkte Zugänge sehen fremde Projekte als „nicht gefunden“, legen keine Projekte an und erreichen keine Konto- oder Admin-Routen. |
+| Projekt | KI-Modus `off` (Projekt für KI unsichtbar), `read`, `suggest` (Standard), `direct`. Nur Menschen ändern den Modus. |
+| Abschalten | Schalter `ai_enabled` (Tabelle `instance_settings`): aus → `/mcp` antwortet 403, OAuth-Freigaben sind gesperrt. Vorerst für System-Admins; wandert mit den Organisationen zu den Organisations-Admins. |

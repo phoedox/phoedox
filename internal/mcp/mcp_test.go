@@ -35,7 +35,7 @@ func TestMCPTools(t *testing.T) {
 	defer db.Close()
 	a := &phxauth.Auth{DB: db}
 	u, _ := a.CreateUser(ctx, "admin@coph.dev", "Admin", "sehr-geheimes-passwort", false)
-	_, token, _ := a.CreateToken(ctx, u.ID, "Claude")
+	_, token, _ := a.CreateToken(ctx, u.ID, "Claude", "write", nil)
 	svc := core.New(db)
 	if _, err := svc.CreateProject(ctx, core.Actor{User: u, Via: "web"}, core.ProjectInput{Name: "Phoedox", AIWriteMode: "direct"}); err != nil {
 		t.Fatal(err)
