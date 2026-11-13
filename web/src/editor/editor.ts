@@ -35,6 +35,8 @@ export interface LiveEditorOptions {
   /** WebSocket base, e.g. wss://host/rt/doc/<project>; the document id is appended. */
   url: string;
   docId: string;
+  /** Project slug, for embedded boards. */
+  project?: string;
   /** Draft Markdown, used if this editor fills an empty live document. */
   markdown: string;
   user: Peer;
@@ -90,7 +92,8 @@ export function createLiveEditor(o: LiveEditorOptions): LiveEditor {
   const editor = createEditor({
     namespace: "phoedox",
     nodes: NODES,
-    theme,
+    // The project lets embedded boards load (FenceNode).
+    theme: { ...theme, project: o.project ?? "" },
     editable: o.editable,
     onError: (e) => console.error(e),
   });

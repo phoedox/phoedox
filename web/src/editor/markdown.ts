@@ -15,11 +15,12 @@ import { AutoLinkNode, LinkNode } from "@lexical/link";
 import { ListItemNode, ListNode } from "@lexical/list";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { $isParagraphNode, $isTextNode, createEditor, type ElementNode, type LexicalNode } from "lexical";
-import { Marked } from "marked";
+import { markdownHTML } from "../md";
+import { BLOCK_NODES, CALLOUT, COLOR_MATCH, FENCE, IMATH_MATCH, TIME_MATCH, UNDERLINE_FORMAT, setInlineTransformers, setInnerTransformers } from "./blocks";
 import { IMAGE, ImageNode } from "./image";
 
 export const NODES = [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, AutoLinkNode, CodeNode, CodeHighlightNode, ImageNode,
-  TableNode, TableRowNode, TableCellNode, HorizontalRuleNode];
+  TableNode, TableRowNode, TableCellNode, HorizontalRuleNode, ...BLOCK_NODES];
 
 const HR: ElementTransformer = {
   dependencies: [HorizontalRuleNode],
@@ -98,11 +99,14 @@ const TABLE: ElementTransformer = {
   type: "element",
 };
 
-/** Inline-only transformers inside table cells. */
-const CELL_TRANSFORMERS: Transformer[] = BASE.filter((t) => t.type === "text-format" || t.type === "text-match");
+/** Inline-only transformers (table cells, colored text). Colors before links: [a]{color=x} is no link. */
+const CELL_TRANSFORMERS: Transformer[] = [UNDERLINE_FORMAT, TIME_MATCH, IMATH_MATCH, COLOR_MATCH, IMAGE,
+  ...BASE.filter((t) => t.type === "text-format" || t.type === "text-match")];
 
-/** Images before links: ![a](b) must not become a link. */
-export const TRANSFORMERS: Transformer[] = [TABLE, HR, CHECK_LIST, IMAGE, ...BASE];
+/** Images before links: ![a](b) must not become a link; our fences and callouts before code and quotes. */
+export const TRANSFORMERS: Transformer[] = [CALLOUT, FENCE, TABLE, HR, CHECK_LIST, UNDERLINE_FORMAT, TIME_MATCH, IMATH_MATCH, COLOR_MATCH, IMAGE, ...BASE];
+setInnerTransformers(TRANSFORMERS);
+setInlineTransformers(CELL_TRANSFORMERS);
 
 /** Converts Markdown to Markdown through the editor (as a save would). */
 export function roundTrip(md: string): string {
@@ -113,11 +117,9 @@ export function roundTrip(md: string): string {
   return out;
 }
 
-const marked = new Marked();
-
-/** Compares Markdown by what it shows (rendered HTML, whitespace ignored). */
+/** Compares Markdown by what it shows (rendered HTML as in pages, whitespace ignored). */
 function shows(md: string): string {
-  const html = marked.parse(md, { async: false }) as string;
+  const html = markdownHTML(md, "p");
   return html.replace(/>\s+</g, "><").replace(/\s+/g, " ").replace(/ align="left"/g, "").trim();
 }
 

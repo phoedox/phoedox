@@ -27,7 +27,7 @@ export const iconNames = Object.keys(icons);
 /** The SVG markup of an icon as a string (for Markdown rendering). */
 export function iconSVG(name: string, size = 16): string {
   const inner = (icons[name] ?? icons.Puzzle).map(([tag, attrs]) => `<${tag} ${Object.entries(attrs).map(([k, v]) => `${k}="${v}"`).join(" ")}/>`).join("");
-  return `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
 }
 
 /** Icons offered for callouts. */

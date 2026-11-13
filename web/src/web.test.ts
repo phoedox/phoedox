@@ -62,3 +62,29 @@ describe("request blocks", () => {
     expect(splitVars("{{base}}/x?k={{ key }}")).toEqual([{ text: "base", variable: true }, { text: "/x?k=" }, { text: "key", variable: true }]);
   });
 });
+
+describe("page building blocks (ADR-0031)", () => {
+  test("render to their elements", () => {
+    const out = markdownHTML([
+      "> [!warning]", "> Achtung **fett**", "",
+      "> [!callout icon=User color=orange]", "> Wichtig ist die Änderung", "",
+      "Text [rot]{color=red} und [markiert]{bg=yellow} und [beides]{color=blue bg=pink}, ++unter++.",
+      "Formel $a^2+b^2$ aber $5 und $10 bleiben.",
+      'Am <time datetime="2026-12-24" data-kind="countdown">24.12.2026</time>.',
+      "", "```math", "\\int_0^1 x\\,dx", "```", "", "```embed", "https://youtu.be/dQw4w9WgXcQ", "```", "", "```board", "umbau", "```",
+    ].join("\n"), "haus");
+    expect(out).toContain('class="callout cb-orange" data-kind="warning"');
+    expect(out).toContain("<strong>fett</strong>");
+    expect(out).toContain('class="callout cb-orange" data-kind="callout"');
+    expect(out).toContain('<span class="tc-red">rot</span>');
+    expect(out).toContain('<span class="tb-yellow">markiert</span>');
+    expect(out).toContain('<span class="tc-blue tb-pink">beides</span>');
+    expect(out).toContain("<u>unter</u>");
+    expect(out).toContain('<phx-math data-tex="a^2+b^2">');
+    expect(out).toContain("$5 und $10 bleiben");
+    expect(out).toContain('<phx-time datetime="2026-12-24" data-kind="countdown">24.12.2026</phx-time>');
+    expect(out).toContain('data-display="1"');
+    expect(out).toContain('<phx-embed data-url="https://youtu.be/dQw4w9WgXcQ" data-kind="embed">');
+    expect(out).toContain('<phx-board-embed data-board="umbau" data-project="haus">');
+  });
+});
