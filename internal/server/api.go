@@ -173,6 +173,9 @@ func (a *api) routes(r chi.Router) {
 			r.Patch("/documents/{d}", a.updateDocument)
 			r.Delete("/documents/{d}", a.deleteDocument)
 			r.Get("/documents/{d}/versions", a.listVersions)
+			r.Get("/documents/{d}/translations/{lang}", a.getTranslation)
+			r.Put("/documents/{d}/translations/{lang}", a.saveTranslation)
+			r.Delete("/documents/{d}/translations/{lang}", a.deleteTranslation)
 			r.Get("/drafts", a.projectDrafts)
 			r.Get("/documents/{d}/draft", a.getDraft)
 			r.Post("/documents/{d}/draft", a.startDraft)
@@ -391,8 +394,27 @@ func (a *api) createDocument(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) getDocument(w http.ResponseWriter, r *http.Request) {
-	d, err := a.core.Document(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"))
+	d, err := a.core.LocalizedDocument(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"), r.URL.Query().Get("lang"))
 	respond(w, d, err)
+}
+
+func (a *api) getTranslation(w http.ResponseWriter, r *http.Request) {
+	t, err := a.core.Translation(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"), chi.URLParam(r, "lang"))
+	respond(w, t, err)
+}
+
+func (a *api) saveTranslation(w http.ResponseWriter, r *http.Request) {
+	var in core.TranslationInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	t, err := a.core.SaveTranslation(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"), chi.URLParam(r, "lang"), in)
+	respond(w, t, err)
+}
+
+func (a *api) deleteTranslation(w http.ResponseWriter, r *http.Request) {
+	respond(w, map[string]bool{"ok": true}, a.core.DeleteTranslation(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"), chi.URLParam(r, "lang")))
 }
 
 func (a *api) updateDocument(w http.ResponseWriter, r *http.Request) {

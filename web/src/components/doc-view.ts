@@ -3,6 +3,7 @@ import { LitElement, css, html, unsafeCSS } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { ApiError, adrRef, api, type Decision, type Doc, type DraftInfo } from "../api";
 import { diffLines, fold, type Hunk } from "../diff";
+import { languageName, preferredLocale, rememberLocale } from "../languages";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
 import { renderMarkdown, withoutTitle } from "../md";
@@ -26,7 +27,7 @@ export const prose = `
 `;
 
 export class PhxDocView extends SignalWatcher(LitElement) {
-  static properties = { project: {}, docSlug: {}, doc: { state: true }, draft: { state: true }, showDiff: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true } };
+  static properties = { project: {}, docSlug: {}, doc: { state: true }, draft: { state: true }, showDiff: { state: true }, lang: { state: true }, mainDiff: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true } };
   static styles = [base, unsafeCSS(prose), css`
     /* Centred reading column; "full width" lifts the limit. */
     article { max-width: var(--reading-width, 820px); margin-inline: auto; }
@@ -41,6 +42,13 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     button.icon { padding: 7px 9px; }
     button.icon[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
     button.icon[aria-pressed="true"] .ico { fill: currentColor; }
+    .langs { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; margin: -4px 0 14px; color: var(--muted); }
+    .langs .lang { font-size: 13px; font-weight: 500; padding: 3px 10px; border-radius: 999px; background: none; border: 1px solid var(--line); color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+    .langs .lang[aria-pressed="true"] { background: var(--accent-soft); color: var(--fg); border-color: transparent; }
+    .langs .lang[data-missing] { border-style: dashed; }
+    .langs .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--warn, var(--accent)); }
+    .langs .btn { margin-left: auto; }
+    .small { font-size: 13px; padding: 3px 9px; }
     .draft { border-left-color: var(--warn, var(--accent)); justify-content: space-between; }
     .draft .who { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .diff { font-family: var(--font-mono); font-size: 13px; line-height: 1.55; border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; background: var(--surface); margin: -6px 0 18px; }
@@ -56,6 +64,10 @@ export class PhxDocView extends SignalWatcher(LitElement) {
   /** The open draft, shown to editors (ADR-0027). */
   draft?: DraftInfo;
   showDiff = false;
+  /** Requested language in multilingual projects. */
+  lang = "";
+  /** Changes of the main language since the shown translation was made. */
+  mainDiff?: Hunk[];
   /** Other decisions by slug, to show numbers and titles of linked ones. */
   related = new Map<string, Decision>();
   error = "";
@@ -64,19 +76,24 @@ export class PhxDocView extends SignalWatcher(LitElement) {
 
   /** Loads the page again in place (after its access changed); open dialogs stay. */
   async reload() {
-    const doc = await api<Doc>("GET", `/projects/${this.project}/documents/${this.docSlug}`).catch(() => undefined);
+    const doc = await api<Doc>("GET", `/projects/${this.project}/documents/${this.docSlug}${this.lang ? `?lang=${this.lang}` : ""}`).catch(() => undefined);
     if (doc) this.doc = doc;
     docsVersion.set(docsVersion.get() + 1);
   }
 
   async willUpdate() {
-    const key = this.project + "/" + this.docSlug;
+    // The project's languages arrive with the project; reload once they are known.
+    const proj0 = currentProject.get();
+    const key = this.project + "/" + this.docSlug + "/" + (proj0?.slug === this.project ? proj0.mainLocale + proj0.locales.join() : "?");
     if (key !== this.loaded) {
       this.loaded = key;
       this.doc = undefined;
       this.confirming = false;
       try {
-        const doc = await api<Doc>("GET", `/projects/${this.project}/documents/${this.docSlug}`);
+        const proj = currentProject.get();
+        this.lang = proj?.mainLocale ? preferredLocale(proj) : "";
+        this.mainDiff = undefined;
+        const doc = await api<Doc>("GET", `/projects/${this.project}/documents/${this.docSlug}${this.lang ? `?lang=${this.lang}` : ""}`);
         if (doc.type === "adr" && (doc.content?.supersedes || doc.content?.supersededBy)) {
           const all = await api<Decision[]>("GET", `/projects/${this.project}/decisions`).catch(() => []);
           this.related = new Map(all.map((d) => [d.slug, d]));
@@ -128,9 +145,70 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     }
   }
 
+  private async switchLang(code: string) {
+    const proj = currentProject.get();
+    if (!proj) return;
+    rememberLocale(proj.slug, code);
+    this.lang = code;
+    this.mainDiff = undefined;
+    await this.reload();
+  }
+
+  /** Lines of a version's text for comparing. */
+  private static lines(type: Doc["type"], c: any): string[] {
+    if (type === "markdown") return (c?.markdown ?? "").replace(/\n$/, "").split("\n");
+    if (type === "link") return (c?.description ?? "").split("\n");
+    return ["context", "decision", "consequences", "alternatives"].flatMap((k) => [`## ${t(`adr.${k}` as any)}`, ...(c?.[k] ?? "").split("\n"), ""]);
+  }
+
+  private async toggleMainDiff(d: Doc) {
+    if (this.mainDiff) {
+      this.mainDiff = undefined;
+      return;
+    }
+    const base = `/projects/${this.project}/documents/${d.id}/versions`;
+    try {
+      const [from, to] = await Promise.all([api<any>("GET", `${base}/${d.translation!.sourceVersion}`), api<any>("GET", `${base}/${d.version}`)]);
+      this.mainDiff = fold(diffLines(PhxDocView.lines(d.type, from.content), PhxDocView.lines(d.type, to.content)));
+    } catch (e) {
+      toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
+    }
+  }
+
+  /** Language switcher and notes on the shown translation (ADR-0028). */
+  private languageBar(d: Doc, canEdit: boolean) {
+    const proj = currentProject.get();
+    if (!proj?.mainLocale) return "";
+    const main = proj.mainLocale;
+    const all = [main, ...proj.locales];
+    const has = new Map((d.translations ?? []).map((x) => [x.locale, x]));
+    const tr = d.translation;
+    const wanted = this.lang || main;
+    const outdated = tr && tr.sourceVersion < d.version;
+    return html`<div class="langs" role="group" aria-label=${t("lang.switch")}>
+        ${icon("Globe", 14)}
+        ${all.map((code) => {
+          const x = has.get(code);
+          const stale = x && x.sourceVersion < d.version;
+          return html`<button class="lang" aria-pressed=${wanted === code ? "true" : "false"} ?data-missing=${code !== main && !x} @click=${() => this.switchLang(code)}>
+            ${languageName(code)}${stale ? html`<span class="dot" title=${t("lang.outdated_short")}></span>` : ""}</button>`;
+        })}
+        ${canEdit && wanted !== main ? html`<a class="btn ghost small" href="/p/${this.project}/d/${d.slug}/translate/${wanted}">${icon("Pencil", 13)} ${tr ? t("lang.edit_translation") : t("lang.translate")}</a>` : ""}
+      </div>
+      ${wanted !== main && !tr ? html`<p class="notice" role="note">${icon("Globe", 14)} ${t("lang.missing", { lang: languageName(wanted), main: languageName(main) })}</p>` : ""}
+      ${outdated ? html`<div class="notice" role="note">${icon("TriangleAlert", 14)} <span>${t("lang.outdated", { main: languageName(main) })}</span>
+          <button class="ghost small" aria-expanded=${this.mainDiff ? "true" : "false"} @click=${() => this.toggleMainDiff(d)}>${t(this.mainDiff ? "lang.hide_main_changes" : "lang.show_main_changes")}</button>
+          <button class="ghost small" @click=${() => this.switchLang(main)}>${languageName(main)}</button></div>
+        ${this.mainDiff ? html`<div class="diff" role="region" aria-label=${t("lang.show_main_changes")}>${this.mainDiff.map((h) =>
+          h.op === "…" ? html`<div class="fold">${h.count === 1 ? t("history.unchanged_one") : t("history.unchanged", { count: h.count })}</div>`
+          : html`<div class=${h.op === "+" ? "add" : h.op === "-" ? "del" : ""}>${h.text}</div>`)}</div>` : ""}` : ""}
+      ${tr?.machine ? html`<p class="notice" role="note">${icon("Bot", 14)} ${t("lang.machine")}</p>` : ""}`;
+  }
+
   private draftNotice(d: Doc) {
     const dr = this.draft;
-    if (!dr) return "";
+    // Drafts belong to the main language.
+    if (!dr || d.translation) return "";
     const names = dr.participants.map((p) => p.name).join(", ");
     let hunks: Hunk[] = [];
     if (this.showDiff) {
@@ -214,6 +292,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       </header>
       ${d.type === "adr" && c.status === "superseded" && c.supersededBy
         ? html`<p class="notice" role="note">${t("adr.superseded_notice")} ${t("adr.superseded_by")}: ${this.decisionLink(c.supersededBy)}</p>` : ""}
+      ${this.languageBar(d, canEdit)}
       ${this.draftNotice(d)}
       ${this.body(d)}
       ${canEdit ? html`<phx-doc-share .project=${currentProject.get()} .doc=${d} @changed=${() => this.reload()}></phx-doc-share>` : ""}

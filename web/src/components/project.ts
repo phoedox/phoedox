@@ -12,6 +12,7 @@ import "./doc-view";
 import "./doc-form";
 import "./decisions";
 import "./history";
+import "./translate";
 import "./trash";
 import "./entity-view";
 import "./entity-form";
@@ -109,6 +110,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
 
   private routes = new Routes(this, [
     { path: "d/:doc/edit", render: ({ doc }) => html`<phx-doc-form .project=${this.slug} .docSlug=${doc!}></phx-doc-form>` },
+    { path: "d/:doc/translate/:lang", render: ({ doc, lang }) => html`<phx-translate .project=${this.slug} .docSlug=${doc!} .lang=${lang!}></phx-translate>` },
     { path: "d/:doc/history", render: ({ doc }) => html`<phx-history .project=${this.slug} .docSlug=${doc!}></phx-history>` },
     { path: "trash", render: () => html`<phx-trash .project=${this.slug}></phx-trash>` },
     { path: "d/:doc", render: ({ doc }) => html`<phx-doc-view .project=${this.slug} .docSlug=${doc!}></phx-doc-view>` },

@@ -10,13 +10,14 @@ import { storageBar, storageStyles } from "./project-files";
 import "./webhooks";
 import "./project-plugins";
 import { toast } from "./toasts";
+import { contentLocales, languageName } from "../languages";
 
 type EnvVar = { name: string; value?: string; secret: boolean };
 
 export class PhxProjectSettings extends LitElement {
   static properties = {
     project: {}, p: { state: true }, members: { state: true }, env: { state: true }, storage: { state: true }, error: { state: true },
-    groups: { state: true }, orgGroups: { state: true }, orgs: { state: true }, links: { state: true }, newLink: { state: true },
+    groups: { state: true }, orgGroups: { state: true }, orgs: { state: true }, links: { state: true }, newLink: { state: true }, mainDraft: { state: true },
   };
   static styles = [base, storageStyles, css`
     form { display: grid; gap: 12px; max-width: 560px; margin-bottom: 28px; }
@@ -24,9 +25,16 @@ export class PhxProjectSettings extends LitElement {
     table { border-collapse: collapse; width: 100%; max-width: 760px; } td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); }
     .chip.bad { color: var(--bad); }
     .secret { border-color: var(--accent); }
+    fieldset.langs { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px 12px; margin: 0; display: grid; gap: 10px; }
+    fieldset.langs legend { font-weight: 600; padding: 0 4px; }
+    fieldset.langs p { margin: 0; font-size: 13px; }
+    .checks { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 4px; }
+    .checks label { display: inline-flex; gap: 6px; align-items: center; font-weight: 400; white-space: nowrap; }
   `];
   project = "";
   p?: Project;
+  /** Main language chosen in the form before saving. */
+  mainDraft?: string;
   members: Member[] = [];
   env: EnvVar[] = [];
   storage?: Storage;
@@ -219,6 +227,7 @@ export class PhxProjectSettings extends LitElement {
     try {
       const p = await api<Project>("PATCH", `/projects/${this.project}`, {
         name: f.get("name"), description: f.get("description"), primaryColor: f.get("color"), aiWriteMode: f.get("mode"), short: this.p?.short,
+        mainLocale: f.get("main") ?? "", locales: f.get("main") ? f.getAll("locales") : [],
       });
       this.p = { ...p, role: this.p?.role ?? "owner" };
       currentProject.set(this.p);
@@ -263,6 +272,18 @@ export class PhxProjectSettings extends LitElement {
             <option value="suggest" ?selected=${p.aiWriteMode === "suggest"}>${t("settings.ai_mode.suggest")}</option>
             <option value="direct" ?selected=${p.aiWriteMode === "direct"}>${t("settings.ai_mode.direct")}</option>
           </select></label>
+        <fieldset class="langs" ?disabled=${!owner}>
+          <legend>${t("settings.languages")}</legend>
+          <p class="muted">${t("settings.languages_hint")}</p>
+          <label class="field">${t("settings.main_locale")}
+            <select name="main" @change=${(e: Event) => { this.mainDraft = (e.target as HTMLSelectElement).value; }}>
+              <option value="" ?selected=${!p.mainLocale}>${t("settings.single_language")}</option>
+              ${contentLocales.map((c) => html`<option value=${c} ?selected=${p.mainLocale === c}>${languageName(c)}</option>`)}
+            </select></label>
+          ${(this.mainDraft ?? p.mainLocale) ? html`<div class="field">${t("settings.locales")}
+            <div class="checks">${contentLocales.filter((c) => c !== (this.mainDraft ?? p.mainLocale)).map((c) => html`
+              <label><input type="checkbox" name="locales" value=${c} ?checked=${p.locales.includes(c)}> ${languageName(c)}</label>`)}</div></div>` : ""}
+        </fieldset>
         ${owner ? html`<div><button type="submit">${t("doc.save")}</button></div>` : ""}
       </form>
       ${this.accessSection(owner, canEdit)}

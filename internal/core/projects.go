@@ -22,6 +22,9 @@ type ProjectInput struct {
 	AIWriteMode  string `json:"aiWriteMode,omitempty"` // off | read | suggest | direct
 	// Org is the organization (slug or id); "" = personal, nil = unchanged.
 	Org *string `json:"org,omitempty"`
+	// MainLocale and Locales make the project multilingual (ADR-0028); nil = unchanged.
+	MainLocale *string   `json:"mainLocale,omitempty"`
+	Locales    *[]string `json:"locales,omitempty"`
 }
 
 // orgFor resolves the organization a project goes to; the actor must be a member.
@@ -137,6 +140,18 @@ func (s *Service) UpdateProject(ctx context.Context, a Actor, ref string, in Pro
 		p.OrgID = orgID
 	}
 	p.Name, p.Short, p.Description, p.PrimaryColor, p.AIWriteMode = in.Name, in.Short, in.Description, in.PrimaryColor, in.AIWriteMode
+	if in.MainLocale != nil || in.Locales != nil {
+		main, others := p.MainLocale, p.Locales
+		if in.MainLocale != nil {
+			main = *in.MainLocale
+		}
+		if in.Locales != nil {
+			others = *in.Locales
+		}
+		if p.MainLocale, p.Locales, err = normalizeLocales(main, others); err != nil {
+			return p, err
+		}
+	}
 	if err := s.DB.UpdateProject(ctx, p); err != nil {
 		return p, err
 	}

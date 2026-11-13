@@ -50,6 +50,8 @@ export const minPasswordLength = 10;
 export interface Project {
   id: string; slug: string; name: string; short: string; description: string;
   primaryColor: string; aiWriteMode: "off" | "read" | "suggest" | "direct";
+  /** Main language of the content ("" = not multilingual) and further languages (ADR-0028). */
+  mainLocale: string; locales: string[];
   /** owner | editor | reader | doc (only single documents shared) */
   role: string;
   orgId?: string; orgName?: string;
@@ -74,7 +76,13 @@ export interface Doc {
   restricted?: boolean;
   /** The requesting user's role for this page. */
   role?: string;
+  /** Multilingual projects: language shown, the shown translation (none = main language) and all translations. */
+  locale?: string;
+  translation?: TranslationMeta;
+  translations?: TranslationMeta[];
 }
+export interface TranslationMeta { documentId: string; locale: string; title: string; sourceVersion: number; machine: boolean; updatedAt: string }
+export interface TranslationInfo extends TranslationMeta { content?: any; outdated: boolean; mainVersion: number }
 /** A draft of a Markdown page (ADR-0027); shared by everyone editing it. */
 export interface DraftParticipant { actor: string; name: string; ai?: boolean }
 export interface DraftInfo {

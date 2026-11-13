@@ -205,7 +205,10 @@ var apiDocs = map[string]op{
 
 	"GET /projects/{p}/documents":                            {Tag: "documents", Summary: "Pages, decisions and links (without content).", Out: []store.Document{}, Query: []string{"type", "category"}},
 	"POST /projects/{p}/documents":                           {Tag: "documents", Summary: "Create a page, decision (ADR) or link.", In: core.DocumentInput{}, Out: core.DocResult{}},
-	"GET /projects/{p}/documents/{d}":                        {Tag: "documents", Summary: "A document with content (slug, id or ADR-0001).", Out: store.Document{}},
+	"GET /projects/{p}/documents/{d}":                        {Tag: "documents", Summary: "A document with content (slug, id or ADR-0001); lang picks a translation in multilingual projects.", Out: store.Document{}, Query: []string{"lang"}},
+	"GET /projects/{p}/documents/{d}/translations/{lang}":    {Tag: "documents", Summary: "One translation with its text and whether it is outdated.", Out: core.TranslationInfo{}},
+	"PUT /projects/{p}/documents/{d}/translations/{lang}":    {Tag: "documents", Summary: "Create or replace a translation; it refers to the current main version.", In: core.TranslationInput{}, Out: core.TranslationInfo{}},
+	"DELETE /projects/{p}/documents/{d}/translations/{lang}": {Tag: "documents", Summary: "Delete a translation."},
 	"PATCH /projects/{p}/documents/{d}":                      {Tag: "documents", Summary: "Change a document (new version).", In: core.DocumentPatch{}, Out: core.DocResult{}},
 	"DELETE /projects/{p}/documents/{d}":                     {Tag: "documents", Summary: "Move to the trash.", Out: core.DocResult{}},
 	"GET /projects/{p}/drafts":                               {Tag: "documents", Summary: "Open drafts of the project (editors; others get an empty list).", Out: []core.DraftInfo{}},

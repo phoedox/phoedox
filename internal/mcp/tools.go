@@ -19,6 +19,23 @@ type docRef struct {
 	Document string `json:"document" jsonschema:"document slug, id or decision number like ADR-0003"`
 }
 
+type getDocIn struct {
+	docRef
+	Lang string `json:"lang,omitempty" jsonschema:"language of a multilingual project (e.g. de); empty = main language"`
+}
+
+type translateIn struct {
+	docRef
+	Lang         string  `json:"lang" jsonschema:"one of the project's further languages (see get_project: locales)"`
+	Title        string  `json:"title"`
+	Markdown     *string `json:"markdown,omitempty" jsonschema:"pages: the whole translated Markdown; keep @mentions, links, code and {{variables}} unchanged"`
+	Context      *string `json:"context,omitempty" jsonschema:"decisions: translated context"`
+	Decision     *string `json:"decision,omitempty" jsonschema:"decisions: translated decision"`
+	Consequences *string `json:"consequences,omitempty"`
+	Alternatives *string `json:"alternatives,omitempty"`
+	Description  *string `json:"description,omitempty" jsonschema:"links: translated description"`
+}
+
 type versionRef struct {
 	Project  string `json:"project" jsonschema:"project slug"`
 	Document string `json:"document" jsonschema:"document slug, id or decision number like ADR-0003"`
@@ -40,11 +57,13 @@ type createProjectIn struct {
 }
 
 type updateProjectIn struct {
-	Project      string  `json:"project" jsonschema:"project slug"`
-	Name         *string `json:"name,omitempty"`
-	Description  *string `json:"description,omitempty"`
-	PrimaryColor *string `json:"primary_color,omitempty"`
-	AIWriteMode  *string `json:"ai_write_mode,omitempty" jsonschema:"suggest or direct (owner only)"`
+	Project      string    `json:"project" jsonschema:"project slug"`
+	Name         *string   `json:"name,omitempty"`
+	Description  *string   `json:"description,omitempty"`
+	PrimaryColor *string   `json:"primary_color,omitempty"`
+	AIWriteMode  *string   `json:"ai_write_mode,omitempty" jsonschema:"suggest or direct (owner only)"`
+	MainLocale   *string   `json:"main_locale,omitempty" jsonschema:"main language of the content, e.g. en (makes the project multilingual)"`
+	Locales      *[]string `json:"locales,omitempty" jsonschema:"further languages with translations, e.g. [de]"`
 }
 
 type listDocsIn struct {
@@ -277,7 +296,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "create_project", "Create a new project. You become its owner.", func(ctx context.Context, a core.Actor, in createProjectIn) (any, error) {
 		return svc.CreateProject(ctx, a, core.ProjectInput{Name: in.Name, Slug: in.Slug, Description: in.Description, PrimaryColor: in.PrimaryColor, AIWriteMode: in.AIWriteMode})
 	})
-	tool(s, "update_project_settings", "Change name, description, color or AI write mode of a project (owner only).", func(ctx context.Context, a core.Actor, in updateProjectIn) (any, error) {
+	tool(s, "update_project_settings", "Change name, description, color, AI write mode or languages of a project (owner only).", func(ctx context.Context, a core.Actor, in updateProjectIn) (any, error) {
 		p, err := svc.Project(ctx, a, in.Project)
 		if err != nil {
 			return nil, err
@@ -287,13 +306,14 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		setIf(&upd.Description, in.Description)
 		setIf(&upd.PrimaryColor, in.PrimaryColor)
 		setIf(&upd.AIWriteMode, in.AIWriteMode)
+		upd.MainLocale, upd.Locales = in.MainLocale, in.Locales
 		return svc.UpdateProject(ctx, a, p.Slug, upd)
 	})
 	tool(s, "list_documents", "List documents of a project (without content), optionally filtered by type or category.", func(ctx context.Context, a core.Actor, in listDocsIn) (any, error) {
 		return svc.Documents(ctx, a, in.Project, store.DocFilter{Type: in.Type, Category: in.Category})
 	})
-	tool(s, "get_document", "Read a document with its full content (the published version). If the page has an open draft, it is returned as \"draft\" too – your writes go into it.", func(ctx context.Context, a core.Actor, in docRef) (any, error) {
-		d, err := svc.Document(ctx, a, in.Project, in.Document)
+	tool(s, "get_document", "Read a document with its full content (the published version). If the page has an open draft, it is returned as \"draft\" too – your writes go into it. In multilingual projects, lang picks a translation; \"translation.sourceVersion\" lower than \"version\" means the translation is outdated.", func(ctx context.Context, a core.Actor, in getDocIn) (any, error) {
+		d, err := svc.LocalizedDocument(ctx, a, in.Project, in.Document, in.Lang)
 		if err != nil {
 			return nil, err
 		}
@@ -305,6 +325,10 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 			}}, nil
 		}
 		return v, nil
+	})
+	tool(s, "translate_document", "Write the translation of a document into one of the project's further languages (multilingual projects, see get_project). Read the main language with get_document first. The translation refers to the current main version and is marked as machine translation until a person reviews it. Number, status, slug and category stay shared.", func(ctx context.Context, a core.Actor, in translateIn) (any, error) {
+		return svc.SaveTranslation(ctx, a, in.Project, in.Document, in.Lang, core.TranslationInput{Title: in.Title, Markdown: in.Markdown,
+			Context: in.Context, Decision: in.Decision, Consequences: in.Consequences, Alternatives: in.Alternatives, Description: in.Description})
 	})
 	tool(s, "list_document_versions", "List the version history of a document (who changed it when).", func(ctx context.Context, a core.Actor, in docRef) (any, error) {
 		return svc.VersionHistory(ctx, a, in.Project, in.Document)

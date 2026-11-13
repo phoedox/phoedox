@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 )
 
 // Roles in a project, ordered by power.
@@ -27,6 +28,10 @@ type Project struct {
 	// OrgID is the organization (empty = personal project).
 	OrgID   string `json:"orgId,omitempty"`
 	OrgName string `json:"orgName,omitempty"`
+	// MainLocale is the main language of the content ("" = not multilingual);
+	// Locales are the further languages with translations (ADR-0028).
+	MainLocale string   `json:"mainLocale"`
+	Locales    []string `json:"locales"`
 	// OrgAI is false when the organization switched off AI access.
 	OrgAI bool `json:"-"`
 	// Role of the requesting user: owner, editor, reader, or "doc" when only
@@ -37,7 +42,7 @@ type Project struct {
 // RoleDoc means access to single shared documents only.
 const RoleDoc = "doc"
 
-const projectCols = `p.id, p.slug, p.name, p.short, p.description, p.primary_color, p.ai_write_mode, p.owner_id, p.created_at,
+const projectCols = `p.id, p.slug, p.name, p.short, p.description, p.primary_color, p.ai_write_mode, p.owner_id, p.created_at, p.main_locale, p.locales,
 	COALESCE(p.org_id, ''), COALESCE(o.name, ''), COALESCE(o.ai_enabled, ` + "true" + `)`
 
 const projectFrom = ` FROM projects p LEFT JOIN organizations o ON o.id = p.org_id`
@@ -68,7 +73,8 @@ func rankArgs(userID string) []any { return []any{userID, Now(), userID, userID,
 
 func scanProject(r interface{ Scan(...any) error }, withRole bool) (Project, error) {
 	var p Project
-	dest := []any{&p.ID, &p.Slug, &p.Name, &p.Short, &p.Description, &p.PrimaryColor, &p.AIWriteMode, &p.OwnerID, &p.CreatedAt, &p.OrgID, &p.OrgName, &p.OrgAI}
+	var locales string
+	dest := []any{&p.ID, &p.Slug, &p.Name, &p.Short, &p.Description, &p.PrimaryColor, &p.AIWriteMode, &p.OwnerID, &p.CreatedAt, &p.MainLocale, &locales, &p.OrgID, &p.OrgName, &p.OrgAI}
 	var rank int
 	if withRole {
 		dest = append(dest, &rank)
@@ -78,6 +84,10 @@ func scanProject(r interface{ Scan(...any) error }, withRole bool) (Project, err
 		return p, ErrNotFound
 	}
 	p.Role = rankRoles[rank]
+	p.Locales = []string{}
+	if locales != "" {
+		p.Locales = strings.Split(locales, ",")
+	}
 	return p, err
 }
 
@@ -130,8 +140,8 @@ func (d *DB) ListProjects(ctx context.Context, userID string, all bool) ([]Proje
 
 // UpdateProject updates the editable fields.
 func (d *DB) UpdateProject(ctx context.Context, p Project) error {
-	res, err := d.Exec(ctx, `UPDATE projects SET name = ?, short = ?, description = ?, primary_color = ?, ai_write_mode = ?, org_id = ? WHERE id = ?`,
-		p.Name, p.Short, p.Description, p.PrimaryColor, p.AIWriteMode, nullable(p.OrgID), p.ID)
+	res, err := d.Exec(ctx, `UPDATE projects SET name = ?, short = ?, description = ?, primary_color = ?, ai_write_mode = ?, org_id = ?, main_locale = ?, locales = ? WHERE id = ?`,
+		p.Name, p.Short, p.Description, p.PrimaryColor, p.AIWriteMode, nullable(p.OrgID), p.MainLocale, strings.Join(p.Locales, ","), p.ID)
 	return affected(res, err)
 }
 
