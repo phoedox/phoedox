@@ -123,3 +123,14 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 | Nummern | Pro Projekt fortlaufend (`ADR-0001`), vergeben vom Server über einen Zähler am Projekt (`adr_seq`), nie wiederverwendet – auch nicht nach dem Löschen. Bestehende Entscheidungen wurden beim Update nach Anlagedatum nummeriert. Überall, wo ein Dokument erwartet wird, gilt auch `ADR-0003`, `adr-3` oder `ADR3`. |
 | Ersetzen | `supersedes` (Slug oder Nummer) setzt die ältere Entscheidung im selben Schritt auf „Ersetzt“ und trägt `supersededBy` ein – in einer Transaktion, mit Konfliktprüfung. `supersededBy` pflegt nur der Server. Umbenennen eines Slugs zieht die Verweise in beide Richtungen nach. Bei KI-Vorschlägen passiert das erst beim Annehmen. |
 | Übersicht | Eigene Seite pro Projekt mit Statusfilter (`?status=`), MCP-Werkzeug `list_decisions`, REST `GET /projects/{p}/decisions`. |
+
+## Konten (erste Ausbaustufe)
+
+| Bereich | Entscheidung |
+|---|---|
+| Einladen | Nur System-Admins (Web, API-Token, CLI – nicht per MCP). Konto ohne Passwort + Einmal-Link (7 Tage). Mit SMTP per E-Mail, sonst wird der Link dem Admin zum Weitergeben angezeigt. Ein neuer Link macht ältere ungültig. |
+| Passwort vergessen | Einmal-Link (1 Stunde) per E-Mail, gleiche Antwort für bekannte und unbekannte Adressen. Nur mit `PHOEDOX_PUBLIC_URL`/`PHOEDOX_DOMAIN` – Links aus dem `Host`-Header ließen sich auf fremde Domains umbiegen. Ohne E-Mail erstellt ein Admin einen Link (24 Stunden). Neues Passwort beendet alle Sitzungen. |
+| Deaktivieren | Sperrt Anmeldung, Sitzungen und Tokens sofort; Daten bleiben. Der letzte aktive Admin kann weder deaktiviert noch herabgestuft werden, niemand sperrt sich selbst aus. |
+| Passwörter | argon2id, mindestens 10 Zeichen (Server und Web gleich). Passwortänderung braucht das alte Passwort und beendet andere Sitzungen. |
+| E-Mails | Nur Text, Vorlagen in `resources/mail` (de/en, per `PHOEDOX_MAIL_DIR` überschreibbar). Sprache des Kontos, sonst `PHOEDOX_DEFAULT_LOCALE`. |
+| Sprache | Pro Konto „wie im Browser“, Deutsch oder Englisch. |

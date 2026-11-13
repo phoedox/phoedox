@@ -1,15 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { de } from "./de";
 
 // Every validation key the Go server can return must be translated.
 describe("error keys", () => {
   test("all server validation keys exist in the translations", () => {
-    const dir = join(import.meta.dir, "../../../internal/core");
+    const root = join(import.meta.dir, "../../../internal");
     const keys = new Set<string>();
-    for (const f of readdirSync(dir).filter((f) => f.endsWith(".go"))) {
-      for (const m of readFileSync(join(dir, f), "utf8").matchAll(/invalid\("([a-z_.]+)"/g)) keys.add(m[1]);
+    const files = readdirSync(root, { recursive: true, encoding: "utf8" }).filter((f) => f.endsWith(".go") && !f.endsWith("_test.go"));
+    for (const f of files) {
+      for (const m of readFileSync(join(root, f), "utf8").matchAll(/(?:invalid|Invalid)\("([a-z_.]+)"|Key: "([a-z_.]+)"/g)) { const k = m[1] ?? m[2]; if (!k.endsWith(".")) keys.add(k); }
     }
     expect(keys.size).toBeGreaterThan(10);
     for (const k of keys) expect(Object.keys(de)).toContain(k);

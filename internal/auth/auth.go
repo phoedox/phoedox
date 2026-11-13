@@ -22,6 +22,7 @@ import (
 
 	"github.com/phoedox/phoedox/internal/core"
 	"github.com/phoedox/phoedox/internal/graph"
+	"github.com/phoedox/phoedox/internal/mail"
 	"github.com/phoedox/phoedox/internal/store"
 )
 
@@ -41,11 +42,9 @@ const (
 	argonKeyLen  = 32
 )
 
-// HashPassword returns an argon2id hash in PHC string format.
+// HashPassword returns an argon2id hash in PHC string format. Length rules
+// are checked by passwordHash.
 func HashPassword(pw string) (string, error) {
-	if len(pw) < 10 {
-		return "", fmt.Errorf("password must have at least 10 characters")
-	}
 	salt := make([]byte, 16)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
@@ -91,11 +90,16 @@ func HashSecret(plain string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// Auth bundles login and token handling.
+// Auth bundles login, accounts and token handling.
 type Auth struct {
 	DB *store.DB
 	// SecureCookies sets the Secure flag (true behind HTTPS).
 	SecureCookies bool
+	// Mail sends invitations and reset links; nil or disabled means links
+	// are only shown to admins.
+	Mail mail.Sender
+	// DefaultLocale is used for mails to users without a language.
+	DefaultLocale string
 }
 
 // Login checks credentials and starts a session. It returns the cookie.
@@ -108,14 +112,23 @@ func (a *Auth) Login(ctx context.Context, email, password string) (*http.Cookie,
 		}
 		return nil, u, ErrBadLogin
 	}
+	c, err := a.startSession(ctx, u)
+	if err == nil {
+		_ = a.DB.AddEvent(ctx, "user:"+u.ID, "auth.login", u.ID, nil)
+	}
+	return c, u, err
+}
+
+// startSession creates a session for u and returns its cookie.
+func (a *Auth) startSession(ctx context.Context, u store.User) (*http.Cookie, error) {
 	plain, hash := NewSecret("")
 	exp := store.Now()
 	exp.Time = exp.Time.Add(SessionTTL)
 	if err := a.DB.CreateSession(ctx, hash, u.ID, exp); err != nil {
-		return nil, u, err
+		return nil, err
 	}
-	_ = a.DB.AddEvent(ctx, "user:"+u.ID, "auth.login", u.ID, nil)
-	return a.cookie(plain, exp.Time), u, nil
+	_ = a.DB.TouchLogin(ctx, u.ID)
+	return a.cookie(plain, exp.Time), nil
 }
 
 func (a *Auth) cookie(value string, exp time.Time) *http.Cookie {
@@ -165,14 +178,19 @@ func (a *Auth) CreateToken(ctx context.Context, userID, name string) (store.Toke
 	return t, plain, err
 }
 
-// CreateUser creates an account with a password.
+// CreateUser creates an account with a password (CLI, first admin).
 func (a *Auth) CreateUser(ctx context.Context, email, name, password string, admin bool) (store.User, error) {
-	hash, err := HashPassword(password)
+	email, err := normalizeEmail(email)
 	if err != nil {
 		return store.User{}, err
 	}
-	if !strings.Contains(email, "@") {
-		return store.User{}, fmt.Errorf("invalid email")
+	hash, err := NewPasswordHash(password)
+	if err != nil {
+		return store.User{}, err
 	}
-	return a.DB.CreateUser(ctx, store.User{ID: string(graph.NewID()), Email: email, Name: name, IsAdmin: admin, PasswordHash: hash})
+	u, err := a.DB.CreateUser(ctx, store.User{ID: string(graph.NewID()), Email: email, Name: name, IsAdmin: admin, PasswordHash: hash})
+	if errors.Is(err, store.ErrConflict) {
+		return u, core.Invalid("validation.email_taken", nil, "a user with this email exists")
+	}
+	return u, err
 }

@@ -18,7 +18,7 @@ func TestPassword(t *testing.T) {
 	if !VerifyPassword(h, "correct horse battery") || VerifyPassword(h, "wrong horse battery") {
 		t.Fatal("verify")
 	}
-	if _, err := HashPassword("short"); err == nil {
+	if _, err := NewPasswordHash("short"); err == nil {
 		t.Fatal("short password accepted")
 	}
 }

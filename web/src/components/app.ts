@@ -4,9 +4,13 @@ import { LitElement, css, html } from "lit";
 import { ApiError, api, type User } from "../api";
 import { t } from "../i18n";
 import { icon } from "../icon";
-import { currentProject, currentUser, navigate } from "../state";
+import { currentProject, currentUser, isPublicPath, navigate, signedIn } from "../state";
 import { base } from "./shared";
+import "./auth-pages";
 import "./login";
+import "./profile";
+import "./user-menu";
+import "./users";
 import "./projects";
 import "./project";
 import "./tokens";
@@ -38,7 +42,12 @@ export class PhxApp extends SignalWatcher(LitElement) {
   private router = new Router(this, [
     { path: "/login", render: () => html`<phx-login></phx-login>` },
     { path: "/", render: () => html`<phx-projects></phx-projects>` },
+    { path: "/forgot", render: () => html`<phx-forgot></phx-forgot>` },
+    { path: "/invite/:token", render: ({ token }) => html`<phx-set-password .token=${token!}></phx-set-password>` },
+    { path: "/reset/:token", render: ({ token }) => html`<phx-set-password .token=${token!}></phx-set-password>` },
+    { path: "/settings/profile", render: () => html`<phx-profile></phx-profile>` },
     { path: "/settings/tokens", render: () => html`<phx-tokens></phx-tokens>` },
+    { path: "/admin/users", render: () => html`<phx-users></phx-users>` },
     { path: "/p/:project/*", render: ({ project }) => html`<phx-project .slug=${project!}></phx-project>` },
     { path: "/p/:project", render: ({ project }) => html`<phx-project .slug=${project!}></phx-project>` },
   ]);
@@ -46,16 +55,16 @@ export class PhxApp extends SignalWatcher(LitElement) {
   async connectedCallback() {
     super.connectedCallback();
     try {
-      currentUser.set(await api<User>("GET", "/me"));
+      signedIn(await api<User>("GET", "/me"));
     } catch (e) {
-      if (e instanceof ApiError && e.status === 401 && location.pathname !== "/login") navigate("/login");
+      if (e instanceof ApiError && e.status === 401 && !isPublicPath(location.pathname)) navigate("/login");
     }
     this.ready = true;
   }
 
   private async logout() {
     await api("POST", "/auth/logout").catch(() => {});
-    currentUser.set(null);
+    signedIn(null);
     navigate("/login");
   }
 
@@ -71,8 +80,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
             ${inProject && p ? html`<a class="crumb" href="/p/${p.slug}"><span class="pi">${p.short}</span><span class="name">${p.name}</span></a>` : ""}
             <nav>
               <a href="/" aria-label=${t("nav.projects")}>${icon("FolderOpen", 15)} <span class="lbl">${t("nav.projects")}</span></a>
-              <a href="/settings/tokens" aria-label=${t("nav.tokens")}>${icon("KeyRound", 15)} <span class="lbl">${t("nav.tokens")}</span></a>
-              <button class="ghost" @click=${this.logout} aria-label=${t("nav.logout")}>${icon("LogOut", 15)} <span class="lbl">${t("nav.logout")}</span></button>
+              <phx-user-menu @logout=${this.logout}></phx-user-menu>
             </nav>
           </header>`
         : ""}

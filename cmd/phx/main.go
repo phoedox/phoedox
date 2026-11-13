@@ -16,12 +16,15 @@ import (
 
 	"github.com/phoedox/phoedox/internal/app"
 	"github.com/phoedox/phoedox/internal/auth"
+	"github.com/phoedox/phoedox/internal/core"
+	"github.com/phoedox/phoedox/internal/store"
 )
 
 const usage = `phx – Phoedox CLI
 
 Admin commands (run on the server, same environment as phoedox):
   phx admin create-user --email E --name N [--admin] [--password P]
+  phx admin invite --email E [--name N] [--admin]  Invitation link (emailed if SMTP is set)
   phx admin reset-password --email E [--password P]
   phx admin create-token --email E [--name N]     Personal API token (REST, MCP)
 
@@ -86,6 +89,19 @@ func admin(args []string) error {
 			return err
 		}
 		fmt.Printf("created user %s (%s)%s\n", u.Email, u.ID, map[bool]string{true: " as system admin", false: ""}[u.IsAdmin])
+	case "invite":
+		cli := core.Actor{User: store.User{ID: "cli", Name: "Admin", IsAdmin: true}, Via: "cli"}
+		res, err := a.Auth.Invite(ctx, cli, auth.InviteInput{Email: *email, Name: *name, Admin: *isAdmin}, baseURL(a.Config.PublicURL))
+		if err != nil {
+			return err
+		}
+		fmt.Println(res.Link)
+		if res.Mailed {
+			fmt.Fprintln(os.Stderr, "Invitation sent to", res.User.Email)
+		}
+		if a.Config.PublicURL == "" {
+			fmt.Fprintln(os.Stderr, "Set PHOEDOX_PUBLIC_URL so links point to your domain.")
+		}
 	case "reset-password":
 		u, err := a.DB.UserByEmail(ctx, *email)
 		if err != nil {
@@ -95,7 +111,7 @@ func admin(args []string) error {
 		if err != nil {
 			return err
 		}
-		hash, err := auth.HashPassword(pw)
+		hash, err := auth.NewPasswordHash(pw)
 		if err != nil {
 			return err
 		}
@@ -122,6 +138,13 @@ func admin(args []string) error {
 		return fmt.Errorf("unknown admin command %q", args[0])
 	}
 	return nil
+}
+
+func baseURL(public string) string {
+	if public != "" {
+		return public
+	}
+	return "http://localhost:8080"
 }
 
 func passwordOr(p string) (string, error) {

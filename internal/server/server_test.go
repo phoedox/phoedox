@@ -12,7 +12,9 @@ import (
 	"testing/fstest"
 
 	"github.com/phoedox/phoedox/internal/auth"
+	"github.com/phoedox/phoedox/internal/config"
 	"github.com/phoedox/phoedox/internal/core"
+	"github.com/phoedox/phoedox/internal/mail"
 	"github.com/phoedox/phoedox/internal/store"
 )
 
@@ -125,5 +127,61 @@ func TestAPIFlow(t *testing.T) {
 	}
 	if code, _ := c.do("GET", "/api/v1/projects/unbekannt", nil, false); code != 404 {
 		t.Fatalf("unknown project: %d", code)
+	}
+}
+
+func TestAccountAPI(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, store.SQLite, filepath.Join(t.TempDir(), "acc.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	box := &mail.Capture{}
+	au := &auth.Auth{DB: db, Mail: box}
+	if _, err := au.CreateUser(ctx, "admin@coph.dev", "Admin", "sehr-geheimes-passwort", true); err != nil {
+		t.Fatal(err)
+	}
+	h := New(Deps{Config: config.Config{PublicURL: "https://docs.example.org"}, Core: core.New(db), Auth: au})
+	anon := &client{t: t, h: h}
+	if code, body := anon.do("GET", "/api/v1/instance", nil, false); code != 200 || body["passwordReset"] != true {
+		t.Fatalf("instance: %d %v", code, body)
+	}
+	if code, _ := anon.do("POST", "/api/v1/auth/reset-request", map[string]string{"email": "x@y.de"}, false); code != 403 {
+		t.Fatalf("public POST without header: %d", code)
+	}
+	if code, _ := anon.do("POST", "/api/v1/auth/reset-request", map[string]string{"email": "nobody@y.de"}, true); code != 204 {
+		t.Fatalf("unknown reset: %d", code)
+	}
+	if code, body := anon.do("GET", "/api/v1/auth/links/nope", nil, false); code != 400 || body["key"] != "validation.link_invalid" {
+		t.Fatalf("bad link: %d %v", code, body)
+	}
+
+	admin := &client{t: t, h: h}
+	admin.do("POST", "/api/v1/auth/login", map[string]string{"email": "admin@coph.dev", "password": "sehr-geheimes-passwort"}, true)
+	code, body := admin.do("POST", "/api/v1/admin/users", map[string]any{"email": "jan@example.org", "name": "Jan"}, true)
+	link, _ := body["link"].(string)
+	if code != 201 || body["mailed"] != true || !strings.HasPrefix(link, "https://docs.example.org/invite/") {
+		t.Fatalf("invite: %d %v", code, body)
+	}
+	tok := link[strings.LastIndex(link, "/")+1:]
+	jan := &client{t: t, h: h}
+	if code, body := jan.do("GET", "/api/v1/auth/links/"+tok, nil, false); code != 200 || body["email"] != "jan@example.org" {
+		t.Fatalf("link info: %d %v", code, body)
+	}
+	if code, body := jan.do("POST", "/api/v1/auth/links/"+tok, map[string]string{"password": "jans-langes-passwort"}, true); code != 200 || jan.cookie == nil || body["hasPassword"] != true {
+		t.Fatalf("complete: %d %v", code, body)
+	}
+	if code, _ := jan.do("GET", "/api/v1/admin/users", nil, false); code != 403 {
+		t.Fatalf("non-admin list: %d", code)
+	}
+	if code, body := jan.do("PATCH", "/api/v1/me", map[string]string{"locale": "en"}, true); code != 200 || body["locale"] != "en" {
+		t.Fatalf("profile: %d %v", code, body)
+	}
+	if code, body := jan.do("POST", "/api/v1/me/password", map[string]string{"current": "x", "new": "y-y-y-y-y-y-y"}, true); code != 400 || body["key"] != "validation.password_wrong" {
+		t.Fatalf("password: %d %v", code, body)
+	}
+	if code, body := admin.do("GET", "/api/v1/admin/users", nil, false); code != 200 || body != nil {
+		t.Fatalf("list: %d", code) // array body decodes to nil map
 	}
 }

@@ -18,6 +18,7 @@ let current: Locale = detectLocale();
 export const locale = () => current;
 export function setLocale(l: Locale) {
   current = l;
+  if (typeof document !== "undefined") document.documentElement.lang = l;
 }
 
 export function hasKey(key: string): key is Key {

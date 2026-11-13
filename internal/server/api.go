@@ -32,12 +32,26 @@ func (a *api) routes(r chi.Router) {
 	r.Post("/auth/login", a.login)
 	r.Post("/auth/logout", a.logout)
 	r.Get("/instance", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"version": Version, "domain": a.cfg.Domain})
+		writeJSON(w, http.StatusOK, map[string]any{"version": Version, "domain": a.cfg.Domain, "passwordReset": a.resetAvailable()})
+	})
+	r.Group(func(r chi.Router) {
+		r.Use(requireHeader)
+		r.Post("/auth/reset-request", a.resetRequest)
+		r.Get("/auth/links/{token}", a.linkInfo)
+		r.Post("/auth/links/{token}", a.completeLink)
 	})
 
 	r.Group(func(r chi.Router) {
 		r.Use(a.requireActor)
 		r.Get("/me", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, actorOf(r).User) })
+		r.Patch("/me", a.updateProfile)
+		r.Post("/me/password", a.changePassword)
+		r.Route("/admin", func(r chi.Router) {
+			r.Get("/users", a.listUsers)
+			r.Post("/users", a.inviteUser)
+			r.Patch("/users/{id}", a.updateUser)
+			r.Post("/users/{id}/link", a.userLink)
+		})
 		r.Get("/tokens", a.listTokens)
 		r.Post("/tokens", a.createToken)
 		r.Delete("/tokens/{id}", a.revokeToken)

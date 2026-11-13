@@ -11,6 +11,7 @@ import (
 	"github.com/phoedox/phoedox/internal/auth"
 	"github.com/phoedox/phoedox/internal/config"
 	"github.com/phoedox/phoedox/internal/core"
+	"github.com/phoedox/phoedox/internal/mail"
 	"github.com/phoedox/phoedox/internal/store"
 )
 
@@ -38,5 +39,11 @@ func Open(ctx context.Context) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &App{Config: cfg, DB: db, Core: core.New(db), Auth: &auth.Auth{DB: db, SecureCookies: cfg.SecureCookies}}, nil
+	var sender mail.Sender = mail.Disabled{}
+	if cfg.SMTP.Host != "" {
+		sender = &mail.SMTP{Host: cfg.SMTP.Host, Port: cfg.SMTP.Port, User: cfg.SMTP.User, Password: cfg.SMTP.Password,
+			From: cfg.SMTP.From, TLS: mail.TLSMode(cfg.SMTP.TLS)}
+	}
+	a := &auth.Auth{DB: db, SecureCookies: cfg.SecureCookies, Mail: sender, DefaultLocale: cfg.DefaultLocale}
+	return &App{Config: cfg, DB: db, Core: core.New(db), Auth: a}, nil
 }

@@ -31,6 +31,11 @@ type InvalidError struct {
 
 func (e *InvalidError) Error() string { return e.Msg }
 
+// Invalid builds an InvalidError for other packages (auth, server).
+func Invalid(key string, params map[string]any, format string, args ...any) error {
+	return invalid(key, params, format, args...)
+}
+
 func invalid(key string, params map[string]any, format string, args ...any) error {
 	return &InvalidError{Key: key, Params: params, Msg: fmt.Sprintf(format, args...)}
 }
@@ -49,6 +54,8 @@ func (a Actor) String() string {
 		return "mcp:" + a.User.ID + ":" + a.TokenID
 	case "token":
 		return "token:" + a.User.ID + ":" + a.TokenID
+	case "cli":
+		return "cli"
 	default:
 		return "user:" + a.User.ID
 	}

@@ -54,7 +54,18 @@ make build && ./bin/phoedox
 | `PHOEDOX_DB_URL` | `<data>/phoedox.db` | SQLite-Pfad oder Postgres-DSN |
 | `PHOEDOX_BEHIND_PROXY` | `false` | `true` hinter einem Reverse-Proxy: Client-IP aus `X-Forwarded-For` (für das Login-Limit) |
 | `PHOEDOX_INSECURE_COOKIES` | `false` | `true` nur für reines HTTP ohne TLS (außer `localhost`) |
+| `PHOEDOX_PUBLIC_URL` | – | Öffentliche Adresse, z. B. `https://docs.example.org` – für Links in E-Mails. Ohne sie (oder `PHOEDOX_DOMAIN`) gibt es kein „Passwort vergessen“ per E-Mail |
+| `PHOEDOX_DEFAULT_LOCALE` | `de` | Sprache für E-Mails an Nutzer ohne eigene Spracheinstellung |
+| `PHOEDOX_SMTP_HOST` | – | SMTP-Server; aktiviert Einladungen und „Passwort vergessen“ per E-Mail |
+| `PHOEDOX_SMTP_PORT` | `587` (`465` bei `tls`) | |
+| `PHOEDOX_SMTP_TLS` | `starttls` | `starttls`, `tls` oder `none` (nur lokales Relay) |
+| `PHOEDOX_SMTP_USER` / `PHOEDOX_SMTP_PASSWORD` | – | Anmeldung am SMTP-Server |
+| `PHOEDOX_SMTP_FROM` | – | Absender, z. B. `Phoedox <noreply@example.org>` (Pflicht mit SMTP) |
 | `PHOEDOX_PROMPTS_DIR` | – | Ordner mit eigenen KI-Prompts, siehe [`resources/prompts`](resources/prompts) |
+| `PHOEDOX_MAIL_DIR` | – | Ordner mit eigenen E-Mail-Vorlagen, siehe [`resources/mail`](resources/mail) |
+
+Weitere Personen lädst du in der Web-App unter **Nutzer** ein (Menü oben rechts) oder mit
+`phx admin invite --email … --name …`. Ohne SMTP zeigt Phoedox den Einladungslink zum Weitergeben an.
 
 Notfall-Befehle laufen auch ohne Web-Oberfläche: `phx admin reset-password --email …`,
 `phx admin create-token --email … --name …`.

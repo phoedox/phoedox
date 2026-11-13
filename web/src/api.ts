@@ -37,7 +37,15 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   return data as T;
 }
 
-export interface User { id: string; email: string; name: string; isAdmin: boolean }
+export interface User {
+  id: string; email: string; name: string; isAdmin: boolean; disabled: boolean;
+  locale: "" | "de" | "en"; hasPassword: boolean; createdAt: string; lastLoginAt: string | null;
+}
+export interface Instance { version: string; domain: string; passwordReset: boolean }
+export interface LinkInfo { purpose: "invite" | "reset"; email: string; name: string; expiresAt: string }
+export interface LinkResult { user: User; purpose: "invite" | "reset"; link: string; mailed: boolean; expiresAt: string }
+/** Minimum password length, same as the server (auth.MinPasswordLen). */
+export const minPasswordLength = 10;
 export interface Project {
   id: string; slug: string; name: string; short: string; description: string;
   primaryColor: string; aiWriteMode: "suggest" | "direct"; role: string;

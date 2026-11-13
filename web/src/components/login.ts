@@ -1,12 +1,11 @@
 import { LitElement, css, html } from "lit";
 import { ApiError, api, type User } from "../api";
 import { t } from "../i18n";
-import { currentUser, navigate } from "../state";
+import { navigate, signedIn } from "../state";
 import { base } from "./shared";
 
-export class PhxLogin extends LitElement {
-  static properties = { error: { state: true }, busy: { state: true } };
-  static styles = [base, css`
+/** Centered card used by login, forgot-password and set-password pages. */
+export const authPage = css`
     :host { display: grid; place-items: center; min-height: 100vh; padding: 16px; }
     /* Seen once per session: a soft entrance is fine here. */
     .card {
@@ -19,7 +18,13 @@ export class PhxLogin extends LitElement {
     }
     .logo { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 24px; font-weight: 700; }
     .logo img { width: 40px; height: 40px; }
-  `];
+    .card p { margin: 0; line-height: 1.5; }
+    .links { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+`;
+
+export class PhxLogin extends LitElement {
+  static properties = { error: { state: true }, busy: { state: true } };
+  static styles = [base, authPage];
   error = "";
   busy = false;
 
@@ -29,7 +34,7 @@ export class PhxLogin extends LitElement {
     this.busy = true;
     this.error = "";
     try {
-      currentUser.set(await api<User>("POST", "/auth/login", { email: f.get("email"), password: f.get("password") }));
+      signedIn(await api<User>("POST", "/auth/login", { email: f.get("email"), password: f.get("password") }));
       navigate("/");
     } catch (err) {
       this.error = err instanceof ApiError ? err.text : t("error.unknown");
@@ -46,6 +51,7 @@ export class PhxLogin extends LitElement {
       <label class="field">${t("login.password")}<input name="password" type="password" autocomplete="current-password" required /></label>
       ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
       <button type="submit" ?disabled=${this.busy}>${t("login.submit")}</button>
+      <div class="links"><a href="/forgot">${t("login.forgot")}</a></div>
     </form>`;
   }
 }

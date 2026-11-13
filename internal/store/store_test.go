@@ -269,3 +269,74 @@ func TestDecisionNumbers(t *testing.T) {
 		})
 	}
 }
+
+func TestAccountStore(t *testing.T) {
+	for name, d := range testDBs(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			u, err := d.CreateUser(ctx, User{ID: id(), Email: "x@y.de", Name: "X", IsAdmin: true, Locale: "en"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := d.CreateUser(ctx, User{ID: id(), Email: "X@y.de", Name: "X2"}); !errors.Is(err, ErrConflict) {
+				t.Fatalf("duplicate: %v", err)
+			}
+			if n, err := d.CountActiveAdmins(ctx); err != nil || n != 1 {
+				t.Fatalf("admins: %v %d", err, n)
+			}
+			exp := Now()
+			exp.Time = exp.Time.Add(3600e9)
+			if err := d.CreateSession(ctx, "s", u.ID, exp); err != nil {
+				t.Fatal(err)
+			}
+			u.Disabled = true
+			if err := d.UpdateUser(ctx, u); err != nil {
+				t.Fatal(err)
+			}
+			got, err := d.UserByID(ctx, u.ID)
+			if err != nil || !got.Disabled || got.Locale != "en" {
+				t.Fatalf("disabled: %v %+v", err, got)
+			}
+			if _, err := d.UserBySession(ctx, "s"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("session of disabled user: %v", err)
+			}
+			if n, _ := d.CountActiveAdmins(ctx); n != 0 {
+				t.Fatalf("disabled admin counted: %d", n)
+			}
+			u.Disabled = false
+			if err := d.UpdateUser(ctx, u); err != nil {
+				t.Fatal(err)
+			}
+			if got, _ := d.UserByEmail(ctx, "x@y.de"); got.Disabled || got.ID != u.ID {
+				t.Fatalf("enabled: %+v", got)
+			}
+			if us, err := d.ListUsers(ctx); err != nil || len(us) != 1 {
+				t.Fatalf("list: %v %d", err, len(us))
+			}
+
+			// links: newer replaces older, use once, sets password, ends sessions
+			if _, err := d.CreateLink(ctx, AccountLink{ID: "h1", UserID: u.ID, Purpose: LinkReset, CreatedBy: "t", ExpiresAt: exp}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := d.CreateLink(ctx, AccountLink{ID: "h2", UserID: u.ID, Purpose: LinkReset, CreatedBy: "t", ExpiresAt: exp}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := d.ValidLink(ctx, "h1"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("old link valid: %v", err)
+			}
+			_ = d.CreateSession(ctx, "s2", u.ID, exp)
+			if l, err := d.UseLink(ctx, "h2", "hash"); err != nil || l.UserID != u.ID {
+				t.Fatalf("use: %v", err)
+			}
+			if _, err := d.UseLink(ctx, "h2", "hash2"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("reuse: %v", err)
+			}
+			if got, _ := d.UserByID(ctx, u.ID); !got.HasPassword {
+				t.Fatal("password not set")
+			}
+			if _, err := d.UserBySession(ctx, "s2"); !errors.Is(err, ErrNotFound) {
+				t.Fatal("session survived reset")
+			}
+		})
+	}
+}

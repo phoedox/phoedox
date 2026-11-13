@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -35,6 +36,24 @@ type Config struct {
 	// BehindProxy trusts X-Forwarded-For / X-Real-IP for the client address
 	// (PHOEDOX_BEHIND_PROXY). Only enable it when a reverse proxy sets them.
 	BehindProxy bool
+	// PublicURL is the external base URL for links in emails, e.g.
+	// https://docs.example.org (PHOEDOX_PUBLIC_URL). Derived from the request
+	// when empty.
+	PublicURL string
+	// DefaultLocale is used for emails to users without a language ("de").
+	DefaultLocale string
+	// SMTP enables emails (invitations, password resets) when Host is set.
+	SMTP SMTP
+}
+
+// SMTP is the outgoing mail server (PHOEDOX_SMTP_*).
+type SMTP struct {
+	Host     string // PHOEDOX_SMTP_HOST
+	Port     int    // PHOEDOX_SMTP_PORT, default 587 (465 with TLS=tls)
+	User     string // PHOEDOX_SMTP_USER
+	Password string // PHOEDOX_SMTP_PASSWORD
+	From     string // PHOEDOX_SMTP_FROM, e.g. "Phoedox <noreply@example.org>"
+	TLS      string // PHOEDOX_SMTP_TLS: starttls (default), tls or none
 }
 
 // FromEnv reads the configuration and applies defaults.
@@ -47,7 +66,25 @@ func FromEnv() (Config, error) {
 		MultiTenant:   os.Getenv("PHOEDOX_MULTI_TENANT") == "true",
 		SecureCookies: os.Getenv("PHOEDOX_INSECURE_COOKIES") != "true",
 		BehindProxy:   os.Getenv("PHOEDOX_BEHIND_PROXY") == "true",
+		PublicURL:     strings.TrimRight(os.Getenv("PHOEDOX_PUBLIC_URL"), "/"),
+		DefaultLocale: getenv("PHOEDOX_DEFAULT_LOCALE", "de"),
+		SMTP: SMTP{
+			Host:     os.Getenv("PHOEDOX_SMTP_HOST"),
+			User:     os.Getenv("PHOEDOX_SMTP_USER"),
+			Password: os.Getenv("PHOEDOX_SMTP_PASSWORD"),
+			From:     os.Getenv("PHOEDOX_SMTP_FROM"),
+			TLS:      strings.ToLower(getenv("PHOEDOX_SMTP_TLS", "starttls")),
+		},
 	}
+	port := "587"
+	if c.SMTP.TLS == "tls" {
+		port = "465"
+	}
+	p, err := strconv.Atoi(getenv("PHOEDOX_SMTP_PORT", port))
+	if err != nil {
+		return c, fmt.Errorf("PHOEDOX_SMTP_PORT: %v", err)
+	}
+	c.SMTP.Port = p
 	c.DBURL = getenv("PHOEDOX_DB_URL", c.DataDir+"/phoedox.db")
 	return c, c.Validate()
 }
@@ -58,6 +95,19 @@ func (c Config) Validate() error {
 	case DriverSQLite, DriverPostgres:
 	default:
 		return fmt.Errorf("PHOEDOX_DB_DRIVER: unknown driver %q (use sqlite or postgres)", c.DBDriver)
+	}
+	if c.SMTP.Host != "" {
+		switch c.SMTP.TLS {
+		case "starttls", "tls", "none":
+		default:
+			return fmt.Errorf("PHOEDOX_SMTP_TLS: use starttls, tls or none")
+		}
+		if c.SMTP.From == "" {
+			return fmt.Errorf("PHOEDOX_SMTP_FROM is required when PHOEDOX_SMTP_HOST is set")
+		}
+	}
+	if c.PublicURL != "" && !strings.HasPrefix(c.PublicURL, "https://") && !strings.HasPrefix(c.PublicURL, "http://") {
+		return fmt.Errorf("PHOEDOX_PUBLIC_URL must start with https:// or http://")
 	}
 	if c.MultiTenant && c.DBDriver != DriverPostgres {
 		return fmt.Errorf("PHOEDOX_MULTI_TENANT requires PHOEDOX_DB_DRIVER=postgres")

@@ -21,3 +21,18 @@ func TestPromptEmbeddedAndOverride(t *testing.T) {
 		t.Fatalf("override not used: %q", got)
 	}
 }
+
+func TestMail(t *testing.T) {
+	data := map[string]any{"Name": "Jan", "Inviter": "Admin", "Instance": "docs.example.org", "Link": "https://docs.example.org/invite/abc", "Hours": 168}
+	for _, name := range []string{"invite", "reset"} {
+		for _, loc := range []string{"de", "en", "fr"} {
+			subj, body, err := Mail(name, loc, data)
+			if err != nil || subj == "" || !strings.Contains(body, "https://docs.example.org/invite/abc") || strings.Contains(body, "Subject:") {
+				t.Fatalf("%s.%s: %v %q %q", name, loc, err, subj, body)
+			}
+		}
+	}
+	if _, _, err := Mail("invite", "de", map[string]any{}); err == nil {
+		t.Fatal("missing fields must fail")
+	}
+}
