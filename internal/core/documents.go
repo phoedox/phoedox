@@ -253,6 +253,10 @@ func (s *Service) createDocument(ctx context.Context, a Actor, p store.Project, 
 	s.linkMentions(ctx, p, doc.ID, text)
 	s.event(ctx, a, "document.create", doc.ID, map[string]any{"project": p.ID, "slug": doc.Slug, "number": doc.Number})
 	s.relatedEvents(ctx, a, doc, related)
+	s.indexDocument(ctx, doc)
+	for _, r := range related {
+		s.indexDocument(ctx, r)
+	}
 	return DocResult{Applied: true, Document: &doc}, nil
 }
 
@@ -357,6 +361,10 @@ func (s *Service) updateDocument(ctx context.Context, a Actor, p store.Project, 
 	s.linkMentions(ctx, p, doc.ID, text)
 	s.event(ctx, a, "document.update", doc.ID, map[string]int{"version": doc.Version})
 	s.relatedEvents(ctx, a, doc, related)
+	s.indexDocument(ctx, doc)
+	for _, r := range related {
+		s.indexDocument(ctx, r)
+	}
 	return DocResult{Applied: true, Document: &doc}, nil
 }
 
@@ -376,6 +384,7 @@ func (s *Service) DeleteDocument(ctx context.Context, a Actor, ref, docRef strin
 	if err := s.DB.DeleteDocument(ctx, cur.ID); err != nil {
 		return DocResult{}, err
 	}
+	s.unindex(ctx, cur.ID)
 	s.event(ctx, a, "document.delete", cur.ID, nil)
 	return DocResult{Applied: true, Document: &cur}, nil
 }

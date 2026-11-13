@@ -65,6 +65,13 @@ export interface Decision {
 }
 /** Formats a decision number like the server: ADR-0007. */
 export const adrRef = (n: number) => `ADR-${String(n).padStart(4, "0")}`;
+export interface Hit {
+  type: "document" | "entity"; projectId: string; projectSlug: string; projectName: string;
+  id: string; slug: string; title: string; kind: string; snippet?: string;
+}
+/** Snippet markers from the server around matches. */
+export const MARK_START = "\uE000";
+export const MARK_END = "\uE001";
 export interface Entity { id: string; kind: string; slug: string; name: string; attrs: Record<string, unknown> }
 export interface Edge { id: string; from: string; rel: string; to: string; fromName: string; toName: string }
 export interface Suggestion { id: string; actor: string; op: string; summary: string; status: string; createdAt: string }

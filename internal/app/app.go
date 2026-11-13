@@ -5,6 +5,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
@@ -54,5 +55,9 @@ func Open(ctx context.Context) (*App, error) {
 	if cfg.OIDC.Enabled() {
 		a.OIDC = &auth.OIDC{Config: cfg.OIDC}
 	}
-	return &App{Config: cfg, DB: db, Core: core.New(db), Auth: a}, nil
+	svc := core.New(db)
+	if err := svc.EnsureSearchIndex(ctx); err != nil {
+		slog.Warn("building the search index failed", "err", err)
+	}
+	return &App{Config: cfg, DB: db, Core: svc, Auth: a}, nil
 }

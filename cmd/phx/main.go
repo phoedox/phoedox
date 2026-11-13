@@ -28,6 +28,7 @@ Admin commands (run on the server, same environment as phoedox):
   phx admin reset-password --email E [--password P]
   phx admin reset-2fa --email E                    Remove TOTP, recovery codes and passkeys
   phx admin create-token --email E [--name N]     Personal API token (REST, MCP)
+  phx admin reindex                                Rebuild the search index
 
 Other:
   phx version`
@@ -66,7 +67,7 @@ func admin(args []string) error {
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
-	if *email == "" {
+	if *email == "" && args[0] != "reindex" {
 		return errors.New("--email is required")
 	}
 	ctx := context.Background()
@@ -121,6 +122,12 @@ func admin(args []string) error {
 		}
 		_ = a.DB.AddEvent(ctx, "cli", "auth.password_reset", u.ID, nil)
 		fmt.Println("password updated")
+	case "reindex":
+		n, err := a.Core.Reindex(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("indexed %d documents and entries\n", n)
 	case "reset-2fa":
 		u, err := a.DB.UserByEmail(ctx, *email)
 		if err != nil {

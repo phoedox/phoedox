@@ -11,6 +11,8 @@ import "./login";
 import "./profile";
 import "./security";
 import "./consent";
+import "./palette";
+import type { PhxPalette } from "./palette";
 import "./user-menu";
 import "./users";
 import "./projects";
@@ -31,6 +33,8 @@ export class PhxApp extends SignalWatcher(LitElement) {
     nav a, nav button { font-size: 13px; }
     nav a { color: var(--muted); text-decoration: none; display: inline-flex; gap: 6px; align-items: center; padding: 6px 8px; border-radius: 6px; }
     @media (hover: hover) and (pointer: fine) { nav a:hover { color: var(--fg); } }
+    button.search { font-weight: 500; color: var(--muted); padding: 5px 10px; }
+    kbd { font: 11px var(--font-mono); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; color: var(--muted); }
     .crumb { min-width: 0; } .crumb .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     /* Phones: icons only in the bar, the labels stay as accessible names. */
     @media (max-width: 700px) {
@@ -66,6 +70,10 @@ export class PhxApp extends SignalWatcher(LitElement) {
     this.ready = true;
   }
 
+  private openPalette() {
+    this.renderRoot.querySelector<PhxPalette>("phx-palette")?.open();
+  }
+
   private async logout() {
     await api("POST", "/auth/logout").catch(() => {});
     signedIn(null);
@@ -84,11 +92,14 @@ export class PhxApp extends SignalWatcher(LitElement) {
             ${inProject && p ? html`<a class="crumb" href="/p/${p.slug}"><span class="pi">${p.short}</span><span class="name">${p.name}</span></a>` : ""}
             <nav>
               <a href="/" aria-label=${t("nav.projects")}>${icon("FolderOpen", 15)} <span class="lbl">${t("nav.projects")}</span></a>
+              <button class="ghost search" @click=${this.openPalette} aria-label=${t("palette.button")} aria-keyshortcuts="Control+K Meta+K">
+                ${icon("Search", 15)}<span class="lbl">${t("palette.button")}</span><kbd class="lbl">${navigator.platform.startsWith("Mac") ? "⌘K" : t("palette.ctrl")}</kbd></button>
               <phx-user-menu @logout=${this.logout}></phx-user-menu>
             </nav>
           </header>`
         : ""}
       ${this.router.outlet()}
+      ${user ? html`<phx-palette></phx-palette>` : ""}
     `;
   }
 }

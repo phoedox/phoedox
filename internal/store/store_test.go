@@ -177,15 +177,9 @@ func runStore(t *testing.T, d *DB) {
 	if ds, _ := d.DocumentsMentioning(ctx, router.ID); len(ds) != 1 {
 		t.Fatalf("mentions: %+v", ds)
 	}
-	hits, err := d.Search(ctx, []string{p.ID}, "router 192.168", 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(hits) != 1 || hits[0].Slug != "router-flur" {
-		t.Fatalf("search: %+v", hits)
-	}
-	if hits, _ := d.Search(ctx, []string{p.ID}, "NETZWERK", 10); len(hits) != 1 || hits[0].Type != "document" {
-		t.Fatalf("search doc: %+v", hits)
+	// The search index is filled by the core service; see TestSearchIndex.
+	if hits, err := d.Search(ctx, []string{p.ID}, "router", 10); err != nil || len(hits) != 0 {
+		t.Fatalf("search without index: %v %+v", err, hits)
 	}
 
 	// suggestions + events
@@ -461,5 +455,97 @@ func TestOAuthStore(t *testing.T) {
 				t.Fatalf("token of revoked grant: %v", err)
 			}
 		})
+	}
+}
+
+func TestSearchIndex(t *testing.T) {
+	for name, d := range testDBs(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			u, _ := d.CreateUser(ctx, User{ID: id(), Email: "s@y.de", Name: "S"})
+			p1, _ := d.CreateProject(ctx, Project{ID: id(), Slug: "haus", Name: "Haus", Short: "HA", PrimaryColor: "#F26A1B", AIWriteMode: "suggest", OwnerID: u.ID})
+			p2, _ := d.CreateProject(ctx, Project{ID: id(), Slug: "firma", Name: "Firma", Short: "FI", PrimaryColor: "#F26A1B", AIWriteMode: "suggest", OwnerID: u.ID})
+			put := func(e IndexEntry) {
+				t.Helper()
+				if err := d.IndexPut(ctx, e); err != nil {
+					t.Fatal(err)
+				}
+			}
+			put(IndexEntry{RefID: "d1", Kind: "document", ProjectID: p1.ID, Slug: "netz", Subtype: "markdown", Title: "Hauptrouter im Keller", Body: "Der Router hängt am Glasfaser-Modem neben dem Sicherungskasten."})
+			put(IndexEntry{RefID: "d2", Kind: "document", ProjectID: p1.ID, Slug: "architektur", Subtype: "markdown", Title: "Architektur", Body: "Der Go-Server liefert API, MCP und die Web-App aus. Ein Router verteilt die Pfade."})
+			put(IndexEntry{RefID: "e1", Kind: "entity", ProjectID: p1.ID, Slug: "fritzbox", Subtype: "router", Title: "Fritz!Box 7590", Body: "router\nfritzbox\nip: 192.168.178.1"})
+			put(IndexEntry{RefID: "x1", Kind: "document", ProjectID: p2.ID, Slug: "router", Subtype: "markdown", Title: "Router der Firma", Body: "Geheim"})
+			// replacing an entry keeps one row
+			put(IndexEntry{RefID: "d2", Kind: "document", ProjectID: p1.ID, Slug: "architektur", Subtype: "markdown", Title: "Architektur", Body: "Der Go-Server liefert API, MCP und die Web-App aus. Ein Router verteilt die Pfade."})
+			if n, _ := d.IndexCount(ctx); n != 4 {
+				t.Fatalf("count: %d", n)
+			}
+			search := func(q string) []Hit {
+				t.Helper()
+				hits, err := d.Search(ctx, []string{p1.ID}, q, 10)
+				if err != nil {
+					t.Fatalf("%q: %v", q, err)
+				}
+				return hits
+			}
+			ids := func(hs []Hit) string {
+				var s []string
+				for _, h := range hs {
+					s = append(s, h.ID)
+				}
+				return strings.Join(s, ",")
+			}
+			// part of a word, title match first, other project hidden
+			hs := search("router")
+			if len(hs) != 3 || hs[0].ID != "d1" || strings.Contains(ids(hs), "x1") {
+				t.Fatalf("router: %s", ids(hs))
+			}
+			if hs[0].ProjectSlug != "haus" || hs[0].Kind != "markdown" || hs[0].Slug != "netz" {
+				t.Fatalf("hit fields: %+v", hs[0])
+			}
+			// all words must match; snippet marks them
+			hs = search("glasfaser modem")
+			if ids(hs) != "d1" || !strings.Contains(hs[0].Snippet, MarkStart+"Glasfaser"+MarkEnd) || !strings.Contains(hs[0].Snippet, MarkStart+"Modem"+MarkEnd) {
+				t.Fatalf("glasfaser: %s %+v", ids(hs), hs)
+			}
+			if hs := search("glasfaser kaffee"); len(hs) != 0 {
+				t.Fatalf("all words: %s", ids(hs))
+			}
+			if hs := search("hängt"); ids(hs) != "d1" {
+				t.Fatalf("umlaut: %s", ids(hs))
+			}
+			if hs := search("go-server"); ids(hs) != "d2" {
+				t.Fatalf("hyphen: %s", ids(hs))
+			}
+			if hs := search("192.168.178"); ids(hs) != "e1" {
+				t.Fatalf("ip: %s", ids(hs))
+			}
+			if hs := search("Ar"); !strings.Contains(ids(hs), "d2") {
+				t.Fatalf("short word: %s", ids(hs))
+			}
+			if hs := search(`"; DROP TABLE x; --`); len(hs) != 0 {
+				t.Fatalf("junk: %s", ids(hs))
+			}
+			if err := d.IndexDelete(ctx, "d1"); err != nil {
+				t.Fatal(err)
+			}
+			if hs := search("glasfaser"); len(hs) != 0 {
+				t.Fatalf("deleted entry found: %s", ids(hs))
+			}
+		})
+	}
+}
+
+func TestSnippet(t *testing.T) {
+	text := strings.Repeat("Füllwort ", 40) + "Der Router hängt am Modem. " + strings.Repeat("Ende ", 40)
+	s := Snippet(text, []string{"router", "modem"}, 80)
+	if !strings.HasPrefix(s, "…") || !strings.HasSuffix(s, "…") || !strings.Contains(s, MarkStart+"Router"+MarkEnd) || len([]rune(s)) > 100 {
+		t.Fatalf("snippet: %q", s)
+	}
+	if Snippet("nichts", []string{"x"}, 80) != "" {
+		t.Fatal("no match must give no snippet")
+	}
+	if s := Snippet("Über Ärger", []string{"arger"}, 80); !strings.Contains(s, MarkStart+"Ärger"+MarkEnd) {
+		t.Fatalf("diacritics: %q", s)
 	}
 }

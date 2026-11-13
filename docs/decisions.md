@@ -153,3 +153,13 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 | OAuth-Server | Eigener OAuth-2.1-Server nur für MCP: Metadaten (RFC 8414, RFC 9728), offene dynamische Registrierung (RFC 7591, Rate-Limit), Code + PKCE S256 Pflicht, `iss` im Redirect (RFC 9207), Resource `<base>/mcp` (RFC 8707). Redirects: https, Loopback (beliebiger Port) oder App-Schema. |
 | Freigabe | Immer per Freigabeseite im Browser mit Sitzung (nicht per Token), auch bei bekannten Clients – Namen sind selbst angegeben. Eine Freigabe pro Nutzer und Client, widerrufbar unter „API-Tokens & MCP“. |
 | Tokens | Zugriff 1 Stunde (`phxo_`, nur für `/mcp`), Refresh 30 Tage (`phxr_`), rotierend. Wiederverwendung eines Codes oder Refresh-Tokens widerruft die ganze Freigabe. |
+
+## Suche
+
+| Bereich | Entscheidung |
+|---|---|
+| Index | Eigene Tabelle `search_index` (Titel + reiner Text), gepflegt von der Geschäftslogik bei jedem Schreiben (auch angenommene KI-Vorschläge); beim ersten Start aus dem Bestand gefüllt, `phx admin reindex` baut neu. Markdown ohne Formatierung, Entscheidungen mit Nummer, Einträge mit Attributen. |
+| Postgres | `tsvector` ('simple', Präfixe) + `pg_trgm` für Wortteile und Tippfehler im Titel; Rang: Volltext + Titelähnlichkeit. |
+| SQLite | FTS5 mit Trigramm-Tokenizer (Wortteile, ohne Akzente); Wörter unter 3 Zeichen per LIKE. |
+| Treffer | Alle Wörter müssen vorkommen; Fundstellen mit Markierung werden in Go erzeugt (beide Datenbanken gleich), die Web-App rendert sie ohne `innerHTML`. |
+| Befehlspalette | ⌘K/Strg+K und Suchknopf: Aktionen, Projektwechsel, Treffer (aktuelles Projekt zuerst). Ohne Animation, da per Tastatur oft geöffnet. |

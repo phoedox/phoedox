@@ -75,6 +75,10 @@ make build && ./bin/phoedox
 Weitere Personen lädst du in der Web-App unter **Nutzer** ein (Menü oben rechts) oder mit
 `phx admin invite --email … --name …`. Ohne SMTP zeigt Phoedox den Einladungslink zum Weitergeben an.
 
+Die Suche nutzt in PostgreSQL die Erweiterung `pg_trgm`. Phoedox legt sie beim ersten Start an; bei
+verwalteten Datenbanken ohne diese Rechte einmalig `CREATE EXTENSION pg_trgm;` ausführen.
+`phx admin reindex` baut den Suchindex neu auf.
+
 Notfall-Befehle laufen auch ohne Web-Oberfläche: `phx admin reset-password --email …`,
 `phx admin reset-2fa --email …` (Zwei-Faktor und Passkeys entfernen), `phx admin create-token --email … --name …`.
 

@@ -127,6 +127,7 @@ func (s *Service) upsertEntity(ctx context.Context, a Actor, p store.Project, in
 		return EntityResult{}, err
 	}
 	s.event(ctx, a, "entity.upsert", e.ID, in)
+	s.indexEntity(ctx, e)
 	return EntityResult{Applied: true, Created: created, Entity: &e}, nil
 }
 
@@ -147,6 +148,7 @@ func (s *Service) DeleteEntity(ctx context.Context, a Actor, ref, entRef string)
 		return EntityResult{}, err
 	}
 	s.event(ctx, a, "entity.delete", e.ID, nil)
+	s.unindex(ctx, e.ID)
 	return EntityResult{Applied: true, Entity: &e}, nil
 }
 

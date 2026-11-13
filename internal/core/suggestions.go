@@ -84,11 +84,15 @@ func (s *Service) DecideSuggestion(ctx context.Context, a Actor, id string, acce
 			res, err = s.updateDocument(ctx, a, p, cur, *op.Patch)
 		}
 	case "document.delete":
-		err = s.DB.DeleteDocument(ctx, op.Doc)
+		if err = s.DB.DeleteDocument(ctx, op.Doc); err == nil {
+			s.unindex(ctx, op.Doc)
+		}
 	case "entity.upsert":
 		res, err = s.upsertEntity(ctx, a, p, *op.Entity)
 	case "entity.delete":
-		err = s.DB.DeleteEntity(ctx, op.EntityRef)
+		if err = s.DB.DeleteEntity(ctx, op.EntityRef); err == nil {
+			s.unindex(ctx, op.EntityRef)
+		}
 	case "edge.link":
 		res, err = s.link(ctx, a, *op.Edge)
 	case "edge.unlink":
