@@ -14,7 +14,22 @@ export function detectLocale(langs: readonly string[] = globalThis.navigator?.la
   return "de";
 }
 
+let current: Locale = detectLocale();
+export const locale = () => current;
+export function setLocale(l: Locale) {
+  current = l;
+}
+
+export function hasKey(key: string): key is Key {
+  return key in de;
+}
+
 /** Translates a key and fills {placeholders}. Unknown placeholders stay visible. */
-export function t(key: Key, vars: Record<string, string | number> = {}, locale: Locale = detectLocale()): string {
-  return tables[locale][key].replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m));
+export function t(key: Key, vars: Record<string, unknown> = {}, loc: Locale = current): string {
+  return tables[loc][key].replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m));
+}
+
+export function formatDate(iso: string, loc: Locale = current): string {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString(loc === "de" ? "de-DE" : "en-GB", { dateStyle: "medium", timeStyle: "short" });
 }
