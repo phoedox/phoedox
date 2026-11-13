@@ -35,8 +35,9 @@ Stand: 13.11.2026. Ergebnis der Planungsrunden; der klickbare Prototyp liegt in 
 | Repos | `phoedox` (App: Go-Server + Lit-Web), `phoedox-sdk` (Plugin-SDK), `phoedox-plugins` (offizielle Plugins), `phoedox-agent`, `phoedox-store`, `phoedox-app` (Flutter) |
 | Lizenzen | App/Server, Store und Flutter-App AGPL-3.0; SDK, Agent und offizielle Plugins MIT. Store bewusst offen: Sicherheit kommt aus geheimen Schlüsseln und Prüfungen, nicht aus verstecktem Code |
 | Releases | SemVer + Release-Please, Conventional Commits |
+| Go-Version | Immer die aktuelle stabile Go-Version (derzeit 1.27, `toolchain` in go.mod gepinnt); Abhängigkeiten aktuell halten |
 | HTTP | `net/http` + chi |
-| DB | sqlc + goose; Postgres und SQLite (zwei Dialekte). Cloud: eine DB, `tenant_id` + Row-Level-Security |
+| DB | goose-Migrationen für Postgres und SQLite. **Abweichung vom Plan:** statt sqlc vorerst handgeschriebenes SQL mit gemeinsamer Abfrageschicht (`?`-Platzhalter, pro Dialekt umgesetzt), weil sqlc pro Dialekt eigene Go-Typen erzeugt; später neu bewerten. Cloud: eine DB, `tenant_id` + Row-Level-Security |
 | Suche | In der DB: Postgres-Volltext + `pg_trgm`; SQLite FTS5 mit Trigrammen. Kein eigener Dienst |
 | Vektoren/KI | pgvector / sqlite-vec. Standard: kein KI-Anbieter. Eingebauter Chat + MCP |
 | Frontend | Lit, eigene Komponenten, Vite, Bun, URL-Routing, Deutsch + Englisch, Farbschema folgt System, Befehlspalette ⌘K, WCAG 2.2 AA |
@@ -46,7 +47,7 @@ Stand: 13.11.2026. Ergebnis der Planungsrunden; der klickbare Prototyp liegt in 
 | Undo | Standard eigene Änderungen; über die UI auch fremde (mit Protokoll) |
 | Anmeldung | Passwort + TOTP, Passkeys, OIDC, Magic Link. 5-min-JWT im Speicher + HttpOnly-Session-Cookie. MCP: OAuth 2.1 + API-Tokens. SMTP |
 | MCP | Viele spezielle Tools + Plugin-Tools, Ressourcen, Prompts, Benachrichtigungen. KI-Schreiben pro Projekt einstellbar, Standard Vorschlag. Rate-Limits pro Token + Organisation |
-| API | REST `/api/v1`, OpenAPI aus dem Code, versionierte Webhooks |
+| API | REST `/api/v1`, OpenAPI aus dem Code, versionierte Webhooks. Fehler liefern einen stabilen `code`, einen Übersetzungsschlüssel `key` und `params`; die Web-App zeigt nur übersetzte Texte, `error` ist englischer Rückfall (und für MCP) |
 | Dateien | Lokal oder S3, inhaltsadressiert, Versionen; Vorschaubilder, PDF-Suche, OCR, Virenscan; tus-Uploads |
 | Betrieb | Geplante Backups (S3/lokal/SFTP) + Wiederherstellung in der UI; Prometheus, OpenTelemetry, JSON-Logs, Statusseite; Ein-Klick-Update mit Backup |
 | Cloud | Hetzner + Docker Compose, später Kubernetes / eigene Server. EU, AV-Vertrag, Verschlüsselung at rest pro Organisation, externe KI nur mit Zustimmung |

@@ -29,16 +29,20 @@ type Config struct {
 	DataDir string
 	// MultiTenant enables the hosted mode with row-level security (PHOEDOX_MULTI_TENANT).
 	MultiTenant bool
+	// SecureCookies sets the Secure flag on cookies. Default true; set
+	// PHOEDOX_INSECURE_COOKIES=true only for local HTTP development.
+	SecureCookies bool
 }
 
 // FromEnv reads the configuration and applies defaults.
 func FromEnv() (Config, error) {
 	c := Config{
-		Domain:      os.Getenv("PHOEDOX_DOMAIN"),
-		Listen:      getenv("PHOEDOX_LISTEN", ":8080"),
-		DBDriver:    DBDriver(strings.ToLower(getenv("PHOEDOX_DB_DRIVER", string(DriverSQLite)))),
-		DataDir:     getenv("PHOEDOX_DATA_DIR", "./data"),
-		MultiTenant: os.Getenv("PHOEDOX_MULTI_TENANT") == "true",
+		Domain:        os.Getenv("PHOEDOX_DOMAIN"),
+		Listen:        getenv("PHOEDOX_LISTEN", ":8080"),
+		DBDriver:      DBDriver(strings.ToLower(getenv("PHOEDOX_DB_DRIVER", string(DriverSQLite)))),
+		DataDir:       getenv("PHOEDOX_DATA_DIR", "./data"),
+		MultiTenant:   os.Getenv("PHOEDOX_MULTI_TENANT") == "true",
+		SecureCookies: os.Getenv("PHOEDOX_INSECURE_COOKIES") != "true",
 	}
 	c.DBURL = getenv("PHOEDOX_DB_URL", c.DataDir+"/phoedox.db")
 	return c, c.Validate()

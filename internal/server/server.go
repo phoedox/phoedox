@@ -3,42 +3,52 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/phoedox/phoedox/internal/auth"
 	"github.com/phoedox/phoedox/internal/config"
+	"github.com/phoedox/phoedox/internal/core"
+	"github.com/phoedox/phoedox/internal/store"
 )
 
 // Version is set at build time via -ldflags.
 var Version = "dev"
 
-// New returns the root handler. web holds the built frontend (may be empty in dev).
-func New(cfg config.Config, web fs.FS) http.Handler {
+// Deps are the services the HTTP layer needs. All fields except Config may be
+// nil in tests; the related routes are then not mounted.
+type Deps struct {
+	Config config.Config
+	Core   *core.Service
+	Auth   *auth.Auth
+	MCP    http.Handler
+	Web    fs.FS
+}
+
+// New returns the root handler.
+func New(d Deps) http.Handler {
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID, middleware.RealIP, middleware.Recoverer, middleware.Timeout(60*time.Second))
+	r.Use(middleware.RequestID, middleware.RealIP, middleware.Recoverer)
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": Version})
 	})
 
-	r.Route("/api/v1", func(api chi.Router) {
-		api.Get("/instance", func(w http.ResponseWriter, _ *http.Request) {
-			writeJSON(w, http.StatusOK, map[string]any{
-				"version":     Version,
-				"domain":      cfg.Domain,
-				"multiTenant": cfg.MultiTenant,
-			})
-		})
-	})
-
-	// MCP (Streamable HTTP) will be mounted at /mcp, realtime (Yjs) at /rt.
-
-	if web != nil {
-		r.Handle("/*", spa(web))
+	if d.Core != nil && d.Auth != nil {
+		api := &api{core: d.Core, auth: d.Auth, cfg: d.Config, limiter: newLimiter(10, 5*time.Minute)}
+		r.Route("/api/v1", api.routes)
+	}
+	if d.MCP != nil {
+		r.Handle("/mcp", d.MCP)
+	}
+	if d.Web != nil {
+		r.Handle("/*", spa(d.Web))
 	}
 	return r
 }
@@ -61,4 +71,36 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// apiError is the JSON error body. Clients translate Key (with Params);
+// Error is an English fallback and must not be shown to users directly.
+type apiError struct {
+	Error  string         `json:"error"`
+	Code   string         `json:"code"`
+	Key    string         `json:"key"`
+	Params map[string]any `json:"params,omitempty"`
+}
+
+func errBody(code, msg string) apiError {
+	return apiError{Error: msg, Code: code, Key: "error." + code}
+}
+
+func writeErr(w http.ResponseWriter, err error) {
+	var inv *core.InvalidError
+	switch {
+	case errors.As(err, &inv):
+		writeJSON(w, http.StatusBadRequest, apiError{Error: inv.Msg, Code: "invalid", Key: inv.Key, Params: inv.Params})
+	case errors.Is(err, core.ErrForbidden):
+		writeJSON(w, http.StatusForbidden, errBody("forbidden", "You do not have permission for this."))
+	case errors.Is(err, store.ErrNotFound):
+		writeJSON(w, http.StatusNotFound, errBody("not_found", "Not found."))
+	case errors.Is(err, store.ErrConflict):
+		writeJSON(w, http.StatusConflict, errBody("conflict", "This already exists or was changed in the meantime."))
+	case errors.Is(err, auth.ErrBadLogin):
+		writeJSON(w, http.StatusUnauthorized, errBody("bad_login", err.Error()))
+	default:
+		slog.Error("request failed", "err", err)
+		writeJSON(w, http.StatusInternalServerError, errBody("internal", "Internal error."))
+	}
 }
