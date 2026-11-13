@@ -66,7 +66,7 @@ export interface Decision {
 /** Formats a decision number like the server: ADR-0007. */
 export const adrRef = (n: number) => `ADR-${String(n).padStart(4, "0")}`;
 export interface Hit {
-  type: "document" | "entity"; projectId: string; projectSlug: string; projectName: string;
+  type: "document" | "entity" | "file"; projectId: string; projectSlug: string; projectName: string;
   id: string; slug: string; title: string; kind: string; snippet?: string;
 }
 /** Snippet markers from the server around matches. */

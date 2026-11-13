@@ -3,6 +3,7 @@ name: docker
 #   main      – every push to main
 #   X.Y.Z, X.Y, latest – releases; called from release-please.yml, because tags
 #                        pushed with GITHUB_TOKEN do not trigger workflows
+# Each tag also exists with the suffix -full (PDF previews, OCR tools).
 on:
   push:
     branches: [main]
@@ -15,6 +16,9 @@ permissions:
 jobs:
   image:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        variant: [default, full]
     steps:
       - uses: actions/checkout@v4
         with: { ref: "${{ inputs.tag || github.sha }}" }
@@ -29,19 +33,23 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
-          flavor: latest=false
+          flavor: |
+            latest=false
+            suffix=${{ matrix.variant == 'full' && '-full' || '' }}
           tags: |
             type=ref,event=branch,enable=${{ inputs.tag == '' }}
             type=semver,pattern={{version}},value=${{ inputs.tag }},enable=${{ inputs.tag != '' }}
             type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag }},enable=${{ inputs.tag != '' }}
             type=raw,value=latest,enable=${{ inputs.tag != '' }}
+            type=raw,value=full,enable=${{ inputs.tag != '' && matrix.variant == 'full' }},suffix=
       - uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
+          target: ${{ matrix.variant == 'full' && 'full' || '' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: VERSION=${{ inputs.tag || github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.variant }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.variant }}

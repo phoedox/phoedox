@@ -108,7 +108,11 @@ func (s *Service) Reindex(ctx context.Context) (int, error) {
 	for _, e := range ents {
 		s.indexEntity(ctx, e)
 	}
-	return len(docs) + len(ents), nil
+	files, err := s.ReprocessFiles(ctx) // file text lives only in the index
+	if err != nil {
+		return 0, err
+	}
+	return len(docs) + len(ents) + files, nil
 }
 
 // EnsureSearchIndex fills an empty index (first start after the update).

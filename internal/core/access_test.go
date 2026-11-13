@@ -77,10 +77,10 @@ func TestAIAccess(t *testing.T) {
 	}
 
 	// instance switch
-	if _, err := s.UpdateSettings(ctx, ro, InstanceSettings{AIEnabled: false}); !errors.Is(err, ErrForbidden) {
+	if _, err := s.UpdateSettings(ctx, ro, SettingsPatch{AIEnabled: new(false)}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("restricted admin token changes settings: %v", err)
 	}
-	if _, err := s.UpdateSettings(ctx, owner, InstanceSettings{AIEnabled: false}); err != nil {
+	if _, err := s.UpdateSettings(ctx, owner, SettingsPatch{AIEnabled: new(false)}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.Project(ctx, ai, haus.Slug); invalidKey(err) != "validation.ai_disabled" {

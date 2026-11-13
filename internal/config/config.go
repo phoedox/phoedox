@@ -55,6 +55,16 @@ type Config struct {
 	MaxUploadMB int
 	// S3 stores files in a bucket instead of <DataDir>/files when Endpoint is set.
 	S3 S3
+	// ClamAV is the clamd address for virus scans ("host:3310" or
+	// "unix:/run/clamav/clamd.ctl", PHOEDOX_CLAMAV); empty disables scans.
+	ClamAV string
+	// OCR reads text from images and scanned PDFs with tesseract if
+	// installed (PHOEDOX_OCR, default true); OCRLangs e.g. "deu+eng".
+	OCR      bool
+	OCRLangs string
+	// Workers is the number of background jobs run in parallel
+	// (PHOEDOX_WORKERS, default 2; 0 runs no jobs in this process).
+	Workers int
 	// OIDC enables sign-in with an external identity provider.
 	OIDC OIDC
 	// SMTP enables emails (invitations, password resets) when Host is set.
@@ -146,6 +156,14 @@ func FromEnv() (Config, error) {
 		return c, fmt.Errorf("PHOEDOX_MAX_UPLOAD_MB: must be a positive number")
 	}
 	c.MaxUploadMB = mu
+	c.ClamAV = os.Getenv("PHOEDOX_CLAMAV")
+	c.OCR = getenv("PHOEDOX_OCR", "true") == "true"
+	c.OCRLangs = getenv("PHOEDOX_OCR_LANGS", "deu+eng")
+	wk, err := strconv.Atoi(getenv("PHOEDOX_WORKERS", "2"))
+	if err != nil || wk < 0 {
+		return c, fmt.Errorf("PHOEDOX_WORKERS: must be 0 or more")
+	}
+	c.Workers = wk
 	c.S3 = S3{Endpoint: os.Getenv("PHOEDOX_S3_ENDPOINT"), Bucket: os.Getenv("PHOEDOX_S3_BUCKET"), Region: os.Getenv("PHOEDOX_S3_REGION"),
 		AccessKey: os.Getenv("PHOEDOX_S3_ACCESS_KEY"), SecretKey: os.Getenv("PHOEDOX_S3_SECRET_KEY"), Prefix: os.Getenv("PHOEDOX_S3_PREFIX"),
 		Insecure: os.Getenv("PHOEDOX_S3_INSECURE") == "true"}

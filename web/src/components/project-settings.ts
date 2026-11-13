@@ -5,14 +5,16 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { currentProject, docsVersion } from "../state";
 import { base } from "./shared";
+import type { Storage } from "../files";
+import { storageBar, storageStyles } from "./project-files";
 import { toast } from "./toasts";
 
 type Member = { userId: string; email: string; name: string; role: string };
 type EnvVar = { name: string; value?: string; secret: boolean };
 
 export class PhxProjectSettings extends LitElement {
-  static properties = { project: {}, p: { state: true }, members: { state: true }, env: { state: true }, error: { state: true } };
-  static styles = [base, css`
+  static properties = { project: {}, p: { state: true }, members: { state: true }, env: { state: true }, storage: { state: true }, error: { state: true } };
+  static styles = [base, storageStyles, css`
     form { display: grid; gap: 12px; max-width: 560px; margin-bottom: 28px; }
     .color { display: flex; gap: 8px; align-items: center; } .color input[type=color] { width: 48px; padding: 2px; height: 38px; }
     table { border-collapse: collapse; width: 100%; max-width: 560px; } td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); }
@@ -21,6 +23,7 @@ export class PhxProjectSettings extends LitElement {
   p?: Project;
   members: Member[] = [];
   env: EnvVar[] = [];
+  storage?: Storage;
   error = "";
 
   async connectedCallback() {
@@ -28,6 +31,31 @@ export class PhxProjectSettings extends LitElement {
     this.p = await api<Project>("GET", `/projects/${this.project}`).catch(() => undefined);
     this.members = (await api<Member[]>("GET", `/projects/${this.project}/members`).catch(() => [])) ?? [];
     await this.loadEnv();
+    this.storage = await api<Storage>("GET", `/projects/${this.project}/storage`).catch(() => undefined);
+  }
+
+  private async setQuota(e: SubmitEvent) {
+    e.preventDefault();
+    const mb = Number(new FormData(e.target as HTMLFormElement).get("quota") || 0);
+    try {
+      this.storage = await api<Storage>("PUT", `/projects/${this.project}/storage`, { quotaMb: mb });
+      toast(t("settings.saved"));
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+    }
+  }
+
+  private storageSection(owner: boolean) {
+    const s = this.storage;
+    if (!s) return "";
+    return html`<h2 style="font-size:18px;margin:28px 0 8px">${t("storage.title")}</h2>
+      ${storageBar(s)}
+      ${owner ? html`<form @submit=${this.setQuota} style="margin-top:12px">
+        <label class="field">${t("storage.project_quota")}
+          <span class="row"><input name="quota" type="number" min="0" max=${s.maxMb || 100000000} .value=${String(s.projectMb || "")} placeholder=${s.maxMb ? String(s.maxMb) : "∞"} style="width:160px"> MB
+          <button class="ghost" type="submit">${t("doc.save")}</button></span></label>
+        <p class="muted" style="font-size:13px;margin:0">${s.maxMb ? t("storage.max_hint", { max: s.maxMb }) : t("storage.no_max_hint")}</p>
+      </form>` : ""}`;
   }
 
   private async loadEnv() {
@@ -135,6 +163,7 @@ export class PhxProjectSettings extends LitElement {
           <button type="submit">${t("settings.add_member")}</button></div>
       </form>` : ""}
       ${this.envSection(owner, canEdit)}
+      ${this.storageSection(owner)}
     </div>`;
   }
 }

@@ -1,6 +1,8 @@
 import { LitElement, css, html } from "lit";
 import { ApiError, api } from "../api";
-import { fileIcon, fileURL, formatSize, isImage, uploadFile, type FileInfo } from "../files";
+import { fileIcon, fileURL, formatSize, previewURL, uploadFile, type FileInfo } from "../files";
+import type { PhxFilePreview } from "./file-preview";
+import "./file-preview";
 import { formatDate, locale, t } from "../i18n";
 import { icon } from "../icon";
 import { base } from "./shared";
@@ -61,9 +63,21 @@ export class PhxAttachments extends LitElement {
     return this.load();
   }
 
+  private polls = 0;
+
   private async load() {
     const q = this.document ? `document=${this.document}` : `entity=${this.entity}`;
     this.files = (await api<FileInfo[]>("GET", `/projects/${this.project}/files?${q}`).catch(() => [])) ?? [];
+    // Previews and text are made in the background: look again a few times.
+    if (this.files.some((f) => f.textStatus === "") && this.polls < 6) {
+      this.polls++;
+      setTimeout(() => this.isConnected && this.load(), 1500 * this.polls);
+    } else this.polls = 0;
+  }
+
+  private preview(e: Event, f: FileInfo) {
+    e.preventDefault();
+    this.renderRoot.querySelector<PhxFilePreview>("phx-file-preview")!.open(f);
   }
 
   /** Uploads files one after another and shows their progress. */
@@ -133,14 +147,14 @@ export class PhxAttachments extends LitElement {
       </div>
       <ul>
         ${files.map((f) => html`<li>
-          <a class="thumb" href=${fileURL(f)} target="_blank" rel="noopener" aria-label=${t("files.open", { name: f.name })}>
-            ${isImage(f.mime) ? html`<img src=${fileURL(f)} alt="" loading="lazy">` : icon(fileIcon(f.mime), 18)}</a>
+          <a class="thumb" href=${fileURL(f)} @click=${(e: Event) => this.preview(e, f)} aria-label=${t("files.open", { name: f.name })}>
+            ${f.hasPreview ? html`<img src=${previewURL(f)} alt="" loading="lazy">` : icon(fileIcon(f.mime), 18)}</a>
           <div style="min-width:0">
             ${this.renaming === f.id
               ? html`<form class="rn" @submit=${(e: SubmitEvent) => this.rename(e, f)}><input name="name" .value=${f.name} maxlength="200" aria-label=${t("files.rename")}
                   @keydown=${(e: KeyboardEvent) => e.key === "Escape" && (this.renaming = "")}><button class="ghost">${icon("Check", 13)}</button></form>`
-              : html`<div class="name"><a href=${fileURL(f)} target="_blank" rel="noopener">${f.name}</a></div>`}
-            <div class="meta">${formatSize(f.size, locale())} · ${formatDate(f.createdAt)}</div>
+              : html`<div class="name"><a href=${fileURL(f)} @click=${(e: Event) => this.preview(e, f)}>${f.name}</a></div>`}
+            <div class="meta">${formatSize(f.size, locale())} · ${formatDate(f.createdAt)}${f.version > 1 ? ` · ${t("files.version", { version: f.version })}` : ""}</div>
           </div>
           <div class="acts">
             <a class="btn ghost" href=${fileURL(f, true)} aria-label=${t("files.download")} title=${t("files.download")}>${icon("Download", 14)}</a>
@@ -153,7 +167,8 @@ export class PhxAttachments extends LitElement {
           <div><div class="name">${p.name}</div><div class="bar" role="progressbar" aria-valuenow=${Math.round(p.progress * 100)} aria-valuemin="0" aria-valuemax="100"><span style="transform: scaleX(${p.progress})"></span></div></div><span></span></li>`)}
       </ul>
       ${this.editable && !files.length && !this.pending.length ? html`<p class="hint">${t("files.drop_hint")}</p>` : ""}
-    </section>`;
+    </section>
+    <phx-file-preview .project=${this.project} .editable=${this.editable} @changed=${() => this.load()}></phx-file-preview>`;
   }
 }
 customElements.define("phx-attachments", PhxAttachments);

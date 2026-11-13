@@ -8,6 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/phoedox/phoedox/internal/blob"
+	"github.com/phoedox/phoedox/internal/jobs"
+	"github.com/phoedox/phoedox/internal/preview"
+	"github.com/phoedox/phoedox/internal/scan"
+	"time"
 
 	"github.com/phoedox/phoedox/internal/graph"
 	"github.com/phoedox/phoedox/internal/requests"
@@ -83,10 +87,18 @@ type Service struct {
 	Blobs     blob.Store
 	TempDir   string
 	MaxUpload int64
+	// Jobs runs background work (previews, text extraction); nil runs it inline.
+	Jobs *jobs.Queue
+	// Preview makes preview images and extracts text (external tools optional).
+	Preview preview.Tools
+	// Scanner checks uploads for malware; nil skips the check.
+	Scanner scan.Scanner
 }
 
 // New returns a service with defaults.
-func New(db *store.DB) *Service { return &Service{DB: db, MaxDepth: 6} }
+func New(db *store.DB) *Service {
+	return &Service{DB: db, MaxDepth: 6, Preview: preview.Tools{MaxPixels: 60_000_000, MaxText: 2 << 20, Size: 480, MaxPages: 20, Timeout: 90 * time.Second}}
+}
 
 var rank = map[string]int{store.RoleReader: 1, store.RoleEditor: 2, store.RoleOwner: 3}
 

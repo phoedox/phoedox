@@ -134,6 +134,7 @@ func (s *Service) RestoreFromTrash(ctx context.Context, a Actor, ref, id string)
 	}
 	if f, err := s.DB.RestoreFile(ctx, p.ID, id); err == nil {
 		s.event(ctx, a, "file.restore", f.ID, nil)
+		s.queueProcessing(ctx, f)
 		return store.TrashItem{ID: f.ID, Kind: "file", Type: f.Mime, Slug: f.ID, Title: f.Name}, nil
 	} else if !errors.Is(err, store.ErrNotFound) {
 		return store.TrashItem{}, err

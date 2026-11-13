@@ -2,6 +2,7 @@ import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html, type TemplateResult } from "lit";
 import { MARK_END, MARK_START, api, type Hit, type Project } from "../api";
 import { t } from "../i18n";
+import { fileIcon } from "../files";
 import { icon } from "../icon";
 import { currentProject, currentUser, navigate } from "../state";
 import { base } from "./shared";
@@ -156,8 +157,8 @@ export class PhxPalette extends SignalWatcher(LitElement) {
       .map((p) => ({ id: `p-${p.id}`, label: t("palette.go_project", { project: p.name }), icon: "FolderOpen", href: `/p/${p.slug}` }));
     const results: Item[] = this.hits.map((h) => ({
       id: `h-${h.id}`, label: h.title,
-      icon: h.type === "entity" ? "Box" : docIcon[h.kind] ?? "FileText",
-      href: `/p/${h.projectSlug}/${h.type === "entity" ? "e" : "d"}/${h.slug}`,
+      icon: h.type === "entity" ? "Box" : h.type === "file" ? fileIcon(h.kind) : docIcon[h.kind] ?? "FileText",
+      href: h.type === "file" ? `/p/${h.projectSlug}/files?open=${h.id}` : `/p/${h.projectSlug}/${h.type === "entity" ? "e" : "d"}/${h.slug}`,
       sub: h.snippet ? html`${marked(h.snippet)}` : undefined,
       chip: h.projectId === here ? undefined : h.projectName,
     }));

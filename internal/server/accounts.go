@@ -222,7 +222,7 @@ func (a *api) getSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) putSettings(w http.ResponseWriter, r *http.Request) {
-	var in core.InstanceSettings
+	var in core.SettingsPatch
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)
 		return

@@ -32,7 +32,9 @@ Traefik tun das von selbst, bei nginx `proxy_http_version 1.1` sowie die Header 
 
 Das Image `ghcr.io/phoedox/phoedox` wird bei jedem Push auf `main` (`:main`) und bei jedem
 Release (`:X.Y.Z`, `:latest`) gebaut. Solange das Repo privat ist, vorher `docker login ghcr.io`
-mit einem Token mit `read:packages`.
+mit einem Token mit `read:packages`. Jedes Tag gibt es auch mit `-full` (z. B. `:main-full`): darin
+sind poppler und tesseract für PDF-Vorschauen, durchsuchbare PDFs und Texterkennung in Scans. Für den
+Virenscan einen ClamAV-Container (`clamav/clamav`) danebenstellen und `PHOEDOX_CLAMAV=clamav:3310` setzen.
 
 ### Nur ein Container (SQLite)
 
@@ -75,7 +77,10 @@ make build && ./bin/phoedox
 | `PHOEDOX_SMTP_TLS` | `starttls` | `starttls`, `tls` oder `none` (nur lokales Relay) |
 | `PHOEDOX_SMTP_USER` / `PHOEDOX_SMTP_PASSWORD` | – | Anmeldung am SMTP-Server |
 | `PHOEDOX_SMTP_FROM` | – | Absender, z. B. `Phoedox <noreply@example.org>` (Pflicht mit SMTP) |
-| `PHOEDOX_MAX_UPLOAD_MB` | `100` | Größte Datei pro Upload |
+| `PHOEDOX_MAX_UPLOAD_MB` | `100` | Größte Datei pro Upload (größere Dateien laden fortsetzbar per tus hoch) |
+| `PHOEDOX_CLAMAV` | – | clamd-Adresse für den Virenscan, z. B. `clamav:3310` oder `unix:/run/clamav/clamd.ctl`; ohne Antwort werden Uploads abgelehnt |
+| `PHOEDOX_OCR`, `PHOEDOX_OCR_LANGS` | `true`, `deu+eng` | Texterkennung in Bildern und Scans, wenn tesseract installiert ist |
+| `PHOEDOX_WORKERS` | `2` | Parallele Hintergrund-Jobs (Vorschauen, Text); `0` = keine in diesem Prozess |
 | `PHOEDOX_S3_ENDPOINT`, `_BUCKET`, `_REGION`, `_ACCESS_KEY`, `_SECRET_KEY`, `_PREFIX` | – | Dateien in einem S3-kompatiblen Bucket statt unter `<data>/files` |
 | `PHOEDOX_PROMPTS_DIR` | – | Ordner mit eigenen KI-Prompts, siehe [`resources/prompts`](resources/prompts) |
 | `PHOEDOX_MAIL_DIR` | – | Ordner mit eigenen E-Mail-Vorlagen, siehe [`resources/mail`](resources/mail) |

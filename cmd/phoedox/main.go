@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"errors"
+	"github.com/phoedox/phoedox/internal/store"
 	"log/slog"
 	"net/http"
 	"os"
@@ -54,12 +55,19 @@ func main() {
 		}
 	}()
 
-	// Housekeeping: empty the trash of old items now and every six hours.
+	if a.Config.Workers > 0 {
+		go a.Jobs.Run(ctx)
+	}
+	log.Info("file tools", "tools", a.Core.Preview.Available(), "virus_scan", a.Core.Scanner != nil)
+
+	// Housekeeping: empty the trash, drop stale uploads and old jobs now and every six hours.
 	go func() {
 		t := time.NewTicker(6 * time.Hour)
 		defer t.Stop()
 		for {
 			a.Core.PurgeExpiredTrash(ctx, a.Config.TrashDays)
+			a.Core.CleanupUploads(ctx)
+			_, _ = a.DB.PruneJobs(ctx, store.Time{Time: time.Now().Add(-7 * 24 * time.Hour)})
 			select {
 			case <-ctx.Done():
 				return

@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"slices"
+	"strconv"
 
 	"github.com/phoedox/phoedox/internal/store"
 )
@@ -51,6 +52,30 @@ func (s *Service) AIEnabled(ctx context.Context) bool {
 // InstanceSettings are the settings a system admin can change.
 type InstanceSettings struct {
 	AIEnabled bool `json:"aiEnabled"`
+	// QuotaProjectMB limits the stored files of each project (0 = no limit).
+	QuotaProjectMB int `json:"quotaProjectMb"`
+	// Tools tells which file tools were found (PDF previews, OCR, virus scan); read only.
+	Tools map[string]bool `json:"tools,omitempty"`
+}
+
+// SettingsPatch changes some instance settings.
+type SettingsPatch struct {
+	AIEnabled      *bool `json:"aiEnabled,omitempty"`
+	QuotaProjectMB *int  `json:"quotaProjectMb,omitempty"`
+}
+
+const settingQuota = "quota_project_mb"
+
+func (s *Service) instanceQuotaMB(ctx context.Context) int {
+	v, _ := s.DB.Setting(ctx, settingQuota, "0")
+	n, _ := strconv.Atoi(v)
+	return n
+}
+
+func (s *Service) settings(ctx context.Context) InstanceSettings {
+	tools := s.Preview.Available()
+	tools["virus_scan"] = s.Scanner != nil
+	return InstanceSettings{AIEnabled: s.AIEnabled(ctx), QuotaProjectMB: s.instanceQuotaMB(ctx), Tools: tools}
 }
 
 // Settings returns the instance settings (admins only).
@@ -58,23 +83,29 @@ func (s *Service) Settings(ctx context.Context, a Actor) (InstanceSettings, erro
 	if !a.User.IsAdmin || a.Via == "mcp" || a.Restricted() {
 		return InstanceSettings{}, ErrForbidden
 	}
-	return InstanceSettings{AIEnabled: s.AIEnabled(ctx)}, nil
+	return s.settings(ctx), nil
 }
 
 // UpdateSettings changes the instance settings (admins only, not via AI).
-func (s *Service) UpdateSettings(ctx context.Context, a Actor, in InstanceSettings) (InstanceSettings, error) {
+func (s *Service) UpdateSettings(ctx context.Context, a Actor, in SettingsPatch) (InstanceSettings, error) {
 	if !a.User.IsAdmin || a.Via == "mcp" || a.Restricted() {
 		return InstanceSettings{}, ErrForbidden
 	}
-	v := "false"
-	if in.AIEnabled {
-		v = "true"
+	if in.QuotaProjectMB != nil && (*in.QuotaProjectMB < 0 || *in.QuotaProjectMB > 100_000_000) {
+		return InstanceSettings{}, invalid("validation.quota", nil, "quota must be between 0 and 100000000 MB")
 	}
-	if err := s.DB.SetSetting(ctx, settingAI, v, a.String()); err != nil {
-		return InstanceSettings{}, err
+	if in.AIEnabled != nil {
+		if err := s.DB.SetSetting(ctx, settingAI, strconv.FormatBool(*in.AIEnabled), a.String()); err != nil {
+			return InstanceSettings{}, err
+		}
+	}
+	if in.QuotaProjectMB != nil {
+		if err := s.DB.SetSetting(ctx, settingQuota, strconv.Itoa(*in.QuotaProjectMB), a.String()); err != nil {
+			return InstanceSettings{}, err
+		}
 	}
 	s.event(ctx, a, "instance.settings", "", in)
-	return in, nil
+	return s.settings(ctx), nil
 }
 
 // TokenScope checks a requested access level and project list for a new

@@ -6,6 +6,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/phoedox/phoedox/internal/blob"
+	"github.com/phoedox/phoedox/internal/jobs"
+	"github.com/phoedox/phoedox/internal/preview"
+	"github.com/phoedox/phoedox/internal/scan"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -25,6 +28,7 @@ type App struct {
 	DB     *store.DB
 	Core   *core.Service
 	Auth   *auth.Auth
+	Jobs   *jobs.Queue
 }
 
 // Open loads the configuration, connects to the database and runs migrations.
@@ -71,8 +75,14 @@ func Open(ctx context.Context) (*App, error) {
 	}
 	svc.TempDir = filepath.Join(cfg.DataDir, "tmp")
 	svc.MaxUpload = int64(cfg.MaxUploadMB) << 20
+	svc.Preview = preview.Detect(cfg.OCR, cfg.OCRLangs)
+	if cfg.ClamAV != "" {
+		svc.Scanner = scan.Clamd{Addr: cfg.ClamAV}
+	}
+	queue := &jobs.Queue{DB: db, Workers: cfg.Workers}
+	svc.RegisterJobs(queue)
 	if err := svc.EnsureSearchIndex(ctx); err != nil {
 		slog.Warn("building the search index failed", "err", err)
 	}
-	return &App{Config: cfg, DB: db, Core: svc, Auth: a}, nil
+	return &App{Config: cfg, DB: db, Core: svc, Auth: a, Jobs: queue}, nil
 }

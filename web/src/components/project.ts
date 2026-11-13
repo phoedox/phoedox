@@ -16,6 +16,7 @@ import "./entity-view";
 import "./entity-form";
 import "./data-model";
 import "./graph-view";
+import "./project-files";
 import "./suggestions";
 import "./project-settings";
 
@@ -88,6 +89,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "e/:entity/edit", render: ({ entity }) => html`<phx-entity-form .project=${this.slug} .entity=${entity!}></phx-entity-form>` },
     { path: "new-entity", render: () => html`<phx-entity-form .project=${this.slug}></phx-entity-form>` },
     { path: "model", render: () => html`<phx-data-model .project=${this.slug}></phx-data-model>` },
+    { path: "files", render: () => html`<phx-project-files .project=${this.slug}></phx-project-files>` },
     { path: "graph", render: () => html`<phx-graph-view .project=${this.slug}></phx-graph-view>` },
     { path: "e/:entity", render: ({ entity }) => html`<phx-entity-view .project=${this.slug} .entity=${entity!}></phx-entity-view>` },
     { path: "decisions", render: () => html`<phx-decisions .project=${this.slug}></phx-decisions>` },
@@ -207,6 +209,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     if (here.endsWith("/trash")) return t("nav.trash");
     if (here.endsWith("/graph")) return t("nav.graph");
     if (here.endsWith("/model")) return t("nav.model");
+    if (here.endsWith("/files")) return t("nav.files");
     if (here.endsWith("/new-entity")) return t("entity.new");
     if (here.endsWith("/suggestions")) return t("nav.suggestions");
     if (here.endsWith("/settings")) return t("nav.settings");
@@ -245,7 +248,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
         <div class="grp"><a href="/p/${this.slug}" class=${here === `/p/${this.slug}` ? "on" : ""}>${icon("House", 15)} ${t("project.overview")}</a>
           <a href="/p/${this.slug}/decisions" class=${here === `/p/${this.slug}/decisions` ? "on" : ""}>${icon("ListChecks", 15)} ${t("nav.decisions")}</a>
           <a href="/p/${this.slug}/graph" class=${here === `/p/${this.slug}/graph` || here.startsWith(`/p/${this.slug}/e/`) ? "on" : ""}>${icon("Waypoints", 15)} ${t("nav.graph")}</a>
-          <a href="/p/${this.slug}/model" class=${here === `/p/${this.slug}/model` ? "on" : ""}>${icon("Shapes", 15)} ${t("nav.model")}</a></div>
+          <a href="/p/${this.slug}/model" class=${here === `/p/${this.slug}/model` ? "on" : ""}>${icon("Shapes", 15)} ${t("nav.model")}</a>
+          <a href="/p/${this.slug}/files" class=${here === `/p/${this.slug}/files` ? "on" : ""}>${icon("Paperclip", 15)} ${t("nav.files")}</a></div>
         ${[...groups].map(([cat, docs]) => html`<div class="grp">
           <div class="lbl">${cat || t("nav.uncategorized")}</div>
           ${docs.map((d) => d.type === "link" && d.content?.url

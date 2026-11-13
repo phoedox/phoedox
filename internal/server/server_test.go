@@ -220,7 +220,7 @@ func TestNarrowedTokens(t *testing.T) {
 		t.Fatalf("narrowed token: %d %v", code, body)
 	}
 	// switching AI off closes /mcp
-	_, _ = svc.UpdateSettings(ctx, core.Actor{User: u, Via: "web"}, core.InstanceSettings{AIEnabled: false})
+	_, _ = svc.UpdateSettings(ctx, core.Actor{User: u, Via: "web"}, core.SettingsPatch{AIEnabled: new(false)})
 	m := &client{t: t, h: h, bearer: full}
 	if code, _ := m.do("POST", "/mcp", map[string]any{"jsonrpc": "2.0", "id": 1, "method": "tools/list"}, false); code != 403 {
 		t.Fatalf("mcp while disabled: %d", code)
