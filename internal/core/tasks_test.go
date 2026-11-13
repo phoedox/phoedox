@@ -89,3 +89,24 @@ func TestTasks(t *testing.T) {
 		t.Fatalf("unknown board: %v", err)
 	}
 }
+
+// TestFeatures covers ADR-0032: optional tabs per project.
+func TestFeatures(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _ := setup(t)
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Neu"})
+	if len(p.Features) != 0 {
+		t.Fatalf("new projects start without tabs: %v", p.Features)
+	}
+	in := ProjectInput{Name: p.Name, Short: p.Short, PrimaryColor: p.PrimaryColor, AIWriteMode: p.AIWriteMode, Features: &[]string{"files", "decisions"}}
+	if p, err := s.UpdateProject(ctx, owner, p.Slug, in); err != nil || len(p.Features) != 2 || p.Features[0] != "decisions" {
+		t.Fatalf("features: %v %v", err, p.Features)
+	}
+	in.Features = &[]string{"chat"}
+	if _, err := s.UpdateProject(ctx, owner, p.Slug, in); invalidKey(err) != "validation.feature" {
+		t.Fatalf("unknown feature: %v", err)
+	}
+	if got, _ := s.Project(ctx, owner, p.Slug); len(got.Features) != 2 {
+		t.Fatalf("stored: %v", got.Features)
+	}
+}

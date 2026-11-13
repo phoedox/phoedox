@@ -47,11 +47,17 @@ export interface LinkInfo { purpose: "invite" | "reset"; email: string; name: st
 export interface LinkResult { user: User; purpose: "invite" | "reset"; link: string; mailed: boolean; expiresAt: string }
 /** Minimum password length, same as the server (auth.MinPasswordLen). */
 export const minPasswordLength = 10;
+export type ProjectFeature = "decisions" | "graph" | "model" | "files";
+export const projectFeatures: readonly ProjectFeature[] = ["decisions", "graph", "model", "files"];
+/** Whether a project has an optional tab switched on. */
+export const hasFeature = (p: { features?: string[] } | null | undefined, f: ProjectFeature) => !!p?.features?.includes(f);
 export interface Project {
   id: string; slug: string; name: string; short: string; description: string;
   primaryColor: string; aiWriteMode: "off" | "read" | "suggest" | "direct";
   /** Main language of the content ("" = not multilingual) and further languages (ADR-0028). */
   mainLocale: string; locales: string[];
+  /** Optional tabs switched on (ADR-0032). */
+  features: ProjectFeature[];
   /** owner | editor | reader | doc (only single documents shared) */
   role: string;
   orgId?: string; orgName?: string;

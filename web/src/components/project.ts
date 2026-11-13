@@ -2,7 +2,7 @@ import { Routes } from "@lit-labs/router";
 import { loadProjectPlugins } from "../plugin-host";
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
-import { api, type Doc, type DraftInfo, type Favorite, type Project } from "../api";
+import { api, hasFeature, type Doc, type ProjectFeature, type DraftInfo, type Favorite, type Project } from "../api";
 import { applyProjectColor } from "../color";
 import { t } from "../i18n";
 import { icon } from "../icon";
@@ -118,11 +118,11 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "new/:type", render: ({ type }) => html`<phx-doc-form .project=${this.slug} .type=${type!}></phx-doc-form>` },
     { path: "e/:entity/edit", render: ({ entity }) => html`<phx-entity-form .project=${this.slug} .entity=${entity!}></phx-entity-form>` },
     { path: "new-entity", render: () => html`<phx-entity-form .project=${this.slug}></phx-entity-form>` },
-    { path: "model", render: () => html`<phx-data-model .project=${this.slug}></phx-data-model>` },
-    { path: "files", render: () => html`<phx-project-files .project=${this.slug}></phx-project-files>` },
-    { path: "graph", render: () => html`<phx-graph-view .project=${this.slug}></phx-graph-view>` },
+    { path: "model", render: () => this.gated("model", html`<phx-data-model .project=${this.slug}></phx-data-model>`) },
+    { path: "files", render: () => this.gated("files", html`<phx-project-files .project=${this.slug}></phx-project-files>`) },
+    { path: "graph", render: () => this.gated("graph", html`<phx-graph-view .project=${this.slug}></phx-graph-view>`) },
     { path: "e/:entity", render: ({ entity }) => html`<phx-entity-view .project=${this.slug} .entity=${entity!}></phx-entity-view>` },
-    { path: "decisions", render: () => html`<phx-decisions .project=${this.slug}></phx-decisions>` },
+    { path: "decisions", render: () => this.gated("decisions", html`<phx-decisions .project=${this.slug}></phx-decisions>`) },
     { path: "suggestions", render: () => html`<phx-suggestions .project=${this.slug}></phx-suggestions>` },
     { path: "settings", render: () => html`<phx-project-settings .project=${this.slug}></phx-project-settings>` },
   ], { fallback: { render: () => this.overview() } });
@@ -268,6 +268,15 @@ export class PhxProject extends SignalWatcher(LitElement) {
     </div>`;
   }
 
+  /** Optional tabs (ADR-0032): switched off shows a note instead of the page. */
+  private gated(f: ProjectFeature, page: unknown) {
+    const p = currentProject.get();
+    if (!p || hasFeature(p, f)) return page;
+    return html`<div class="enter"><h1>${t(`feature.${f}` as any)}</h1>
+      <p class="muted">${t("feature.off")}</p>
+      ${p.role === "owner" ? html`<a class="btn" href="/p/${this.slug}/settings">${icon("Settings", 14)} ${t("feature.enable")}</a>` : ""}</div>`;
+  }
+
   private closeNew = () => {
     if (this.newOpen) this.newOpen = false;
   };
@@ -341,6 +350,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
   render() {
     if (this.error) return html`<main><p class="error">${this.error}</p></main>`;
     const decisions = this.docs.filter((d) => d.type === "adr").length;
+    const proj = currentProject.get();
     const here = location.pathname;
     const canEdit = ["editor", "owner"].includes(currentProject.get()?.role ?? "");
     // Only single pages are shared with this person: no project-wide views.
@@ -355,11 +365,11 @@ export class PhxProject extends SignalWatcher(LitElement) {
         <div class="scroll">
           ${this.favoritesGroup(here)}
           <div class="grp"><a href="/p/${this.slug}" class=${here === `/p/${this.slug}` ? "on" : ""}>${icon("House", 15)} ${t("project.overview")}</a>
-            <a href="/p/${this.slug}/decisions" class=${here === `/p/${this.slug}/decisions` || this.docs.some((d) => d.type === "adr" && here.startsWith(`/p/${this.slug}/d/${d.slug}`)) ? "on" : ""}>${icon("ListChecks", 15)} ${t("nav.decisions")}
-              ${decisions ? html`<span class="num">${decisions}</span>` : ""}</a>
-            ${docOnly ? "" : html`<a href="/p/${this.slug}/graph" class=${here === `/p/${this.slug}/graph` || here.startsWith(`/p/${this.slug}/e/`) ? "on" : ""}>${icon("Waypoints", 15)} ${t("nav.graph")}</a>
-            <a href="/p/${this.slug}/model" class=${here === `/p/${this.slug}/model` ? "on" : ""}>${icon("Shapes", 15)} ${t("nav.model")}</a>
-            <a href="/p/${this.slug}/files" class=${here === `/p/${this.slug}/files` ? "on" : ""}>${icon("Paperclip", 15)} ${t("nav.files")}</a>`}</div>
+            ${!hasFeature(proj, "decisions") ? "" : html`<a href="/p/${this.slug}/decisions" class=${here === `/p/${this.slug}/decisions` || this.docs.some((d) => d.type === "adr" && here.startsWith(`/p/${this.slug}/d/${d.slug}`)) ? "on" : ""}>${icon("ListChecks", 15)} ${t("nav.decisions")}
+              ${decisions ? html`<span class="num">${decisions}</span>` : ""}</a>`}
+            ${docOnly || !hasFeature(proj, "graph") ? "" : html`<a href="/p/${this.slug}/graph" class=${here === `/p/${this.slug}/graph` || here.startsWith(`/p/${this.slug}/e/`) ? "on" : ""}>${icon("Waypoints", 15)} ${t("nav.graph")}</a>`}
+            ${docOnly || !hasFeature(proj, "model") ? "" : html`<a href="/p/${this.slug}/model" class=${here === `/p/${this.slug}/model` ? "on" : ""}>${icon("Shapes", 15)} ${t("nav.model")}</a>`}
+            ${docOnly || !hasFeature(proj, "files") ? "" : html`<a href="/p/${this.slug}/files" class=${here === `/p/${this.slug}/files` ? "on" : ""}>${icon("Paperclip", 15)} ${t("nav.files")}</a>`}</div>
           ${this.tree(here, canEdit)}
         </div>
         <div class="tools">
@@ -368,8 +378,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
             ${this.newOpen ? html`<div class="menu" role="menu" @keydown=${(e: KeyboardEvent) => e.key === "Escape" && (this.newOpen = false)}>
               <a role="menuitem" href="#" @click=${(e: Event) => { e.preventDefault(); this.create("", "type"); }}>${icon("FilePlus", 15)} ${t("create.page")}</a>
               <a role="menuitem" href="#" @click=${(e: Event) => { e.preventDefault(); this.create(""); }}>${icon("FolderPlus", 15)} ${t("create.folder")}</a>
-              <a role="menuitem" href="/p/${this.slug}/new/adr" @click=${() => (this.newOpen = false)}>${icon("Scale", 15)} ${t("doc.type.adr")}</a>
-              <a role="menuitem" href="/p/${this.slug}/new-entity" @click=${() => (this.newOpen = false)}>${icon("Plus", 15)} ${t("entity.new")}</a>
+              ${hasFeature(proj, "decisions") ? html`<a role="menuitem" href="/p/${this.slug}/new/adr" @click=${() => (this.newOpen = false)}>${icon("Scale", 15)} ${t("doc.type.adr")}</a>` : ""}
+              ${hasFeature(proj, "graph") || hasFeature(proj, "model") ? html`<a role="menuitem" href="/p/${this.slug}/new-entity" @click=${() => (this.newOpen = false)}>${icon("Plus", 15)} ${t("entity.new")}</a>` : ""}
             </div>` : ""}
           </div>
           <a href="/p/${this.slug}/trash" class=${here.endsWith("/trash") ? "on" : ""}>${icon("Trash2", 15)} ${t("nav.trash")}</a>` : ""}

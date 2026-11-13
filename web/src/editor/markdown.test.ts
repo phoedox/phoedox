@@ -48,3 +48,34 @@ describe("markdown round trip", () => {
     expect(lossless("Text[^1]\n\n[^1]: Fußnote")).toBe(false);
   });
 });
+
+describe("building blocks round trip (ADR-0031)", () => {
+  const cases = [
+    "> [!note]\n> Ein Hinweis mit **fett**.",
+    "> [!callout icon=User color=orange]\n> Wichtig ist die Änderung",
+    "> [!warning]\n> Zeile eins\n>\n> - Liste\n> - zwei",
+    "Text [rot]{color=red} und [markiert]{bg=yellow} weiter.",
+    "Text [**fett rot**]{color=red} weiter.",
+    "Ein ++unterstrichener++ Text.",
+    "Formel $a^2+b^2=c^2$ im Satz, aber $5 und $10 nicht.",
+    'Termin <time datetime="2026-12-24">24.12.2026</time> und <time datetime="2026-12-24T18:00" data-kind="countdown">Heiligabend</time>.',
+    "```math\n\\int_0^1 x\\,dx\n```",
+    "```embed\nhttps://youtu.be/dQw4w9WgXcQ\n```",
+    "```iframe\nhttps://example.org/status\n```",
+    "```board\numbau\n```",
+    "| a | b |\n|---|---|\n| [rot]{color=red} | $x$ |",
+  ];
+  for (const md of cases) {
+    test(md.slice(0, 40), () => {
+      expect({ md, out: roundTrip(md), ok: lossless(md) }).toEqual({ md, out: roundTrip(md), ok: true });
+    });
+  }
+});
+
+test("building blocks become editor nodes", () => {
+  expect(importedTypes("> [!note]\n> x")).toContain("callout");
+  expect(importedTypes("```math\nx\n```")).toEqual(["fence"]);
+  expect(importedTypes("a $x^2$ b")).toContain("imath");
+  expect(importedTypes('a <time datetime="2026-12-24">x</time> b')).toContain("phxtime");
+  expect(importedTypes("a [rot]{color=red} b").filter((t) => t === "text").length).toBe(3);
+});

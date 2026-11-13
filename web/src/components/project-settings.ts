@@ -1,5 +1,5 @@
 import { LitElement, css, html } from "lit";
-import { ApiError, api, shareURL, type Member, type Org, type Project, type ProjectGroup, type Group, type OrgDetail, type ShareLink } from "../api";
+import { ApiError, api, projectFeatures, shareURL, type Member, type Org, type Project, type ProjectGroup, type Group, type OrgDetail, type ShareLink } from "../api";
 import { applyProjectColor } from "../color";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
@@ -227,7 +227,7 @@ export class PhxProjectSettings extends LitElement {
     try {
       const p = await api<Project>("PATCH", `/projects/${this.project}`, {
         name: f.get("name"), description: f.get("description"), primaryColor: f.get("color"), aiWriteMode: f.get("mode"), short: this.p?.short,
-        mainLocale: f.get("main") ?? "", locales: f.get("main") ? f.getAll("locales") : [],
+        mainLocale: f.get("main") ?? "", locales: f.get("main") ? f.getAll("locales") : [], features: f.getAll("features"),
       });
       this.p = { ...p, role: this.p?.role ?? "owner" };
       currentProject.set(this.p);
@@ -272,6 +272,11 @@ export class PhxProjectSettings extends LitElement {
             <option value="suggest" ?selected=${p.aiWriteMode === "suggest"}>${t("settings.ai_mode.suggest")}</option>
             <option value="direct" ?selected=${p.aiWriteMode === "direct"}>${t("settings.ai_mode.direct")}</option>
           </select></label>
+        <fieldset class="langs" ?disabled=${!owner}>
+          <legend>${t("settings.features")}</legend>
+          <p class="muted">${t("settings.features_hint")}</p>
+          <div class="checks">${projectFeatures.map((x) => html`<label><input type="checkbox" name="features" value=${x} ?checked=${p.features.includes(x)}> ${t(`feature.${x}` as any)}</label>`)}</div>
+        </fieldset>
         <fieldset class="langs" ?disabled=${!owner}>
           <legend>${t("settings.languages")}</legend>
           <p class="muted">${t("settings.languages_hint")}</p>

@@ -50,3 +50,25 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: va
   :root:not([data-theme="light"]) [data-pc] { --accent: var(--pd); --accent-soft: color-mix(in srgb, var(--pd) 20%, var(--surface)); }
 }
 :root[data-theme="dark"] [data-pc] { --accent: var(--pd); --accent-soft: color-mix(in srgb, var(--pd) 20%, var(--surface)); }
+
+/* Text colors and highlights in pages (ADR-0031): [text]{color=red bg=yellow}. */
+:root {
+  --tc-gray: #6b6159; --tc-red: #b4372f; --tc-orange: #b84a0c; --tc-yellow: #8a6a00;
+  --tc-green: #2c8a4b; --tc-blue: #2f5bc0; --tc-purple: #7a3eb8; --tc-pink: #b0306f;
+  --tb-gray: #ebe7e3; --tb-red: #f9dedb; --tb-orange: #fbe4d4; --tb-yellow: #f8ecbf;
+  --tb-green: #dcefe1; --tb-blue: #dde6f8; --tb-purple: #ebe0f6; --tb-pink: #f7dde9;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --tc-gray: #a69b92; --tc-red: #ef7a70; --tc-orange: #f5904f; --tc-yellow: #e9c75b;
+    --tc-green: #6fcf8c; --tc-blue: #8aa8f5; --tc-purple: #c29bf0; --tc-pink: #ef8fbd;
+    --tb-gray: #2e2824; --tb-red: #3f201d; --tb-orange: #3d2416; --tb-yellow: #3a3115;
+    --tb-green: #1d3324; --tb-blue: #1e2a44; --tb-purple: #2f2240; --tb-pink: #3c1f2e;
+  }
+}
+:root[data-theme="dark"] {
+  --tc-gray: #a69b92; --tc-red: #ef7a70; --tc-orange: #f5904f; --tc-yellow: #e9c75b;
+  --tc-green: #6fcf8c; --tc-blue: #8aa8f5; --tc-purple: #c29bf0; --tc-pink: #ef8fbd;
+  --tb-gray: #2e2824; --tb-red: #3f201d; --tb-orange: #3d2416; --tb-yellow: #3a3115;
+  --tb-green: #1d3324; --tb-blue: #1e2a44; --tb-purple: #2f2240; --tb-pink: #3c1f2e;
+}

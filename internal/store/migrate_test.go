@@ -41,7 +41,12 @@ func TestEntitySlugMigration(t *testing.T) {
 				t.Fatal(err)
 			}
 			u, _ := old.CreateUser(ctx, User{ID: id(), Email: "m@y.de", Name: "M"})
-			p, _ := old.CreateProject(ctx, Project{ID: id(), Slug: "p", Name: "P", Short: "P", PrimaryColor: "#F26A1B", AIWriteMode: "suggest", OwnerID: u.ID})
+			// Columns as of migration 8 (the current CreateProject writes newer ones).
+			p := Project{ID: id(), Slug: "p", Name: "P", Short: "P", PrimaryColor: "#F26A1B", AIWriteMode: "suggest", OwnerID: u.ID}
+			if _, err := old.Exec(ctx, `INSERT INTO projects (id, tenant_id, owner_id, slug, name, short, description, primary_color, ai_write_mode) VALUES (?, ?, ?, ?, ?, ?, '', ?, ?)`,
+				p.ID, TenantOf(ctx), p.OwnerID, p.Slug, p.Name, p.Short, p.PrimaryColor, p.AIWriteMode); err != nil {
+				t.Fatal(err)
+			}
 			a, _, _ := old.UpsertEntity(ctx, Entity{ID: id(), ProjectID: p.ID, Kind: "router", Slug: "router", Name: "Router", Attrs: JSON(`{}`), Source: "manual"})
 			b, _, _ := old.UpsertEntity(ctx, Entity{ID: id(), ProjectID: p.ID, Kind: "server", Slug: "nas", Name: "NAS", Attrs: JSON(`{}`), Source: "manual"})
 			if _, err := old.LinkEntities(ctx, Edge{ID: id(), From: b.ID, Rel: "uplink", To: a.ID, Attrs: JSON(`{}`), Source: "manual"}); err != nil {
