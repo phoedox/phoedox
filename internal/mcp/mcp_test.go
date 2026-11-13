@@ -87,6 +87,18 @@ func TestMCPTools(t *testing.T) {
 	if !strings.Contains(doc, "Dockerfile und CI mitziehen.") || !strings.Contains(doc, "Immer die aktuelle stabile") || !strings.Contains(doc, `"version": 2`) {
 		t.Fatalf("decision update lost fields: %s", doc)
 	}
+	if !strings.Contains(doc, `"ref": "ADR-0001"`) {
+		t.Fatalf("decision ref missing: %s", doc)
+	}
+	call("create_decision", map[string]any{"project": "phoedox", "title": "Go 1.27", "status": "accepted",
+		"decision": "go 1.27.0 mit toolchain-Pin.", "supersedes": "ADR-0001"})
+	old := call("get_document", map[string]any{"project": "phoedox", "document": "adr-1"})
+	if !strings.Contains(old, `"status": "superseded"`) || !strings.Contains(old, `"supersededBy": "go-1-27"`) {
+		t.Fatalf("older decision not superseded: %s", old)
+	}
+	if log := call("list_decisions", map[string]any{"project": "phoedox", "status": "accepted"}); !strings.Contains(log, `"ref": "ADR-0002"`) || strings.Contains(log, "ADR-0001") {
+		t.Fatalf("list_decisions: %s", log)
+	}
 	call("create_document", map[string]any{"project": "phoedox", "title": "Architektur", "category": "Technik", "markdown": "Der @go-server …"})
 	call("upsert_entity", map[string]any{"project": "phoedox", "kind": "service", "name": "Go-Server", "attrs": map[string]any{"lang": "go"}})
 	call("create_link", map[string]any{"project": "phoedox", "title": "Riverpod", "url": "https://riverpod.dev"})

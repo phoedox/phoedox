@@ -115,3 +115,11 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 | Client-IP | `X-Forwarded-For` nur mit `PHOEDOX_BEHIND_PROXY=true` vertrauen – sonst ließe sich das Login-Limit per Header umgehen. |
 | Cookies | Standard `Secure`; `PHOEDOX_INSECURE_COOKIES=true` nur für HTTP ohne TLS. |
 | Zeiten in JSON | Nicht gesetzte Zeiten (z. B. „Token nie benutzt“) als `null`, nicht als Jahr 1. |
+
+## Entscheidungen (ADRs)
+
+| Bereich | Entscheidung |
+|---|---|
+| Nummern | Pro Projekt fortlaufend (`ADR-0001`), vergeben vom Server über einen Zähler am Projekt (`adr_seq`), nie wiederverwendet – auch nicht nach dem Löschen. Bestehende Entscheidungen wurden beim Update nach Anlagedatum nummeriert. Überall, wo ein Dokument erwartet wird, gilt auch `ADR-0003`, `adr-3` oder `ADR3`. |
+| Ersetzen | `supersedes` (Slug oder Nummer) setzt die ältere Entscheidung im selben Schritt auf „Ersetzt“ und trägt `supersededBy` ein – in einer Transaktion, mit Konfliktprüfung. `supersededBy` pflegt nur der Server. Umbenennen eines Slugs zieht die Verweise in beide Richtungen nach. Bei KI-Vorschlägen passiert das erst beim Annehmen. |
+| Übersicht | Eigene Seite pro Projekt mit Statusfilter (`?status=`), MCP-Werkzeug `list_decisions`, REST `GET /projects/{p}/decisions`. |

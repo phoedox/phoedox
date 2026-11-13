@@ -3,7 +3,12 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/url"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/phoedox/phoedox/internal/graph"
@@ -20,6 +25,73 @@ type ADR struct {
 	Consequences string   `json:"consequences,omitempty"`
 	Alternatives string   `json:"alternatives,omitempty"`
 	Supersedes   string   `json:"supersedes,omitempty"` // slug of an older decision
+	// SupersededBy is maintained by the server: the slug of the decision
+	// that replaced this one. Input values are ignored.
+	SupersededBy string `json:"supersededBy,omitempty"`
+}
+
+// DecisionRef formats a decision number, e.g. ADR-0007.
+func DecisionRef(n int) string { return fmt.Sprintf("ADR-%04d", n) }
+
+// adrRef matches decision references like ADR-0007, adr-7 or ADR7.
+var adrRef = regexp.MustCompile(`(?i)^adr-?0*([1-9][0-9]*)$`)
+
+// findDoc resolves a document by id, slug or decision reference (ADR-0007).
+func (s *Service) findDoc(ctx context.Context, projectID, ref string) (store.Document, error) {
+	ref = strings.TrimSpace(ref)
+	doc, err := s.DB.GetDocument(ctx, projectID, ref)
+	if errors.Is(err, store.ErrNotFound) {
+		if m := adrRef.FindStringSubmatch(ref); m != nil {
+			n, _ := strconv.Atoi(m[1])
+			return s.DB.GetDecision(ctx, projectID, n)
+		}
+	}
+	return doc, err
+}
+
+// decisionLinks validates adr.Supersedes, normalises it to the target's slug
+// and returns the decisions that change together with this one: the one it
+// supersedes (marked as superseded) and, after a slug change from oldSlug,
+// the one that supersedes it (pointed to the new slug).
+func (s *Service) decisionLinks(ctx context.Context, p store.Project, adr *ADR, selfID, selfSlug, oldSlug string) ([]store.Document, error) {
+	var related []store.Document
+	adr.Supersedes = strings.TrimSpace(adr.Supersedes)
+	if ref := adr.Supersedes; ref != "" {
+		target, err := s.findDoc(ctx, p.ID, ref)
+		if errors.Is(err, store.ErrNotFound) {
+			return nil, invalid("validation.adr_supersedes_not_found", map[string]any{"ref": ref}, "decision %q to supersede not found", ref)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if target.Type != store.DocADR {
+			return nil, invalid("validation.adr_supersedes_type", map[string]any{"ref": ref}, "%q is not a decision", ref)
+		}
+		if target.ID == selfID {
+			return nil, invalid("validation.adr_supersedes_self", nil, "a decision cannot supersede itself")
+		}
+		adr.Supersedes = target.Slug
+		var old ADR
+		_ = json.Unmarshal(target.Content, &old)
+		if old.Status != "superseded" || old.SupersededBy != selfSlug {
+			old.Status, old.SupersededBy = "superseded", selfSlug
+			target.Content, _ = json.Marshal(old)
+			related = append(related, target)
+		}
+	}
+	if oldSlug != "" && oldSlug != selfSlug && adr.SupersededBy != "" {
+		newer, err := s.DB.GetDocument(ctx, p.ID, adr.SupersededBy)
+		if err == nil && newer.Type == store.DocADR && newer.ID != selfID && (len(related) == 0 || related[0].ID != newer.ID) {
+			var n ADR
+			_ = json.Unmarshal(newer.Content, &n)
+			if n.Supersedes == oldSlug {
+				n.Supersedes = selfSlug
+				newer.Content, _ = json.Marshal(n)
+				related = append(related, newer)
+			}
+		}
+	}
+	return related, nil
 }
 
 // Link is the content of an external link document.
@@ -113,7 +185,7 @@ func (s *Service) Document(ctx context.Context, a Actor, ref, docRef string) (st
 	if err != nil {
 		return store.Document{}, err
 	}
-	return s.DB.GetDocument(ctx, p.ID, docRef)
+	return s.findDoc(ctx, p.ID, docRef)
 }
 
 // Versions lists the history of a document.
@@ -144,6 +216,14 @@ func (s *Service) CreateDocument(ctx context.Context, a Actor, ref string, in Do
 	if _, _, err := content(in.Type, in.Markdown, in.ADR, in.Link); err != nil {
 		return DocResult{}, err
 	}
+	if in.Type == store.DocADR {
+		adr := *in.ADR
+		in.ADR = &adr
+		in.ADR.SupersededBy = ""
+		if _, err := s.decisionLinks(ctx, p, in.ADR, "", in.Slug, ""); err != nil {
+			return DocResult{}, err
+		}
+	}
 	if sug, ok, err := s.maybeSuggest(ctx, a, p, "document.create", "Neues Dokument „"+in.Title+"“", opPayload{Project: p.ID, Create: &in}); ok || err != nil {
 		return DocResult{Suggestion: sug}, err
 	}
@@ -151,18 +231,36 @@ func (s *Service) CreateDocument(ctx context.Context, a Actor, ref string, in Do
 }
 
 func (s *Service) createDocument(ctx context.Context, a Actor, p store.Project, in DocumentInput) (DocResult, error) {
+	var related []store.Document
+	if in.Type == store.DocADR && in.ADR != nil {
+		adr := *in.ADR
+		adr.SupersededBy = ""
+		in.ADR = &adr
+		var err error
+		if related, err = s.decisionLinks(ctx, p, in.ADR, "", in.Slug, ""); err != nil {
+			return DocResult{}, err
+		}
+	}
 	c, text, err := content(in.Type, in.Markdown, in.ADR, in.Link)
 	if err != nil {
 		return DocResult{}, err
 	}
 	doc, err := s.DB.CreateDocument(ctx, store.Document{ID: newID(), ProjectID: p.ID, Type: in.Type, Slug: in.Slug, Title: in.Title,
-		Category: strings.TrimSpace(in.Category), Position: in.Position, Content: c, CreatedBy: a.User.ID}, a.String())
+		Category: strings.TrimSpace(in.Category), Position: in.Position, Content: c, CreatedBy: a.User.ID}, a.String(), related...)
 	if err != nil {
 		return DocResult{}, err
 	}
 	s.linkMentions(ctx, p, doc.ID, text)
-	s.event(ctx, a, "document.create", doc.ID, map[string]string{"project": p.ID, "slug": doc.Slug})
+	s.event(ctx, a, "document.create", doc.ID, map[string]any{"project": p.ID, "slug": doc.Slug, "number": doc.Number})
+	s.relatedEvents(ctx, a, doc, related)
 	return DocResult{Applied: true, Document: &doc}, nil
+}
+
+// relatedEvents records changes to decisions that changed with doc.
+func (s *Service) relatedEvents(ctx context.Context, a Actor, doc store.Document, related []store.Document) {
+	for _, r := range related {
+		s.event(ctx, a, "decision.link", r.ID, map[string]string{"because": doc.ID})
+	}
 }
 
 // UpdateDocument applies a patch and stores a new version.
@@ -171,11 +269,11 @@ func (s *Service) UpdateDocument(ctx context.Context, a Actor, ref, docRef strin
 	if err != nil {
 		return DocResult{}, err
 	}
-	cur, err := s.DB.GetDocument(ctx, p.ID, docRef)
+	cur, err := s.findDoc(ctx, p.ID, docRef)
 	if err != nil {
 		return DocResult{}, err
 	}
-	if _, _, err := s.patched(cur, patch); err != nil {
+	if _, _, _, err := s.patched(ctx, p, cur, patch); err != nil {
 		return DocResult{}, err
 	}
 	if sug, ok, err := s.maybeSuggest(ctx, a, p, "document.update", "Änderung an „"+cur.Title+"“", opPayload{Project: p.ID, Doc: cur.ID, Patch: &patch}); ok || err != nil {
@@ -184,18 +282,19 @@ func (s *Service) UpdateDocument(ctx context.Context, a Actor, ref, docRef strin
 	return s.updateDocument(ctx, a, p, cur, patch)
 }
 
-// patched returns the document with the patch applied and the mention text.
-func (s *Service) patched(cur store.Document, patch DocumentPatch) (store.Document, string, error) {
+// patched returns the document with the patch applied, the mention text and
+// the decisions that change with it.
+func (s *Service) patched(ctx context.Context, p store.Project, cur store.Document, patch DocumentPatch) (store.Document, string, []store.Document, error) {
 	doc := cur
 	if patch.Title != nil {
 		doc.Title = strings.TrimSpace(*patch.Title)
 		if doc.Title == "" {
-			return doc, "", invalid("validation.title_required", nil, "title must not be empty")
+			return doc, "", nil, invalid("validation.title_required", nil, "title must not be empty")
 		}
 	}
 	if patch.Slug != nil {
 		if err := graph.ValidateSlug(*patch.Slug); err != nil {
-			return doc, "", invalid("validation.slug", nil, "slug: %v", err)
+			return doc, "", nil, invalid("validation.slug", nil, "slug: %v", err)
 		}
 		doc.Slug = *patch.Slug
 	}
@@ -223,7 +322,9 @@ func (s *Service) patched(cur store.Document, patch DocumentPatch) (store.Docume
 		adr = &ADR{}
 		_ = json.Unmarshal(cur.Content, adr)
 		if patch.ADR != nil {
-			adr = patch.ADR
+			next := *patch.ADR
+			next.SupersededBy = adr.SupersededBy // server-maintained
+			adr = &next
 		}
 	case store.DocLink:
 		link = &Link{}
@@ -232,22 +333,30 @@ func (s *Service) patched(cur store.Document, patch DocumentPatch) (store.Docume
 			link = patch.Link
 		}
 	}
+	var related []store.Document
+	if adr != nil {
+		var err error
+		if related, err = s.decisionLinks(ctx, p, adr, cur.ID, doc.Slug, cur.Slug); err != nil {
+			return doc, "", nil, err
+		}
+	}
 	c, text, err := content(cur.Type, md, adr, link)
 	doc.Content = c
-	return doc, text, err
+	return doc, text, related, err
 }
 
 func (s *Service) updateDocument(ctx context.Context, a Actor, p store.Project, cur store.Document, patch DocumentPatch) (DocResult, error) {
-	doc, text, err := s.patched(cur, patch)
+	doc, text, related, err := s.patched(ctx, p, cur, patch)
 	if err != nil {
 		return DocResult{}, err
 	}
-	doc, err = s.DB.UpdateDocument(ctx, doc, patch.ExpectVersion, a.String())
+	doc, err = s.DB.UpdateDocument(ctx, doc, patch.ExpectVersion, a.String(), related...)
 	if err != nil {
 		return DocResult{}, err
 	}
 	s.linkMentions(ctx, p, doc.ID, text)
 	s.event(ctx, a, "document.update", doc.ID, map[string]int{"version": doc.Version})
+	s.relatedEvents(ctx, a, doc, related)
 	return DocResult{Applied: true, Document: &doc}, nil
 }
 
@@ -257,7 +366,7 @@ func (s *Service) DeleteDocument(ctx context.Context, a Actor, ref, docRef strin
 	if err != nil {
 		return DocResult{}, err
 	}
-	cur, err := s.DB.GetDocument(ctx, p.ID, docRef)
+	cur, err := s.findDoc(ctx, p.ID, docRef)
 	if err != nil {
 		return DocResult{}, err
 	}
@@ -288,4 +397,47 @@ func (s *Service) linkMentions(ctx context.Context, p store.Project, docID, text
 		ids[i] = e.ID
 	}
 	_ = s.DB.SetDocumentLinks(ctx, docID, ids)
+}
+
+// DecisionSummary is one row of a project's decision log.
+type DecisionSummary struct {
+	Ref          string     `json:"ref"` // ADR-0007
+	Number       int        `json:"number"`
+	Slug         string     `json:"slug"`
+	Title        string     `json:"title"`
+	Status       string     `json:"status"`
+	Date         string     `json:"date,omitempty"`
+	Category     string     `json:"category,omitempty"`
+	Supersedes   string     `json:"supersedes,omitempty"`
+	SupersededBy string     `json:"supersededBy,omitempty"`
+	Version      int        `json:"version"`
+	UpdatedAt    store.Time `json:"updatedAt"`
+}
+
+// Decisions lists the decisions of a project by number, optionally only
+// those with one status.
+func (s *Service) Decisions(ctx context.Context, a Actor, ref, status string) ([]DecisionSummary, error) {
+	if status != "" && !adrStatus[status] {
+		return nil, invalid("validation.adr_status", nil, "status must be proposed, accepted, rejected, deprecated or superseded")
+	}
+	p, err := s.project(ctx, a, ref, store.RoleReader)
+	if err != nil {
+		return nil, err
+	}
+	docs, err := s.DB.ListDocuments(ctx, p.ID, store.DocFilter{Type: store.DocADR, WithContent: true})
+	if err != nil {
+		return nil, err
+	}
+	out := []DecisionSummary{}
+	for _, d := range docs {
+		var c ADR
+		_ = json.Unmarshal(d.Content, &c)
+		if status != "" && c.Status != status {
+			continue
+		}
+		out = append(out, DecisionSummary{Ref: DecisionRef(d.Number), Number: d.Number, Slug: d.Slug, Title: d.Title, Status: c.Status, Date: c.Date,
+			Category: d.Category, Supersedes: c.Supersedes, SupersededBy: c.SupersededBy, Version: d.Version, UpdatedAt: d.UpdatedAt})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Number < out[j].Number })
+	return out, nil
 }

@@ -24,17 +24,19 @@ type Document struct {
 	Category  string `json:"category"`
 	Position  int    `json:"position"`
 	Content   JSON   `json:"content,omitempty"`
+	Number    int    `json:"number,omitempty"` // decisions only, per project, never reused
 	Version   int    `json:"version"`
 	CreatedBy string `json:"createdBy"`
 	CreatedAt Time   `json:"createdAt"`
 	UpdatedAt Time   `json:"updatedAt"`
 }
 
-const docCols = `id, project_id, doc_type, slug, title, category, position, version, created_by, created_at, updated_at`
+const docCols = `id, project_id, doc_type, slug, title, category, position, version, created_by, created_at, updated_at, number`
 
 func scanDoc(r interface{ Scan(...any) error }, withContent bool) (Document, error) {
 	var doc Document
-	dest := []any{&doc.ID, &doc.ProjectID, &doc.Type, &doc.Slug, &doc.Title, &doc.Category, &doc.Position, &doc.Version, &doc.CreatedBy, &doc.CreatedAt, &doc.UpdatedAt}
+	var number sql.NullInt64
+	dest := []any{&doc.ID, &doc.ProjectID, &doc.Type, &doc.Slug, &doc.Title, &doc.Category, &doc.Position, &doc.Version, &doc.CreatedBy, &doc.CreatedAt, &doc.UpdatedAt, &number}
 	if withContent {
 		dest = append(dest, &doc.Content)
 	}
@@ -42,50 +44,85 @@ func scanDoc(r interface{ Scan(...any) error }, withContent bool) (Document, err
 	if errors.Is(err, sql.ErrNoRows) {
 		return doc, ErrNotFound
 	}
+	doc.Number = int(number.Int64)
 	return doc, err
 }
 
-// CreateDocument inserts a document and its first version.
-func (d *DB) CreateDocument(ctx context.Context, doc Document, actor string) (Document, error) {
+// CreateDocument inserts a document and its first version. Decisions get
+// the next number of their project. Related documents (e.g. a decision
+// that the new one supersedes) are saved as new versions in the same
+// transaction; each fails with ErrConflict if it changed since it was read.
+func (d *DB) CreateDocument(ctx context.Context, doc Document, actor string, related ...Document) (Document, error) {
 	now := Now()
 	doc.CreatedAt, doc.UpdatedAt, doc.Version = now, now, 1
 	err := d.InTx(ctx, func(tx *Tx) error {
-		if _, err := tx.Exec(ctx, `INSERT INTO documents (id, tenant_id, project_id, doc_type, slug, title, category, position, content, version, created_by, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, doc.ID, DefaultTenant, doc.ProjectID, doc.Type, doc.Slug, doc.Title, doc.Category, doc.Position, doc.Content, doc.Version, doc.CreatedBy, now, now); err != nil {
+		var number any
+		if doc.Type == DocADR {
+			// The UPDATE locks the project row, so concurrent creates queue up.
+			if _, err := tx.Exec(ctx, `UPDATE projects SET adr_seq = adr_seq + 1 WHERE id = ?`, doc.ProjectID); err != nil {
+				return err
+			}
+			if err := tx.QueryRow(ctx, `SELECT adr_seq FROM projects WHERE id = ?`, doc.ProjectID).Scan(&doc.Number); err != nil {
+				return err
+			}
+			number = doc.Number
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO documents (id, tenant_id, project_id, doc_type, slug, title, category, position, content, version, created_by, created_at, updated_at, number)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, doc.ID, DefaultTenant, doc.ProjectID, doc.Type, doc.Slug, doc.Title, doc.Category, doc.Position, doc.Content, doc.Version, doc.CreatedBy, now, now, number); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO document_versions (document_id, version, title, content, actor, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-			doc.ID, doc.Version, doc.Title, doc.Content, actor, now)
-		return err
+		if _, err := tx.Exec(ctx, `INSERT INTO document_versions (document_id, version, title, content, actor, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+			doc.ID, doc.Version, doc.Title, doc.Content, actor, now); err != nil {
+			return err
+		}
+		return updateRelated(ctx, tx, related, actor, now)
 	})
 	return doc, err
 }
 
 // UpdateDocument saves a new version. It fails with ErrConflict if the
-// document changed since expectVersion (0 skips the check).
-func (d *DB) UpdateDocument(ctx context.Context, doc Document, expectVersion int, actor string) (Document, error) {
+// document changed since expectVersion (0 skips the check). Related
+// documents are saved as in CreateDocument.
+func (d *DB) UpdateDocument(ctx context.Context, doc Document, expectVersion int, actor string, related ...Document) (Document, error) {
 	now := Now()
 	err := d.InTx(ctx, func(tx *Tx) error {
-		var cur int
-		if err := tx.QueryRow(ctx, `SELECT version FROM documents WHERE id = ? AND deleted_at IS NULL`, doc.ID).Scan(&cur); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return ErrNotFound
-			}
+		var err error
+		if doc, err = updateDoc(ctx, tx, doc, expectVersion, actor, now); err != nil {
 			return err
 		}
-		if expectVersion != 0 && expectVersion != cur {
-			return ErrConflict
-		}
-		doc.Version = cur + 1
-		doc.UpdatedAt = now
-		if _, err := tx.Exec(ctx, `UPDATE documents SET slug = ?, title = ?, category = ?, position = ?, content = ?, version = ?, updated_at = ? WHERE id = ?`,
-			doc.Slug, doc.Title, doc.Category, doc.Position, doc.Content, doc.Version, now, doc.ID); err != nil {
-			return err
-		}
-		_, err := tx.Exec(ctx, `INSERT INTO document_versions (document_id, version, title, content, actor, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
-			doc.ID, doc.Version, doc.Title, doc.Content, actor, now)
-		return err
+		return updateRelated(ctx, tx, related, actor, now)
 	})
+	return doc, err
+}
+
+func updateRelated(ctx context.Context, tx *Tx, related []Document, actor string, now Time) error {
+	for _, r := range related {
+		if _, err := updateDoc(ctx, tx, r, r.Version, actor, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func updateDoc(ctx context.Context, tx *Tx, doc Document, expectVersion int, actor string, now Time) (Document, error) {
+	var cur int
+	if err := tx.QueryRow(ctx, `SELECT version FROM documents WHERE id = ? AND deleted_at IS NULL`, doc.ID).Scan(&cur); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return doc, ErrNotFound
+		}
+		return doc, err
+	}
+	if expectVersion != 0 && expectVersion != cur {
+		return doc, ErrConflict
+	}
+	doc.Version = cur + 1
+	doc.UpdatedAt = now
+	if _, err := tx.Exec(ctx, `UPDATE documents SET slug = ?, title = ?, category = ?, position = ?, content = ?, version = ?, updated_at = ? WHERE id = ?`,
+		doc.Slug, doc.Title, doc.Category, doc.Position, doc.Content, doc.Version, now, doc.ID); err != nil {
+		return doc, err
+	}
+	_, err := tx.Exec(ctx, `INSERT INTO document_versions (document_id, version, title, content, actor, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		doc.ID, doc.Version, doc.Title, doc.Content, actor, now)
 	return doc, err
 }
 
@@ -95,16 +132,29 @@ func (d *DB) GetDocument(ctx context.Context, projectID, ref string) (Document, 
 		WHERE project_id = ? AND (id = ? OR slug = ?) AND deleted_at IS NULL`, projectID, ref, ref), true)
 }
 
+// GetDecision returns a decision of a project by its number, with content.
+func (d *DB) GetDecision(ctx context.Context, projectID string, number int) (Document, error) {
+	return scanDoc(d.QueryRow(ctx, `SELECT `+docCols+`, content FROM documents
+		WHERE project_id = ? AND number = ? AND deleted_at IS NULL`, projectID, number), true)
+}
+
 // DocFilter narrows ListDocuments.
 type DocFilter struct {
 	Type     string
 	Category string
+	// WithContent includes the content of all documents. Otherwise only
+	// link documents carry it (the sidebar needs their URL).
+	WithContent bool
 }
 
-// ListDocuments returns documents ordered for the sidebar. Content is only
-// included for link documents (the sidebar needs their URL).
+// ListDocuments returns documents ordered for the sidebar: by category,
+// position, decision number and title.
 func (d *DB) ListDocuments(ctx context.Context, projectID string, f DocFilter) ([]Document, error) {
-	query := `SELECT ` + docCols + `, CASE WHEN doc_type = 'link' THEN content ELSE NULL END FROM documents WHERE project_id = ? AND deleted_at IS NULL`
+	contentCol := `CASE WHEN doc_type = 'link' THEN content ELSE NULL END`
+	if f.WithContent {
+		contentCol = `content`
+	}
+	query := `SELECT ` + docCols + `, ` + contentCol + ` FROM documents WHERE project_id = ? AND deleted_at IS NULL`
 	args := []any{projectID}
 	if f.Type != "" {
 		query += ` AND doc_type = ?`
@@ -114,7 +164,7 @@ func (d *DB) ListDocuments(ctx context.Context, projectID string, f DocFilter) (
 		query += ` AND category = ?`
 		args = append(args, f.Category)
 	}
-	rows, err := d.Query(ctx, query+` ORDER BY category, position, title`, args...)
+	rows, err := d.Query(ctx, query+` ORDER BY category, position, COALESCE(number, 0), title`, args...)
 	if err != nil {
 		return nil, err
 	}

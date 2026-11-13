@@ -1,6 +1,6 @@
 import { LitElement, css, html, unsafeCSS } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import { ApiError, api, type Doc } from "../api";
+import { ApiError, adrRef, api, type Decision, type Doc } from "../api";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
 import { renderMarkdown } from "../md";
@@ -18,17 +18,21 @@ export const prose = `
 `;
 
 export class PhxDocView extends LitElement {
-  static properties = { project: {}, docSlug: {}, doc: { state: true }, error: { state: true }, confirming: { state: true } };
+  static properties = { project: {}, docSlug: {}, doc: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true } };
   static styles = [base, unsafeCSS(prose), css`
     header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 14px; }
     .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
     section { margin-top: 18px; }
     section h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-family: var(--font-body); margin-bottom: 4px; }
-    .status-accepted { color: var(--good); } .status-rejected, .status-deprecated, .status-superseded { color: var(--bad); }
+    .notice { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 14px; margin: 0 0 16px; border-radius: 8px;
+      background: var(--surface2); border-left: 3px solid var(--accent); font-size: 14px; }
+    .ref { font-family: var(--font-mono); font-size: 13px; }
   `];
   project = "";
   docSlug = "";
   doc?: Doc;
+  /** Other decisions by slug, to show numbers and titles of linked ones. */
+  related = new Map<string, Decision>();
   error = "";
   confirming = false;
   private loaded = "";
@@ -40,7 +44,12 @@ export class PhxDocView extends LitElement {
       this.doc = undefined;
       this.confirming = false;
       try {
-        this.doc = await api<Doc>("GET", `/projects/${this.project}/documents/${this.docSlug}`);
+        const doc = await api<Doc>("GET", `/projects/${this.project}/documents/${this.docSlug}`);
+        if (doc.type === "adr" && (doc.content?.supersedes || doc.content?.supersededBy)) {
+          const all = await api<Decision[]>("GET", `/projects/${this.project}/decisions`).catch(() => []);
+          this.related = new Map(all.map((d) => [d.slug, d]));
+        }
+        this.doc = doc;
       } catch (e) {
         this.error = e instanceof ApiError ? e.text : t("error.unknown");
       }
@@ -66,7 +75,13 @@ export class PhxDocView extends LitElement {
       md ? html`<section><h2>${t(key)}</h2><div class="prose">${unsafeHTML(renderMarkdown(md, this.project))}</div></section>` : "";
     return html`
       ${part("adr.context", c.context)}${part("adr.decision", c.decision)}${part("adr.consequences", c.consequences)}${part("adr.alternatives", c.alternatives)}
-      ${c.supersedes ? html`<p class="muted">${t("adr.supersedes")}: <a href="/p/${this.project}/d/${c.supersedes}">${c.supersedes}</a></p>` : ""}`;
+      ${c.supersedes ? html`<p class="muted">${t("adr.supersedes")}: ${this.decisionLink(c.supersedes)}</p>` : ""}`;
+  }
+
+  /** Link to another decision as "ADR-0003 Title" (slug if unknown). */
+  private decisionLink(slug: string) {
+    const d = this.related.get(slug);
+    return html`<a href="/p/${this.project}/d/${slug}">${d ? html`<span class="ref">${d.ref}</span> ${d.title}` : slug}</a>`;
   }
 
   render() {
@@ -79,6 +94,7 @@ export class PhxDocView extends LitElement {
         <div>
           <h1>${d.title}</h1>
           <div class="meta">
+            ${d.number ? html`<span class="chip ref">${adrRef(d.number)}</span>` : ""}
             <span class="chip">${t(`doc.type.${d.type}` as any)}</span>
             ${d.type === "adr" ? html`<span class="chip status-${c.status}">${t(`adr.status.${c.status}` as any)}</span>${c.date ? html`<span class="chip">${c.date}</span>` : ""}` : ""}
             <span class="chip">${t("doc.version", { version: d.version })}</span>
@@ -92,6 +108,8 @@ export class PhxDocView extends LitElement {
             : html`<button class="danger" @click=${() => (this.confirming = true)}>${icon("Trash2", 14)} ${t("doc.delete")}</button>`}
         </div>
       </header>
+      ${d.type === "adr" && c.status === "superseded" && c.supersededBy
+        ? html`<p class="notice" role="note">${t("adr.superseded_notice")} ${t("adr.superseded_by")}: ${this.decisionLink(c.supersededBy)}</p>` : ""}
       ${this.body(d)}
     </article>`;
   }

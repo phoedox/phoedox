@@ -45,7 +45,17 @@ export interface Project {
 export interface Doc {
   id: string; projectId: string; type: "markdown" | "adr" | "link"; slug: string; title: string;
   category: string; position: number; version: number; updatedAt: string; content?: any;
+  /** Decisions only: per-project number, never reused. */
+  number?: number;
 }
+export type DecisionStatus = "proposed" | "accepted" | "rejected" | "deprecated" | "superseded";
+export const decisionStatuses: readonly DecisionStatus[] = ["proposed", "accepted", "rejected", "deprecated", "superseded"];
+export interface Decision {
+  ref: string; number: number; slug: string; title: string; status: DecisionStatus; date?: string;
+  category?: string; supersedes?: string; supersededBy?: string; version: number; updatedAt: string;
+}
+/** Formats a decision number like the server: ADR-0007. */
+export const adrRef = (n: number) => `ADR-${String(n).padStart(4, "0")}`;
 export interface Entity { id: string; kind: string; slug: string; name: string; attrs: Record<string, unknown> }
 export interface Edge { id: string; from: string; rel: string; to: string; fromName: string; toName: string }
 export interface Suggestion { id: string; actor: string; op: string; summary: string; status: string; createdAt: string }

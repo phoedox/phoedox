@@ -38,6 +38,8 @@ export const base = css`
   .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
   .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 2px 9px; border-radius: 999px; background: var(--surface2); color: var(--muted); }
   .error { color: var(--bad); font-size: 13px; }
+  .status-accepted { color: var(--good); }
+  .status-rejected, .status-deprecated, .status-superseded { color: var(--bad); }
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
   /* Content swap between documents (tens of times a day): barely-there fade. */

@@ -16,7 +16,7 @@ type projectRef struct {
 
 type docRef struct {
 	Project  string `json:"project" jsonschema:"project slug"`
-	Document string `json:"document" jsonschema:"document slug or id"`
+	Document string `json:"document" jsonschema:"document slug, id or decision number like ADR-0003"`
 }
 
 type createProjectIn struct {
@@ -69,7 +69,17 @@ type decisionFields struct {
 	Decision     string   `json:"decision,omitempty" jsonschema:"what was decided, Markdown"`
 	Consequences string   `json:"consequences,omitempty" jsonschema:"Markdown"`
 	Alternatives string   `json:"alternatives,omitempty" jsonschema:"considered options, Markdown"`
-	Supersedes   string   `json:"supersedes,omitempty" jsonschema:"slug of the decision this one replaces"`
+	Supersedes   string   `json:"supersedes,omitempty" jsonschema:"slug or number (ADR-0003) of the decision this one replaces; it is marked superseded automatically"`
+}
+
+func (f decisionFields) adr() core.ADR {
+	return core.ADR{Status: f.Status, Date: f.Date, Deciders: f.Deciders, Context: f.Context, Decision: f.Decision,
+		Consequences: f.Consequences, Alternatives: f.Alternatives, Supersedes: f.Supersedes}
+}
+
+type listDecisionsIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Status  string `json:"status,omitempty" jsonschema:"only decisions with this status: proposed, accepted, rejected, deprecated or superseded"`
 }
 
 type createDecisionIn struct {
@@ -82,7 +92,7 @@ type createDecisionIn struct {
 
 type updateDecisionIn struct {
 	Project       string  `json:"project" jsonschema:"project slug"`
-	Document      string  `json:"document" jsonschema:"decision slug or id"`
+	Document      string  `json:"document" jsonschema:"decision slug, id or number like ADR-0003"`
 	Title         *string `json:"title,omitempty"`
 	Category      *string `json:"category,omitempty"`
 	ExpectVersion int     `json:"expect_version,omitempty"`
@@ -161,6 +171,7 @@ type projectOverview struct {
 }
 
 type docSummary struct {
+	Ref     string `json:"ref,omitempty"` // ADR-0003 for decisions
 	Slug    string `json:"slug"`
 	Title   string `json:"title"`
 	Type    string `json:"type"`
@@ -170,13 +181,21 @@ type docSummary struct {
 // docView is a document with decoded content for AI clients.
 type docView struct {
 	store.Document
-	Content any `json:"content"`
+	Ref     string `json:"ref,omitempty"`
+	Content any    `json:"content"`
 }
 
 func view(d store.Document) docView {
 	var c any
 	_ = json.Unmarshal(d.Content, &c)
-	return docView{Document: d, Content: c}
+	return docView{Document: d, Ref: decisionRef(d), Content: c}
+}
+
+func decisionRef(d store.Document) string {
+	if d.Type != store.DocADR || d.Number == 0 {
+		return ""
+	}
+	return core.DecisionRef(d.Number)
 }
 
 func registerTools(s *sdk.Server, svc *core.Service) {
@@ -198,7 +217,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 			if cat == "" {
 				cat = "(ohne Kategorie)"
 			}
-			ov.Categories[cat] = append(ov.Categories[cat], docSummary{d.Slug, d.Title, d.Type, d.Version})
+			ov.Categories[cat] = append(ov.Categories[cat], docSummary{Ref: decisionRef(d), Slug: d.Slug, Title: d.Title, Type: d.Type, Version: d.Version})
 		}
 		ents, err := svc.Entities(ctx, a, p.Slug, "")
 		if err != nil {
@@ -253,8 +272,11 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		if in.Category == "" {
 			in.Category = "Entscheidungen"
 		}
-		adr := core.ADR(in.decisionFields)
+		adr := in.adr()
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocADR, Title: in.Title, Slug: in.Slug, Category: in.Category, ADR: &adr})
+	})
+	tool(s, "list_decisions", "The decision log of a project: number (ADR-0003), title, status, date and which decision supersedes which, ordered by number.", func(ctx context.Context, a core.Actor, in listDecisionsIn) (any, error) {
+		return svc.Decisions(ctx, a, in.Project, in.Status)
 	})
 	tool(s, "update_decision", "Update a decision. Given fields replace the current ones, others stay.", func(ctx context.Context, a core.Actor, in updateDecisionIn) (any, error) {
 		cur, err := svc.Document(ctx, a, in.Project, in.Document)

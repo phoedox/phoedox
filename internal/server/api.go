@@ -56,6 +56,7 @@ func (a *api) routes(r chi.Router) {
 			r.Patch("/documents/{d}", a.updateDocument)
 			r.Delete("/documents/{d}", a.deleteDocument)
 			r.Get("/documents/{d}/versions", a.listVersions)
+			r.Get("/decisions", a.listDecisions)
 			r.Get("/entities", a.listEntities)
 			r.Post("/entities", a.upsertEntity)
 			r.Get("/entities/{e}", a.getEntity)
@@ -198,6 +199,11 @@ func (a *api) setMember(w http.ResponseWriter, r *http.Request) {
 func (a *api) listDocuments(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	ds, err := a.core.Documents(r.Context(), actorOf(r), chi.URLParam(r, "p"), store.DocFilter{Type: q.Get("type"), Category: q.Get("category")})
+	respond(w, ds, err)
+}
+
+func (a *api) listDecisions(w http.ResponseWriter, r *http.Request) {
+	ds, err := a.core.Decisions(r.Context(), actorOf(r), chi.URLParam(r, "p"), r.URL.Query().Get("status"))
 	respond(w, ds, err)
 }
 

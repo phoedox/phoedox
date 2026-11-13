@@ -216,3 +216,56 @@ func TestTimeJSONZeroIsNull(t *testing.T) {
 		t.Fatalf("got %s, %v", b, err)
 	}
 }
+
+func TestDecisionNumbers(t *testing.T) {
+	for name, d := range testDBs(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			u, err := d.CreateUser(ctx, User{ID: id(), Email: "a@b.de", Name: "A"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			p, err := d.CreateProject(ctx, Project{ID: id(), Slug: "p", Name: "P", Short: "P", PrimaryColor: "#F26A1B", AIWriteMode: "suggest", OwnerID: u.ID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			mk := func(typ, slug string) Document {
+				doc, err := d.CreateDocument(ctx, Document{ID: id(), ProjectID: p.ID, Type: typ, Slug: slug, Title: slug, Content: JSON(`{}`), CreatedBy: u.ID}, "test")
+				if err != nil {
+					t.Fatal(err)
+				}
+				return doc
+			}
+			a, page, b := mk(DocADR, "a"), mk(DocMarkdown, "page"), mk(DocADR, "b")
+			if a.Number != 1 || page.Number != 0 || b.Number != 2 {
+				t.Fatalf("numbers: %d %d %d", a.Number, page.Number, b.Number)
+			}
+			if got, err := d.GetDecision(ctx, p.ID, 2); err != nil || got.ID != b.ID || got.Number != 2 {
+				t.Fatalf("GetDecision: %v %+v", err, got)
+			}
+			if err := d.DeleteDocument(ctx, b.ID); err != nil {
+				t.Fatal(err)
+			}
+			if c := mk(DocADR, "c"); c.Number != 3 {
+				t.Fatalf("number reused: %d", c.Number)
+			}
+
+			// a stale related document rolls back the whole change
+			a.Title = "a2"
+			stale := page
+			stale.Version = 7
+			if _, err := d.UpdateDocument(ctx, a, 0, "test", stale); !errors.Is(err, ErrConflict) {
+				t.Fatalf("stale related: %v", err)
+			}
+			if got, _ := d.GetDocument(ctx, p.ID, a.ID); got.Title != "a" || got.Version != 1 {
+				t.Fatalf("not rolled back: %+v", got)
+			}
+			if _, err := d.UpdateDocument(ctx, a, 0, "test", page); err != nil {
+				t.Fatal(err)
+			}
+			if got, _ := d.GetDocument(ctx, p.ID, page.ID); got.Version != 2 {
+				t.Fatalf("related not saved: v%d", got.Version)
+			}
+		})
+	}
+}

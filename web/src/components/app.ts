@@ -25,6 +25,13 @@ export class PhxApp extends SignalWatcher(LitElement) {
     nav a, nav button { font-size: 13px; }
     nav a { color: var(--muted); text-decoration: none; display: inline-flex; gap: 6px; align-items: center; padding: 6px 8px; border-radius: 6px; }
     @media (hover: hover) and (pointer: fine) { nav a:hover { color: var(--fg); } }
+    .crumb { min-width: 0; } .crumb .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* Phones: icons only in the bar, the labels stay as accessible names. */
+    @media (max-width: 700px) {
+      header { gap: 10px; padding: 10px 12px; }
+      .brand .word, nav .lbl { display: none; }
+      nav { gap: 2px; }
+    }
   `];
   ready = false;
 
@@ -60,12 +67,12 @@ export class PhxApp extends SignalWatcher(LitElement) {
     return html`
       ${user
         ? html`<header>
-            <a class="brand" href="/"><img src="/logo.svg" alt="" />Phoedox</a>
-            ${inProject && p ? html`<a class="crumb" href="/p/${p.slug}"><span class="pi">${p.short}</span>${p.name}</a>` : ""}
+            <a class="brand" href="/"><img src="/logo.svg" alt="" /><span class="word">Phoedox</span></a>
+            ${inProject && p ? html`<a class="crumb" href="/p/${p.slug}"><span class="pi">${p.short}</span><span class="name">${p.name}</span></a>` : ""}
             <nav>
-              <a href="/">${icon("FolderOpen", 15)} ${t("nav.projects")}</a>
-              <a href="/settings/tokens">${icon("KeyRound", 15)} ${t("nav.tokens")}</a>
-              <button class="ghost" @click=${this.logout}>${icon("LogOut", 15)} ${t("nav.logout")}</button>
+              <a href="/" aria-label=${t("nav.projects")}>${icon("FolderOpen", 15)} <span class="lbl">${t("nav.projects")}</span></a>
+              <a href="/settings/tokens" aria-label=${t("nav.tokens")}>${icon("KeyRound", 15)} <span class="lbl">${t("nav.tokens")}</span></a>
+              <button class="ghost" @click=${this.logout} aria-label=${t("nav.logout")}>${icon("LogOut", 15)} <span class="lbl">${t("nav.logout")}</span></button>
             </nav>
           </header>`
         : ""}

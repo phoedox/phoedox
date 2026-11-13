@@ -1,7 +1,7 @@
 import { Routes } from "@lit-labs/router";
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
-import { api, type Doc, type Project } from "../api";
+import { adrRef, api, type Doc, type Project } from "../api";
 import { applyProjectColor } from "../color";
 import { t } from "../i18n";
 import { icon } from "../icon";
@@ -9,6 +9,7 @@ import { currentProject, docsVersion } from "../state";
 import { base } from "./shared";
 import "./doc-view";
 import "./doc-form";
+import "./decisions";
 import "./entity-view";
 import "./suggestions";
 import "./project-settings";
@@ -28,6 +29,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     aside a.on { background: var(--accent-soft); color: var(--fg); }
     @media (hover: hover) and (pointer: fine) { aside a:hover { background: var(--surface2); color: var(--fg); } }
     aside a .ext { margin-left: auto; opacity: .7; }
+    aside a .num { margin-left: auto; font-family: var(--font-mono); font-size: 11px; opacity: .8; }
     .tools { margin-top: auto; display: flex; flex-direction: column; gap: 1px; }
     main { padding: 24px 32px 60px; min-width: 0; }
     @media (max-width: 800px) { :host { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--line); } main { padding: 18px 16px; } }
@@ -43,6 +45,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "d/:doc", render: ({ doc }) => html`<phx-doc-view .project=${this.slug} .docSlug=${doc!}></phx-doc-view>` },
     { path: "new/:type", render: ({ type }) => html`<phx-doc-form .project=${this.slug} .type=${type!}></phx-doc-form>` },
     { path: "e/:entity", render: ({ entity }) => html`<phx-entity-view .project=${this.slug} .entity=${entity!}></phx-entity-view>` },
+    { path: "decisions", render: () => html`<phx-decisions .project=${this.slug}></phx-decisions>` },
     { path: "suggestions", render: () => html`<phx-suggestions .project=${this.slug}></phx-suggestions>` },
     { path: "settings", render: () => html`<phx-project-settings .project=${this.slug}></phx-project-settings>` },
   ], { fallback: { render: () => this.overview() } });
@@ -91,12 +94,13 @@ export class PhxProject extends SignalWatcher(LitElement) {
     const canEdit = ["editor", "owner"].includes(currentProject.get()?.role ?? "");
     return html`
       <aside aria-label=${t("nav.projects")}>
-        <div class="grp"><a href="/p/${this.slug}" class=${here === `/p/${this.slug}` ? "on" : ""}>${icon("House", 15)} ${t("project.overview")}</a></div>
+        <div class="grp"><a href="/p/${this.slug}" class=${here === `/p/${this.slug}` ? "on" : ""}>${icon("House", 15)} ${t("project.overview")}</a>
+          <a href="/p/${this.slug}/decisions" class=${here === `/p/${this.slug}/decisions` ? "on" : ""}>${icon("ListChecks", 15)} ${t("nav.decisions")}</a></div>
         ${[...groups].map(([cat, docs]) => html`<div class="grp">
           <div class="lbl">${cat || t("nav.uncategorized")}</div>
           ${docs.map((d) => d.type === "link" && d.content?.url
             ? html`<a href=${d.content.url} target="_blank" rel="noopener external" title=${t("nav.external")}>${icon("Link", 15)} ${d.title}<span class="ext">${icon("ExternalLink", 13)}</span></a>`
-            : html`<a href="/p/${this.slug}/d/${d.slug}" class=${here.startsWith(`/p/${this.slug}/d/${d.slug}`) ? "on" : ""}>${icon(typeIcon[d.type], 15)} ${d.title}</a>`)}
+            : html`<a href="/p/${this.slug}/d/${d.slug}" class=${here.startsWith(`/p/${this.slug}/d/${d.slug}`) ? "on" : ""}>${icon(typeIcon[d.type], 15)} ${d.title}${d.number ? html`<span class="num" title=${adrRef(d.number)}>${String(d.number).padStart(4, "0")}</span>` : ""}</a>`)}
         </div>`)}
         <div class="tools">
           ${canEdit ? html`
