@@ -407,7 +407,6 @@ func (d *DB) boolTrue() string {
 	return "1"
 }
 
-
 // ShareLink gives read access without an account.
 type ShareLink struct {
 	ID         string `json:"id"`
