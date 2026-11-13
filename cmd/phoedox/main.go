@@ -61,6 +61,7 @@ func main() {
 		Auth:    a.Auth,
 		MCP:     mcp.Handler(a.Core, a.Auth, server.Version, server.BaseURL(a.Config)),
 		Web:     web.Dist(),
+		Website: &publish.Website{Domains: a.Config.WebsiteDomains, Dir: a.Config.WebsiteDir, Web: web.Dist()},
 		Publish: &publish.Site{Core: a.Core, Web: web.Dist(), Version: server.Version, AppURL: a.Core.PublicURL},
 	})
 	srv := &http.Server{Addr: a.Config.Listen, Handler: handler, ReadHeaderTimeout: 10 * time.Second}

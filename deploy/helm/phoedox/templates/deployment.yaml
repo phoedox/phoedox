@@ -118,6 +118,10 @@ spec:
             - name: PHOEDOX_METRICS_TOKEN
               valueFrom: { secretKeyRef: { name: {{ $fn }}-metrics, key: token } }
             {{- end }}
+            {{- with .Values.website.domains }}
+            - { name: PHOEDOX_WEBSITE_DOMAINS, value: {{ join "," . | quote }} }
+            - { name: PHOEDOX_WEBSITE_DIR, value: /etc/phoedox/website }
+            {{- end }}
             {{- range $k, $v := .Values.env }}
             - { name: {{ $k }}, value: {{ $v | quote }} }
             {{- end }}
@@ -125,6 +129,9 @@ spec:
             - { name: data, mountPath: /data }
             # PDF and OCR tools write temporary files.
             - { name: tmp, mountPath: /tmp }
+            {{- if .Values.website.domains }}
+            - { name: website, mountPath: /etc/phoedox/website, readOnly: true }
+            {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -148,6 +155,10 @@ spec:
             claimName: {{ default (printf "%s-data" $fn) .Values.persistence.existingClaim }}
         - name: tmp
           emptyDir: { sizeLimit: 2Gi }
+        {{- if .Values.website.domains }}
+        - name: website
+          configMap: { name: {{ printf "%s-website" $fn }} }
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

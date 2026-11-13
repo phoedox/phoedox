@@ -8,7 +8,7 @@ export default defineConfig({
     manifest: true,
     rollupOptions: {
       // The app and the islands for published sites (src/pub, fixed names; the server adds ?v=version).
-      input: { main: "index.html", pub: "src/pub/main.ts" },
+      input: { main: "index.html", pub: "src/pub/main.ts", website: "website/index.html" },
       output: {
         entryFileNames: (c) => (c.name === "pub" ? "pub/pub.js" : "assets/[name]-[hash].js"),
         assetFileNames: (a) => (a.names?.includes("pub.css") ? "pub/pub.css" : "assets/[name]-[hash][extname]"),

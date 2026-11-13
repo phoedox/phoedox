@@ -165,3 +165,11 @@ affinity: {}
 # publication in Phoedox (Settings → Publications). DNS must point here.
 publications:
   domains: []
+
+# Product website (phoedox.com): served by the app on these domains instead of
+# the app itself. Remove them from ingress.redirectFrom when you set them here.
+# Legal pages are Markdown; the links are hidden while a text is empty.
+website:
+  domains: []
+  impressum: ""
+  datenschutz: ""

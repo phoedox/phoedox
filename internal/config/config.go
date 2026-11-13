@@ -40,6 +40,11 @@ type Config struct {
 	// https://docs.example.org (PHOEDOX_PUBLIC_URL). Derived from the request
 	// when empty.
 	PublicURL string
+	// WebsiteDomains serve the product website instead of the app, e.g.
+	// phoedox.com,www.phoedox.com (PHOEDOX_WEBSITE_DOMAINS). WebsiteDir may
+	// hold impressum.md and datenschutz.md (PHOEDOX_WEBSITE_DIR).
+	WebsiteDomains []string
+	WebsiteDir     string
 	// DefaultLocale is used for emails to users without a language ("de").
 	DefaultLocale string
 	// RequestsPrivate lets request blocks reach private networks and
@@ -145,16 +150,18 @@ type SMTP struct {
 // FromEnv reads the configuration and applies defaults.
 func FromEnv() (Config, error) {
 	c := Config{
-		Domain:        os.Getenv("PHOEDOX_DOMAIN"),
-		Listen:        getenv("PHOEDOX_LISTEN", ":8080"),
-		DBDriver:      DBDriver(strings.ToLower(getenv("PHOEDOX_DB_DRIVER", string(DriverSQLite)))),
-		DataDir:       getenv("PHOEDOX_DATA_DIR", "./data"),
-		MultiTenant:   os.Getenv("PHOEDOX_MULTI_TENANT") == "true",
-		SecureCookies: os.Getenv("PHOEDOX_INSECURE_COOKIES") != "true",
-		BehindProxy:   os.Getenv("PHOEDOX_BEHIND_PROXY") == "true",
-		PublicURL:     strings.TrimRight(os.Getenv("PHOEDOX_PUBLIC_URL"), "/"),
-		DefaultLocale: getenv("PHOEDOX_DEFAULT_LOCALE", "de"),
-		MasterKey:     os.Getenv("PHOEDOX_MASTER_KEY"),
+		Domain:         os.Getenv("PHOEDOX_DOMAIN"),
+		Listen:         getenv("PHOEDOX_LISTEN", ":8080"),
+		DBDriver:       DBDriver(strings.ToLower(getenv("PHOEDOX_DB_DRIVER", string(DriverSQLite)))),
+		DataDir:        getenv("PHOEDOX_DATA_DIR", "./data"),
+		MultiTenant:    os.Getenv("PHOEDOX_MULTI_TENANT") == "true",
+		SecureCookies:  os.Getenv("PHOEDOX_INSECURE_COOKIES") != "true",
+		BehindProxy:    os.Getenv("PHOEDOX_BEHIND_PROXY") == "true",
+		PublicURL:      strings.TrimRight(os.Getenv("PHOEDOX_PUBLIC_URL"), "/"),
+		DefaultLocale:  getenv("PHOEDOX_DEFAULT_LOCALE", "de"),
+		WebsiteDomains: splitList(strings.ToLower(os.Getenv("PHOEDOX_WEBSITE_DOMAINS"))),
+		WebsiteDir:     os.Getenv("PHOEDOX_WEBSITE_DIR"),
+		MasterKey:      os.Getenv("PHOEDOX_MASTER_KEY"),
 		OIDC: OIDC{
 			Issuer:       strings.TrimRight(os.Getenv("PHOEDOX_OIDC_ISSUER"), "/"),
 			ClientID:     os.Getenv("PHOEDOX_OIDC_CLIENT_ID"),
