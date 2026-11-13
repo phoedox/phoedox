@@ -110,6 +110,17 @@ func TestMCPTools(t *testing.T) {
 		t.Fatalf("search: %s", s)
 	}
 
+	if dm := call("get_data_model", map[string]any{"project": "phoedox"}); !strings.Contains(dm, `"$id": "phoedox:kind/router"`) || !strings.Contains(dm, `"service": 1`) && !strings.Contains(dm, `"count": 1`) {
+		t.Fatalf("data model: %s", dm)
+	}
+	call("define_kind", map[string]any{"project": "phoedox", "id": "queue", "name": "Queue", "icon": "Workflow",
+		"attrs": []map[string]any{{"name": "broker", "type": "select", "options": []string{"nats", "rabbitmq"}}}})
+	call("upsert_entity", map[string]any{"project": "phoedox", "kind": "queue", "name": "Events", "attrs": map[string]any{"broker": "nats"}})
+	res0, _ := session.CallTool(ctx, &sdk.CallToolParams{Name: "link_entities", Arguments: map[string]any{"project": "phoedox", "from": "events", "rel": "mounted_in", "to": "go-server"}})
+	if !res0.IsError || !strings.Contains(res0.Content[0].(*sdk.TextContent).Text, "allowed: related_to, depends_on") {
+		t.Fatalf("relation rules: %+v", res0)
+	}
+
 	// suggest mode: AI writes become suggestions
 	out = call("create_document", map[string]any{"project": "wohnung", "title": "Netz", "markdown": "Router"})
 	if !strings.Contains(out, `"applied": false`) || !strings.Contains(out, `"status": "pending"`) {

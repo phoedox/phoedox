@@ -76,7 +76,7 @@ func TestHistoryTrashFavorites(t *testing.T) {
 	}
 	r1, _ := s.UpsertEntity(ctx, owner, p.Slug, EntityInput{Kind: "router", Name: "Router"})
 	r2, _ := s.UpsertEntity(ctx, owner, p.Slug, EntityInput{Kind: "server", Name: "NAS"})
-	_, _ = s.Link(ctx, owner, p.Slug, EdgeInput{From: "nas", Rel: "uplink", To: "router"})
+	_, _ = s.Link(ctx, owner, p.Slug, EdgeInput{From: "nas", Rel: "wired_to", To: "router"})
 	_, _ = s.DeleteEntity(ctx, owner, p.Slug, "router")
 	items, err := s.Trash(ctx, owner, p.Slug)
 	if err != nil || len(items) != 2 {

@@ -1,0 +1,81 @@
+{
+  "generic": ["related_to", "depends_on"],
+  "kinds": [
+    {"id": "person", "group": "general", "icon": "UserRound", "attrs": [
+      {"name": "email", "type": "text"}, {"name": "role", "type": "text"}],
+      "relations": [{"rel": "responsible_for", "to": ["*"]}]},
+    {"id": "device", "group": "general", "icon": "Cpu", "attrs": [
+      {"name": "manufacturer", "type": "text"}, {"name": "model", "type": "text"}, {"name": "serial", "type": "text"},
+      {"name": "ip", "type": "ip"}, {"name": "mac", "type": "text"}],
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}, {"rel": "wired_to", "to": ["switch", "router", "lan_port"]}]},
+
+    {"id": "floor", "group": "building", "icon": "Layers", "attrs": [
+      {"name": "level", "type": "number", "required": true}, {"name": "ceiling_height", "type": "number", "unit": "m"}]},
+    {"id": "room", "group": "building", "icon": "DoorOpen", "attrs": [
+      {"name": "area", "type": "number", "unit": "m²"}],
+      "relations": [{"rel": "part_of", "to": ["floor"]}]},
+
+    {"id": "router", "group": "network", "icon": "Router", "attrs": [
+      {"name": "model", "type": "text"}, {"name": "ip", "type": "ip"},
+      {"name": "uplink", "type": "select", "options": ["vdsl", "fiber", "cable", "lte", "other"]}, {"name": "firmware", "type": "text"}],
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}]},
+    {"id": "repeater", "group": "network", "icon": "RadioTower", "attrs": [
+      {"name": "model", "type": "text"}, {"name": "uplink_type", "type": "select", "options": ["wifi", "lan"]}, {"name": "signal", "type": "number", "unit": "dBm"}],
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "uplink", "to": ["router", "repeater", "access_point"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}]},
+    {"id": "access_point", "group": "network", "icon": "Wifi", "attrs": [
+      {"name": "model", "type": "text"}, {"name": "ip", "type": "ip"}, {"name": "poe", "type": "bool"}],
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "wired_to", "to": ["switch", "router", "lan_port"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug", "switch"]}]},
+    {"id": "switch", "group": "network", "icon": "Network", "attrs": [
+      {"name": "ports", "type": "number"}, {"name": "managed", "type": "bool"}, {"name": "ip", "type": "ip"}],
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "wired_to", "to": ["router", "switch"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}]},
+    {"id": "lan_port", "group": "network", "icon": "EthernetPort", "attrs": [
+      {"name": "label", "type": "text"}, {"name": "cable", "type": "text"}, {"name": "in_use", "type": "bool"}, {"name": "tested", "type": "date"}],
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "wired_to", "to": ["patch_panel", "switch", "router"]}]},
+    {"id": "phone", "group": "network", "icon": "Phone", "attrs": [
+      {"name": "model", "type": "text"}, {"name": "connection", "type": "select", "options": ["dect", "sip", "analog"]}],
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "dect_base", "to": ["router"]}]},
+
+    {"id": "rack", "group": "infrastructure", "icon": "Rows4", "attrs": [
+      {"name": "height_units", "type": "number", "unit": "U", "required": true}, {"name": "depth", "type": "number", "unit": "mm"}],
+      "relations": [{"rel": "located_in", "to": ["room"]}]},
+    {"id": "server", "group": "infrastructure", "icon": "Server", "attrs": [
+      {"name": "hostname", "type": "text"}, {"name": "ip", "type": "ip"}, {"name": "os", "type": "text"}, {"name": "height_units", "type": "number", "unit": "U"}],
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "wired_to", "to": ["switch", "router", "patch_panel"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}]},
+    {"id": "patch_panel", "group": "infrastructure", "icon": "Cable", "attrs": [
+      {"name": "ports", "type": "number", "required": true}, {"name": "category", "type": "select", "options": ["cat5e", "cat6", "cat6a", "cat7", "cat8"]}],
+      "relations": [{"rel": "mounted_in", "to": ["rack"]}, {"rel": "wired_to", "to": ["switch"]}]},
+
+    {"id": "outlet", "group": "power", "icon": "Plug", "attrs": [
+      {"name": "label", "type": "text"}, {"name": "circuit", "type": "text"}],
+      "relations": [{"rel": "located_in", "to": ["room"]}]},
+    {"id": "smart_plug", "group": "power", "icon": "PlugZap", "attrs": [
+      {"name": "ha_entity", "type": "text"}, {"name": "power", "type": "number", "unit": "W"}],
+      "relations": [{"rel": "plugged_into", "to": ["outlet"]}, {"rel": "located_in", "to": ["room"]}]},
+    {"id": "light", "group": "power", "icon": "Lightbulb", "attrs": [
+      {"name": "ha_entity", "type": "text"}],
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "switched_by", "to": ["smart_plug"]}]},
+
+    {"id": "software", "group": "software", "icon": "Package", "attrs": [
+      {"name": "version", "type": "text"}, {"name": "type", "type": "select", "options": ["os", "hypervisor", "container_platform", "application"]}],
+      "relations": [{"rel": "installed_on", "to": ["server", "vm", "lxc", "device"]}]},
+    {"id": "service", "group": "software", "icon": "Workflow", "attrs": [
+      {"name": "url", "type": "url"}, {"name": "port", "type": "number"}, {"name": "version", "type": "text"}],
+      "relations": [{"rel": "runs_on", "to": ["server", "vm", "lxc", "container"]}, {"rel": "uses", "to": ["database", "service"]}]},
+    {"id": "database", "group": "software", "icon": "Database", "attrs": [
+      {"name": "engine", "type": "select", "options": ["postgres", "mysql", "mariadb", "sqlite", "mongodb", "redis", "other"]}, {"name": "version", "type": "text"}, {"name": "host", "type": "text"}],
+      "relations": [{"rel": "runs_on", "to": ["server", "vm", "lxc", "container"]}]},
+    {"id": "vm", "group": "software", "icon": "Monitor", "attrs": [
+      {"name": "vmid", "type": "number"}, {"name": "os", "type": "text"}, {"name": "ip", "type": "ip"},
+      {"name": "vcpu", "type": "number"}, {"name": "ram", "type": "number", "unit": "GB"}],
+      "relations": [{"rel": "runs_on", "to": ["server"]}, {"rel": "managed_by", "to": ["software"]}]},
+    {"id": "lxc", "group": "software", "icon": "Box", "attrs": [
+      {"name": "ctid", "type": "number"}, {"name": "os", "type": "text"}, {"name": "ip", "type": "ip"}],
+      "relations": [{"rel": "runs_on", "to": ["server"]}, {"rel": "managed_by", "to": ["software"]}]},
+    {"id": "stack", "group": "software", "icon": "Boxes", "attrs": [
+      {"name": "compose_path", "type": "text"}, {"name": "status", "type": "select", "options": ["running", "stopped"]}],
+      "relations": [{"rel": "managed_by", "to": ["software"]}, {"rel": "runs_on", "to": ["vm", "server", "lxc"]}]},
+    {"id": "container", "group": "software", "icon": "Container", "attrs": [
+      {"name": "image", "type": "text", "required": true}, {"name": "ports", "type": "text"}],
+      "relations": [{"rel": "part_of", "to": ["stack"]}, {"rel": "runs_on", "to": ["vm", "server", "lxc"]}]}
+  ]
+}

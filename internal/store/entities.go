@@ -127,6 +127,10 @@ type Edge struct {
 	Source   string `json:"source"`
 	FromName string `json:"fromName,omitempty"`
 	ToName   string `json:"toName,omitempty"`
+	FromSlug string `json:"fromSlug,omitempty"`
+	ToSlug   string `json:"toSlug,omitempty"`
+	FromKind string `json:"fromKind,omitempty"`
+	ToKind   string `json:"toKind,omitempty"`
 }
 
 // LinkEntities creates an edge unless the same (from, rel, to) exists; then it updates attrs.
@@ -160,10 +164,14 @@ func (d *DB) UnlinkEntities(ctx context.Context, from, rel, to string) error {
 
 // EdgesOf returns all edges touching an entity, with the names of both ends.
 func (d *DB) EdgesOf(ctx context.Context, entityID string) ([]Edge, error) {
-	rows, err := d.Query(ctx, `SELECT e.id, e.from_id, e.rel, e.to_id, e.attrs, e.source, f.name, t.name
+	return d.queryEdges(ctx, `(e.from_id = ? OR e.to_id = ?)`, `e.rel`, entityID, entityID)
+}
+
+func (d *DB) queryEdges(ctx context.Context, where, order string, args ...any) ([]Edge, error) {
+	rows, err := d.Query(ctx, `SELECT e.id, e.from_id, e.rel, e.to_id, e.attrs, e.source, f.name, t.name, f.slug, t.slug, f.kind, t.kind
 		FROM edges e JOIN entities f ON f.id = e.from_id JOIN entities t ON t.id = e.to_id
-		WHERE (e.from_id = ? OR e.to_id = ?) AND e.deleted_at IS NULL AND f.deleted_at IS NULL AND t.deleted_at IS NULL
-		ORDER BY e.rel`, entityID, entityID)
+		WHERE `+where+` AND e.deleted_at IS NULL AND f.deleted_at IS NULL AND t.deleted_at IS NULL
+		ORDER BY `+order, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +179,7 @@ func (d *DB) EdgesOf(ctx context.Context, entityID string) ([]Edge, error) {
 	var out []Edge
 	for rows.Next() {
 		var e Edge
-		if err := rows.Scan(&e.ID, &e.From, &e.Rel, &e.To, &e.Attrs, &e.Source, &e.FromName, &e.ToName); err != nil {
+		if err := rows.Scan(&e.ID, &e.From, &e.Rel, &e.To, &e.Attrs, &e.Source, &e.FromName, &e.ToName, &e.FromSlug, &e.ToSlug, &e.FromKind, &e.ToKind); err != nil {
 			return nil, err
 		}
 		out = append(out, e)

@@ -137,10 +137,31 @@ type entityRef struct {
 
 type upsertEntityIn struct {
 	Project string         `json:"project" jsonschema:"project slug"`
-	Kind    string         `json:"kind" jsonschema:"e.g. service, server, router, room, person, database"`
+	Kind    string         `json:"kind" jsonschema:"a kind from get_data_model, e.g. service, server, router, room"`
 	Name    string         `json:"name"`
 	Slug    string         `json:"slug,omitempty" jsonschema:"optional; an existing slug updates that entity"`
-	Attrs   map[string]any `json:"attrs,omitempty" jsonschema:"free attributes like ip, version, url"`
+	Attrs   map[string]any `json:"attrs,omitempty" jsonschema:"attribute values as described by the kind's schema; replaces all attributes"`
+}
+
+type defineKindIn struct {
+	Project     string          `json:"project" jsonschema:"project slug"`
+	ID          string          `json:"id" jsonschema:"kind id, lowercase with _, e.g. solar_inverter; a core kind id extends that kind"`
+	Name        string          `json:"name,omitempty" jsonschema:"display name (own kinds only)"`
+	Description string          `json:"description,omitempty"`
+	Icon        string          `json:"icon,omitempty" jsonschema:"Lucide icon name, see get_data_model icons"`
+	Attrs       []core.Attr     `json:"attrs,omitempty" jsonschema:"attributes: name, type (text, number, bool, date, ip, url, select), unit, options (select), required, label"`
+	Relations   []core.Relation `json:"relations,omitempty" jsonschema:"allowed outgoing relations: rel and target kinds (* = any)"`
+}
+
+type modelKind struct {
+	ID          string          `json:"id"`
+	Name        string          `json:"name,omitempty"`
+	Description string          `json:"description,omitempty"`
+	Group       string          `json:"group"`
+	Source      string          `json:"source"`
+	Count       int             `json:"count"`
+	Schema      map[string]any  `json:"schema"`
+	Relations   []core.Relation `json:"relations,omitempty"`
 }
 
 type linkIn struct {
@@ -331,6 +352,20 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "search", "Search documents and entities in one or all visible projects.", func(ctx context.Context, a core.Actor, in searchIn) (any, error) {
 		return svc.Search(ctx, a, in.Query, in.Project, in.Limit)
 	})
+	tool(s, "get_data_model", "The data model of a project: kinds of entities with their attributes as JSON schema and the allowed relations. Read it before creating entities or relations.", func(ctx context.Context, a core.Actor, in projectRef) (any, error) {
+		m, err := svc.DataModel(ctx, a, in.Project)
+		if err != nil {
+			return nil, err
+		}
+		kinds := make([]modelKind, 0, len(m.Kinds))
+		for _, k := range m.Kinds {
+			kinds = append(kinds, modelKind{ID: k.ID, Name: k.Name, Description: k.Description, Group: k.Group, Source: k.Source, Count: k.Count, Schema: k.JSONSchema(), Relations: k.Relations})
+		}
+		return map[string]any{"kinds": kinds, "genericRelations": m.Generic, "kindsWithoutDefinition": m.Unknown, "icons": core.KindIcons}, nil
+	})
+	tool(s, "define_kind", "Define an own kind of entity for a project, or extend a core kind with extra attributes and relations. Replaces the project's previous definition of this kind, so repeat existing extras you want to keep.", func(ctx context.Context, a core.Actor, in defineKindIn) (any, error) {
+		return svc.DefineKind(ctx, a, in.Project, core.KindInput{ID: in.ID, Name: in.Name, Description: in.Description, Icon: in.Icon, Attrs: in.Attrs, Relations: in.Relations})
+	})
 	tool(s, "list_entities", "List entities of a project, optionally of one kind.", func(ctx context.Context, a core.Actor, in listEntitiesIn) (any, error) {
 		return svc.Entities(ctx, a, in.Project, in.Kind)
 	})
@@ -343,7 +378,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "delete_entity", "Move an entity and its relations to the trash.", func(ctx context.Context, a core.Actor, in entityRef) (any, error) {
 		return svc.DeleteEntity(ctx, a, in.Project, in.Entity)
 	})
-	tool(s, "link_entities", "Create a relation between two entities (from –rel→ to).", func(ctx context.Context, a core.Actor, in linkIn) (any, error) {
+	tool(s, "link_entities", "Create a relation between two entities (from –rel→ to). Only relations allowed by the data model (see get_data_model) or the generic ones.", func(ctx context.Context, a core.Actor, in linkIn) (any, error) {
 		return svc.Link(ctx, a, in.Project, core.EdgeInput{From: in.From, Rel: in.Rel, To: in.To, Attrs: in.Attrs})
 	})
 	tool(s, "unlink_entities", "Remove a relation between two entities.", func(ctx context.Context, a core.Actor, in unlinkIn) (any, error) {

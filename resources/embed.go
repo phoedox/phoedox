@@ -22,6 +22,13 @@ var prompts embed.FS
 //go:embed mail/*.md
 var mails embed.FS
 
+//go:embed kinds/core.json
+var coreKinds []byte
+
+// CoreKinds returns the definition of the kinds that ship with Phoedox
+// (resources/kinds/core.json). Labels live in the web i18n tables.
+func CoreKinds() []byte { return coreKinds }
+
 var (
 	mu    sync.Mutex
 	cache = map[string]string{}

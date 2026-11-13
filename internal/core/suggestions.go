@@ -17,6 +17,7 @@ type opPayload struct {
 	Entity    *EntityInput   `json:"entity,omitempty"`
 	EntityRef string         `json:"entityRef,omitempty"`
 	Edge      *EdgeInput     `json:"edge,omitempty"`
+	Kind      *KindInput     `json:"kind,omitempty"`
 }
 
 // maybeSuggest stores a suggestion instead of applying the change when an
@@ -96,6 +97,8 @@ func (s *Service) DecideSuggestion(ctx context.Context, a Actor, id string, acce
 		}
 	case "edge.link":
 		res, err = s.link(ctx, a, *op.Edge)
+	case "kind.define":
+		res, err = s.defineKind(ctx, a, p, *op.Kind)
 	case "edge.unlink":
 		err = s.DB.UnlinkEntities(ctx, op.Edge.From, op.Edge.Rel, op.Edge.To)
 	default:

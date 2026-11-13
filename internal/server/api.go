@@ -127,6 +127,10 @@ func (a *api) routes(r chi.Router) {
 			r.Put("/favorites/{d}", a.setFavorite(true))
 			r.Delete("/favorites/{d}", a.setFavorite(false))
 			r.Get("/decisions", a.listDecisions)
+			r.Get("/model", a.dataModel)
+			r.Put("/kinds/{k}", a.defineKind)
+			r.Delete("/kinds/{k}", a.deleteKind)
+			r.Get("/graph", a.graph)
 			r.Get("/entities", a.listEntities)
 			r.Post("/entities", a.upsertEntity)
 			r.Get("/entities/{e}", a.getEntity)
@@ -323,6 +327,32 @@ func (a *api) deleteDocument(w http.ResponseWriter, r *http.Request) {
 func (a *api) listVersions(w http.ResponseWriter, r *http.Request) {
 	vs, err := a.core.VersionHistory(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"))
 	respond(w, vs, err)
+}
+
+func (a *api) dataModel(w http.ResponseWriter, r *http.Request) {
+	m, err := a.core.DataModel(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, m, err)
+}
+
+func (a *api) defineKind(w http.ResponseWriter, r *http.Request) {
+	var in core.KindInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	in.ID = chi.URLParam(r, "k")
+	res, err := a.core.DefineKind(r.Context(), actorOf(r), chi.URLParam(r, "p"), in)
+	respond(w, res, err)
+}
+
+func (a *api) deleteKind(w http.ResponseWriter, r *http.Request) {
+	err := a.core.DeleteKind(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "k"))
+	respond(w, map[string]bool{"ok": err == nil}, err)
+}
+
+func (a *api) graph(w http.ResponseWriter, r *http.Request) {
+	g, err := a.core.ProjectGraph(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, g, err)
 }
 
 func (a *api) listEntities(w http.ResponseWriter, r *http.Request) {

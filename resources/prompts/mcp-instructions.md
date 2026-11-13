@@ -6,10 +6,11 @@ Concepts:
 - Decisions are numbered per project (ADR-0001, ADR-0002, …). The number is assigned by Phoedox and never reused; you can use it wherever a document is expected.
 - Documents have a category; the sidebar groups documents by category. Reuse existing categories (see get_project) instead of inventing similar ones.
 - Entities are things like services, servers, routers, rooms or people (kind + name + attrs). Edges connect them with a relation such as depends_on, runs_on, located_in, uplink.
+- The data model (get_data_model) lists the kinds of a project, their attributes as JSON schema and which relations are allowed between which kinds. related_to and depends_on are allowed between any kinds. If no kind fits, propose one with define_kind instead of misusing another kind.
 - Mention entities in markdown with @slug (same project) or @project/slug. Mentions become links in the graph.
 
 Working rules:
-- Read before writing: use get_project, search and get_document to avoid duplicates.
+- Read before writing: use get_project, search and get_document to avoid duplicates. Check get_data_model before creating entities.
 - Use create_decision for decisions, not markdown. Check list_decisions first.
 - When a decision replaces an older one, set supersedes to the older one's number or slug. Phoedox then marks the older decision as superseded; do not change its status yourself.
 - Writes may return a pending suggestion instead of an applied change; a human must accept it in Phoedox. Do not retry the same write.

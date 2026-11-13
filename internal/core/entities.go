@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 
 	"github.com/phoedox/phoedox/internal/graph"
@@ -107,6 +108,17 @@ func (s *Service) UpsertEntity(ctx context.Context, a Actor, ref string, in Enti
 	if err := in.normalize(); err != nil {
 		return EntityResult{}, err
 	}
+	m, err := s.model(ctx, p.ID)
+	if err != nil {
+		return EntityResult{}, err
+	}
+	k, ok := m.Find(in.Kind)
+	if !ok {
+		return EntityResult{}, invalid("validation.kind_unknown", map[string]any{"kind": in.Kind}, "unknown kind %q; see get_data_model or define the kind first", in.Kind)
+	}
+	if in.Attrs, err = checkAttrs(k, in.Attrs); err != nil {
+		return EntityResult{}, err
+	}
 	if sug, ok, err := s.maybeSuggest(ctx, a, p, "entity.upsert", "Eintrag „"+in.Name+"“ ("+in.Kind+")", opPayload{Project: p.ID, Entity: &in}); ok || err != nil {
 		return EntityResult{Suggestion: sug}, err
 	}
@@ -170,6 +182,14 @@ func (s *Service) Link(ctx context.Context, a Actor, ref string, in EdgeInput) (
 		return EntityResult{}, invalid("validation.entity_not_found", map[string]any{"entity": in.To}, "to: entity %q not found", in.To)
 	}
 	in.From, in.To = from.ID, to.ID
+	m, err := s.model(ctx, p.ID)
+	if err != nil {
+		return EntityResult{}, err
+	}
+	if allowed := m.AllowedRels(from.Kind, to.Kind); !slices.Contains(allowed, in.Rel) {
+		return EntityResult{}, invalid("validation.rel_not_allowed", map[string]any{"rel": in.Rel, "from": from.Kind, "to": to.Kind, "allowed": strings.Join(allowed, ", ")},
+			"relation %q is not allowed from %s to %s; allowed: %s", in.Rel, from.Kind, to.Kind, strings.Join(allowed, ", "))
+	}
 	if sug, ok, err := s.maybeSuggest(ctx, a, p, "edge.link", from.Name+" –"+in.Rel+"→ "+to.Name, opPayload{Project: p.ID, Edge: &in}); ok || err != nil {
 		return EntityResult{Suggestion: sug}, err
 	}
@@ -252,4 +272,24 @@ func (s *Service) Search(ctx context.Context, a Actor, query, ref string, limit 
 		}
 	}
 	return s.DB.Search(ctx, ids, query, limit)
+}
+
+// Graph is the whole knowledge graph of a project.
+type Graph struct {
+	Entities []store.Entity `json:"entities"`
+	Edges    []store.Edge   `json:"edges"`
+}
+
+// ProjectGraph returns all entities and edges of a project.
+func (s *Service) ProjectGraph(ctx context.Context, a Actor, ref string) (Graph, error) {
+	p, err := s.project(ctx, a, ref, store.RoleReader)
+	if err != nil {
+		return Graph{}, err
+	}
+	es, err := s.DB.ListEntities(ctx, p.ID, "")
+	if err != nil {
+		return Graph{}, err
+	}
+	edges, err := s.DB.EdgesOfProject(ctx, p.ID)
+	return Graph{Entities: es, Edges: edges}, err
 }
