@@ -1,0 +1,12 @@
+version: "2"
+sql:
+  - engine: postgresql
+    schema: db/migrations/postgres
+    queries: db/queries/postgres
+    gen:
+      go: { package: pgdb, out: internal/store/pgdb, emit_json_tags: true }
+  - engine: sqlite
+    schema: db/migrations/sqlite
+    queries: db/queries/sqlite
+    gen:
+      go: { package: litedb, out: internal/store/litedb, emit_json_tags: true }

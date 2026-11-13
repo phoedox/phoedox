@@ -1,0 +1,25 @@
+/* Design tokens. Primary color can be overridden per project (--pl/--pd). */
+:root {
+  --bg: #f6f4f2; --surface: #ffffff; --surface2: #eeeae6; --line: #ddd5ce;
+  --fg: #1f1a17; --muted: #6b6159; --accent: #b84a0c; --accent-soft: #fbe4d4;
+  --signal: #9a7200; --bad: #b4372f; --good: #2c8a4b; --wire: #3a5bb8;
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14110f; --surface: #1c1815; --surface2: #26201c; --line: #3a312a;
+    --fg: #eee7e1; --muted: #a69b92; --accent: #f26a1b; --accent-soft: #3d2416;
+    --signal: #e2bf4f; --bad: #e2675d; --good: #5bc27b; --wire: #7f9cf0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14110f; --surface: #1c1815; --surface2: #26201c; --line: #3a312a;
+  --fg: #eee7e1; --muted: #a69b92; --accent: #f26a1b; --accent-soft: #3d2416;
+  --signal: #e2bf4f; --bad: #e2675d; --good: #5bc27b; --wire: #7f9cf0;
+  color-scheme: dark;
+}
+html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); }

@@ -1,0 +1,22 @@
+# Local development / small self-hosted setup with PostgreSQL.
+# For SQLite just run the image without the db service.
+services:
+  phoedox:
+    build: .
+    ports: ["8080:8080"]
+    environment:
+      PHOEDOX_DOMAIN: localhost:8080
+      PHOEDOX_DB_DRIVER: postgres
+      PHOEDOX_DB_URL: postgres://phoedox:phoedox@db:5432/phoedox?sslmode=disable
+    volumes: [phoedox-data:/data]
+    depends_on: [db]
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: phoedox
+      POSTGRES_PASSWORD: phoedox
+      POSTGRES_DB: phoedox
+    volumes: [pg-data:/var/lib/postgresql/data]
+volumes:
+  phoedox-data:
+  pg-data:

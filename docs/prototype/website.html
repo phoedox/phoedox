@@ -1,0 +1,457 @@
+<title>Phoedox Website</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: schmale Kopfzeile, Hero mit interaktivem Wissensnetz, danach Abschnitte im 12er-Raster; Glut-Orange nur für Pfade und das Zeichen */
+:root{
+  --bg:#f6f4f2; --surface:#ffffff; --surface2:#eeeae6; --line:#ddd5ce;
+  --fg:#1f1a17; --muted:#6b6159; --accent:#b84a0c; --accent-soft:#fbe4d4;
+  --ember:#b84a0c; --ember-soft:#fbe4d4; --good:#2c8a4b; --wire:#3a5bb8;
+  --display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#14110f; --surface:#1c1815; --surface2:#26201c; --line:#3a312a;
+  --fg:#eee7e1; --muted:#a69b92; --accent:#f26a1b; --accent-soft:#3d2416;
+  --ember:#f26a1b; --ember-soft:#3d2416; --good:#5bc27b; --wire:#7f9cf0; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#14110f; --surface:#1c1815; --surface2:#26201c; --line:#3a312a;
+  --fg:#eee7e1; --muted:#a69b92; --accent:#f26a1b; --accent-soft:#3d2416;
+  --ember:#f26a1b; --ember-soft:#3d2416; --good:#5bc27b; --wire:#7f9cf0; color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.6}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+a{color:inherit}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;line-height:1.08}
+code,.mono{font-family:var(--mono)}
+.ico{display:inline-block;vertical-align:-3px;flex:none}
+.band{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.in{max-width:1160px;margin:0 auto}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Kopfzeile */
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+header.top .in{display:flex;align-items:center;gap:20px;padding-block:12px}
+.logo{display:flex;align-items:center;gap:9px;text-decoration:none;font-family:var(--display);font-weight:800;font-size:21px;letter-spacing:-.01em}
+.mark{width:36px;height:36px;flex:none}
+.final .biglogo{width:120px;height:120px;flex:none}
+nav.main{display:flex;gap:20px;font-size:14.5px;color:var(--muted)}
+nav.main a{text-decoration:none}nav.main a:hover{color:var(--fg)}
+.hdr-r{margin-left:auto;display:flex;gap:10px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:8px;padding:9px 16px;font-weight:600;font-size:14.5px;text-decoration:none;border:1px solid transparent;cursor:pointer;font-family:var(--body);transition:transform .15s,background .15s}
+.btn:active{transform:scale(.98)}
+.btn.pri{background:var(--accent);color:var(--surface)}
+.btn.pri:hover{background:color-mix(in srgb,var(--accent) 88%,var(--fg))}
+.btn.sec{border-color:var(--line);color:var(--fg);background:var(--surface)}
+.btn.sec:hover{border-color:var(--muted)}
+.btn.txt{color:var(--fg);padding-inline:8px}
+
+/* Hero */
+.hero .in{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:48px;align-items:center;padding-block:72px 64px}
+.eyebrow{font-size:12.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:600;display:flex;gap:8px;align-items:center}
+.eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--ember)}
+.hero h1{font-size:clamp(40px,5.6vw,68px);font-weight:800;letter-spacing:-.025em;margin:16px 0 20px}
+.hero h1 em{font-style:normal;color:var(--ember)}
+.hero p.lead{font-size:18.5px;color:var(--muted);max-width:46ch;margin:0 0 28px}
+.cta{display:flex;gap:12px;flex-wrap:wrap}
+.hero .note{font-size:13px;color:var(--muted);margin-top:14px}
+
+.net{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 30px 60px -30px color-mix(in srgb,var(--fg) 30%,transparent)}
+.net-q{display:flex;flex-wrap:wrap;gap:6px;padding:14px 14px 0}
+.qbtn{border:1px solid var(--line);background:var(--bg);color:var(--muted);border-radius:999px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer;transition:all .2s}
+.qbtn[aria-pressed="true"]{background:var(--ember-soft);color:var(--fg);border-color:var(--ember)}
+.net svg{display:block;width:100%;height:auto}
+.net .edge{stroke:var(--line);stroke-width:1.6;fill:none}
+.net .edge.dash{stroke-dasharray:4 4}
+.net .edge.hot{stroke:var(--ember);stroke-width:2.6;stroke-dasharray:6 6;animation:flow 1s linear infinite}
+@keyframes flow{to{stroke-dashoffset:-12}}
+.net .node circle{fill:var(--surface);stroke:var(--line);stroke-width:1.5;transition:all .3s}
+.net .node .ic{color:var(--muted);transition:color .3s}
+.net .node text{font:500 11.5px var(--body);fill:var(--fg)}
+.net .node text.s{font:11px var(--mono);fill:var(--muted)}
+.net .node.hot circle{stroke:var(--ember);stroke-width:2.4;fill:var(--ember-soft)}
+.net .node.hot .ic{color:var(--ember)}
+.net .node.fix circle{stroke:var(--good);stroke-width:2.4}
+.net .node.fix .ic{color:var(--good)}
+.net-a{border-top:1px solid var(--line);padding:14px 16px;font-size:14.5px;min-height:118px}
+.net-a p{margin:0 0 8px}
+.trace{font-family:var(--mono);font-size:12px;color:var(--muted)}
+
+/* Abschnitte */
+section.sec .in{padding-block:80px}
+section.sec + section.sec .in{border-top:1px solid var(--line)}
+.sh{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:48px;align-items:end;margin-bottom:40px}
+.sh h2{font-size:clamp(30px,3.6vw,44px);letter-spacing:-.02em;font-weight:700}
+.sh p{color:var(--muted);margin:0;max-width:56ch;font-size:17px}
+.lbl{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+.three{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.feat{display:flex;flex-direction:column;gap:14px;min-width:0}
+.feat h3{font-size:21px;font-weight:700}
+.feat p{margin:0;color:var(--muted);font-size:15.5px}
+.demo{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;font-size:13px;min-height:168px;display:flex;flex-direction:column;gap:10px;justify-content:center}
+.req-h{display:flex;gap:8px;align-items:center;font-family:var(--mono);font-size:12px;flex-wrap:wrap}
+.verb{background:var(--accent);color:var(--surface);border-radius:4px;padding:1px 6px;font-weight:500}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:2px 9px;border-radius:999px;background:var(--surface2);color:var(--muted);white-space:nowrap}
+.chip.ok{color:var(--good)}.chip.warn{color:var(--ember)}
+.chip .d{width:7px;height:7px;border-radius:50%;background:currentColor}
+pre.res{margin:0;font-family:var(--mono);font-size:12px;background:var(--bg);border-radius:6px;padding:8px 10px;overflow-x:auto}
+.iso svg{width:100%;height:auto;display:block}
+.iso .fl{fill:var(--bg);stroke:var(--line)}
+.iso .wl{fill:var(--surface2);stroke:var(--line)}
+.iso .rk{fill:var(--fg)}
+.iso text{font:10.5px var(--body);fill:var(--muted)}
+.sw{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--line);border-radius:8px}
+.tog{width:40px;height:22px;border-radius:999px;border:0;background:var(--line);position:relative;flex:none;cursor:pointer}
+.tog::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--surface);transition:left .18s}
+.tog[aria-pressed="true"]{background:var(--good)}.tog[aria-pressed="true"]::after{left:21px}
+
+.uses{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+.use{padding:24px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.use+.use{border-left:1px solid var(--line)}
+.use h3{font-size:20px;display:flex;gap:10px;align-items:center}
+.use h3 .ico{color:var(--accent)}
+.use ul{margin:0;padding-left:18px;color:var(--muted);font-size:15px;display:flex;flex-direction:column;gap:6px}
+
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;align-items:start}
+.code{background:var(--fg);color:var(--bg);border-radius:10px;padding:16px 18px;font-family:var(--mono);font-size:13px;line-height:1.6;overflow-x:auto;margin:0;position:relative}
+.code .c{opacity:.55}.code .k{color:var(--ember)}
+.code-wrap{position:relative}
+.copy{position:absolute;top:10px;right:10px;border:1px solid color-mix(in srgb,var(--bg) 30%,transparent);background:transparent;color:var(--bg);border-radius:6px;padding:3px 9px;font:500 12px var(--body);cursor:pointer;display:inline-flex;gap:5px;align-items:center}
+.steps{display:flex;flex-direction:column;gap:14px;margin:20px 0 0;padding:0;list-style:none}
+.steps li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px}
+.steps li span.n{width:28px;height:28px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;font:600 13px var(--mono)}
+.steps li p{margin:2px 0 0;color:var(--muted);font-size:15px}
+
+.pubflow{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:22px;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1.1fr);gap:16px;align-items:center}
+.pubflow .col{display:flex;flex-direction:column;gap:8px;min-width:0}
+.proj{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;background:var(--bg)}
+.proj .pi{width:22px;height:22px;border-radius:5px;display:grid;place-items:center;color:var(--surface);font:600 10px var(--mono);flex:none}
+.arrow{color:var(--muted)}
+.pubbox{border:2px solid var(--accent);border-radius:10px;padding:12px;font-size:14px}
+.browser{border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:12.5px;background:var(--bg)}
+.browser .bar{display:flex;gap:6px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line);background:var(--surface);font-family:var(--mono);font-size:12px;color:var(--muted)}
+.browser .bar b{color:var(--fg);font-weight:500}
+.browser .body{display:grid;grid-template-columns:100px minmax(0,1fr);min-height:110px}
+.browser .nav{border-right:1px solid var(--line);padding:8px;display:flex;flex-direction:column;gap:3px;color:var(--muted)}
+.browser .pdd{display:flex;justify-content:space-between;align-items:center;gap:4px;border:1px solid var(--line);border-radius:5px;padding:2px 5px;background:var(--surface);color:var(--fg);font-weight:600;font-size:11.5px;margin-bottom:2px}
+.browser .nav b{color:var(--fg);font-weight:600;font-size:11px;margin-top:4px}
+.browser .page{padding:10px}
+.browser .page .h{font-family:var(--display);font-weight:700;font-size:15px;margin-bottom:6px}
+.browser .ln{height:6px;border-radius:3px;background:var(--surface2);margin:5px 0}
+.dns{margin-top:18px;overflow-x:auto}
+.dns table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:13px}
+.dns th,.dns td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line)}
+.dns th{font-family:var(--body);font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+
+.plugs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.plug{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.plug .ph{display:flex;gap:10px;align-items:center}
+.plug .pi2{width:36px;height:36px;border-radius:8px;background:var(--surface2);display:grid;place-items:center;color:var(--fg)}
+.plug b{font-size:15px}
+.plug p{margin:0;color:var(--muted);font-size:14px;flex:1}
+.plug .lic{font-size:12.5px;color:var(--accent);font-weight:500}
+.plug .meta{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px}
+
+.host{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px}
+.hcard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:26px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.hcard.cloud{border-color:var(--accent)}
+.hcard h3{font-size:24px}
+.hcard ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:15px}
+.hcard li{display:flex;gap:10px;align-items:flex-start}
+.hcard li .ico{color:var(--accent);margin-top:4px}
+.price{font-family:var(--display);font-size:30px;font-weight:700}
+.price small{font-family:var(--body);font-size:14px;color:var(--muted);font-weight:400}
+
+.final .in{padding-block:80px;text-align:left;display:flex;justify-content:space-between;gap:24px;align-items:end;flex-wrap:wrap;border-top:1px solid var(--line)}
+.final h2{font-size:clamp(32px,4vw,52px);font-weight:800;letter-spacing:-.02em;max-width:18ch}
+footer .in{display:grid;grid-template-columns:2fr repeat(3,1fr);gap:24px;padding-block:40px 56px;border-top:1px solid var(--line);font-size:14px;color:var(--muted)}
+footer h4{margin:0 0 8px;color:var(--fg);font-size:13px}
+footer a{display:block;text-decoration:none;padding:2px 0}footer a:hover{color:var(--fg)}
+
+@media (max-width:960px){
+  nav.main{display:none}
+  .hero .in,.sh,.split,.host{grid-template-columns:1fr}
+  .hero .in{padding-block:40px;gap:32px}
+  .three,.plugs{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .uses{grid-template-columns:1fr}.use+.use{border-left:0;border-top:1px solid var(--line)}
+  .pubflow{grid-template-columns:1fr}.pubflow .arrow{transform:rotate(90deg);justify-self:center}
+  footer .in{grid-template-columns:1fr 1fr}
+}
+@media (max-width:560px){.three,.plugs{grid-template-columns:1fr}.hdr-r .btn.txt{display:none}section.sec .in{padding-block:56px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<svg width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true" focusable="false"><defs>
+<mask id="phx-body">
+<rect x="-60" y="-60" width="632" height="632" fill="#ffffff"></rect>
+<g fill="#000000" stroke="#000000" stroke-width="26" stroke-linejoin="round">
+<path d="M 256 318 C 222 300 176 298 132 308 L 132 404 C 176 394 222 396 256 414 Z"></path>
+<path d="M 256 318 C 290 300 336 298 380 308 L 380 404 C 336 394 290 396 256 414 Z"></path>
+</g>
+<circle cx="214" cy="198" r="27" fill="#000000"></circle>
+<circle cx="298" cy="198" r="27" fill="#000000"></circle>
+<path d="M 245 236 Q 256 232 267 236 L 256 252 Z" fill="#000000" stroke="#000000" stroke-width="8" stroke-linejoin="round"></path>
+</mask>
+<mask id="phx-book">
+<rect x="-60" y="-60" width="632" height="632" fill="#ffffff"></rect>
+<g fill="#000000" stroke="#000000" stroke-width="24" stroke-linejoin="round">
+<path d="M 178 254 C 140 262 106 292 98 334 C 114 324 126 324 134 328 C 112 344 106 366 114 388 C 126 374 138 370 150 374 C 140 388 140 400 146 412 C 160 396 170 380 172 360 C 176 330 186 300 196 272 Z"></path>
+<path d="M 334 254 C 372 262 406 292 414 334 C 398 324 386 324 378 328 C 400 344 406 366 398 388 C 386 374 374 370 362 374 C 372 388 372 400 366 412 C 352 396 342 380 340 360 C 336 330 326 300 316 272 Z"></path>
+</g>
+<g fill="none" stroke="#000000" stroke-linecap="round">
+<path d="M 256 316 L 256 416" stroke-width="9"></path>
+<path d="M 186 334 C 206 328 224 330 240 338" stroke-width="7"></path>
+<path d="M 184 356 C 204 350 224 352 240 360" stroke-width="7"></path>
+<path d="M 186 378 C 206 372 224 374 240 382" stroke-width="7"></path>
+<path d="M 326 334 C 306 328 288 330 272 338" stroke-width="7"></path>
+<path d="M 328 356 C 308 350 288 352 272 360" stroke-width="7"></path>
+<path d="M 326 378 C 306 372 288 374 272 382" stroke-width="7"></path>
+</g>
+</mask>
+<mask id="phx-shine">
+<rect x="-60" y="-60" width="632" height="632" fill="#ffffff"></rect>
+<circle cx="222" cy="203" r="5" fill="#000000"></circle>
+<circle cx="306" cy="203" r="5" fill="#000000"></circle>
+</mask>
+<symbol id="phx-logo" viewBox="0 0 512 512">
+<g fill="#F26A1B">
+<g mask="url(#phx-body)">
+<path d="M 208 116 C 188 100 180 78 190 56 C 196 76 212 88 232 98 Z"></path>
+<path d="M 228 100 C 222 66 234 34 262 14 C 256 40 266 58 278 70 C 290 82 290 96 284 104 Z"></path>
+<path d="M 258 98 C 262 78 276 66 292 62 C 284 74 284 88 280 98 Z"></path>
+<path d="M 270 102 C 284 76 306 64 334 64 C 322 74 316 86 316 100 C 316 112 308 120 298 124 Z"></path>
+<circle cx="256" cy="200" r="108"></circle>
+<ellipse cx="256" cy="320" rx="90" ry="92"></ellipse>
+<path d="M 218 396 C 186 424 178 462 198 496 C 200 470 214 452 236 440 Z"></path>
+<path d="M 240 410 C 238 448 252 480 280 504 C 272 476 274 450 284 430 Z"></path>
+<path d="M 292 398 C 330 418 352 448 350 488 C 336 462 316 450 290 444 Z"></path>
+</g>
+<g mask="url(#phx-book)">
+<path d="M 256 318 C 222 300 176 298 132 308 L 132 404 C 176 394 222 396 256 414 Z"></path>
+<path d="M 256 318 C 290 300 336 298 380 308 L 380 404 C 336 394 290 396 256 414 Z"></path>
+</g>
+<path d="M 178 254 C 140 262 106 292 98 334 C 114 324 126 324 134 328 C 112 344 106 366 114 388 C 126 374 138 370 150 374 C 140 388 140 400 146 412 C 160 396 170 380 172 360 C 176 330 186 300 196 272 Z"></path>
+<path d="M 334 254 C 372 262 406 292 414 334 C 398 324 386 324 378 328 C 400 344 406 366 398 388 C 386 374 374 370 362 374 C 372 388 372 400 366 412 C 352 396 342 380 340 360 C 336 330 326 300 316 272 Z"></path>
+<g mask="url(#phx-shine)">
+<circle cx="216" cy="209" r="15"></circle>
+<circle cx="300" cy="209" r="15"></circle>
+</g>
+</g>
+</symbol></defs></svg>
+<header class="top band"><div class="in">
+  <a class="logo" href="#top" aria-label="Phoedox Startseite"><svg class="mark" viewBox="0 0 512 512" aria-hidden="true"><use href="#phx-logo"/></svg>Phoedox</a>
+  <nav class="main" aria-label="Hauptnavigation"><a href="#funktionen">Funktionen</a><a href="#mcp">KI &amp; MCP</a><a href="#veroeffentlichen">Veröffentlichen</a><a href="#plugins">Plugins</a><a href="#hosting">Self-Hosting</a></nav>
+  <div class="hdr-r">
+    <a class="btn txt" href="https://docs.phoedox.com">Doku</a>
+    <a class="btn sec" href="https://app.phoedox.com/login"><i data-ic="LogIn" data-sz="16"></i> Anmelden</a>
+  </div>
+</div></header>
+
+<main id="top">
+<section class="hero band"><div class="in">
+  <div>
+    <div class="eyebrow"><span class="dot"></span>Dokumentation mit Wissensnetz</div>
+    <h1>Doku, die weiß, wie alles <em>zusammenhängt</em>.</h1>
+    <p class="lead">Phoedox verbindet Texte, Grundrisse, Serverschränke und Home Assistant zu einem Netz. Du findest in Sekunden, warum etwas nicht geht, und jede KI kann über MCP mitlesen und mitschreiben.</p>
+    <div class="cta">
+      <a class="btn pri" href="https://app.phoedox.com/signup">Kostenlos starten <i data-ic="ArrowRight" data-sz="16"></i></a>
+      <a class="btn sec" href="#hosting"><i data-ic="Server" data-sz="16"></i> Selbst hosten</a>
+    </div>
+    <div class="note">Open Source · Docker oder Phoedox Cloud · Daten bleiben exportierbar</div>
+  </div>
+  <div class="net" aria-label="Beispiel: Fragen an das Wissensnetz">
+    <div class="net-q" role="group" aria-label="Beispielfragen">
+      <button class="qbtn" data-q="0" aria-pressed="true">Warum ist das WLAN im Arbeitszimmer langsam?</button>
+      <button class="qbtn" data-q="1" aria-pressed="false">Was fällt aus, wenn die USV leer ist?</button>
+      <button class="qbtn" data-q="2" aria-pressed="false">Wie starte ich den Router neu?</button>
+    </div>
+    <svg id="netSvg" viewBox="0 0 640 390" role="img" aria-label="Wissensnetz einer Wohnung mit Router, Repeater, Serverschrank und Dokumenten"></svg>
+    <div class="net-a" id="netA" aria-live="polite"></div>
+  </div>
+</div></section>
+
+<section class="sec band" id="funktionen"><div class="in">
+  <div class="sh"><h2>Ein Netz statt Ordner.</h2><p>Jedes Dokument, jeder Raum und jedes Gerät ist ein Eintrag mit Verbindungen. Markdown, Grundriss und 3D-Ansicht zeigen dieselben Daten aus verschiedenen Blickwinkeln.</p></div>
+  <div class="three">
+    <div class="feat">
+      <div class="demo">
+        <div class="req-h"><span class="verb">GET</span><span>{{ha}}/api/states/sensor.repeater_rssi</span></div>
+        <pre class="res">200 OK · 31 ms
+{ "state": "-74", "unit": "dBm" }</pre>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><span class="chip ok"><span class="d"></span>status == 200</span><span class="chip warn"><span class="d"></span>$.state ≥ −70 nicht erfüllt</span></div>
+      </div>
+      <h3>Markdown mit Tests</h3>
+      <p>Schreibe wie gewohnt und baue API-Aufrufe direkt ein. Sie laufen über den Server, Geheimnisse stehen nie im Text.</p>
+    </div>
+    <div class="feat">
+      <div class="demo iso"><svg id="isoSvg" viewBox="0 0 300 150" role="img" aria-label="Kleine 3D-Ansicht einer Wohnung mit Serverschrank"></svg></div>
+      <h3>Grundriss, 3D und Racks</h3>
+      <p>Lade eine Blaupause hoch, zeichne Räume nach und setze Geräte. Serverschränke zeigen jede Höheneinheit, jedes Gerät hat seine eigene Doku.</p>
+    </div>
+    <div class="feat">
+      <div class="demo">
+        <div class="sw"><span><b>Router Flur</b><br><span class="mono" style="font-size:12px;color:var(--muted)">powered_by → Smart-Plug</span></span><button class="tog" id="demoTog" aria-pressed="true" aria-label="Smart-Plug schalten"></button></div>
+        <div class="sw"><span><b>Deckenlicht Schlafzimmer</b><br><span class="mono" style="font-size:12px;color:var(--muted)">light.schlafzimmer</span></span><button class="tog" aria-pressed="false" aria-label="Licht schalten" data-t></button></div>
+      </div>
+      <h3>Home Assistant</h3>
+      <p>Jeder Nutzer verbindet seine eigene Instanz. Live-Werte fließen in die Doku, Steckdosen und Lichter schaltest du direkt am Gerät.</p>
+    </div>
+  </div>
+</div></section>
+
+<section class="sec band"><div class="in">
+  <div class="sh"><h2>Für alles, was dokumentiert werden will.</h2><p>Projekte trennen deine Welten. Teile sie mit anderen Nutzern deiner Instanz und lege fest, wer lesen, schreiben oder Geräte schalten darf.</p></div>
+  <div class="uses">
+    <div class="use"><h3><i data-ic="Braces" data-sz="20"></i>IT-Systeme</h3><ul><li>Services, Abhängigkeiten und Runbooks</li><li>OpenAPI importieren, Endpoints testen</li><li>Ausfallanalyse über <code>depends_on</code></li></ul></div>
+    <div class="use"><h3><i data-ic="House" data-sz="20"></i>Zuhause</h3><ul><li>Steckdosen, LAN-Dosen, Router und Repeater pro Raum</li><li>Weg vom Gerät zum Internet auf einen Blick</li><li>Fotos und Blaupausen mit Position</li></ul></div>
+    <div class="use"><h3><i data-ic="Server" data-sz="20"></i>Homelab &amp; Rack</h3><ul><li>Schrank mit Höheneinheiten, Patchfeld und USV</li><li>Server, Switches und ihre Verkabelung</li><li>Pro Gerät eine eigene Doku mit Tests</li></ul></div>
+  </div>
+</div></section>
+
+<section class="sec band" id="mcp"><div class="in">
+  <div class="split">
+    <div>
+      <div class="lbl">KI &amp; MCP</div>
+      <h2 style="font-size:clamp(30px,3.6vw,44px);margin:10px 0 16px;letter-spacing:-.02em">Deine KI kennt das Netz.</h2>
+      <p style="color:var(--muted);font-size:17px;margin:0;max-width:52ch">Phoedox spricht MCP. Claude und andere Assistenten suchen, folgen Verbindungen und schreiben Vorschläge, die du annimmst oder ablehnst. Sie sehen genau das, was du sehen darfst.</p>
+      <ol class="steps">
+        <li><span class="n">1</span><div><b>Verbinden</b><p>MCP-Adresse eintragen und mit deinem Konto anmelden.</p></div></li>
+        <li><span class="n">2</span><div><b>Fragen</b><p>Die KI sucht, folgt Kanten und liest Live-Werte. Meist reichen zwei oder drei Aufrufe.</p></div></li>
+        <li><span class="n">3</span><div><b>Mitschreiben</b><p>Änderungen erscheinen als Vorschlag im Editor, gemeinsam mit allen anderen.</p></div></li>
+      </ol>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+      <div class="code-wrap"><button class="copy" data-copy="mcpcfg"><i data-ic="Copy" data-sz="13"></i><span>Kopieren</span></button>
+<pre class="code" id="mcpcfg">{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"phoedox"</span>: { "url": "https://app.phoedox.com/mcp" }
+  }
+}</pre></div>
+<pre class="code"><span class="c"># Frage: Was hängt an der USV im Keller?</span>
+search("usv keller")              <span class="c">→ ups:usv-keller</span>
+traverse(ups:usv-keller, ←powered_by)
+  <span class="c">→ server:nas-01, server:pve-01, switch:switch-keller</span>
+ha.state(sensor.usv_runtime)      <span class="c">→ 38 min</span>
+<span class="c"># 3 Aufrufe · 380 ms</span></pre>
+    </div>
+  </div>
+</div></section>
+
+<section class="sec band" id="veroeffentlichen"><div class="in">
+  <div class="sh"><h2>Veröffentlichen, auch unter deiner Domain.</h2><p>Fasse ein oder mehrere Projekte zu einer öffentlichen Doku zusammen. Geheimnisse, Home-Assistant-Werte und private Einträge bleiben draußen. Eine eigene Domain hängst du per CNAME an, das Zertifikat kommt automatisch.</p></div>
+  <div class="pubflow">
+    <div class="col"><span class="lbl">Projekte</span>
+      <div class="proj"><span class="pi" style="background:var(--accent)">PH</span>Phoedox Handbuch</div>
+      <div class="proj"><span class="pi" style="background:var(--wire)">API</span>Phoedox API</div>
+      <div class="proj"><span class="pi" style="background:var(--ember)">PL</span>Plugin-SDK</div>
+    </div>
+    <span class="arrow"><i data-ic="ArrowRight" data-sz="22"></i></span>
+    <div class="col"><span class="lbl">Veröffentlichung</span>
+      <div class="pubbox"><b>Phoedox Docs</b><div style="color:var(--muted);font-size:13px;margin-top:4px">3 Projekte · 128 Seiten<br>Projekt-Menü, Suche über alles<br>Lese-MCP öffentlich</div></div>
+    </div>
+    <span class="arrow"><i data-ic="ArrowRight" data-sz="22"></i></span>
+    <div class="col"><span class="lbl">Im Netz</span>
+      <div class="browser"><div class="bar"><i data-ic="Lock" data-sz="12"></i><b>docs.phoedox.com</b></div>
+        <div class="body"><div class="nav"><span class="pdd"><span>Handbuch</span><i data-ic="ChevronsUpDown" data-sz="12"></i></span><b>Grundlagen</b><span>Erste Schritte</span><span>Projekte</span><b>Arbeiten</b><span>Editor</span></div>
+        <div class="page"><div class="h">Erste Schritte</div><div class="ln" style="width:92%"></div><div class="ln" style="width:80%"></div><div class="ln" style="width:86%"></div><div class="ln" style="width:55%"></div></div></div></div>
+    </div>
+  </div>
+  <div class="dns"><table>
+    <tr><th>Typ</th><th>Name</th><th>Ziel</th><th>Zweck</th></tr>
+    <tr><td>CNAME</td><td>docs</td><td>sites.phoedox.com.</td><td style="font-family:var(--body)">leitet die Domain zu Phoedox</td></tr>
+    <tr><td>TXT</td><td>_phoedox.docs</td><td>phx-verify=8f2c41e0</td><td style="font-family:var(--body)">bestätigt, dass die Domain dir gehört</td></tr>
+  </table></div>
+</div></section>
+
+<section class="sec band" id="plugins"><div class="in">
+  <div class="sh"><h2>Erweiterbar über Plugins.</h2><p>Neue Doku-Typen, Blöcke, Importe und MCP-Werkzeuge kommen aus dem Plugin-Store. Plugins laufen isoliert und bekommen nur die Rechte, die du bestätigst. Deine Instanz installiert immer die neueste Version, die zu ihr passt. Viele Plugins sind für private Nutzung, Vereine und Bildung kostenlos und nur für Firmen kostenpflichtig.</p></div>
+  <div class="plugs">
+    <div class="plug"><div class="ph"><span class="pi2"><i data-ic="BatteryCharging" data-sz="18"></i></span><b>USV-Überwachung</b></div><p>Ladung und Laufzeit der USV live im Rack, Warnung bei Netzausfall.</p><div class="lic">Kostenlos für alle</div><div class="meta"><span>v1.2.0</span><span>ab 1.4</span></div></div>
+    <div class="plug"><div class="ph"><span class="pi2"><i data-ic="ScanLine" data-sz="18"></i></span><b>RoomPlan-Import</b></div><p>Räume aus dem iPhone-Scan übernehmen, inklusive Wandhöhen.</p><div class="lic">Privat kostenlos · kommerziell kostenpflichtig</div><div class="meta"><span>v0.9.3</span><span>ab 1.2</span></div></div>
+    <div class="plug"><div class="ph"><span class="pi2"><i data-ic="Network" data-sz="18"></i></span><b>NetBox-Sync</b></div><p>Geräte, Racks und Kabel mit einer NetBox-Instanz abgleichen.</p><div class="lic">Privat kostenlos · kommerziell kostenpflichtig</div><div class="meta"><span>v2.1.0</span><span>ab 1.6</span></div></div>
+    <div class="plug"><div class="ph"><span class="pi2"><i data-ic="Tag" data-sz="18"></i></span><b>Etiketten</b></div><p>QR-Etiketten für Dosen und Geräte drucken, die direkt zur Doku führen.</p><div class="lic">Kostenlos für alle</div><div class="meta"><span>v1.0.4</span><span>ab 1.0</span></div></div>
+  </div>
+</div></section>
+
+<section class="sec band" id="hosting"><div class="in">
+  <div class="sh"><h2>Bei dir oder bei uns.</h2><p>Phoedox ist ein einzelnes Go-Programm. Starte es mit SQLite auf einem Raspberry Pi oder mit Postgres im Rechenzentrum. Wer sich nicht kümmern will, nutzt Phoedox Cloud.</p></div>
+  <div class="host">
+    <div class="hcard">
+      <div class="lbl">Self-Hosted</div><h3>Deine Instanz</h3><div class="price">Kostenlos <small>Open Source</small></div>
+      <div class="code-wrap"><button class="copy" data-copy="dock"><i data-ic="Copy" data-sz="13"></i><span>Kopieren</span></button>
+<pre class="code" id="dock">docker run -d -p 8080:8080 \
+  -v phoedox-data:/data \
+  ghcr.io/phoedox/phoedox:1.0</pre></div>
+      <ul><li><i data-ic="Check" data-sz="16"></i>SQLite oder PostgreSQL</li><li><i data-ic="Check" data-sz="16"></i>Lokale Konten und OIDC (Authentik, Keycloak, Entra)</li><li><i data-ic="Check" data-sz="16"></i>Plugins aus dem Store oder als Datei</li><li><i data-ic="Check" data-sz="16"></i>Optional Git-Sync pro Projekt</li></ul>
+    </div>
+    <div class="hcard cloud">
+      <div class="lbl">Phoedox Cloud</div><h3>app.phoedox.com</h3><div class="price">Beta <small>Preise folgen</small></div>
+      <ul><li><i data-ic="Check" data-sz="16"></i>Sofort loslegen, nichts zu installieren</li><li><i data-ic="Check" data-sz="16"></i>Tägliche Backups und Updates</li><li><i data-ic="Check" data-sz="16"></i>Veröffentlichungen mit eigener Domain</li><li><i data-ic="Check" data-sz="16"></i>Teams, Rollen und gemeinsames Bearbeiten in Echtzeit</li><li><i data-ic="Check" data-sz="16"></i>Umzug zur eigenen Instanz jederzeit per Export</li></ul>
+      <div class="cta" style="margin-top:auto"><a class="btn pri" href="https://app.phoedox.com/signup">Konto anlegen</a><a class="btn sec" href="https://app.phoedox.com/login">Anmelden</a></div>
+    </div>
+  </div>
+</div></section>
+
+<section class="final band"><div class="in">
+  <div style="display:flex;gap:24px;align-items:center;flex-wrap:wrap"><svg class="biglogo" viewBox="0 0 512 512" aria-hidden="true"><use href="#phx-logo"/></svg><h2>Schreib es einmal auf. Finde es immer.</h2></div>
+  <div class="cta"><a class="btn pri" href="https://app.phoedox.com/signup">Kostenlos starten <i data-ic="ArrowRight" data-sz="16"></i></a><a class="btn sec" href="https://app.phoedox.com/login">Anmelden</a></div>
+</div></section>
+</main>
+
+<footer class="band"><div class="in">
+  <div><a class="logo" href="#top"><svg class="mark" viewBox="0 0 512 512" aria-hidden="true"><use href="#phx-logo"/></svg>Phoedox</a><p style="margin:10px 0 0;max-width:36ch">Dokumentation mit Wissensnetz für IT-Systeme, Wohnungen und Homelabs.</p></div>
+  <div><h4>Produkt</h4><a href="#funktionen">Funktionen</a><a href="#plugins">Plugins</a><a href="#hosting">Self-Hosting</a><a href="https://app.phoedox.com/login">Anmelden</a></div>
+  <div><h4>Ressourcen</h4><a href="https://docs.phoedox.com">Dokumentation</a><a href="https://docs.phoedox.com/plugin-sdk">Plugin-SDK</a><a href="https://status.phoedox.com">Status</a></div>
+  <div><h4>Rechtliches</h4><a href="https://phoedox.com/impressum">Impressum</a><a href="https://phoedox.com/datenschutz">Datenschutz</a><a href="https://phoedox.com/agb">AGB</a></div>
+</div></footer>
+
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script>
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+function icPaths(n){const d=window.lucide&&lucide.icons[n];return d?d[2].map(([t,a])=>`<${t} ${Object.entries(a).map(([k,v])=>`${k}="${v}"`).join(' ')}/>`).join(''):''}
+function ic(n,sz=16){return `<svg class="ico" width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icPaths(n)}</svg>`}
+document.querySelectorAll('i[data-ic]').forEach(el=>el.outerHTML=ic(el.dataset.ic,+el.dataset.sz||16));
+
+// Wissensnetz im Hero
+const N={
+ laptop:[80,62,'Laptop','Arbeitszimmer','Laptop'],rep:[250,92,'Repeater','−74 dBm','Wifi'],router:[440,128,'Router Flur','192.168.178.1','Router'],
+ net:[575,52,'Internet','VDSL 250','Globe'],plug:[575,214,'Smart-Plug','Flur','PlugZap'],lan:[110,200,'LAN-Dose AZ-1','frei','EthernetPort'],
+ doc:[285,214,'Netzwerk.md','Dokument','FileText'],sw:[440,300,'Switch Keller','Rack, HE 2','Network'],nas:[275,335,'nas-01','Rack, HE 4','HardDrive'],ups:[100,330,'USV Keller','Rack, HE 9','BatteryCharging']};
+const E=[['laptop','rep'],['rep','router'],['router','net'],['router','plug'],['lan','sw',1],['sw','router'],['nas','sw'],['nas','ups'],['sw','ups'],['doc','rep',1],['doc','router',1],['rep','lan',1]];
+const Q=[
+ {hot:['laptop','rep','router','net'],path:[['laptop','rep'],['rep','router'],['router','net']],fix:['lan'],
+  a:'<p>Der Laptop hängt am <b>Repeater</b>, der sein Signal per Funk vom Router holt. Home Assistant meldet dort <b>−74 dBm</b>.</p><p>Die Dose <b>LAN-Dose AZ-1</b> im selben Raum ist frei. Ein Kabel zum Repeater ersetzt den Funk-Uplink.</p>',t:'search → traverse(uplink, 3) → ha.state · 410 ms'},
+ {hot:['ups','nas','sw'],path:[['nas','ups'],['sw','ups']],fix:[],
+  a:'<p>An der <b>USV Keller</b> hängen <b>nas-01</b> und der <b>Switch Keller</b>. Fällt der Switch aus, verlieren auch die LAN-Dosen im Haus die Verbindung.</p><p>Restlaufzeit laut USV-Plugin: <b>38 min</b>.</p>',t:'search → traverse(powered_by, ←) → traverse(wired_to) · 380 ms'},
+ {hot:['router','plug'],path:[['router','plug']],fix:['plug'],
+  a:'<p>Der <b>Router Flur</b> hängt am <b>Smart-Plug Flur</b>. Phoedox schaltet ihn aus, wartet 10 Sekunden und schaltet ihn wieder an.</p><p>Über MCP nur nach deiner Bestätigung, denn dabei bricht kurz die Verbindung ab.</p>',t:'get_entity(router-flur) → traverse(powered_by) · 120 ms'}];
+function drawNet(qi){const q=Q[qi],svg=document.getElementById('netSvg');const isHot=(a,b)=>q.path.some(([x,y])=>(x===a&&y===b)||(x===b&&y===a));
+ let s='';E.forEach(([a,b,d])=>{const A=N[a],B=N[b];s+=`<line class="edge${d?' dash':''}${isHot(a,b)?' hot':''}" x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}"/>`});
+ for(const k in N){const [x,y,l,sub,icn]=N[k];const cls=q.hot.includes(k)?'hot':q.fix.includes(k)?'fix':'';
+  s+=`<g class="node ${cls}"><circle cx="${x}" cy="${y}" r="21"/><svg class="ic" x="${x-10}" y="${y-10}" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icPaths(icn)}</svg><text x="${x}" y="${y+38}" text-anchor="middle">${l}</text><text class="s" x="${x}" y="${y+52}" text-anchor="middle">${sub}</text></g>`}
+ svg.innerHTML=s;document.getElementById('netA').innerHTML=q.a+`<div class="trace">${q.t}</div>`}
+document.querySelectorAll('.qbtn').forEach(b=>b.onclick=()=>{document.querySelectorAll('.qbtn').forEach(x=>x.setAttribute('aria-pressed',x===b));drawNet(+b.dataset.q)});
+drawNet(0);
+
+// Kleine Iso-Ansicht
+(()=>{const svg=document.getElementById('isoSvg'),c=Math.cos(Math.PI/6),s=Math.sin(Math.PI/6),k=.42,H=34;
+ const P=(x,y,z)=>[150+(x-y)*c*k,22+(x+y)*s*k-z*k];const pts=a=>a.map(p=>p.join(',')).join(' ');
+ const rooms=[['Wohnen',0,0,240,170],['Küche',240,0,170,110],['Flur',240,110,170,60],['Arbeiten',0,170,160,130],['Technik',160,170,250,130]];
+ let o='';rooms.forEach(([n,x,y,w,h])=>{o+=`<polygon class="fl" points="${pts([P(x,y,0),P(x+w,y,0),P(x+w,y+h,0),P(x,y+h,0)])}"/>`;
+  o+=`<polygon class="wl" points="${pts([P(x,y,0),P(x,y+h,0),P(x,y+h,H),P(x,y,H)])}"/><polygon class="wl" points="${pts([P(x,y,0),P(x+w,y,0),P(x+w,y,H),P(x,y,H)])}"/>`;
+  const m=P(x+w/2,y+h/2,0);o+=`<text x="${m[0]}" y="${m[1]+3}" text-anchor="middle">${n}</text>`});
+ const rx=330,ry=200,rw=22,rd=30,rh=70;
+ o+=`<polygon class="rk" opacity=".85" points="${pts([P(rx,ry+rd,0),P(rx+rw,ry+rd,0),P(rx+rw,ry+rd,rh),P(rx,ry+rd,rh)])}"/><polygon class="rk" points="${pts([P(rx+rw,ry,0),P(rx+rw,ry+rd,0),P(rx+rw,ry+rd,rh),P(rx+rw,ry,rh)])}"/><polygon style="fill:var(--muted)" points="${pts([P(rx,ry,rh),P(rx+rw,ry,rh),P(rx+rw,ry+rd,rh),P(rx,ry+rd,rh)])}"/>`;
+ [[330,60,'--accent'],[90,240,'--ember']].forEach(([x,y,col])=>{const a=P(x,y,0),b=P(x,y,22);o+=`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" style="stroke:var(${col})" stroke-width="1.5"/><circle cx="${b[0]}" cy="${b[1]}" r="4.5" style="fill:var(${col})"/>`});
+ svg.innerHTML=o})();
+
+// Schalter und Kopieren
+document.querySelectorAll('.tog').forEach(t=>t.onclick=()=>t.setAttribute('aria-pressed',t.getAttribute('aria-pressed')!=='true'));
+document.querySelectorAll('[data-copy]').forEach(b=>b.onclick=()=>{const el=document.getElementById(b.dataset.copy),txt=el.innerText,lab=b.querySelector('span');
+ const done=m=>{lab.textContent=m;setTimeout(()=>lab.textContent='Kopieren',1600)};
+ try{navigator.clipboard.writeText(txt).then(()=>done('Kopiert'),()=>{sel(el);done('Markiert')})}catch(e){sel(el);done('Markiert')}});
+function sel(el){const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r)}
+</script>

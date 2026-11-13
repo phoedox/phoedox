@@ -1,0 +1,35 @@
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request:
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env: { POSTGRES_USER: phoedox, POSTGRES_PASSWORD: phoedox, POSTGRES_DB: phoedox }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U phoedox" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: go.mod }
+      - name: Format
+        run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - name: Postgres schema applies
+        run: |
+          sed -n '/+goose Up/,/+goose Down/p' db/migrations/postgres/*.sql | PGPASSWORD=phoedox psql -h localhost -U phoedox -d phoedox -v ON_ERROR_STOP=1
+      - run: go test -race ./...
+        env: { PHOEDOX_TEST_PG: "postgres://phoedox:phoedox@localhost:5432/phoedox?sslmode=disable" }
+  web:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun test
+      - run: bun run build
