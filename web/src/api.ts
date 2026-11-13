@@ -75,6 +75,16 @@ export interface Doc {
   /** The requesting user's role for this page. */
   role?: string;
 }
+/** A draft of a Markdown page (ADR-0027); shared by everyone editing it. */
+export interface DraftParticipant { actor: string; name: string; ai?: boolean }
+export interface DraftInfo {
+  documentId: string; slug?: string; baseVersion: number; title: string; category: string; markdown: string;
+  startedAt: string; updatedAt: string; participants: DraftParticipant[]; startedBy: DraftParticipant; updatedBy: DraftParticipant;
+  /** The published page changed after the draft started. */
+  outdated: boolean;
+  /** The caller may publish or cancel. */
+  canEnd: boolean;
+}
 export type DecisionStatus = "proposed" | "accepted" | "rejected" | "deprecated" | "superseded";
 export const decisionStatuses: readonly DecisionStatus[] = ["proposed", "accepted", "rejected", "deprecated", "superseded"];
 export interface Decision {

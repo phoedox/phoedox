@@ -1,7 +1,8 @@
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html, unsafeCSS } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import { ApiError, adrRef, api, type Decision, type Doc } from "../api";
+import { ApiError, adrRef, api, type Decision, type Doc, type DraftInfo } from "../api";
+import { diffLines, fold, type Hunk } from "../diff";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
 import { renderMarkdown } from "../md";
@@ -25,7 +26,7 @@ export const prose = `
 `;
 
 export class PhxDocView extends SignalWatcher(LitElement) {
-  static properties = { project: {}, docSlug: {}, doc: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true } };
+  static properties = { project: {}, docSlug: {}, doc: { state: true }, draft: { state: true }, showDiff: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true } };
   static styles = [base, unsafeCSS(prose), css`
     header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 14px; }
     .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
@@ -37,10 +38,21 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     button.icon { padding: 7px 9px; }
     button.icon[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
     button.icon[aria-pressed="true"] .ico { fill: currentColor; }
+    .draft { border-left-color: var(--warn, var(--accent)); justify-content: space-between; }
+    .draft .who { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .diff { font-family: var(--font-mono); font-size: 13px; line-height: 1.55; border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; background: var(--surface); margin: -6px 0 18px; }
+    .diff div { white-space: pre-wrap; word-break: break-word; padding: 0 12px 0 28px; position: relative; min-height: 1.55em; }
+    .diff div::before { position: absolute; left: 10px; color: var(--muted); }
+    .diff .add { background: color-mix(in srgb, var(--good) 14%, transparent); } .diff .add::before { content: "+"; color: var(--good); }
+    .diff .del { background: color-mix(in srgb, var(--bad) 12%, transparent); } .diff .del::before { content: "−"; color: var(--bad); }
+    .diff .fold { color: var(--muted); font-family: var(--font-body); font-size: 12.5px; padding: 4px 12px; background: var(--surface2); }
   `];
   project = "";
   docSlug = "";
   doc?: Doc;
+  /** The open draft, shown to editors (ADR-0027). */
+  draft?: DraftInfo;
+  showDiff = false;
   /** Other decisions by slug, to show numbers and titles of linked ones. */
   related = new Map<string, Decision>();
   error = "";
@@ -65,6 +77,11 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         if (doc.type === "adr" && (doc.content?.supersedes || doc.content?.supersededBy)) {
           const all = await api<Decision[]>("GET", `/projects/${this.project}/decisions`).catch(() => []);
           this.related = new Map(all.map((d) => [d.slug, d]));
+        }
+        this.draft = undefined;
+        this.showDiff = false;
+        if (doc.type === "markdown" && ["editor", "owner"].includes(doc.role ?? currentProject.get()?.role ?? "")) {
+          this.draft = await api<DraftInfo>("GET", `/projects/${this.project}/documents/${doc.id}/draft`).catch(() => undefined);
         }
         this.doc = doc;
       } catch (e) {
@@ -106,6 +123,27 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     } catch (e) {
       toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
     }
+  }
+
+  private draftNotice(d: Doc) {
+    const dr = this.draft;
+    if (!dr) return "";
+    const names = dr.participants.map((p) => p.name).join(", ");
+    let hunks: Hunk[] = [];
+    if (this.showDiff) {
+      const lines = (title: string, md: string) => [`${t("history.title_label")}: ${title}`, "", ...md.replace(/\n$/, "").split("\n")];
+      hunks = fold(diffLines(lines(d.title, d.content?.markdown ?? ""), lines(dr.title, dr.markdown)));
+    }
+    return html`<div class="notice draft" role="note">
+        <span class="who">${icon("FilePen", 15)} ${t("draft.open_notice", { names, date: formatDate(dr.updatedAt) })}</span>
+        <span class="row">
+          <button class="ghost" aria-expanded=${this.showDiff ? "true" : "false"} @click=${() => (this.showDiff = !this.showDiff)}>${t(this.showDiff ? "draft.hide_changes" : "draft.show_changes")}</button>
+          <a class="btn" href="/p/${this.project}/d/${d.slug}/edit">${icon("Pencil", 14)} ${t("draft.continue")}</a>
+        </span>
+      </div>
+      ${this.showDiff ? html`<div class="diff" role="region" aria-label=${t("draft.changes")}>${hunks.some((h) => h.op === "+" || h.op === "-") ? hunks.map((h) =>
+        h.op === "…" ? html`<div class="fold">${h.count === 1 ? t("history.unchanged_one") : t("history.unchanged", { count: h.count })}</div>`
+        : html`<div class=${h.op === "+" ? "add" : h.op === "-" ? "del" : ""}>${h.text}</div>`) : html`<div class="fold">${t("history.no_changes")}</div>`}</div>` : ""}`;
   }
 
   private body(d: Doc) {
@@ -162,7 +200,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
           ${this.favoriteButtons(d)}
           <a class="btn ghost" href="/p/${this.project}/d/${d.slug}/history">${icon("History", 14)} ${t("doc.history")}</a>
           ${canEdit ? html`<button class="ghost" @click=${() => this.renderRoot.querySelector<PhxDocShare>("phx-doc-share")!.open()}>${icon("Share2", 14)} ${t("share.button")}</button>
-          <a class="btn ghost" href="/p/${this.project}/d/${d.slug}/edit">${icon("Pencil", 14)} ${t("doc.edit")}</a>
+          ${this.draft ? "" : html`<a class="btn ghost" href="/p/${this.project}/d/${d.slug}/edit">${icon("Pencil", 14)} ${t("doc.edit")}</a>`}
           ${this.confirming
             ? html`<span class="muted">${t("doc.delete_confirm")}</span><button class="danger" @click=${this.deleteDoc}>${t("doc.delete")}</button><button class="ghost" @click=${() => (this.confirming = false)}>${t("doc.cancel")}</button>`
             : html`<button class="danger" @click=${() => (this.confirming = true)}>${icon("Trash2", 14)} ${t("doc.delete")}</button>`}` : ""}
@@ -170,6 +208,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       </header>
       ${d.type === "adr" && c.status === "superseded" && c.supersededBy
         ? html`<p class="notice" role="note">${t("adr.superseded_notice")} ${t("adr.superseded_by")}: ${this.decisionLink(c.supersededBy)}</p>` : ""}
+      ${this.draftNotice(d)}
       ${this.body(d)}
       ${canEdit ? html`<phx-doc-share .project=${currentProject.get()} .doc=${d} @changed=${() => this.reload()}></phx-doc-share>` : ""}
       ${d.type !== "link" ? html`<phx-attachments style="margin-top:28px" .project=${this.project} .document=${d.id} .editable=${canEdit}></phx-attachments>` : ""}

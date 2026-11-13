@@ -1,11 +1,11 @@
 // Live Markdown editor: Lexical (no React) bound to Yjs over y-websocket.
 // Loaded on demand (code splitting) when a page is opened for editing.
 
-import { CodeHighlightNode, CodeNode } from "@lexical/code";
-import { $toggleLink, AutoLinkNode, LinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
-import { ListItemNode, ListNode, registerList } from "@lexical/list";
-import { $convertFromMarkdownString, $convertToMarkdownString, registerMarkdownShortcuts, TRANSFORMERS as BASE } from "@lexical/markdown";
-import { HeadingNode, QuoteNode, registerRichText } from "@lexical/rich-text";
+import { $toggleLink, TOGGLE_LINK_COMMAND } from "@lexical/link";
+import { registerCheckList, registerList } from "@lexical/list";
+import { $convertFromMarkdownString, $convertToMarkdownString, registerMarkdownShortcuts } from "@lexical/markdown";
+import { registerRichText } from "@lexical/rich-text";
+import { registerTablePlugin, registerTableSelectionObserver } from "@lexical/table";
 import {
   createBinding, createUndoManager, initLocalState, setLocalStateFocus, syncCursorPositions,
   syncLexicalUpdateToYjs, syncYjsChangesToLexical, type Provider,
@@ -16,16 +16,14 @@ import {
 } from "lexical";
 import { $createLinkNode } from "@lexical/link";
 import { $insertNodeToNearestRoot } from "@lexical/utils";
-import { $createImageNode, IMAGE, ImageNode } from "./image";
+import { $createImageNode } from "./image";
+import { NODES, TRANSFORMERS } from "./markdown";
 import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
 import { WebsocketProvider } from "y-websocket";
 import * as Y from "yjs";
 
 export type Status = "connecting" | "connected" | "disconnected";
-
-/** Images before links: ![a](b) must not become a link. */
-const TRANSFORMERS = [IMAGE, ...BASE];
 
 export interface Uploaded { url: string; name: string; image: boolean }
 export interface Peer { name: string; color: string }
@@ -37,7 +35,7 @@ export interface LiveEditorOptions {
   /** WebSocket base, e.g. wss://host/rt/doc/<project>; the document id is appended. */
   url: string;
   docId: string;
-  /** Current Markdown, used if this editor fills an empty live document. */
+  /** Draft Markdown, used if this editor fills an empty live document. */
   markdown: string;
   user: Peer;
   editable: boolean;
@@ -46,6 +44,8 @@ export interface LiveEditorOptions {
   onSaving?: (saving: boolean) => void;
   onPeers?: (peers: Peer[]) => void;
   onReset?: (by: string) => void;
+  /** The draft was published, cancelled or the page deleted (ADR-0027). */
+  onEnded?: (reason: string, by: string) => void;
   /** Uploads a pasted or dropped file; images are inserted, other files linked. */
   upload?: (file: File) => Promise<Uploaded>;
   onUploadError?: (err: unknown) => void;
@@ -66,10 +66,15 @@ const theme = {
   paragraph: "ed-p",
   quote: "ed-quote",
   heading: { h1: "ed-h1", h2: "ed-h2", h3: "ed-h3", h4: "ed-h4", h5: "ed-h5", h6: "ed-h6" },
-  list: { ul: "ed-ul", ol: "ed-ol", listitem: "ed-li", nested: { listitem: "ed-nested" } },
+  list: { ul: "ed-ul", ol: "ed-ol", listitem: "ed-li", nested: { listitem: "ed-nested" }, listitemChecked: "ed-checked", listitemUnchecked: "ed-unchecked" },
   code: "ed-code",
   link: "ed-link",
   image: "ed-img",
+  table: "ed-table",
+  tableCell: "ed-td",
+  tableCellHeader: "ed-th",
+  tableSelection: "ed-table-sel",
+  hr: "ed-hr",
   text: { bold: "ed-bold", italic: "ed-italic", code: "ed-tcode", strikethrough: "ed-strike", underline: "ed-underline" },
 };
 
@@ -84,7 +89,7 @@ export function markdownOf(editor: LexicalEditor): string {
 export function createLiveEditor(o: LiveEditorOptions): LiveEditor {
   const editor = createEditor({
     namespace: "phoedox",
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, AutoLinkNode, CodeNode, CodeHighlightNode, ImageNode],
+    nodes: NODES,
     theme,
     editable: o.editable,
     onError: (e) => console.error(e),
@@ -102,8 +107,14 @@ export function createLiveEditor(o: LiveEditorOptions): LiveEditor {
   // Phoedox control messages from the server.
   let shouldBootstrap = false;
   provider.messageHandlers[MSG_CONTROL] = (_enc, decoder) => {
-    const ctl = JSON.parse(decoding.readVarString(decoder)) as { type: string; upto?: number; by?: string };
+    const ctl = JSON.parse(decoding.readVarString(decoder)) as { type: string; upto?: number; by?: string; reason?: string };
     if (ctl.type === "bootstrap") shouldBootstrap = true;
+    if (ctl.type === "ended") {
+      // Nothing left to save: the draft is gone.
+      dirty = false;
+      window.clearTimeout(timer);
+      o.onEnded?.(ctl.reason ?? "", ctl.by ?? "");
+    }
     if (ctl.type === "reset") o.onReset?.(ctl.by ?? "");
     if (ctl.type === "compact" && ctl.upto) {
       const enc = encoding.createEncoder();
@@ -214,6 +225,9 @@ export function createLiveEditor(o: LiveEditorOptions): LiveEditor {
     }, COMMAND_PRIORITY_HIGH),
     registerRichText(editor),
     registerList(editor),
+    registerCheckList(editor),
+    registerTablePlugin(editor),
+    registerTableSelectionObserver(editor, true),
     registerMarkdownShortcuts(editor, TRANSFORMERS),
     editor.registerCommand(TOGGLE_LINK_COMMAND, (payload) => {
       $toggleLink(typeof payload === "string" || payload === null ? payload : payload.url);

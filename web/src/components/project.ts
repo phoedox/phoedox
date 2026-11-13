@@ -2,7 +2,7 @@ import { Routes } from "@lit-labs/router";
 import { loadProjectPlugins } from "../plugin-host";
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
-import { adrRef, api, type Doc, type Favorite, type Project } from "../api";
+import { adrRef, api, type Doc, type DraftInfo, type Favorite, type Project } from "../api";
 import { applyProjectColor } from "../color";
 import { t } from "../i18n";
 import { icon } from "../icon";
@@ -25,7 +25,7 @@ const typeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scal
 
 /** Project layout: sidebar with documents by category + nested routes. */
 export class PhxProject extends SignalWatcher(LitElement) {
-  static properties = { slug: {}, root: {}, docs: { state: true }, error: { state: true }, menuOpen: { state: true }, dropTarget: { state: true } };
+  static properties = { slug: {}, root: {}, docs: { state: true }, drafts: { state: true }, error: { state: true }, menuOpen: { state: true }, dropTarget: { state: true } };
   static styles = [base, css`
     :host { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: calc(100vh - var(--header-h)); }
     aside { border-right: 1px solid var(--line); padding: 14px 10px; display: flex; flex-direction: column; gap: 14px; background: var(--bg); }
@@ -72,6 +72,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
   /** True on /p/:project itself: show the overview. */
   root = false;
   docs: Doc[] = [];
+  /** Pages with an open draft (editors only). */
+  drafts = new Set<string>();
   error = "";
   /** Drawer state on small screens; ignored on wide screens. */
   menuOpen = false;
@@ -110,6 +112,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
         void loadProjectPlugins(p.slug);
         applyProjectColor(document.documentElement, p.primaryColor);
         this.docs = (await api<Doc[]>("GET", `/projects/${this.slug}/documents`)) ?? [];
+        this.drafts = new Set(((await api<DraftInfo[]>("GET", `/projects/${this.slug}/drafts`).catch(() => [])) ?? []).map((d) => d.documentId));
         favorites.set((await api<Favorite[]>("GET", `/projects/${this.slug}/favorites`).catch(() => [])) ?? []);
       } catch {
         this.error = t("error.not_found");
@@ -258,7 +261,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
           <div class="lbl">${cat || t("nav.uncategorized")}</div>
           ${docs.map((d) => d.type === "link" && d.content?.url
             ? html`<a href=${d.content.url} target="_blank" rel="noopener external" title=${t("nav.external")}>${icon("Link", 15)} ${d.title}<span class="ext">${icon("ExternalLink", 13)}</span></a>`
-            : html`<a href="/p/${this.slug}/d/${d.slug}" class=${here.startsWith(`/p/${this.slug}/d/${d.slug}`) ? "on" : ""}>${icon(typeIcon[d.type], 15)} ${d.title}${d.restricted ? html`<span class="ext" title=${t("share.restricted")}>${icon("Lock", 11)}</span>` : ""}${d.number ? html`<span class="num" title=${adrRef(d.number)}>${String(d.number).padStart(4, "0")}</span>` : ""}</a>`)}
+            : html`<a href="/p/${this.slug}/d/${d.slug}" class=${here.startsWith(`/p/${this.slug}/d/${d.slug}`) ? "on" : ""}>${icon(typeIcon[d.type], 15)} ${d.title}${this.drafts.has(d.id) ? html`<span class="ext" title=${t("draft.sidebar")} aria-label=${t("draft.sidebar")}>${icon("FilePen", 11)}</span>` : ""}${d.restricted ? html`<span class="ext" title=${t("share.restricted")}>${icon("Lock", 11)}</span>` : ""}${d.number ? html`<span class="num" title=${adrRef(d.number)}>${String(d.number).padStart(4, "0")}</span>` : ""}</a>`)}
         </div>`)}
         <div class="tools">
           ${canEdit ? html`
