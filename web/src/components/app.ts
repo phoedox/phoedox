@@ -16,7 +16,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
   static properties = { ready: { state: true } };
   static styles = [base, css`
     :host { display: block; min-height: 100vh; }
-    header { display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; z-index: 10; }
+    header { display: flex; align-items: center; gap: 14px; height: var(--header-h); padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; z-index: 10; }
     .brand { font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--fg); text-decoration: none; display: flex; align-items: center; gap: 8px; }
     .brand img { width: 26px; height: 26px; }
     .crumb { color: var(--muted); text-decoration: none; display: flex; align-items: center; gap: 8px; }
@@ -28,7 +28,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     .crumb { min-width: 0; } .crumb .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     /* Phones: icons only in the bar, the labels stay as accessible names. */
     @media (max-width: 700px) {
-      header { gap: 10px; padding: 10px 12px; }
+      header { gap: 10px; padding: 0 12px; }
       .brand .word, nav .lbl { display: none; }
       nav { gap: 2px; }
     }

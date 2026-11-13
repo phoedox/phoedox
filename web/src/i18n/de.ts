@@ -9,6 +9,7 @@ export const de = {
   "nav.settings": "Projekteinstellungen",
   "nav.suggestions": "Vorschläge",
   "nav.decisions": "Entscheidungen",
+  "nav.menu": "Menü",
   "nav.new_doc": "Neues Dokument",
   "nav.uncategorized": "Ohne Kategorie",
   "nav.external": "Öffnet in neuem Tab",

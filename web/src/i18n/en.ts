@@ -11,6 +11,7 @@ export const en: Record<keyof typeof de, string> = {
   "nav.settings": "Project settings",
   "nav.suggestions": "Suggestions",
   "nav.decisions": "Decisions",
+  "nav.menu": "Menu",
   "nav.new_doc": "New document",
   "nav.uncategorized": "Uncategorized",
   "nav.external": "Opens in a new tab",

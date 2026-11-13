@@ -28,10 +28,14 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: va
 :root {
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   --dur-press: 120ms;
   --dur-fast: 150ms;
   --dur: 200ms;
   --dur-enter: 280ms;
+  --dur-drawer: 260ms;
+  /* Height of the sticky app bar; sticky elements below it use this. */
+  --header-h: 53px;
 }
 
 /* Project colour override (set by applyProjectColor). */

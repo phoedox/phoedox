@@ -18,9 +18,9 @@ const typeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scal
 
 /** Project layout: sidebar with documents by category + nested routes. */
 export class PhxProject extends SignalWatcher(LitElement) {
-  static properties = { slug: {}, docs: { state: true }, error: { state: true } };
+  static properties = { slug: {}, docs: { state: true }, error: { state: true }, menuOpen: { state: true } };
   static styles = [base, css`
-    :host { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: calc(100vh - 53px); }
+    :host { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: calc(100vh - var(--header-h)); }
     aside { border-right: 1px solid var(--line); padding: 14px 10px; display: flex; flex-direction: column; gap: 14px; background: var(--bg); }
     .grp { display: flex; flex-direction: column; gap: 1px; }
     .lbl { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 0 8px 4px; }
@@ -32,11 +32,35 @@ export class PhxProject extends SignalWatcher(LitElement) {
     aside a .num { margin-left: auto; font-family: var(--font-mono); font-size: 11px; opacity: .8; }
     .tools { margin-top: auto; display: flex; flex-direction: column; gap: 1px; }
     main { padding: 24px 32px 60px; min-width: 0; }
-    @media (max-width: 800px) { :host { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--line); } main { padding: 18px 16px; } }
+    .mbar, .scrim { display: none; }
+
+    /* Phones and small tablets: the sidebar becomes a drawer from the left. */
+    @media (max-width: 800px) {
+      :host { grid-template-columns: 1fr; align-content: start; }
+      main { padding: 18px 16px 48px; }
+      .mbar { display: flex; align-items: center; gap: 10px; position: sticky; top: var(--header-h); z-index: 5;
+        padding: 8px 12px; background: var(--bg); border-bottom: 1px solid var(--line); }
+      .mbar button { padding: 6px 10px; }
+      .mbar .where { color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+      aside { position: fixed; inset: 0 auto 0 0; z-index: 30; width: min(300px, 86vw); overflow-y: auto;
+        border-right: 1px solid var(--line); box-shadow: 0 0 40px rgb(0 0 0 / .18);
+        transform: translateX(-100%); visibility: hidden;
+        transition: transform var(--dur-drawer) var(--ease-drawer), visibility 0s linear var(--dur-drawer); }
+      aside.open { transform: none; visibility: visible; transition: transform var(--dur-drawer) var(--ease-drawer), visibility 0s; }
+      .scrim { display: block; position: fixed; inset: 0; z-index: 25; background: rgb(0 0 0 / .35); opacity: 0; pointer-events: none;
+        transition: opacity var(--dur-drawer) var(--ease-out); }
+      .scrim.open { opacity: 1; pointer-events: auto; }
+    }
+    @media (max-width: 800px) and (prefers-reduced-motion: reduce) {
+      aside { transform: none; opacity: 0; transition: opacity var(--dur) ease, visibility 0s linear var(--dur); }
+      aside.open { opacity: 1; transition: opacity var(--dur) ease, visibility 0s; }
+    }
   `];
   slug = "";
   docs: Doc[] = [];
   error = "";
+  /** Drawer state on small screens; ignored on wide screens. */
+  menuOpen = false;
   private loadedFor = "";
   private loadedVersion = -1;
 
@@ -66,9 +90,48 @@ export class PhxProject extends SignalWatcher(LitElement) {
     }
   }
 
+  connectedCallback() {
+    super.connectedCallback();
+    addEventListener("popstate", this.onNavigate);
+    addEventListener("keydown", this.onKey);
+  }
+
   disconnectedCallback() {
     super.disconnectedCallback();
+    removeEventListener("popstate", this.onNavigate);
+    removeEventListener("keydown", this.onKey);
+    this.setMenu(false);
     delete document.documentElement.dataset.pc;
+  }
+
+  private onNavigate = () => this.setMenu(false);
+  private onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape" && this.menuOpen) this.setMenu(false, true);
+  };
+
+  /** Following a link inside the drawer closes it. */
+  private onAsideClick = (e: Event) => {
+    if ((e.target as HTMLElement).closest("a")) this.setMenu(false);
+  };
+
+  /** Opens or closes the drawer; locks page scroll while it is open. */
+  private async setMenu(open: boolean, restoreFocus = false) {
+    if (open === this.menuOpen) return;
+    this.menuOpen = open;
+    document.documentElement.style.overflow = open ? "hidden" : "";
+    await this.updateComplete;
+    if (open) this.renderRoot.querySelector<HTMLElement>("aside a")?.focus();
+    else if (restoreFocus) this.renderRoot.querySelector<HTMLElement>(".mbar button")?.focus();
+  }
+
+  /** Label of the current page for the mobile bar. */
+  private where(here: string) {
+    const doc = this.docs.find((d) => here.startsWith(`/p/${this.slug}/d/${d.slug}`));
+    if (doc) return doc.title;
+    if (here.endsWith("/decisions")) return t("nav.decisions");
+    if (here.endsWith("/suggestions")) return t("nav.suggestions");
+    if (here.endsWith("/settings")) return t("nav.settings");
+    return t("project.overview");
   }
 
   private overview() {
@@ -93,7 +156,12 @@ export class PhxProject extends SignalWatcher(LitElement) {
     const here = location.pathname;
     const canEdit = ["editor", "owner"].includes(currentProject.get()?.role ?? "");
     return html`
-      <aside aria-label=${t("nav.projects")}>
+      <div class="mbar">
+        <button class="ghost" aria-expanded=${this.menuOpen} aria-controls="nav" @click=${() => this.setMenu(!this.menuOpen)}>${icon("Menu", 16)} ${t("nav.menu")}</button>
+        <span class="where">${this.where(here)}</span>
+      </div>
+      <div class=${this.menuOpen ? "scrim open" : "scrim"} @click=${() => this.setMenu(false, true)}></div>
+      <aside id="nav" class=${this.menuOpen ? "open" : ""} aria-label=${t("nav.menu")} @click=${this.onAsideClick}>
         <div class="grp"><a href="/p/${this.slug}" class=${here === `/p/${this.slug}` ? "on" : ""}>${icon("House", 15)} ${t("project.overview")}</a>
           <a href="/p/${this.slug}/decisions" class=${here === `/p/${this.slug}/decisions` ? "on" : ""}>${icon("ListChecks", 15)} ${t("nav.decisions")}</a></div>
         ${[...groups].map(([cat, docs]) => html`<div class="grp">
