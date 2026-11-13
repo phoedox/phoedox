@@ -9,6 +9,8 @@ import { currentProject, docsVersion, favorites, navigate } from "../state";
 import "./request-block";
 import { base } from "./shared";
 import "./attachments";
+import "./doc-share";
+import type { PhxDocShare } from "./doc-share";
 import { toast } from "./toasts";
 
 export const prose = `
@@ -44,6 +46,13 @@ export class PhxDocView extends SignalWatcher(LitElement) {
   error = "";
   confirming = false;
   private loaded = "";
+
+  /** Loads the page again in place (after its access changed); open dialogs stay. */
+  async reload() {
+    const doc = await api<Doc>("GET", `/projects/${this.project}/documents/${this.docSlug}`).catch(() => undefined);
+    if (doc) this.doc = doc;
+    docsVersion.set(docsVersion.get() + 1);
+  }
 
   async willUpdate() {
     const key = this.project + "/" + this.docSlug;
@@ -134,7 +143,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     const d = this.doc;
     if (!d) return html`<p class="muted">${t("app.loading")}</p>`;
     const c = d.content ?? {};
-    const canEdit = ["editor", "owner"].includes(currentProject.get()?.role ?? "");
+    // The role for this page can differ from the project role (restricted or shared pages).
+    const canEdit = ["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "");
     return html`<article class="enter">
       <header>
         <div>
@@ -145,20 +155,23 @@ export class PhxDocView extends SignalWatcher(LitElement) {
             ${d.type === "adr" ? html`<span class="chip status-${c.status}">${t(`adr.status.${c.status}` as any)}</span>${c.date ? html`<span class="chip">${c.date}</span>` : ""}` : ""}
             <span class="chip">${t("doc.version", { version: d.version })}</span>
             <span class="chip">${t("doc.updated", { date: formatDate(d.updatedAt) })}</span>
+            ${d.restricted ? html`<span class="chip" title=${t("share.restrict_hint")}>${icon("Lock", 11)} ${t("share.restricted")}</span>` : ""}
           </div>
         </div>
         <div class="row">
           ${this.favoriteButtons(d)}
           <a class="btn ghost" href="/p/${this.project}/d/${d.slug}/history">${icon("History", 14)} ${t("doc.history")}</a>
+          ${canEdit ? html`<button class="ghost" @click=${() => this.renderRoot.querySelector<PhxDocShare>("phx-doc-share")!.open()}>${icon("Share2", 14)} ${t("share.button")}</button>
           <a class="btn ghost" href="/p/${this.project}/d/${d.slug}/edit">${icon("Pencil", 14)} ${t("doc.edit")}</a>
           ${this.confirming
             ? html`<span class="muted">${t("doc.delete_confirm")}</span><button class="danger" @click=${this.deleteDoc}>${t("doc.delete")}</button><button class="ghost" @click=${() => (this.confirming = false)}>${t("doc.cancel")}</button>`
-            : html`<button class="danger" @click=${() => (this.confirming = true)}>${icon("Trash2", 14)} ${t("doc.delete")}</button>`}
+            : html`<button class="danger" @click=${() => (this.confirming = true)}>${icon("Trash2", 14)} ${t("doc.delete")}</button>`}` : ""}
         </div>
       </header>
       ${d.type === "adr" && c.status === "superseded" && c.supersededBy
         ? html`<p class="notice" role="note">${t("adr.superseded_notice")} ${t("adr.superseded_by")}: ${this.decisionLink(c.supersededBy)}</p>` : ""}
       ${this.body(d)}
+      ${canEdit ? html`<phx-doc-share .project=${currentProject.get()} .doc=${d} @changed=${() => this.reload()}></phx-doc-share>` : ""}
       ${d.type !== "link" ? html`<phx-attachments style="margin-top:28px" .project=${this.project} .document=${d.id} .editable=${canEdit}></phx-attachments>` : ""}
     </article>`;
   }

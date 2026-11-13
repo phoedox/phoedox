@@ -195,7 +195,8 @@ func (s *Service) Documents(ctx context.Context, a Actor, ref string, f store.Do
 
 // Document returns one document with content.
 func (s *Service) Document(ctx context.Context, a Actor, ref, docRef string) (store.Document, error) {
-	_, doc, err := s.docAccess(ctx, a, ref, docRef, store.RoleReader)
+	p, doc, err := s.docAccess(ctx, a, ref, docRef, store.RoleReader)
+	doc.Role = p.Role
 	return doc, err
 }
 

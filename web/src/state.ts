@@ -37,5 +37,5 @@ export function loginURL(): string {
 
 /** Pages that work without a session. */
 export function isPublicPath(path: string) {
-  return path === "/login" || path === "/forgot" || /^\/(invite|reset)\/[^/]+$/.test(path);
+  return path === "/login" || path === "/forgot" || /^\/(invite|reset)\/[^/]+$/.test(path) || /^\/s\/phxs_[^/]+(\/[^/]+)?$/.test(path);
 }

@@ -27,7 +27,8 @@ export function hasKey(key: string): key is Key {
 
 /** Translates a key and fills {placeholders}. Unknown placeholders stay visible. */
 export function t(key: Key, vars: Record<string, unknown> = {}, loc: Locale = current): string {
-  return tables[loc][key].replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m));
+  // Missing keys (only possible with dynamic keys) show the key instead of breaking the page.
+  return (tables[loc][key] ?? key).replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m));
 }
 
 export function formatDate(iso: string, loc: Locale = current): string {

@@ -19,6 +19,8 @@ import "./admin-settings";
 import "./projects";
 import "./project";
 import "./tokens";
+import "./orgs";
+import "./shared-view";
 
 const projectView = (slug: string, root: boolean) => html`<phx-project .slug=${slug} .root=${root}></phx-project>`;
 
@@ -60,6 +62,10 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/settings/tokens", render: () => html`<phx-tokens></phx-tokens>` },
     { path: "/admin/users", render: () => html`<phx-users></phx-users>` },
     { path: "/admin/settings", render: () => html`<phx-admin-settings></phx-admin-settings>` },
+    { path: "/orgs", render: () => html`<phx-orgs></phx-orgs>` },
+    { path: "/orgs/:slug", render: ({ slug }) => html`<phx-org .slug=${slug!}></phx-org>` },
+    { path: "/s/:token", render: ({ token }) => html`<phx-shared-view .token=${token!}></phx-shared-view>` },
+    { path: "/s/:token/:doc", render: ({ token, doc }) => html`<phx-shared-view .token=${token!} .doc=${doc!}></phx-shared-view>` },
     // One template for both routes keeps the same element; root tells it to
     // show the overview (the root route has no tail for the child routes).
     { path: "/p/:project/*", render: ({ project }) => projectView(project!, false) },
@@ -91,8 +97,9 @@ export class PhxApp extends SignalWatcher(LitElement) {
     const user = currentUser.get();
     const p = currentProject.get();
     const inProject = location.pathname.startsWith("/p/");
+    const shared = location.pathname.startsWith("/s/");
     return html`
-      ${user
+      ${user && !shared
         ? html`<header>
             <a class="brand" href="/"><img src="/logo.svg" alt="" /><span class="word">Phoedox</span></a>
             ${inProject && p ? html`<a class="crumb" href="/p/${p.slug}"><span class="pi">${p.short}</span><span class="name">${p.name}</span></a>` : ""}

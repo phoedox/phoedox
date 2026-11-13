@@ -118,6 +118,7 @@ export class PhxUserMenu extends SignalWatcher(LitElement) {
         ${item("/settings/profile", "UserRound", t("nav.profile"))}
         ${item("/settings/security", "ShieldCheck", t("nav.security"))}
         ${item("/settings/tokens", "KeyRound", t("nav.tokens"))}
+        ${item("/orgs", "Building2", t("nav.orgs"))}
         ${u.isAdmin ? item("/admin/users", "Users", t("users.title")) : ""}
         <hr role="separator" />
         <button role="menuitem" tabindex="-1" @click=${this.logout}>${icon("LogOut", 15)} ${t("nav.logout")}</button>

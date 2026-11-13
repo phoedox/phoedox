@@ -49,13 +49,31 @@ export interface LinkResult { user: User; purpose: "invite" | "reset"; link: str
 export const minPasswordLength = 10;
 export interface Project {
   id: string; slug: string; name: string; short: string; description: string;
-  primaryColor: string; aiWriteMode: "off" | "read" | "suggest" | "direct"; role: string;
+  primaryColor: string; aiWriteMode: "off" | "read" | "suggest" | "direct";
+  /** owner | editor | reader | doc (only single documents shared) */
+  role: string;
+  orgId?: string; orgName?: string;
 }
+export interface Org { id: string; slug: string; name: string; usageType: "commercial" | "noncommercial"; aiEnabled: boolean; quotaMb: number; createdAt: string; role?: "admin" | "member" }
+export interface OrgMember { userId: string; email: string; name: string; role: string }
+export interface Group { id: string; orgId: string; name: string; oidcGroup: string; members: OrgMember[] }
+export interface OrgDetail extends Org { members: OrgMember[]; groups: Group[] }
+export interface Member { userId: string; email: string; name: string; role: string; expiresAt: string | null }
+export interface ProjectGroup { groupId: string; name: string; role: string }
+export interface DocGrant { id: string; userId?: string; groupId?: string; name: string; email?: string; role: "reader" | "editor"; createdAt: string }
+export interface DocSharing { restricted: boolean; grants: DocGrant[] }
+export interface ShareLink { id: string; projectId: string; documentId?: string; label: string; createdBy: string; createdAt: string; expiresAt: string | null; lastUsedAt: string | null; token?: string }
+/** Address of a share link (the token is only known right after creating it). */
+export const shareURL = (token: string) => `${location.origin}/s/${token}`;
 export interface Doc {
   id: string; projectId: string; type: "markdown" | "adr" | "link"; slug: string; title: string;
   category: string; position: number; version: number; updatedAt: string; content?: any;
   /** Decisions only: per-project number, never reused. */
   number?: number;
+  /** Visible only to owners and people or groups it is shared with. */
+  restricted?: boolean;
+  /** The requesting user's role for this page. */
+  role?: string;
 }
 export type DecisionStatus = "proposed" | "accepted" | "rejected" | "deprecated" | "superseded";
 export const decisionStatuses: readonly DecisionStatus[] = ["proposed", "accepted", "rejected", "deprecated", "superseded"];

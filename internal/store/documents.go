@@ -26,11 +26,13 @@ type Document struct {
 	Content   JSON   `json:"content,omitempty"`
 	Number    int    `json:"number,omitempty"` // decisions only, per project, never reused
 	// Restricted documents are visible only to project owners and people or groups they are shared with.
-	Restricted bool   `json:"restricted,omitempty"`
-	Version    int    `json:"version"`
-	CreatedBy  string `json:"createdBy"`
-	CreatedAt  Time   `json:"createdAt"`
-	UpdatedAt  Time   `json:"updatedAt"`
+	Restricted bool `json:"restricted,omitempty"`
+	// Role is the requesting user's role for this document (set by the service).
+	Role      string `json:"role,omitempty"`
+	Version   int    `json:"version"`
+	CreatedBy string `json:"createdBy"`
+	CreatedAt Time   `json:"createdAt"`
+	UpdatedAt Time   `json:"updatedAt"`
 }
 
 const docCols = `id, project_id, doc_type, slug, title, category, position, version, created_by, created_at, updated_at, number, restricted`
