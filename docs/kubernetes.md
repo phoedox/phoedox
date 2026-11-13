@@ -53,6 +53,16 @@ ufw allow 80/tcp
 ufw allow 443/tcp
 ```
 
+Interne k3s-Netze zulassen (Pods und Services, laut k3s-Doku nötig mit ufw):
+
+```bash
+ufw allow from 10.42.0.0/16 to any
+```
+
+```bash
+ufw allow from 10.43.0.0/16 to any
+```
+
 ```bash
 ufw enable
 ```

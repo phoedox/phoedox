@@ -38,7 +38,7 @@ Regeln:
 | Ist schon eine Tabby-Sitzung per SSH zum Server offen? Als root oder mit sudo? | | ja |
 | Backups nach S3? (Endpoint, Bucket – Schlüssel tippt der Nutzer selbst) | Hetzner Object Storage | optional |
 
-Server-Mindestgröße: 2 vCPU, 4 GB RAM, 40 GB SSD; Debian 12 oder Ubuntu 22.04/24.04.
+Server-Mindestgröße: 2 vCPU, 4 GB RAM, 40 GB SSD; Debian 12/13 oder Ubuntu 22.04/24.04.
 
 ---
 
@@ -78,6 +78,13 @@ Firewall – **erst SSH erlauben, dann einschalten**, sonst sperrt sich die Sitz
 
 ```bash
 ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp
+```
+
+Die internen k3s-Netze (Pods, Services) zulassen, sonst blockiert ufw den Verkehr im Cluster
+(Empfehlung der k3s-Doku; von außen wird dadurch nichts erreichbar):
+
+```bash
+ufw allow from 10.42.0.0/16 to any && ufw allow from 10.43.0.0/16 to any
 ```
 
 ```bash
