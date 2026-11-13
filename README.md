@@ -89,6 +89,10 @@ make build && ./bin/phoedox
 | `PHOEDOX_BACKUP_TARGET`, `PHOEDOX_BACKUP_DIR`, `PHOEDOX_BACKUP_FILES` | `local`, `<data>/backups`, `true` | Ziel (`local` oder `s3` im Datei-Bucket), Ordner, Dateiinhalte mitsichern |
 | `PHOEDOX_METRICS_TOKEN` | – | Aktiviert `/metrics` (Prometheus) mit diesem Bearer-Token |
 | `PHOEDOX_MULTI_TENANT` | `false` | Gehosteter Modus: mehrere Kunden (Mandanten) in einer Postgres-Datenbank, getrennt per Row-Level-Security; Mandant aus der Domain (`phx admin create-tenant`). Der DB-Nutzer darf kein Superuser sein. |
+| `PHOEDOX_PLUGINS` | `true` | WASM-Plugins ausführen |
+| `PHOEDOX_STORE_URL` | `https://store.phoedox.com` | Plugin-Store; `off` schaltet ihn ab |
+| `PHOEDOX_PLUGIN_KEYS` | – | Weitere vertrauenswürdige Signaturschlüssel `id:base64,…` (z. B. eigener Store) |
+| `PHOEDOX_PLUGINS_ALLOW_UNSIGNED` | `false` | Unsignierte Pakete erlauben – nur für die Plugin-Entwicklung |
 | `PHOEDOX_WORKERS` | `2` | Parallele Hintergrund-Jobs (Vorschauen, Text); `0` = keine in diesem Prozess |
 | `PHOEDOX_S3_ENDPOINT`, `_BUCKET`, `_REGION`, `_ACCESS_KEY`, `_SECRET_KEY`, `_PREFIX` | – | Dateien in einem S3-kompatiblen Bucket statt unter `<data>/files` |
 | `PHOEDOX_PROMPTS_DIR` | – | Ordner mit eigenen KI-Prompts, siehe [`resources/prompts`](resources/prompts) |

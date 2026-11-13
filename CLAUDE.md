@@ -16,7 +16,8 @@ und bei neuen Entscheidungen dort nachtragen. Der klickbare Prototyp liegt in `d
 - `internal/mcp` – MCP-Server (`/mcp`, Bearer-Token), Tools für Projekte, Dokumente, Entscheidungen, Einträge
 - `internal/app` – verbindet Konfiguration, DB und Dienste (Server + CLI)
 - `resources/prompts/` – System-Prompts und Anleitungen für KI als Markdown, eingebettet beim Build, per `PHOEDOX_PROMPTS_DIR` beim Start überschreibbar. **Prompt-Texte nie im Go-Code**, immer hier ablegen und mit `resources.Prompt(name)` laden.
-- `internal/{realtime,plugins,agenthub}` – noch Gerüst, siehe Paket-Doku
+- `internal/plugins` – WASM-Laufzeit (Extism), Manifest, Pakete, Signaturen; Kernlogik in `internal/core/plugins.go`, Store-Client `internal/storeclient`. Test-Plugin in `internal/plugins/testdata/testplugin` (wird in Tests gebaut)
+- `internal/agenthub` – noch Gerüst, siehe Paket-Doku
 - `db/migrations/{postgres,sqlite}` – goose-Migrationen, **beide Dialekte immer gemeinsam ändern**
 - `web/` – Lit + Vite + Bun; `web/dist` wird per `go:embed` eingebunden
 

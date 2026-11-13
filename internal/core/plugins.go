@@ -1126,7 +1126,7 @@ func schemaAttrs(raw []byte, fallback string) (name, desc string, attrs []Attr) 
 			at.Type = "number"
 		case typ == "boolean":
 			at.Type = "bool"
-		case p.Format == "date" || p.Format == "date-time":
+		case p.Format == "date": // date-time stays text (no time type yet)
 			at.Type = "date"
 		case p.Format == "ipv4" || p.Format == "ipv6":
 			at.Type = "ip"
