@@ -26,6 +26,10 @@ docs.example.org {
 }
 ```
 
+Für das gemeinsame Bearbeiten in Echtzeit (`/rt`) muss der Proxy WebSockets durchreichen – Caddy und
+Traefik tun das von selbst, bei nginx `proxy_http_version 1.1` sowie die Header `Upgrade` und
+`Connection "upgrade"` setzen. Live-Bearbeitung setzt derzeit **eine** Server-Instanz voraus.
+
 Das Image `ghcr.io/phoedox/phoedox` wird bei jedem Push auf `main` (`:main`) und bei jedem
 Release (`:X.Y.Z`, `:latest`) gebaut. Solange das Repo privat ist, vorher `docker login ghcr.io`
 mit einem Token mit `read:packages`.

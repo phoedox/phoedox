@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/phoedox/phoedox/internal/store"
@@ -13,8 +14,9 @@ import (
 // VersionInfo is a version with the name of who made it.
 type VersionInfo struct {
 	store.Version
-	ActorName string `json:"actorName,omitempty"`
-	ViaAI     bool   `json:"viaAI,omitempty"`
+	ActorName string   `json:"actorName,omitempty"`
+	ViaAI     bool     `json:"viaAI,omitempty"`
+	Coauthors []string `json:"coauthors,omitempty"` // names
 }
 
 func (s *Service) withNames(ctx context.Context, vs []store.Version) ([]VersionInfo, error) {
@@ -22,6 +24,9 @@ func (s *Service) withNames(ctx context.Context, vs []store.Version) ([]VersionI
 	for _, v := range vs {
 		if id := store.ActorUserID(v.Actor); id != "" {
 			ids = append(ids, id)
+		}
+		if v.Coauthors != "" {
+			ids = append(ids, strings.Split(v.Coauthors, ",")...)
 		}
 	}
 	names, err := s.DB.UserNames(ctx, ids)
@@ -31,6 +36,13 @@ func (s *Service) withNames(ctx context.Context, vs []store.Version) ([]VersionI
 	out := make([]VersionInfo, len(vs))
 	for i, v := range vs {
 		out[i] = VersionInfo{Version: v, ActorName: names[store.ActorUserID(v.Actor)], ViaAI: len(v.Actor) > 4 && v.Actor[:4] == "mcp:"}
+		if v.Coauthors != "" {
+			for _, id := range strings.Split(v.Coauthors, ",") {
+				if n := names[id]; n != "" {
+					out[i].Coauthors = append(out[i].Coauthors, n)
+				}
+			}
+		}
 	}
 	return out, nil
 }

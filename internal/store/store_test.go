@@ -1,6 +1,7 @@
 package store
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/phoedox/phoedox/internal/graph"
 )
@@ -611,6 +613,48 @@ func TestTrashFavoritesStore(t *testing.T) {
 			later.Time = later.Time.Add(1e9)
 			if n, err := d.PurgeBefore(ctx, later); err != nil || n != 1 {
 				t.Fatalf("purge before: %v %d", err, n)
+			}
+		})
+	}
+}
+
+func TestLiveStore(t *testing.T) {
+	for name, d := range testDBs(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			u, _ := d.CreateUser(ctx, User{ID: id(), Email: "l@y.de", Name: "L"})
+			p, _ := d.CreateProject(ctx, Project{ID: id(), Slug: "p", Name: "P", Short: "P", PrimaryColor: "#F26A1B", AIWriteMode: "suggest", OwnerID: u.ID})
+			doc, _ := d.CreateDocument(ctx, Document{ID: id(), ProjectID: p.ID, Type: DocMarkdown, Slug: "a", Title: "A", Content: JSON(`{"markdown":"1"}`), CreatedBy: u.ID}, "user:"+u.ID)
+			bin := []byte{0, 1, 2, 255, 0x80}
+			for i, b := range [][]byte{bin, {9, 9, 9}} {
+				if err := d.AppendDocUpdate(ctx, doc.ID, int64(i+1), b); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if ups, err := d.DocUpdates(ctx, doc.ID); err != nil || len(ups) != 2 || !bytes.Equal(ups[0].Data, bin) {
+				t.Fatalf("updates: %v %+v", err, ups)
+			}
+			if err := d.CompactDocUpdates(ctx, doc.ID, 2, []byte("snap")); err != nil {
+				t.Fatal(err)
+			}
+			if ups, _ := d.DocUpdates(ctx, doc.ID); len(ups) != 1 || string(ups[0].Data) != "snap" {
+				t.Fatalf("compact: %+v", ups)
+			}
+			doc.Content = JSON(`{"markdown":"2"}`)
+			s1, created, err := d.SaveLive(ctx, doc, "user:"+u.ID, time.Hour)
+			if err != nil || !created || s1.Version != 2 {
+				t.Fatalf("live 1: %v %v %d", err, created, s1.Version)
+			}
+			s1.Content = JSON(`{"markdown":"3"}`)
+			s2, created, err := d.SaveLive(ctx, s1, "user:"+u.ID, time.Hour)
+			if err != nil || created || s2.Version != 2 {
+				t.Fatalf("live 2 must merge: %v %v %d", err, created, s2.Version)
+			}
+			if v, _ := d.GetVersion(ctx, doc.ID, 2); !strings.Contains(string(v.Content), "3") {
+				t.Fatalf("merged content: %s", v.Content)
+			}
+			if err := d.ClearDocUpdates(ctx, doc.ID); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}

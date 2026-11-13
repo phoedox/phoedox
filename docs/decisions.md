@@ -171,3 +171,13 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 | Verlauf | Jede Version mit Autor (Name, „per KI“). Vergleich zeilenweise im Browser (Myers-Diff, eigene Umsetzung ohne Abhängigkeit), Entscheidungen als Text mit Abschnitten. Wiederherstellen speichert die alte Version als neue – über den normalen Änderungsweg (Vorschlagsmodus, Index, ADR-Verknüpfungen). MCP: `get_document_version`, `restore_document_version`. |
 | Papierkorb | Gelöschte Dokumente und Einträge (mit ihren Beziehungen) bleiben `PHOEDOX_TRASH_DAYS` Tage (Standard 30) wiederherstellbar; „Rückgängig“ direkt nach dem Löschen. Bearbeiter stellen wieder her, nur Besitzer löschen endgültig. Ist der Name inzwischen vergeben, muss erst umbenannt werden. Slugs gelöschter Einträge sind frei (Migration 9, SQLite-Tabellenumbau). |
 | Favoriten | Projekt-Favoriten (Pin, setzen Bearbeiter) und eigene (Stern) in einer leicht hervorgehobenen Gruppe oben in der Seitenleiste; Sortieren per Ziehen oder Alt+Pfeil. |
+
+## Live-Bearbeitung
+
+| Bereich | Entscheidung |
+|---|---|
+| Editor | Lexical ohne React (Rich Text, Listen, Links, Code, Markdown-Kürzel), Werkzeugleiste mit Tastenkürzeln; als eigenes Modul nachgeladen. Markdown-Seiten werden immer live bearbeitet, Entscheidungen und Links weiter per Formular. |
+| Synchronisation | Yjs mit dem Standard-Client `y-websocket`, Server unter `/rt/doc/{projekt}/{dokument}` (nur Bearbeiter, Origin-Prüfung). Cursor und Anwesenheit über Awareness; Farben aus Tokens. |
+| Server | **Abweichung vom Plan (yrs in WASM):** Der Go-Server führt Yjs-Updates nicht selbst zusammen. Er speichert das Update-Log (`doc_updates`), verteilt Updates und bittet bei wachsendem Log (200 Updates/2 MB) den sendenden Editor um einen zusammengefassten Stand (Kompaktierung). Ein leeres Live-Dokument befüllt genau ein vom Server bestimmter Editor aus dem Markdown. Eine Server-Instanz; für mehrere Instanzen später Verteilung über den Bus. |
+| Inhalt | Markdown bleibt der maßgebliche Inhalt (Suche, MCP, Versionen, Vergleich). Wer tippt, speichert 1,5 s nach der letzten Eingabe den Stand als Markdown; nur echte Eingaben zählen. Speicherungen einer Person innerhalb von 10 Minuten ergeben eine Version; wer denselben Stand speichert, wird Mitautor. |
+| Fremde Änderungen | Ändert sich der Inhalt außerhalb des Live-Editors (API, MCP, Wiederherstellen, angenommener Vorschlag, Löschen), wird das Log verworfen und alle Editoren laden neu (Hinweis mit Namen). |

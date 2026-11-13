@@ -15,6 +15,7 @@ import (
 	"github.com/phoedox/phoedox/internal/auth"
 	"github.com/phoedox/phoedox/internal/config"
 	"github.com/phoedox/phoedox/internal/core"
+	"github.com/phoedox/phoedox/internal/realtime"
 	"github.com/phoedox/phoedox/internal/store"
 )
 
@@ -29,6 +30,8 @@ type Deps struct {
 	Auth   *auth.Auth
 	MCP    http.Handler
 	Web    fs.FS
+	// Hub serves live editing (/rt); nil disables it.
+	Hub *realtime.Hub
 }
 
 // New returns the root handler.
@@ -49,6 +52,9 @@ func New(d Deps) http.Handler {
 		api := &api{core: d.Core, auth: d.Auth, cfg: d.Config, limiter: newLimiter(10, 5*time.Minute), regLimiter: newLimiter(30, time.Hour)}
 		r.Route("/api/v1", api.routes)
 		api.oauthRoutes(r)
+		if d.Hub != nil {
+			r.With(api.requireActor).Get("/rt/doc/{p}/{d}", api.live(d.Hub))
+		}
 	}
 	if d.MCP != nil {
 		r.Handle("/mcp", d.MCP)

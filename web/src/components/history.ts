@@ -7,7 +7,7 @@ import { currentProject, docsVersion, navigate } from "../state";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
-interface VersionInfo { version: number; title: string; actor: string; actorName?: string; viaAI?: boolean; createdAt: string; content?: any }
+interface VersionInfo { version: number; title: string; actor: string; actorName?: string; coauthors?: string[]; viaAI?: boolean; createdAt: string; content?: any }
 
 /** Plain text of a version for comparing (sections for decisions). */
 function textOf(type: Doc["type"], v: VersionInfo): string[] {
@@ -128,7 +128,7 @@ export class PhxHistory extends LitElement {
         <ol aria-label=${t("history.title")}>
           ${this.versions.map((v) => html`<li><button aria-current=${v.version === this.selected ? "true" : "false"} @click=${() => this.select(v.version)}>
             <span class="v">${t("history.version", { version: v.version })}${v.version === latest ? html` <span class="chip">${t("history.current")}</span>` : ""}</span>
-            <div class="meta">${formatDate(v.createdAt)}${v.actorName ? html` · ${t("history.by", { name: v.actorName })}` : ""}${v.viaAI ? html` · ${icon("Bot", 12)} ${t("history.via_ai")}` : ""}</div>
+            <div class="meta">${formatDate(v.createdAt)}${v.actorName ? html` · ${t("history.by", { name: [v.actorName, ...(v.coauthors ?? [])].join(", ") })}` : ""}${v.viaAI ? html` · ${icon("Bot", 12)} ${t("history.via_ai")}` : ""}</div>
           </button></li>`)}
         </ol>
         <div>

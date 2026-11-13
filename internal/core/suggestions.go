@@ -86,6 +86,7 @@ func (s *Service) DecideSuggestion(ctx context.Context, a Actor, id string, acce
 	case "document.delete":
 		if err = s.DB.DeleteDocument(ctx, op.Doc); err == nil {
 			s.unindex(ctx, op.Doc)
+			s.contentChanged(ctx, a, op.Doc)
 		}
 	case "entity.upsert":
 		res, err = s.upsertEntity(ctx, a, p, *op.Entity)

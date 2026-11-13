@@ -24,6 +24,12 @@
 }
 html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); }
 
+/* Colors of other people's carets in live editing (picked per user). */
+:root {
+  --collab-1: #d9480f; --collab-2: #1c7ed6; --collab-3: #2b8a3e; --collab-4: #ae3ec9;
+  --collab-5: #e67700; --collab-6: #0c8599; --collab-7: #c2255c; --collab-8: #5f3dc4;
+}
+
 /* Motion tokens (see CLAUDE.md: transform/opacity only, ease-out, < 300ms). */
 :root {
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);

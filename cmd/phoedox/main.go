@@ -13,6 +13,7 @@ import (
 
 	"github.com/phoedox/phoedox/internal/app"
 	"github.com/phoedox/phoedox/internal/mcp"
+	"github.com/phoedox/phoedox/internal/realtime"
 	"github.com/phoedox/phoedox/internal/server"
 	"github.com/phoedox/phoedox/web"
 )
@@ -33,7 +34,10 @@ func main() {
 		log.Warn("no users yet – create the first admin with: phx admin create-user --admin --email you@example.org --name 'Your Name'")
 	}
 
+	hub := realtime.NewHub(a.DB)
+	a.Core.OnContentChange = hub.Reset
 	handler := server.New(server.Deps{
+		Hub:    hub,
 		Config: a.Config,
 		Core:   a.Core,
 		Auth:   a.Auth,

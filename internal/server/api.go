@@ -103,6 +103,7 @@ func (a *api) routes(r chi.Router) {
 			r.Patch("/documents/{d}", a.updateDocument)
 			r.Delete("/documents/{d}", a.deleteDocument)
 			r.Get("/documents/{d}/versions", a.listVersions)
+			r.Put("/documents/{d}/live", a.liveSave)
 			r.Get("/documents/{d}/versions/{n}", a.getVersion)
 			r.Post("/documents/{d}/versions/{n}/restore", a.restoreVersion)
 			r.Get("/trash", a.listTrash)

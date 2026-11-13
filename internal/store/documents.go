@@ -196,10 +196,12 @@ type Version struct {
 	Actor     string `json:"actor"`
 	CreatedAt Time   `json:"createdAt"`
 	Content   JSON   `json:"content,omitempty"`
+	Kind      string `json:"kind"` // edit | live
+	Coauthors string `json:"-"`    // user ids, comma separated
 }
 
 func (d *DB) ListVersions(ctx context.Context, documentID string) ([]Version, error) {
-	rows, err := d.Query(ctx, `SELECT version, title, actor, created_at FROM document_versions WHERE document_id = ? ORDER BY version DESC`, documentID)
+	rows, err := d.Query(ctx, `SELECT version, title, actor, created_at, kind, coauthors FROM document_versions WHERE document_id = ? ORDER BY version DESC`, documentID)
 	if err != nil {
 		return nil, err
 	}
@@ -207,7 +209,7 @@ func (d *DB) ListVersions(ctx context.Context, documentID string) ([]Version, er
 	var out []Version
 	for rows.Next() {
 		var v Version
-		if err := rows.Scan(&v.Version, &v.Title, &v.Actor, &v.CreatedAt); err != nil {
+		if err := rows.Scan(&v.Version, &v.Title, &v.Actor, &v.CreatedAt, &v.Kind, &v.Coauthors); err != nil {
 			return nil, err
 		}
 		out = append(out, v)

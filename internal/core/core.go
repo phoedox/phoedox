@@ -66,6 +66,9 @@ type Service struct {
 	DB *store.DB
 	// MaxDepth limits traversals (admin setting, default 6).
 	MaxDepth int
+	// OnContentChange is called when a document's content changed outside
+	// the live editor (the realtime hub resets live sessions).
+	OnContentChange func(ctx context.Context, documentID, by string)
 }
 
 // New returns a service with defaults.

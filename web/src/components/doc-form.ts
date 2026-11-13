@@ -9,7 +9,7 @@ type DocResult = { applied: boolean; document?: Doc };
 
 /** Create (type set) or edit (docSlug set) a markdown page, decision or link. */
 export class PhxDocForm extends LitElement {
-  static properties = { project: {}, docSlug: {}, type: {}, doc: { state: true }, decisions: { state: true }, error: { state: true }, busy: { state: true } };
+  static properties = { project: {}, docSlug: {}, type: {}, doc: { state: true }, decisions: { state: true }, error: { state: true }, busy: { state: true }, live: { state: true } };
   static styles = [base, css`
     form { display: grid; gap: 12px; max-width: 820px; }
     .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -22,6 +22,8 @@ export class PhxDocForm extends LitElement {
   doc?: Doc;
   /** Other decisions of the project, offered as "supersedes" targets. */
   decisions: Decision[] = [];
+  /** Markdown pages are edited live; the editor module is loaded on demand. */
+  live = false;
   error = "";
   busy = false;
   private loaded = "";
@@ -43,6 +45,10 @@ export class PhxDocForm extends LitElement {
     if (this.type === "adr") {
       this.decisions = await api<Decision[]>("GET", `/projects/${this.project}/decisions`).catch(() => []);
     }
+    if (this.type === "markdown" && this.doc) {
+      await import("./live-editor");
+      this.live = true;
+    }
   }
 
   private async submit(e: SubmitEvent) {
@@ -50,7 +56,7 @@ export class PhxDocForm extends LitElement {
     const f = new FormData(e.target as HTMLFormElement);
     const s = (k: string) => String(f.get(k) ?? "");
     const body: Record<string, unknown> = { title: s("title"), category: s("category") };
-    if (this.type === "markdown") body.markdown = s("markdown");
+    if (this.type === "markdown") body.markdown = "";
     if (this.type === "link") body.link = { url: s("url"), description: s("description") };
     if (this.type === "adr") body.adr = { status: s("status"), date: s("date"), context: s("context"), decision: s("decision"), consequences: s("consequences"), alternatives: s("alternatives"), supersedes: s("supersedes") };
     this.busy = true;
@@ -61,6 +67,12 @@ export class PhxDocForm extends LitElement {
         res = await api<DocResult>("PATCH", `/projects/${this.project}/documents/${this.doc.slug}`, { ...body, expectVersion: this.doc.version });
       } else {
         res = await api<DocResult>("POST", `/projects/${this.project}/documents`, { ...body, type: this.type });
+      }
+      if (this.type === "markdown" && !this.doc) {
+        // New pages continue in the live editor.
+        docsVersion.set(docsVersion.get() + 1);
+        navigate(`/p/${this.project}/d/${res.document?.slug ?? ""}/edit`);
+        return;
       }
       toast(t("doc.saved"));
       const target = this.type === "adr" ? s("supersedes") : "";
@@ -90,6 +102,7 @@ export class PhxDocForm extends LitElement {
   }
 
   render() {
+    if (this.live) return html`<phx-live-editor .project=${this.project} .docSlug=${this.docSlug}></phx-live-editor>`;
     if (this.docSlug && !this.doc && !this.error) return html`<p class="muted">${t("app.loading")}</p>`;
     const d = this.doc;
     const c = d?.content ?? {};
@@ -100,9 +113,7 @@ export class PhxDocForm extends LitElement {
         <label class="field">${t("doc.title")}<input name="title" .value=${d?.title ?? ""} required /></label>
         <label class="field">${t("doc.category")}<input name="category" .value=${d?.category ?? (this.type === "adr" ? "Entscheidungen" : "")} /></label>
       </div>
-      ${this.type === "markdown" ? html`
-        <label class="field">${t("doc.content")}<textarea class="big" name="markdown" .value=${c.markdown ?? ""}></textarea></label>
-        <p class="muted" style="margin:0;font-size:13px">${t("doc.mention_hint")}</p>` : ""}
+
       ${this.type === "link" ? html`
         <label class="field">${t("link.url")}<input name="url" type="url" .value=${c.url ?? ""} required placeholder="https://" /></label>
         <label class="field">${t("link.description")}<textarea name="description" .value=${c.description ?? ""}></textarea></label>` : ""}

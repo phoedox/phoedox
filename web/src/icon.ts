@@ -1,7 +1,7 @@
 import { svg, type SVGTemplateResult } from "lit";
 import { unsafeSVG } from "lit/directives/unsafe-svg.js";
 import {
-  ArrowLeft, ArrowRight, Bot, Box, Check, ChevronDown, Copy, History, ExternalLink, FilePlus, FileText, FolderOpen, House,
+  ArrowLeft, ArrowRight, Bold, Bot, Box, Check, ChevronDown, Code, Copy, Heading1, Heading2, Heading3, History, Italic, Link2, List, ListOrdered, Quote, Redo2, SquareCode, Undo2, ExternalLink, FilePlus, FileText, FolderOpen, House,
   KeyRound, Link, ListChecks, LogIn, LogOut, Menu, Pin, Search, Star, ShieldCheck, UserPlus, UserRound, Users, Pencil, Plus, Scale, Settings, Trash2, X,
 } from "lucide";
 
@@ -9,7 +9,7 @@ type Node = [string, Record<string, string | number>][];
 
 // Only imported icons end up in the bundle. Add new ones here.
 const icons: Record<string, Node> = {
-  ArrowLeft, ArrowRight, Bot, Box, Check, ChevronDown, Copy, History, ExternalLink, FilePlus, FileText, FolderOpen, House,
+  ArrowLeft, ArrowRight, Bold, Bot, Box, Check, ChevronDown, Code, Copy, Heading1, Heading2, Heading3, History, Italic, Link2, List, ListOrdered, Quote, Redo2, SquareCode, Undo2, ExternalLink, FilePlus, FileText, FolderOpen, House,
   KeyRound, Link, ListChecks, LogIn, LogOut, Menu, Pin, Search, Star, ShieldCheck, UserPlus, UserRound, Users, Pencil, Plus, Scale, Settings, Trash2, X,
 } as unknown as Record<string, Node>;
 

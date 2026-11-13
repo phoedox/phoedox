@@ -10,8 +10,8 @@ import (
 // GetVersion returns one stored version with content.
 func (d *DB) GetVersion(ctx context.Context, documentID string, version int) (Version, error) {
 	v := Version{Version: version}
-	err := d.QueryRow(ctx, `SELECT title, actor, created_at, content FROM document_versions WHERE document_id = ? AND version = ?`, documentID, version).
-		Scan(&v.Title, &v.Actor, &v.CreatedAt, &v.Content)
+	err := d.QueryRow(ctx, `SELECT title, actor, created_at, content, kind, coauthors FROM document_versions WHERE document_id = ? AND version = ?`, documentID, version).
+		Scan(&v.Title, &v.Actor, &v.CreatedAt, &v.Content, &v.Kind, &v.Coauthors)
 	if errors.Is(err, sql.ErrNoRows) {
 		return v, ErrNotFound
 	}

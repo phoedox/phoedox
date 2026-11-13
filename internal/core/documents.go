@@ -358,6 +358,9 @@ func (s *Service) updateDocument(ctx context.Context, a Actor, p store.Project, 
 	if err != nil {
 		return DocResult{}, err
 	}
+	if !sameJSON(cur.Content, doc.Content) {
+		s.contentChanged(ctx, a, doc.ID)
+	}
 	s.linkMentions(ctx, p, doc.ID, text)
 	s.event(ctx, a, "document.update", doc.ID, map[string]int{"version": doc.Version})
 	s.relatedEvents(ctx, a, doc, related)
@@ -385,6 +388,7 @@ func (s *Service) DeleteDocument(ctx context.Context, a Actor, ref, docRef strin
 		return DocResult{}, err
 	}
 	s.unindex(ctx, cur.ID)
+	s.contentChanged(ctx, a, cur.ID)
 	s.event(ctx, a, "document.delete", cur.ID, nil)
 	return DocResult{Applied: true, Document: &cur}, nil
 }
