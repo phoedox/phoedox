@@ -19,9 +19,13 @@ export function settingsNav(active: "profile" | "security" | "tokens" | "users" 
 }
 
 export const settingsNavStyles = css`
-  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 22px; overflow-x: auto; }
+  /* Scrolls sideways on narrow screens without showing a scrollbar; the
+     underline is drawn inside the tab so nothing overflows vertically. */
+  .tabs { display: flex; gap: 4px; box-shadow: inset 0 -1px var(--line); margin-bottom: 22px; overflow-x: auto; overflow-y: hidden;
+    scrollbar-width: none; overscroll-behavior-x: contain; }
+  .tabs::-webkit-scrollbar { display: none; }
   .tabs a { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; color: var(--muted); text-decoration: none; font-size: 14px;
-    border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; transition: color var(--dur-fast) ease; }
-  .tabs a[aria-current="page"] { color: var(--fg); border-bottom-color: var(--accent); }
+    white-space: nowrap; flex: none; transition: color var(--dur-fast) ease; }
+  .tabs a[aria-current="page"] { color: var(--fg); box-shadow: inset 0 -2px var(--accent); }
   @media (hover: hover) and (pointer: fine) { .tabs a:hover { color: var(--fg); } }
 `;

@@ -944,4 +944,6 @@ export const en: Record<keyof typeof de, string> = {
   "editor.table_delcol": "Delete column",
   "validation.draft_ended": "The draft was published or discarded meanwhile.",
   "validation.draft_markdown": "Only text pages have drafts.",
+  "model.show_unused": "Show {count} unused kinds",
+  "model.hide_unused": "Hide unused kinds",
 };

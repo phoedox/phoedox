@@ -38,11 +38,11 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
     li.rel .rl { color: var(--muted); }
     li.rel button { margin-left: auto; padding: 2px 6px; }
     form.add { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; align-items: end; padding: 10px; border: 1px dashed var(--line); border-radius: 10px; }
-    svg.hood { width: 100%; height: auto; display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+    svg.hood { width: 100%; height: auto; max-height: min(520px, 60vh); display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
     .n { cursor: pointer; }
     .n circle { fill: var(--surface); stroke: var(--c); stroke-width: 1.5; }
     .n.me circle { fill: color-mix(in srgb, var(--c) 16%, var(--surface)); stroke-width: 2.5; }
-    .n text { font-size: 13px; fill: var(--fg); text-anchor: middle; }
+    .n text { font-size: 13px; fill: var(--fg); text-anchor: middle; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
     .n .ico { color: var(--c); }
     .n:focus { outline: none; }
     .n:focus-visible circle { stroke: var(--accent); stroke-width: 3; }
@@ -174,13 +174,19 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
 
   /** The entry with its direct neighbors around it. */
   private neighborhood(e: Entity, edges: Edge[]) {
-    const W = 640, H = neighborCount(edges, e.id) <= 3 ? 260 : 360, cx = W / 2, cy = H / 2;
+    const count = neighborCount(edges, e.id);
+    // The ring grows with the number of neighbours so labels keep their distance.
+    const rx = count > 8 ? 230 + Math.min(count, 20) * 8 : 230;
+    const W = 2 * rx + 180, H = count <= 3 ? 260 : count <= 8 ? 360 : Math.round(rx * 1.45), cx = W / 2, cy = H / 2;
     const others = new Map<string, { slug: string; name: string; kind: string; labels: string[] }>();
     for (const x of edges) {
       const out = x.from === e.id;
       const id = out ? x.to : x.from;
       const o = others.get(id) ?? { slug: (out ? x.toSlug : x.fromSlug) ?? "", name: out ? x.toName : x.fromName, kind: (out ? x.toKind : x.fromKind) ?? "", labels: [] };
-      o.labels.push(`${out ? "" : "← "}${relLabel(x.rel)}`);
+      // The same relation can come from several sources (e.g. both directions of related_to): show it once.
+      // related_to has no direction.
+      const label = `${out || x.rel === "related_to" ? "" : "← "}${relLabel(x.rel)}`;
+      if (!o.labels.includes(label)) o.labels.push(label);
       others.set(id, o);
     }
     const list = [...others.values()];
@@ -196,11 +202,16 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
     };
     const pos = list.map((_, i) => {
       const a = (i / list.length) * Math.PI * 2 - Math.PI / 2;
-      return [cx + Math.cos(a) * 230, cy + Math.sin(a) * (H / 2 - 55)] as const;
+      return [cx + Math.cos(a) * rx, cy + Math.sin(a) * (H / 2 - 55)] as const;
     });
     return html`<svg class="hood" viewBox="0 0 ${W} ${H}" role="group" aria-label=${t("entity.neighborhood")}>
-      ${list.map((o, i) => svg`<line x1=${cx} y1=${cy} x2=${pos[i][0]} y2=${pos[i][1]}></line>
-        <text class="e" x=${cx + (pos[i][0] - cx) * 0.55} y=${cy + (pos[i][1] - cy) * 0.55 + 4}>${o.labels.join(" · ")}</text>`)}
+      ${list.map((o, i) => {
+        // Neighbours alternate the label position so labels do not meet near the middle.
+        const f = list.length > 6 && i % 2 ? 0.45 : 0.62;
+        const lx = cx + (pos[i][0] - cx) * f, ly = cy + (pos[i][1] - cy) * f + 4 - ((o.labels.length - 1) * 14) / 2;
+        return svg`<line x1=${cx} y1=${cy} x2=${pos[i][0]} y2=${pos[i][1]}></line>
+          <text class="e" x=${lx} y=${ly}>${o.labels.map((l, j) => svg`<tspan x=${lx} dy=${j ? 14 : 0}>${l}</tspan>`)}</text>`;
+      })}
       ${list.map((o, i) => node(pos[i][0], pos[i][1], o.kind, o.name, false, o.slug))}
       ${node(cx, cy, e.kind, e.name, true, e.slug)}
     </svg>`;

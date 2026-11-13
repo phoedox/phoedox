@@ -942,4 +942,6 @@ export const de = {
   "editor.table_delcol": "Spalte löschen",
   "validation.draft_ended": "Der Entwurf wurde inzwischen veröffentlicht oder verworfen.",
   "validation.draft_markdown": "Nur Textseiten haben Entwürfe.",
+  "model.show_unused": "{count} ungenutzte Arten anzeigen",
+  "model.hide_unused": "Ungenutzte Arten ausblenden",
 } as const;

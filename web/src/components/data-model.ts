@@ -17,7 +17,7 @@ type KindResult = { applied: boolean; kind?: Kind; suggestion?: Suggestion };
 
 /** Kinds of entities in a project: schema graph, entries and the kind's definition. */
 export class PhxDataModel extends SignalWatcher(LitElement) {
-  static properties = {
+  static properties = { showAll: { state: true }, hoverKind: { state: true },
     project: {}, kind: {}, model: { state: true }, view: { state: true }, entries: { state: true },
     error: { state: true }, formError: { state: true }, creating: { state: true }, addType: { state: true }, busy: { state: true },
   };
@@ -27,6 +27,8 @@ export class PhxDataModel extends SignalWatcher(LitElement) {
     .head h1 { margin-right: auto; }
     .grid { display: grid; grid-template-columns: 220px minmax(0, 1fr) 320px; gap: 16px; align-items: start; }
     .list { display: flex; flex-direction: column; gap: 12px; }
+    .list .more { border: none; background: none; color: var(--muted); font-size: 13px; justify-content: flex-start; text-align: left; padding: 4px 8px; }
+    @media (hover: hover) and (pointer: fine) { .list .more:hover { color: var(--fg); } }
     .lbl { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 0 8px 4px; }
     .kind { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 8px; border-radius: 6px;
       font-size: 14px; color: var(--muted); cursor: pointer; transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease; }
@@ -41,17 +43,18 @@ export class PhxDataModel extends SignalWatcher(LitElement) {
     .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 9px; background: var(--surface2); }
     .seg button { background: transparent; color: var(--muted); padding: 5px 12px; font-size: 13px; }
     .seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgb(0 0 0 / .08); }
-    svg.schema { width: 100%; height: auto; display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+    svg.schema { width: 100%; height: auto; max-height: min(560px, 64vh); display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
     .node { cursor: pointer; transition: transform var(--dur-enter) var(--ease-out); }
     .node circle { fill: var(--surface); stroke: var(--c); stroke-width: 1.5; }
     .node.sel circle { fill: color-mix(in srgb, var(--c) 14%, var(--surface)); stroke-width: 2.5; }
-    .node text { font-size: 14px; fill: var(--fg); text-anchor: middle; }
+    .node text { font-size: calc(14px * var(--fs, 1)); fill: var(--fg); text-anchor: middle; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
     .node:focus-visible { outline: none; }
     .node:focus-visible circle { stroke: var(--accent); stroke-width: 3; }
     .node .ico { color: var(--c); }
     .edges { transition: opacity var(--dur) var(--ease-out) 120ms; @starting-style { opacity: 0; } }
     .edges line { stroke: var(--line); stroke-width: 1.5; }
-    .edges text { font-size: 12.5px; fill: var(--muted); text-anchor: middle; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
+    .edges line.hl { stroke: var(--accent); }
+    .edges text { font-size: calc(12.5px * var(--fs, 1)); fill: var(--muted); text-anchor: middle; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
     th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line); }
     td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -95,6 +98,10 @@ export class PhxDataModel extends SignalWatcher(LitElement) {
   formError = "";
   /** The "new kind" form is open. */
   creating = false;
+  /** Also list built-in kinds without entries. */
+  showAll = false;
+  /** Kind under the pointer in the schema graph. */
+  hoverKind = "";
   addType: AttrType = "text";
   busy = false;
   private loadedFor = "";
@@ -247,22 +254,34 @@ export class PhxDataModel extends SignalWatcher(LitElement) {
   }
 
   private schemaGraph(k: Kind) {
-    const W = 640, H = 480, cx = W / 2, cy = H / 2;
     const rels = this.relationsOf(k);
     const others = [...new Set(rels.map(([, o]) => o))];
+    const n = others.length;
+    // The ring grows with the number of kinds; with many kinds the relation
+    // names on the lines appear only for the kind under the pointer or focus
+    // (the panel on the right lists all of them).
+    const dense = n > 8;
+    const rx = dense ? 200 + Math.min(n, 16) * 7 : n > 4 ? 245 : 190, ry = Math.round(rx * 0.74);
+    const W = 2 * rx + 200, H = 2 * ry + 110, cx = W / 2, cy = H / 2;
     const pos = new Map<string, [number, number]>([[k.id, [cx, cy]]]);
-    const rx = others.length > 4 ? 245 : 190, ry = others.length > 4 ? 180 : 140;
     others.forEach((o, i) => {
-      const a = (i / Math.max(others.length, 1)) * Math.PI * 2 - Math.PI / 2;
+      const a = (i / Math.max(n, 1)) * Math.PI * 2 - Math.PI / 2;
       pos.set(o, [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]);
     });
     const nodes = [k.id, ...others];
-    const labelFor = (o: string) => rels.filter(([, x]) => x === o).map(([rel, , outgoing]) => `${outgoing ? "" : "← "}${relLabel(rel)}`).join(" · ");
-    return html`<svg class="schema" viewBox="0 0 ${W} ${H}" role="img" aria-label=${t("model.schema_label", { kind: kindName(k) })}>
-      ${repeat([k.id], (id) => id, () => svg`<g class="edges">${others.map((o) => {
+    // One line per relation; several relations to the same kind stack.
+    const labelsFor = (o: string) => [...new Set(rels.filter(([, x]) => x === o).map(([rel, , outgoing]) => `${outgoing ? "" : "← "}${relLabel(rel)}`))];
+    // Text grows a little with the drawing so it stays readable when scaled down.
+    const fs = (dense ? W / 640 : 1).toFixed(2);
+    return html`<svg class="schema" viewBox="0 0 ${W} ${H}" style="--fs:${fs}" role="img" aria-label=${t("model.schema_label", { kind: kindName(k) })}>
+      ${repeat([k.id], (id) => id, () => svg`<g class="edges">${others.map((o, i) => {
         const [x, y] = pos.get(o)!;
-        // Labels sit closer to the outer kind so the middle stays readable.
-        return svg`<line x1=${cx} y1=${cy} x2=${x} y2=${y}></line><text x=${cx + (x - cx) * 0.6} y=${cy + (y - cy) * 0.6 + 4}>${labelFor(o)}</text>`;
+        // Labels sit towards the outer kind; neighbours alternate so they do not meet near the middle.
+        const f = 0.62;
+        const shown = !dense || this.hoverKind === o;
+        const lx = cx + (x - cx) * f, labels = labelsFor(o);
+        const ly = cy + (y - cy) * f + 4 - ((labels.length - 1) * 15) / 2;
+        return svg`<line class=${shown && dense ? "hl" : ""} x1=${cx} y1=${cy} x2=${x} y2=${y}></line>${shown ? svg`<text x=${lx} y=${ly}>${labels.map((l, j) => svg`<tspan x=${lx} dy=${j ? "1.2em" : 0}>${l}</tspan>`)}</text>` : ""}`;
       })}</g>`)}
       ${repeat(nodes, (id) => id, (id) => {
         const [x, y] = pos.get(id)!;
@@ -271,6 +290,7 @@ export class PhxDataModel extends SignalWatcher(LitElement) {
         const r = id === k.id ? 30 : 22;
         return svg`<g class=${id === k.id ? "node sel" : "node"} style="transform: translate(${x}px, ${y}px); --c: ${c}" tabindex="0" role="button"
           aria-label=${id === "*" ? t("model.any_kind") : kindName(kk, id)}
+          @pointerenter=${() => (this.hoverKind = id)} @pointerleave=${() => (this.hoverKind = "")} @focus=${() => (this.hoverKind = id)} @blur=${() => (this.hoverKind = "")}
           @click=${() => id !== "*" && this.select(id)} @keydown=${(e: KeyboardEvent) => (e.key === "Enter" || e.key === " ") && id !== "*" && (e.preventDefault(), this.select(id))}>
           <circle r=${r}></circle>
           <g transform="translate(-9 -9)">${icon(id === "*" ? "Shapes" : kk?.icon ?? "Shapes", 18)}</g>
@@ -387,7 +407,11 @@ export class PhxDataModel extends SignalWatcher(LitElement) {
     const m = this.model;
     if (!m) return html`<p class="muted">${t("app.loading")}</p>`;
     const sel = this.sel!;
-    const groups = [...new Set(m.kinds.map((k) => k.group))];
+    // Built-in kinds nobody uses are hidden until asked for.
+    const used = (k: Kind) => k.count > 0 || k.source === "project" || k.id === sel.id;
+    const visible = this.showAll ? m.kinds : m.kinds.filter(used);
+    const hidden = m.kinds.length - m.kinds.filter(used).length;
+    const groups = [...new Set(visible.map((k) => k.group))];
     return html`<div class="enter">
       <div class="head"><h1>${t("model.title")}</h1>
         <div class="seg" role="group" aria-label=${t("model.view")}>
@@ -400,13 +424,15 @@ export class PhxDataModel extends SignalWatcher(LitElement) {
       <div class="grid">
         <nav class="list" aria-label=${t("model.kinds")}>
           ${groups.map((g) => html`<div><div class="lbl">${groupName(g)}</div>
-            ${m.kinds.filter((k) => k.group === g).map((k) => html`<button class=${k.id === sel.id && !this.creating ? "kind on" : "kind"}
+            ${visible.filter((k) => k.group === g).map((k) => html`<button class=${k.id === sel.id && !this.creating ? "kind on" : "kind"}
               aria-current=${k.id === sel.id ? "true" : "false"} @click=${() => this.select(k.id)}>
               <span class="kic" style="--c:${groupColor[k.group]}">${icon(k.icon, 14)}</span><span>${kindName(k)}</span><small>${k.count || ""}</small></button>`)}
           </div>`)}
           ${m.unknown ? html`<div><div class="lbl">${t("model.unknown")}</div>
             ${Object.entries(m.unknown).map(([id, n]) => html`<div class="kind" style="cursor:default"><span class="kic" style="--c:var(--muted)">${icon("CircleAlert", 14)}</span><code>${id}</code><small>${n}</small></div>`)}
           </div>` : ""}
+          ${hidden ? html`<button class="ghost more" aria-expanded=${this.showAll ? "true" : "false"} @click=${() => (this.showAll = !this.showAll)}>
+            ${icon(this.showAll ? "ChevronDown" : "ChevronRight", 13)} ${this.showAll ? t("model.hide_unused") : t("model.show_unused", { count: hidden })}</button>` : ""}
           ${this.canEdit ? html`<button class="ghost" @click=${() => { this.creating = true; this.formError = ""; }}>${icon("Plus", 13)} ${t("model.new_kind")}</button>` : ""}
         </nav>
         <section class="center" aria-live="polite">${this.view === "schema" ? this.schemaGraph(sel) : this.entriesTable(sel)}</section>
