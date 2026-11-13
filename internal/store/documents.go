@@ -12,6 +12,7 @@ const (
 	DocMarkdown = "markdown"
 	DocADR      = "adr"
 	DocLink     = "link"
+	DocBoard    = "board" // a task board (ADR-0030); its cards are tasks
 )
 
 // Document is a page of any document type.

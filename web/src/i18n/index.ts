@@ -31,6 +31,13 @@ export function t(key: Key, vars: Record<string, unknown> = {}, loc: Locale = cu
   return (tables[loc][key] ?? key).replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m));
 }
 
+/** A calendar day (YYYY-MM-DD or a timestamp) without time. */
+export function formatDay(iso: string, loc: Locale = current): string {
+  if (!iso) return "";
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(`${iso}T12:00:00`) : new Date(iso);
+  return d.toLocaleDateString(loc === "de" ? "de-DE" : "en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
 export function formatDate(iso: string, loc: Locale = current): string {
   if (!iso) return "";
   return new Date(iso).toLocaleString(loc === "de" ? "de-DE" : "en-GB", { dateStyle: "medium", timeStyle: "short" });

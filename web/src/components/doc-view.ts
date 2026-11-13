@@ -9,6 +9,7 @@ import { icon } from "../icon";
 import { renderMarkdown, withoutTitle } from "../md";
 import { currentProject, docsVersion, favorites, navigate, setWideReading, wideReading } from "../state";
 import "./request-block";
+import "./board";
 import { base } from "./shared";
 import "./attachments";
 import "./doc-share";
@@ -229,6 +230,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
 
   private body(d: Doc) {
     const c = d.content ?? {};
+    if (d.type === "board") return html`${c.description ? html`<div class="prose">${unsafeHTML(renderMarkdown(c.description, this.project, d.id))}</div>` : ""}
+      <phx-board .project=${this.project} .doc=${d} @changed=${() => this.reload()}></phx-board>`;
     if (d.type === "markdown") return html`<div class="prose">${unsafeHTML(renderMarkdown(withoutTitle(c.markdown ?? "", d.title), this.project, d.id))}</div>`;
     if (d.type === "link") return html`<p><a class="btn" href=${c.url} target="_blank" rel="noopener external">${icon("ExternalLink", 15)} ${t("doc.open_link")}</a></p>
       <p class="mono muted">${c.url}</p>${c.description ? html`<div class="prose">${unsafeHTML(renderMarkdown(c.description, this.project))}</div>` : ""}`;
@@ -265,7 +268,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     // The role for this page can differ from the project role (restricted or shared pages).
     const canEdit = ["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "");
     const wide = wideReading.get();
-    return html`<article class=${wide ? "enter wide" : "enter"}>
+    // Boards need the room of the whole page.
+    return html`<article class=${wide || d.type === "board" ? "enter wide" : "enter"}>
       <header>
         <div>
           <h1>${d.title}</h1>
@@ -280,8 +284,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         </div>
         <div class="row">
           ${this.favoriteButtons(d)}
-          <button class="ghost icon" aria-pressed=${wide ? "true" : "false"} title=${t(wide ? "doc.narrow" : "doc.wide")} aria-label=${t(wide ? "doc.narrow" : "doc.wide")}
-            @click=${() => setWideReading(!wide)}>${icon(wide ? "Minimize2" : "Maximize2", 15)}</button>
+          ${d.type === "board" ? "" : html`<button class="ghost icon" aria-pressed=${wide ? "true" : "false"} title=${t(wide ? "doc.narrow" : "doc.wide")} aria-label=${t(wide ? "doc.narrow" : "doc.wide")}
+            @click=${() => setWideReading(!wide)}>${icon(wide ? "Minimize2" : "Maximize2", 15)}</button>`}
           <a class="btn ghost" href="/p/${this.project}/d/${d.slug}/history">${icon("History", 14)} ${t("doc.history")}</a>
           ${canEdit ? html`<button class="ghost" @click=${() => this.renderRoot.querySelector<PhxDocShare>("phx-doc-share")!.open()}>${icon("Share2", 14)} ${t("share.button")}</button>
           ${this.draft ? "" : html`<a class="btn ghost" href="/p/${this.project}/d/${d.slug}/edit">${icon("Pencil", 14)} ${t("doc.edit")}</a>`}

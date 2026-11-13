@@ -14,6 +14,7 @@ function textOf(type: Doc["type"], v: VersionInfo): string[] {
   const c = v.content ?? {};
   const lines = [`${t("history.title_label")}: ${v.title}`, ""];
   if (type === "markdown") lines.push(...String(c.markdown ?? "").split("\n"));
+  if (type === "board") lines.push(...String(c.description ?? "").split("\n"), "", ...(c.columns ?? []).map((col: any) => `- ${col.name}${col.done ? " ✓" : ""}`));
   if (type === "link") lines.push(`URL: ${c.url ?? ""}`, "", ...String(c.description ?? "").split("\n"));
   if (type === "adr") {
     lines.push(`${t("adr.status")}: ${c.status ? t(`adr.status.${c.status}` as any) : ""}`, `${t("adr.date")}: ${c.date ?? ""}`);

@@ -16,6 +16,7 @@ const fieldsOf: Record<Doc["type"], Field[]> = {
   markdown: ["markdown"],
   adr: ["context", "decision", "consequences", "alternatives"],
   link: ["description"],
+  board: ["description"],
 };
 
 /** Side-by-side translation of a page or decision (ADR-0028). */

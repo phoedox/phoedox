@@ -68,7 +68,7 @@ export interface ShareLink { id: string; projectId: string; documentId?: string;
 /** Address of a share link (the token is only known right after creating it). */
 export const shareURL = (token: string) => `${location.origin}/s/${token}`;
 export interface Doc {
-  id: string; projectId: string; type: "markdown" | "adr" | "link"; slug: string; title: string;
+  id: string; projectId: string; type: "markdown" | "adr" | "link" | "board"; slug: string; title: string;
   category: string; position: number; version: number; updatedAt: string; content?: any;
   /** Decisions only: per-project number, never reused. */
   number?: number;
@@ -80,6 +80,14 @@ export interface Doc {
   locale?: string;
   translation?: TranslationMeta;
   translations?: TranslationMeta[];
+}
+/** Task boards (ADR-0030): a board document holds its columns; tasks are its cards. */
+export interface BoardColumn { id: string; name: string; done?: boolean }
+export interface Board { description?: string; columns: BoardColumn[] }
+export interface Task {
+  id: string; projectId: string; boardId: string; column: string; position: number; title: string; description: string;
+  assigneeId?: string; assigneeName?: string; due?: string; priority: number; labels: string[];
+  createdBy: string; createdAt: string; updatedAt: string; doneAt?: string; boardSlug?: string; boardTitle?: string;
 }
 export interface TranslationMeta { documentId: string; locale: string; title: string; sourceVersion: number; machine: boolean; updatedAt: string }
 export interface TranslationInfo extends TranslationMeta { content?: any; outdated: boolean; mainVersion: number }

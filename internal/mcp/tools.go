@@ -19,6 +19,40 @@ type docRef struct {
 	Document string `json:"document" jsonschema:"document slug, id or decision number like ADR-0003"`
 }
 
+type listTasksIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Board    string `json:"board,omitempty" jsonschema:"board slug or id; empty = all boards"`
+	Column   string `json:"column,omitempty" jsonschema:"column id or name (needs board)"`
+	Assignee string `json:"assignee,omitempty" jsonschema:"me, a user id or an e-mail"`
+	Open     bool   `json:"open,omitempty" jsonschema:"only tasks that are not done"`
+}
+
+type createTaskIn struct {
+	Project     string   `json:"project" jsonschema:"project slug"`
+	Board       string   `json:"board" jsonschema:"board slug or id (a document of type board)"`
+	Title       string   `json:"title"`
+	Description string   `json:"description,omitempty" jsonschema:"Markdown; @mentions allowed"`
+	Column      string   `json:"column,omitempty" jsonschema:"column id or name; default: first column"`
+	Assignee    string   `json:"assignee,omitempty" jsonschema:"user id or e-mail of a project member"`
+	Due         string   `json:"due,omitempty" jsonschema:"YYYY-MM-DD"`
+	Priority    int      `json:"priority,omitempty" jsonschema:"0 none, 1 low, 2 medium, 3 high"`
+	Labels      []string `json:"labels,omitempty"`
+}
+
+type updateTaskIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Task    string `json:"task" jsonschema:"task id"`
+	core.TaskPatch
+}
+
+type createBoardIn struct {
+	Project     string             `json:"project" jsonschema:"project slug"`
+	Title       string             `json:"title"`
+	Category    string             `json:"category,omitempty"`
+	Description string             `json:"description,omitempty" jsonschema:"Markdown shown above the board"`
+	Columns     []core.BoardColumn `json:"columns,omitempty" jsonschema:"columns in order; mark the last one done=true. Default: To do, In progress, Done"`
+}
+
 type getDocIn struct {
 	docRef
 	Lang string `json:"lang,omitempty" jsonschema:"language of a multilingual project (e.g. de); empty = main language"`
@@ -329,6 +363,18 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "translate_document", "Write the translation of a document into one of the project's further languages (multilingual projects, see get_project). Read the main language with get_document first. The translation refers to the current main version and is marked as machine translation until a person reviews it. Number, status, slug and category stay shared.", func(ctx context.Context, a core.Actor, in translateIn) (any, error) {
 		return svc.SaveTranslation(ctx, a, in.Project, in.Document, in.Lang, core.TranslationInput{Title: in.Title, Markdown: in.Markdown,
 			Context: in.Context, Decision: in.Decision, Consequences: in.Consequences, Alternatives: in.Alternatives, Description: in.Description})
+	})
+	tool(s, "list_tasks", "List tasks (cards on boards) of a project, optionally of one board, column or assignee. Boards are documents of type board; their columns are in the board's content.", func(ctx context.Context, a core.Actor, in listTasksIn) (any, error) {
+		return svc.Tasks(ctx, a, in.Project, in.Board, in.Column, in.Assignee, in.Open)
+	})
+	tool(s, "create_board", "Create a task board (a document of type board with columns).", func(ctx context.Context, a core.Actor, in createBoardIn) (any, error) {
+		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocBoard, Title: in.Title, Category: in.Category, Board: &core.Board{Description: in.Description, Columns: in.Columns}})
+	})
+	tool(s, "create_task", "Add a task to a board. Check list_tasks first to avoid duplicates.", func(ctx context.Context, a core.Actor, in createTaskIn) (any, error) {
+		return svc.CreateTask(ctx, a, in.Project, in.Board, core.TaskInput{Title: in.Title, Description: in.Description, Column: in.Column, Assignee: in.Assignee, Due: in.Due, Priority: in.Priority, Labels: in.Labels})
+	})
+	tool(s, "update_task", "Change a task or move it to another column (e.g. the done column) or board. Only given fields change.", func(ctx context.Context, a core.Actor, in updateTaskIn) (any, error) {
+		return svc.UpdateTask(ctx, a, in.Project, in.Task, in.TaskPatch)
 	})
 	tool(s, "list_document_versions", "List the version history of a document (who changed it when).", func(ctx context.Context, a core.Actor, in docRef) (any, error) {
 		return svc.VersionHistory(ctx, a, in.Project, in.Document)

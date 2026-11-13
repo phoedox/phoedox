@@ -89,7 +89,7 @@ func translationContent(typ string, in TranslationInput) (store.JSON, error) {
 			return nil, invalid("validation.adr_decision_required", nil, "decision is required")
 		}
 		v = adrText{Context: str(in.Context), Decision: str(in.Decision), Consequences: str(in.Consequences), Alternatives: str(in.Alternatives)}
-	case store.DocLink:
+	case store.DocLink, store.DocBoard:
 		v = map[string]string{"description": str(in.Description)}
 	default:
 		return nil, invalid("validation.doc_type", nil, "unknown document type")

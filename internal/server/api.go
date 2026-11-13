@@ -196,6 +196,10 @@ func (a *api) routes(r chi.Router) {
 			r.Put("/favorites/{d}", a.setFavorite(true))
 			r.Delete("/favorites/{d}", a.setFavorite(false))
 			r.Get("/decisions", a.listDecisions)
+			r.Get("/tasks", a.listTasks)
+			r.Post("/boards/{d}/tasks", a.createTask)
+			r.Patch("/tasks/{id}", a.updateTask)
+			r.Delete("/tasks/{id}", a.deleteTask)
 			r.Get("/files", a.listFiles)
 			r.Post("/files", a.uploadFile)
 			r.Patch("/files/{id}", a.renameFile)
@@ -381,6 +385,36 @@ func (a *api) listDocuments(w http.ResponseWriter, r *http.Request) {
 func (a *api) listDecisions(w http.ResponseWriter, r *http.Request) {
 	ds, err := a.core.Decisions(r.Context(), actorOf(r), chi.URLParam(r, "p"), r.URL.Query().Get("status"), r.URL.Query().Get("q"))
 	respond(w, ds, err)
+}
+
+func (a *api) listTasks(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	ts, err := a.core.Tasks(r.Context(), actorOf(r), chi.URLParam(r, "p"), q.Get("board"), q.Get("column"), q.Get("assignee"), q.Get("open") == "true")
+	respond(w, ts, err)
+}
+
+func (a *api) createTask(w http.ResponseWriter, r *http.Request) {
+	var in core.TaskInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	t, err := a.core.CreateTask(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"), in)
+	respond(w, t, err)
+}
+
+func (a *api) updateTask(w http.ResponseWriter, r *http.Request) {
+	var in core.TaskPatch
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	t, err := a.core.UpdateTask(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), in)
+	respond(w, t, err)
+}
+
+func (a *api) deleteTask(w http.ResponseWriter, r *http.Request) {
+	respond(w, map[string]bool{"ok": true}, a.core.DeleteTask(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id")))
 }
 
 func (a *api) createDocument(w http.ResponseWriter, r *http.Request) {

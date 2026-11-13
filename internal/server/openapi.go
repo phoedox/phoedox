@@ -225,6 +225,10 @@ var apiDocs = map[string]op{
 	"PUT /projects/{p}/documents/{d}/sharing":                {Tag: "sharing", Summary: "Restrict a page to owners and shares.", In: restrictIn{}, Out: core.DocSharing{}},
 	"POST /projects/{p}/documents/{d}/sharing/grants":        {Tag: "sharing", Summary: "Share a page with a person or group.", In: core.GrantInput{}, Out: core.DocSharing{}},
 	"DELETE /projects/{p}/documents/{d}/sharing/grants/{id}": {Tag: "sharing", Summary: "Stop sharing.", Out: core.DocSharing{}},
+	"GET /projects/{p}/tasks":                                {Tag: "tasks", Summary: "Tasks of the project, a board (board), a column or an assignee (me, user id or e-mail); open=true hides done ones.", Out: []store.Task{}, Query: []string{"board", "column", "assignee", "open"}},
+	"POST /projects/{p}/boards/{d}/tasks":                    {Tag: "tasks", Summary: "Add a task to a board (column id or name; default first column).", In: core.TaskInput{}, Out: store.Task{}},
+	"PATCH /projects/{p}/tasks/{id}":                         {Tag: "tasks", Summary: "Change or move a task (column, position, board).", In: core.TaskPatch{}, Out: store.Task{}},
+	"DELETE /projects/{p}/tasks/{id}":                        {Tag: "tasks", Summary: "Delete a task."},
 	"GET /projects/{p}/decisions":                            {Tag: "documents", Summary: "Decision log (ADR numbers, status, supersedes).", Out: []core.DecisionSummary{}, Query: []string{"status", "q"}},
 	"GET /search":                                            {Tag: "documents", Summary: "Full-text search over pages, entries and files.", Out: []store.Hit{}, Query: []string{"q", "project", "limit"}},
 

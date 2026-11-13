@@ -39,6 +39,11 @@ export class PhxCreateDialog extends LitElement {
     .pv .tbl { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px; } .pv .tbl i { height: 7px; border-radius: 1px; }
     .pv.link { align-items: center; justify-content: center; gap: 8px; color: var(--accent); }
     .pv.link i { width: 60%; }
+    .pv.board { flex-direction: row; gap: 5px; }
+    .pv.board > span { flex: 1; display: flex; flex-direction: column; gap: 4px; background: var(--surface2); border-radius: 4px; padding: 4px; }
+    .pv.board i.h { width: 70%; height: 6px; }
+    .pv.board b { display: block; height: 12px; border-radius: 3px; background: var(--surface); border: 1px solid var(--line); }
+    .pv.board b.ok { background: color-mix(in srgb, var(--good) 20%, var(--surface)); }
     .pv.folder { flex-direction: row; flex-wrap: wrap; align-content: flex-start; gap: 6px; color: var(--muted); }
     form { display: grid; gap: 10px; }
     .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
@@ -113,6 +118,8 @@ export class PhxCreateDialog extends LitElement {
           html`<span class="pv"><i class="h"></i><i></i><i class="s"></i><span class="tbl"><i></i><i></i><i></i><i></i><i></i><i></i></span><i class="xs"></i></span>`, () => this.create("markdown"))}
         ${this.choice("Scale", t("doc.type.adr"), t("create.adr_desc"),
           html`<span class="pv"><i class="h"></i><span class="chips"><b></b><b class="ok"></b></span><span class="sec">${t("adr.context")}</span><i class="s"></i><span class="sec">${t("adr.decision")}</span><i></i></span>`, () => this.create("adr"))}
+        ${this.choice("SquareKanban", t("doc.type.board"), t("create.board_desc"),
+          html`<span class="pv board"><span><i class="h"></i><b></b><b></b><b></b></span><span><i class="h"></i><b></b><b></b></span><span><i class="h"></i><b class="ok"></b></span></span>`, () => this.create("board"))}
         ${this.choice("Link", t("doc.type.link"), t("create.link_desc"),
           html`<span class="pv link">${icon("ExternalLink", 22)}<i></i></span>`, () => this.create("link"))}
       </div>

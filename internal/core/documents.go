@@ -104,7 +104,7 @@ var adrStatus = map[string]bool{"proposed": true, "accepted": true, "rejected": 
 
 // DocumentInput creates a document.
 type DocumentInput struct {
-	Type     string `json:"type"` // markdown | adr | link
+	Type     string `json:"type"` // markdown | adr | link | board
 	Title    string `json:"title"`
 	Slug     string `json:"slug,omitempty"`
 	Category string `json:"category,omitempty"`
@@ -112,6 +112,7 @@ type DocumentInput struct {
 	Markdown string `json:"markdown,omitempty"`
 	ADR      *ADR   `json:"adr,omitempty"`
 	Link     *Link  `json:"link,omitempty"`
+	Board    *Board `json:"board,omitempty"`
 }
 
 // DocumentPatch changes a document; nil fields stay as they are.
@@ -123,6 +124,7 @@ type DocumentPatch struct {
 	Markdown      *string `json:"markdown,omitempty"`
 	ADR           *ADR    `json:"adr,omitempty"`
 	Link          *Link   `json:"link,omitempty"`
+	Board         *Board  `json:"board,omitempty"`
 	ExpectVersion int     `json:"expectVersion,omitempty"`
 }
 
@@ -138,8 +140,14 @@ type DocResult struct {
 
 // content builds and validates the JSON content for a type and returns the
 // text used for mention extraction.
-func content(typ, markdown string, adr *ADR, link *Link) (store.JSON, string, error) {
+func content(typ, markdown string, adr *ADR, link *Link, board ...*Board) (store.JSON, string, error) {
 	switch typ {
+	case store.DocBoard:
+		var b *Board
+		if len(board) > 0 {
+			b = board[0]
+		}
+		return boardContent(b)
 	case store.DocMarkdown:
 		b, _ := json.Marshal(map[string]string{"markdown": markdown})
 		return b, markdown, nil
@@ -169,7 +177,7 @@ func content(typ, markdown string, adr *ADR, link *Link) (store.JSON, string, er
 		b, _ := json.Marshal(link)
 		return b, link.Description, nil
 	default:
-		return nil, "", invalid("validation.doc_type", nil, "type must be markdown, adr or link")
+		return nil, "", invalid("validation.doc_type", nil, "type must be markdown, adr, link or board")
 	}
 }
 
@@ -228,7 +236,7 @@ func (s *Service) CreateDocument(ctx context.Context, a Actor, ref string, in Do
 	if err := graph.ValidateSlug(in.Slug); err != nil {
 		return DocResult{}, invalid("validation.slug", nil, "slug: %v", err)
 	}
-	if _, _, err := content(in.Type, in.Markdown, in.ADR, in.Link); err != nil {
+	if _, _, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board); err != nil {
 		return DocResult{}, err
 	}
 	if in.Type == store.DocADR {
@@ -256,7 +264,7 @@ func (s *Service) createDocument(ctx context.Context, a Actor, p store.Project, 
 			return DocResult{}, err
 		}
 	}
-	c, text, err := content(in.Type, in.Markdown, in.ADR, in.Link)
+	c, text, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board)
 	if err != nil {
 		return DocResult{}, err
 	}
@@ -323,7 +331,14 @@ func (s *Service) patched(ctx context.Context, p store.Project, cur store.Docume
 	var md string
 	var adr *ADR
 	var link *Link
+	var board *Board
 	switch cur.Type {
+	case store.DocBoard:
+		board = &Board{}
+		_ = json.Unmarshal(cur.Content, board)
+		if patch.Board != nil {
+			board = patch.Board
+		}
 	case store.DocMarkdown:
 		var c struct {
 			Markdown string `json:"markdown"`
@@ -355,7 +370,7 @@ func (s *Service) patched(ctx context.Context, p store.Project, cur store.Docume
 			return doc, "", nil, err
 		}
 	}
-	c, text, err := content(cur.Type, md, adr, link)
+	c, text, err := content(cur.Type, md, adr, link, board)
 	doc.Content = c
 	return doc, text, related, err
 }
@@ -381,6 +396,9 @@ func (s *Service) publishPatch(ctx context.Context, a Actor, p store.Project, cu
 	}
 	if !sameJSON(cur.Content, doc.Content) {
 		s.contentChanged(ctx, a, doc.ID)
+		if doc.Type == store.DocBoard {
+			s.afterBoardChange(ctx, doc)
+		}
 	}
 	s.linkMentions(ctx, p, doc.ID, text)
 	s.event(ctx, a, "document.update", doc.ID, map[string]int{"version": doc.Version})
