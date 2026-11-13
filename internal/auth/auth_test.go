@@ -35,11 +35,12 @@ func TestLoginAndTokens(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := a.Login(ctx, "admin@coph.dev", "falsch-falsch-falsch"); err != ErrBadLogin {
+	if _, err := a.Login(ctx, "admin@coph.dev", "falsch-falsch-falsch"); err != ErrBadLogin {
 		t.Fatalf("wrong password: %v", err)
 	}
-	c, _, err := a.Login(ctx, "ADMIN@coph.dev", "sehr-geheimes-passwort")
-	if err != nil || !c.HttpOnly {
+	step, err := a.Login(ctx, "ADMIN@coph.dev", "sehr-geheimes-passwort")
+	c := step.Cookie
+	if err != nil || c == nil || !c.HttpOnly {
 		t.Fatalf("login: %v", err)
 	}
 	r := httptest.NewRequest("GET", "/", nil)

@@ -10,7 +10,7 @@ import { toast } from "./toasts";
 
 /** Instance users for system admins: invite, links, admin flag, disable. */
 export class PhxUsers extends SignalWatcher(LitElement) {
-  static properties = { users: { state: true }, result: { state: true }, error: { state: true }, confirming: { state: true }, busy: { state: true } };
+  static properties = { users: { state: true }, result: { state: true }, error: { state: true }, confirming: { state: true }, resetting: { state: true }, busy: { state: true } };
   static styles = [base, settingsNavStyles, css`
     :host { display: block; max-width: 900px; margin: 0 auto; padding: 28px 16px; }
     h1 { margin-bottom: 16px; }
@@ -39,6 +39,8 @@ export class PhxUsers extends SignalWatcher(LitElement) {
   result?: LinkResult;
   error = "";
   confirming = "";
+  /** User whose second factors are about to be reset. */
+  resetting = "";
   busy = false;
 
   async connectedCallback() {
@@ -86,6 +88,17 @@ export class PhxUsers extends SignalWatcher(LitElement) {
     }
   }
 
+  private async reset2fa(u: User) {
+    this.resetting = "";
+    try {
+      await api("POST", `/admin/users/${u.id}/reset-2fa`);
+      toast(t("users.updated"));
+      await this.load();
+    } catch (err) {
+      this.fail(err);
+    }
+  }
+
   private async link(u: User) {
     try {
       this.result = await api<LinkResult>("POST", `/admin/users/${u.id}/link`);
@@ -107,11 +120,18 @@ export class PhxUsers extends SignalWatcher(LitElement) {
   private row(u: User) {
     const me = currentUser.get()?.id === u.id;
     const confirm = this.confirming === u.id;
+    if (this.resetting === u.id) {
+      return html`<li><div class="who"><b>${u.name}</b><div class="sub">${u.email}</div></div><div class="acts">
+        <span class="muted" style="font-size:13px">${t("users.reset_2fa_confirm", { name: u.name })}</span>
+        <button class="danger" @click=${() => this.reset2fa(u)}>${t("users.reset_2fa")}</button>
+        <button class="ghost" @click=${() => (this.resetting = "")}>${t("doc.cancel")}</button></div></li>`;
+    }
     return html`<li class=${u.disabled ? "off" : ""}>
       <div class="who">
         <b>${u.name}</b> ${me ? html`<span class="chip">${t("users.you")}</span>` : ""}
         ${u.isAdmin ? html`<span class="chip admin">${t("users.badge_admin")}</span>` : ""}
         ${!u.hasPassword ? html`<span class="chip">${t("users.badge_invited")}</span>` : ""}
+        ${u.secondFactor ? html`<span class="chip status-accepted">${t("users.badge_2fa")}</span>` : ""}
         ${u.disabled ? html`<span class="chip status-rejected">${t("users.badge_disabled")}</span>` : ""}
         <div class="sub">${u.email} · ${u.lastLoginAt ? t("users.last_login", { date: formatDate(u.lastLoginAt) }) : t("users.never_logged_in")}</div>
       </div>
@@ -122,6 +142,7 @@ export class PhxUsers extends SignalWatcher(LitElement) {
               <button class="ghost" @click=${() => (this.confirming = "")}>${t("doc.cancel")}</button>`
           : html`
               ${u.disabled ? "" : html`<button class="ghost" @click=${() => this.link(u)}>${icon("Link", 13)} ${t(u.hasPassword ? "users.new_reset" : "users.new_invite")}</button>`}
+              ${u.secondFactor ? html`<button class="ghost" @click=${() => (this.resetting = u.id)}>${t("users.reset_2fa")}</button>` : ""}
               <button class="ghost" @click=${() => this.patch(u, { admin: !u.isAdmin })}>${t(u.isAdmin ? "users.remove_admin" : "users.make_admin")}</button>
               ${u.disabled
                 ? html`<button class="ghost" @click=${() => this.patch(u, { disabled: false })}>${t("users.enable")}</button>`

@@ -42,6 +42,9 @@ type Config struct {
 	PublicURL string
 	// DefaultLocale is used for emails to users without a language ("de").
 	DefaultLocale string
+	// MasterKey encrypts secrets at rest (PHOEDOX_MASTER_KEY, 32 bytes
+	// base64). Without it, <DataDir>/master.key is used or created.
+	MasterKey string
 	// SMTP enables emails (invitations, password resets) when Host is set.
 	SMTP SMTP
 }
@@ -68,6 +71,7 @@ func FromEnv() (Config, error) {
 		BehindProxy:   os.Getenv("PHOEDOX_BEHIND_PROXY") == "true",
 		PublicURL:     strings.TrimRight(os.Getenv("PHOEDOX_PUBLIC_URL"), "/"),
 		DefaultLocale: getenv("PHOEDOX_DEFAULT_LOCALE", "de"),
+		MasterKey:     os.Getenv("PHOEDOX_MASTER_KEY"),
 		SMTP: SMTP{
 			Host:     os.Getenv("PHOEDOX_SMTP_HOST"),
 			User:     os.Getenv("PHOEDOX_SMTP_USER"),

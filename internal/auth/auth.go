@@ -23,6 +23,7 @@ import (
 	"github.com/phoedox/phoedox/internal/core"
 	"github.com/phoedox/phoedox/internal/graph"
 	"github.com/phoedox/phoedox/internal/mail"
+	"github.com/phoedox/phoedox/internal/secret"
 	"github.com/phoedox/phoedox/internal/store"
 )
 
@@ -100,23 +101,22 @@ type Auth struct {
 	Mail mail.Sender
 	// DefaultLocale is used for mails to users without a language.
 	DefaultLocale string
+	// Box encrypts TOTP seeds with the instance master key.
+	Box *secret.Box
 }
 
-// Login checks credentials and starts a session. It returns the cookie.
-func (a *Auth) Login(ctx context.Context, email, password string) (*http.Cookie, store.User, error) {
+// Login checks the password. Without two-factor authentication it starts a
+// session; otherwise it returns a challenge for the second step.
+func (a *Auth) Login(ctx context.Context, email, password string) (LoginStep, error) {
 	u, err := a.DB.UserByEmail(ctx, email)
 	if err != nil || u.PasswordHash == "" || !VerifyPassword(u.PasswordHash, password) {
 		// Spend similar time for unknown users to avoid user enumeration.
 		if err != nil {
 			VerifyPassword("$argon2id$v=19$m=65536,t=2,p=2$c2FsdHNhbHRzYWx0c2FsdA$aGFzaGhhc2hoYXNoaGFzaGhhc2hoYXNoaGFzaGhhc2g", password)
 		}
-		return nil, u, ErrBadLogin
+		return LoginStep{}, ErrBadLogin
 	}
-	c, err := a.startSession(ctx, u)
-	if err == nil {
-		_ = a.DB.AddEvent(ctx, "user:"+u.ID, "auth.login", u.ID, nil)
-	}
-	return c, u, err
+	return a.passwordStep(ctx, u)
 }
 
 // startSession creates a session for u and returns its cookie.

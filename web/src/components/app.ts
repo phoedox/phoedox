@@ -9,6 +9,7 @@ import { base } from "./shared";
 import "./auth-pages";
 import "./login";
 import "./profile";
+import "./security";
 import "./user-menu";
 import "./users";
 import "./projects";
@@ -46,6 +47,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/invite/:token", render: ({ token }) => html`<phx-set-password .token=${token!}></phx-set-password>` },
     { path: "/reset/:token", render: ({ token }) => html`<phx-set-password .token=${token!}></phx-set-password>` },
     { path: "/settings/profile", render: () => html`<phx-profile></phx-profile>` },
+    { path: "/settings/security", render: () => html`<phx-security></phx-security>` },
     { path: "/settings/tokens", render: () => html`<phx-tokens></phx-tokens>` },
     { path: "/admin/users", render: () => html`<phx-users></phx-users>` },
     { path: "/p/:project/*", render: ({ project }) => html`<phx-project .slug=${project!}></phx-project>` },

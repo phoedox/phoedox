@@ -134,3 +134,13 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 | Passwörter | argon2id, mindestens 10 Zeichen (Server und Web gleich). Passwortänderung braucht das alte Passwort und beendet andere Sitzungen. |
 | E-Mails | Nur Text, Vorlagen in `resources/mail` (de/en, per `PHOEDOX_MAIL_DIR` überschreibbar). Sprache des Kontos, sonst `PHOEDOX_DEFAULT_LOCALE`. |
 | Sprache | Pro Konto „wie im Browser“, Deutsch oder Englisch. |
+
+## Zwei-Faktor & Passkeys
+
+| Bereich | Entscheidung |
+|---|---|
+| Schalter | Aktive TOTP-Einrichtung macht die Passwort-Anmeldung zweistufig (Challenge, 5 Minuten, 5 Versuche). Zweiter Schritt: TOTP-Code, eigener Passkey oder Wiederherstellungscode. |
+| TOTP | RFC 6238 (SHA-1, 30 s, 6 Stellen, ±1 Schritt), jeder Code nur einmal (letzter Schritt gespeichert). Schlüssel mit Master-Key verschlüsselt (AES-256-GCM, an Nutzer gebunden). QR-Code als SVG vom Server. |
+| Wiederherstellung | 10 Einmal-Codes (gehasht), beim Aktivieren und auf Wunsch neu. Neue Codes und Abschalten brauchen das Passwort. Admins (Web, `phx admin reset-2fa`) entfernen bei Aussperrung alle Faktoren. |
+| Passkeys | WebAuthn (go-webauthn), auffindbare Schlüssel. Anmeldung ohne Passwort nur mit Nutzerprüfung am Gerät; zusätzlich als zweiter Faktor. RP-ID = Host der öffentlichen URL. |
+| Master-Key | `PHOEDOX_MASTER_KEY` oder `<data>/master.key` (wird angelegt, 0600). Schlüssel-ID im Chiffrat für spätere Rotation. Grundlage auch für Projekt-Geheimnisse. |

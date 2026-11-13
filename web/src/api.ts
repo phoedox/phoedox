@@ -39,7 +39,7 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
 
 export interface User {
   id: string; email: string; name: string; isAdmin: boolean; disabled: boolean;
-  locale: "" | "de" | "en"; hasPassword: boolean; createdAt: string; lastLoginAt: string | null;
+  locale: "" | "de" | "en"; hasPassword: boolean; secondFactor?: boolean; createdAt: string; lastLoginAt: string | null;
 }
 export interface Instance { version: string; domain: string; passwordReset: boolean }
 export interface LinkInfo { purpose: "invite" | "reset"; email: string; name: string; expiresAt: string }

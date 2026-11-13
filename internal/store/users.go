@@ -16,6 +16,7 @@ type User struct {
 	Disabled     bool   `json:"disabled"`
 	Locale       string `json:"locale"` // "" = follow the browser
 	HasPassword  bool   `json:"hasPassword"`
+	SecondFactor bool   `json:"secondFactor"` // filled by ListUsers
 	PasswordHash string `json:"-"`
 	CreatedAt    Time   `json:"createdAt"`
 	LastLoginAt  Time   `json:"lastLoginAt"`
@@ -70,7 +71,26 @@ func (d *DB) ListUsers(ctx context.Context) ([]User, error) {
 		}
 		out = append(out, u)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	with := map[string]bool{}
+	frows, err := d.Query(ctx, `SELECT user_id FROM user_totp WHERE confirmed_at IS NOT NULL`)
+	if err != nil {
+		return nil, err
+	}
+	defer frows.Close()
+	for frows.Next() {
+		var id string
+		if err := frows.Scan(&id); err != nil {
+			return nil, err
+		}
+		with[id] = true
+	}
+	for i := range out {
+		out[i].SecondFactor = with[out[i].ID]
+	}
+	return out, frows.Err()
 }
 
 // UpdateUser saves name, admin flag, disabled state and locale. Disabling

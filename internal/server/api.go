@@ -39,6 +39,12 @@ func (a *api) routes(r chi.Router) {
 		r.Post("/auth/reset-request", a.resetRequest)
 		r.Get("/auth/links/{token}", a.linkInfo)
 		r.Post("/auth/links/{token}", a.completeLink)
+		r.Post("/auth/login/totp", a.loginTOTP)
+		r.Post("/auth/login/recovery", a.loginRecovery)
+		r.Post("/auth/login/passkey/begin", a.loginPasskeyBegin)
+		r.Post("/auth/login/passkey/finish", a.loginPasskeyFinish)
+		r.Post("/auth/passkey/begin", a.passkeyBegin)
+		r.Post("/auth/passkey/finish", a.passkeyFinish)
 	})
 
 	r.Group(func(r chi.Router) {
@@ -46,11 +52,21 @@ func (a *api) routes(r chi.Router) {
 		r.Get("/me", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, actorOf(r).User) })
 		r.Patch("/me", a.updateProfile)
 		r.Post("/me/password", a.changePassword)
+		r.Get("/me/security", a.security)
+		r.Post("/me/totp", a.totpSetup)
+		r.Post("/me/totp/confirm", a.totpConfirm)
+		r.Post("/me/totp/disable", a.totpDisable)
+		r.Post("/me/recovery-codes", a.recoveryCodes)
+		r.Post("/me/passkeys/begin", a.passkeyRegisterBegin)
+		r.Post("/me/passkeys/finish", a.passkeyRegisterFinish)
+		r.Patch("/me/passkeys/{id}", a.passkeyRename)
+		r.Delete("/me/passkeys/{id}", a.passkeyDelete)
 		r.Route("/admin", func(r chi.Router) {
 			r.Get("/users", a.listUsers)
 			r.Post("/users", a.inviteUser)
 			r.Patch("/users/{id}", a.updateUser)
 			r.Post("/users/{id}/link", a.userLink)
+			r.Post("/users/{id}/reset-2fa", a.reset2FA)
 		})
 		r.Get("/tokens", a.listTokens)
 		r.Post("/tokens", a.createToken)
@@ -122,13 +138,17 @@ func (a *api) login(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	c, u, err := a.auth.Login(r.Context(), in.Email, in.Password)
+	step, err := a.auth.Login(r.Context(), in.Email, in.Password)
 	if err != nil {
 		writeErr(w, err)
 		return
 	}
-	http.SetCookie(w, c)
-	writeJSON(w, http.StatusOK, u)
+	if step.Cookie == nil {
+		writeJSON(w, http.StatusOK, step) // {challenge, methods}: second factor needed
+		return
+	}
+	http.SetCookie(w, step.Cookie)
+	writeJSON(w, http.StatusOK, step.User)
 }
 
 func (a *api) logout(w http.ResponseWriter, r *http.Request) {

@@ -78,7 +78,7 @@ func TestAccounts(t *testing.T) {
 	if _, err := a.Invite(ctx, admin, InviteInput{Email: "jan@example.org"}, base); keyOf(err) != "validation.email_taken" {
 		t.Fatalf("duplicate: %v", err)
 	}
-	if _, _, err := a.Login(ctx, "jan@example.org", ""); err != ErrBadLogin {
+	if _, err := a.Login(ctx, "jan@example.org", ""); err != ErrBadLogin {
 		t.Fatalf("invited user without password must not log in: %v", err)
 	}
 
@@ -134,7 +134,8 @@ func TestAccounts(t *testing.T) {
 	if err := a.ChangePassword(ctx, janActor, "falsch", "noch-ein-neues-passwort", ""); keyOf(err) != "validation.password_wrong" {
 		t.Fatalf("wrong current: %v", err)
 	}
-	c3, _, _ := a.Login(ctx, "jan@example.org", "neues-passwort-123")
+	step3, _ := a.Login(ctx, "jan@example.org", "neues-passwort-123")
+	c3 := step3.Cookie
 	if err := a.ChangePassword(ctx, janActor, "neues-passwort-123", "noch-ein-neues-passwort", SessionID(cookieRequest(c3))); err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +167,7 @@ func TestAccounts(t *testing.T) {
 	if _, _, err := a.FromRequest(r, "token"); err == nil {
 		t.Fatal("disabled user keeps token")
 	}
-	if _, _, err := a.Login(ctx, "jan@example.org", "noch-ein-neues-passwort"); err != ErrBadLogin {
+	if _, err := a.Login(ctx, "jan@example.org", "noch-ein-neues-passwort"); err != ErrBadLogin {
 		t.Fatalf("disabled login: %v", err)
 	}
 	if err := a.RequestReset(ctx, "jan@example.org", base); err != nil {

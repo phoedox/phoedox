@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { contrast, projectColors } from "./color";
 import { linkMentions } from "./md";
+import { creationOptions, requestOptions } from "./webauthn";
 
 describe("mentions", () => {
   test("links @slug and @project/slug, but not e-mail addresses", () => {
@@ -20,5 +21,16 @@ describe("project colours", () => {
       expect(contrast(hx(light), [255, 255, 255])).toBeGreaterThanOrEqual(4.5);
       expect(contrast(hx(dark), [28, 24, 21])).toBeGreaterThanOrEqual(4.5);
     }
+  });
+});
+
+
+describe("webauthn", () => {
+  test("decodes base64url fields", () => {
+    const c = creationOptions({ publicKey: { challenge: "AQID", user: { id: "_-8", name: "a" }, excludeCredentials: [{ id: "AQ", type: "public-key" }] } });
+    expect(new Uint8Array(c.publicKey!.challenge as ArrayBuffer)).toEqual(new Uint8Array([1, 2, 3]));
+    expect(new Uint8Array(c.publicKey!.user.id as ArrayBuffer)).toEqual(new Uint8Array([255, 239]));
+    const r = requestOptions({ publicKey: { challenge: "AQID", allowCredentials: [{ id: "AQ", type: "public-key" }] } });
+    expect(new Uint8Array(r.publicKey!.allowCredentials![0].id as ArrayBuffer)).toEqual(new Uint8Array([1]));
   });
 });

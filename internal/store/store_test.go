@@ -340,3 +340,72 @@ func TestAccountStore(t *testing.T) {
 		})
 	}
 }
+
+func TestFactorStore(t *testing.T) {
+	for name, d := range testDBs(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			u, _ := d.CreateUser(ctx, User{ID: id(), Email: "f@y.de", Name: "F"})
+			if err := d.SetTOTP(ctx, u.ID, "enc"); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.UseTOTPStep(ctx, u.ID, 100, true); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.UseTOTPStep(ctx, u.ID, 100, false); !errors.Is(err, ErrConflict) {
+				t.Fatalf("step reuse: %v", err)
+			}
+			if tt, err := d.GetTOTP(ctx, u.ID); err != nil || !tt.Confirmed || tt.LastStep != 100 {
+				t.Fatalf("totp: %v %+v", err, tt)
+			}
+			if us, _ := d.ListUsers(ctx); len(us) != 1 || !us[0].SecondFactor {
+				t.Fatalf("second factor flag: %+v", us)
+			}
+			if err := d.ReplaceRecoveryCodes(ctx, u.ID, []string{"a", "b"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.UseRecoveryCode(ctx, u.ID, "a"); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.UseRecoveryCode(ctx, u.ID, "a"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("code reuse: %v", err)
+			}
+			if n, _ := d.CountRecoveryCodes(ctx, u.ID); n != 1 {
+				t.Fatalf("codes left: %d", n)
+			}
+			if _, err := d.AddPasskey(ctx, Passkey{ID: "cred1", UserID: u.ID, Name: "Laptop", Credential: "{}"}); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.RenamePasskey(ctx, u.ID, "cred1", "MacBook"); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.UpdatePasskeyUse(ctx, "cred1", `{"x":1}`); err != nil {
+				t.Fatal(err)
+			}
+			if p, err := d.PasskeyByID(ctx, "cred1"); err != nil || p.Name != "MacBook" || p.LastUsedAt.IsZero() {
+				t.Fatalf("passkey: %v %+v", err, p)
+			}
+			exp := Now()
+			exp.Time = exp.Time.Add(60e9)
+			if err := d.CreateChallenge(ctx, Challenge{ID: "c1", UserID: u.ID, Kind: "k", Data: "d"}, exp); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.CreateChallenge(ctx, Challenge{ID: "c2", Kind: "k"}, exp); err != nil {
+				t.Fatal(err)
+			}
+			_, _ = d.GetChallenge(ctx, "c1", "k")
+			if c, err := d.GetChallenge(ctx, "c1", "k"); err != nil || c.Attempts != 1 || c.Data != "d" || c.UserID != u.ID {
+				t.Fatalf("challenge: %v %+v", err, c)
+			}
+			if _, err := d.GetChallenge(ctx, "c1", "other"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("kind mismatch: %v", err)
+			}
+			if err := d.ResetSecondFactors(ctx, u.ID); err != nil {
+				t.Fatal(err)
+			}
+			if pks, _ := d.Passkeys(ctx, u.ID); len(pks) != 0 {
+				t.Fatal("passkeys survived reset")
+			}
+		})
+	}
+}

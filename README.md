@@ -54,6 +54,7 @@ make build && ./bin/phoedox
 | `PHOEDOX_DB_URL` | `<data>/phoedox.db` | SQLite-Pfad oder Postgres-DSN |
 | `PHOEDOX_BEHIND_PROXY` | `false` | `true` hinter einem Reverse-Proxy: Client-IP aus `X-Forwarded-For` (für das Login-Limit) |
 | `PHOEDOX_INSECURE_COOKIES` | `false` | `true` nur für reines HTTP ohne TLS (außer `localhost`) |
+| `PHOEDOX_MASTER_KEY` | – | 32 Byte, base64 (`openssl rand -base64 32`). Verschlüsselt Geheimnisse wie TOTP-Schlüssel. Ohne Variable legt Phoedox `<data>/master.key` an – **zusammen mit der Datenbank sichern**, mehrere Server-Instanzen brauchen denselben Schlüssel |
 | `PHOEDOX_PUBLIC_URL` | – | Öffentliche Adresse, z. B. `https://docs.example.org` – für Links in E-Mails. Ohne sie (oder `PHOEDOX_DOMAIN`) gibt es kein „Passwort vergessen“ per E-Mail |
 | `PHOEDOX_DEFAULT_LOCALE` | `de` | Sprache für E-Mails an Nutzer ohne eigene Spracheinstellung |
 | `PHOEDOX_SMTP_HOST` | – | SMTP-Server; aktiviert Einladungen und „Passwort vergessen“ per E-Mail |
@@ -68,7 +69,10 @@ Weitere Personen lädst du in der Web-App unter **Nutzer** ein (Menü oben recht
 `phx admin invite --email … --name …`. Ohne SMTP zeigt Phoedox den Einladungslink zum Weitergeben an.
 
 Notfall-Befehle laufen auch ohne Web-Oberfläche: `phx admin reset-password --email …`,
-`phx admin create-token --email … --name …`.
+`phx admin reset-2fa --email …` (Zwei-Faktor und Passkeys entfernen), `phx admin create-token --email … --name …`.
+
+Passkeys funktionieren nur über HTTPS (oder `localhost`) und sind an die Domain gebunden – mit
+`PHOEDOX_PUBLIC_URL` legst du sie fest.
 
 ## KI per MCP anbinden
 

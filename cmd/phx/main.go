@@ -26,6 +26,7 @@ Admin commands (run on the server, same environment as phoedox):
   phx admin create-user --email E --name N [--admin] [--password P]
   phx admin invite --email E [--name N] [--admin]  Invitation link (emailed if SMTP is set)
   phx admin reset-password --email E [--password P]
+  phx admin reset-2fa --email E                    Remove TOTP, recovery codes and passkeys
   phx admin create-token --email E [--name N]     Personal API token (REST, MCP)
 
 Other:
@@ -120,6 +121,16 @@ func admin(args []string) error {
 		}
 		_ = a.DB.AddEvent(ctx, "cli", "auth.password_reset", u.ID, nil)
 		fmt.Println("password updated")
+	case "reset-2fa":
+		u, err := a.DB.UserByEmail(ctx, *email)
+		if err != nil {
+			return fmt.Errorf("user %s: %w", *email, err)
+		}
+		cli := core.Actor{User: store.User{ID: "cli", IsAdmin: true}, Via: "cli"}
+		if err := a.Auth.ResetSecondFactors(ctx, cli, u.ID); err != nil {
+			return err
+		}
+		fmt.Println("two-factor authentication and passkeys removed")
 	case "create-token":
 		u, err := a.DB.UserByEmail(ctx, *email)
 		if err != nil {
