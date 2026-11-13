@@ -98,3 +98,21 @@ export interface Edge {
 }
 export interface Suggestion { id: string; actor: string; op: string; summary: string; status: string; createdAt: string }
 export interface Token { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null; access: "read" | "write"; projects: string[] | null }
+
+export interface LicenseStatus { required: boolean; valid: boolean; plan?: string; expires?: string; trialEnd?: string; problem?: string; hint?: string }
+export interface PluginInfo {
+  id: string; version: string; name: string; sha256: string; size: number; source: "store" | "upload"; signedBy: string; signed: boolean;
+  enabled: boolean; recall: "" | "warning" | "critical"; recallNote?: string; latest?: string; installedAt: string; updatedAt: string;
+  description?: string; permissions: string[]; kinds: string[]; tools: string[]; events: string[]; secrets: string[];
+  frontend: boolean; backend: boolean; criticalPath: boolean; license: LicenseStatus; projects: number; problem?: "manifest" | "incompatible"; needs?: string;
+}
+export interface CatalogEntry {
+  id: string; name: string; version: string; summary: string; author: string; verified: boolean; icon?: string;
+  permissions: string[]; sha256: string; recall?: string; recallNote?: string; installed?: string;
+}
+export interface ProjectPlugin {
+  id: string; name: string; version: string; description?: string; enabled: boolean; permissions?: string[];
+  kinds: string[]; tools: string[]; frontend?: string; secrets?: Record<string, boolean>; lastRun: string | null; lastError?: string;
+  problem?: string; recall?: string;
+}
+export interface PluginLog { time: string; level: string; msg: string }

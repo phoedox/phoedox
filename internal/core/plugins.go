@@ -141,7 +141,8 @@ type PluginInfo struct {
 	CriticalPath bool                  `json:"criticalPath"`
 	License      LicenseStatus         `json:"license"`
 	Projects     int                   `json:"projects"`
-	Problem      string                `json:"problem,omitempty"` // why it cannot run
+	Problem      string                `json:"problem,omitempty"` // manifest | incompatible
+	Needs        string                `json:"needs,omitempty"`   // engines.phoedox when incompatible
 	Terms        json.RawMessage       `json:"terms,omitempty"`
 	Signed       bool                  `json:"signed"`
 	Update       *CatalogEntry         `json:"update,omitempty"`
@@ -152,7 +153,7 @@ func (s *Service) pluginInfo(ctx context.Context, row store.Plugin) PluginInfo {
 	info := PluginInfo{Plugin: row, Permissions: []string{}, Kinds: []string{}, Tools: []string{}, Events: []string{}, Secrets: []string{}, Signed: row.SignedBy != ""}
 	m, err := plugins.ParseManifest([]byte(row.Manifest))
 	if err != nil {
-		info.Problem = err.Error()
+		info.Problem = "manifest"
 		return info
 	}
 	info.Description, info.CriticalPath, info.Terms = m.Description, m.CriticalPath, m.License
@@ -167,7 +168,7 @@ func (s *Service) pluginInfo(ctx context.Context, row store.Plugin) PluginInfo {
 	info.Secrets = append(info.Secrets, m.Secrets()...)
 	info.Frontend, info.Backend = m.Frontend != nil, m.Backend != nil
 	if err := m.Supported(s.Plugins.Version); err != nil {
-		info.Problem = err.Error()
+		info.Problem, info.Needs = "incompatible", m.Engines.Phoedox
 	}
 	info.License = s.licenseStatus(ctx, row, m)
 	if pp, err := s.DB.PluginProjects(ctx, row.ID); err == nil {

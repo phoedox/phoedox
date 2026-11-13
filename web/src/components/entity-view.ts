@@ -5,6 +5,8 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { allowedRels, attrLabel, findKind, formatValue, groupColor, groupName, kindName, loadModel, relLabel, type Model } from "../model";
 import { currentProject, docsVersion, navigate } from "../state";
+import { pluginViews } from "../plugin-host";
+import { unsafeStatic, html as shtml } from "lit/static-html.js";
 import { base } from "./shared";
 import "./attachments";
 import { toast } from "./toasts";
@@ -248,6 +250,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
             : html`<button class="danger" @click=${() => (this.confirming = true)}>${icon("Trash2", 14)} ${t("doc.delete")}</button>`}
         </div>` : ""}
       </header>
+      ${pluginViews.get()[e.kind] ? html`<section class="plugin card" style="margin-bottom:18px">${shtml`<${unsafeStatic(pluginViews.get()[e.kind])} entity=${e.slug}></${unsafeStatic(pluginViews.get()[e.kind])}>`}</section>` : ""}
       <div class="cols">
         <section>
           <h2>${t("entity.attrs")}</h2>

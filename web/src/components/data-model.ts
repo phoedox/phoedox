@@ -319,13 +319,14 @@ export class PhxDataModel extends SignalWatcher(LitElement) {
 
   private detail(k: Kind) {
     const c = groupColor[k.group] ?? "var(--accent)";
-    const edit = this.canEdit;
+    const fromPlugin = k.source.startsWith("plugin:");
+    const edit = this.canEdit && !fromPlugin;
     const rels = this.relationsOf(k);
     const relNames = [...new Set(this.model!.kinds.flatMap((x) => x.relations ?? []).map((r) => r.rel).concat(this.model!.generic))];
     return html`<div class="detail card">
       <div class="dh"><span class="kic big" style="--c:${c}">${icon(k.icon, 20)}</span>
         <div><h2>${kindName(k)}</h2><code class="muted">${k.id}</code></div></div>
-      <p class="row"><span class="chip">${t(k.source === "core" ? "model.source_core" : "model.source_project")}</span>
+      <p class="row"><span class="chip">${fromPlugin ? html`${icon("Puzzle", 12)} ${t("model.source_plugin", { plugin: k.source.slice(7) })}` : t(k.source === "core" ? "model.source_core" : "model.source_project")}</span>
         <span class="chip">${t("model.count", { count: k.count })}</span></p>
       ${k.description ? html`<p class="muted" style="margin:0">${k.description}</p>` : ""}
 

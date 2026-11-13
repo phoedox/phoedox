@@ -6,7 +6,7 @@ export const attrTypes: readonly AttrType[] = ["text", "number", "bool", "date",
 export interface Attr { name: string; label?: string; type: AttrType; unit?: string; options?: string[]; required?: boolean; project?: boolean }
 export interface Relation { rel: string; to: string[]; project?: boolean }
 export interface Kind {
-  id: string; name?: string; description?: string; group: string; icon: string; source: "core" | "project";
+  id: string; name?: string; description?: string; group: string; icon: string; source: "core" | "project" | `plugin:${string}`;
   attrs: Attr[]; relations?: Relation[]; count: number;
 }
 export interface Model { kinds: Kind[]; generic: string[]; unknown?: Record<string, number> }
@@ -19,7 +19,7 @@ export const kindIcons = ["Shapes", "Tag", "CircleDot", "Box", "Boxes", "Cpu", "
 /** Group colors come from tokens; own kinds use the project accent. */
 export const groupColor: Record<string, string> = {
   general: "var(--muted)", building: "var(--signal)", network: "var(--wire)", infrastructure: "var(--fg)",
-  power: "var(--bad)", software: "var(--good)", custom: "var(--accent)",
+  power: "var(--bad)", software: "var(--good)", custom: "var(--accent)", plugin: "var(--signal)",
 };
 
 const tr = (key: string, fallback: string) => (hasKey(key) ? t(key) : fallback);

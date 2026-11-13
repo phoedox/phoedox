@@ -5,6 +5,7 @@ import { t } from "../i18n";
 import { fileIcon } from "../files";
 import { icon } from "../icon";
 import { currentProject, currentUser, navigate } from "../state";
+import { pluginCommands } from "../plugin-host";
 import { base } from "./shared";
 
 interface Item {
@@ -12,6 +13,8 @@ interface Item {
   label: string;
   icon: string;
   href: string;
+  /** Runs instead of navigating (plugin commands). */
+  run?: () => void | Promise<void>;
   /** Second line (snippet) and a chip (project). */
   sub?: TemplateResult | string;
   chip?: string;
@@ -138,12 +141,16 @@ export class PhxPalette extends SignalWatcher(LitElement) {
         items.push({ id: "a-link", label: t("palette.new_link", { project: p.name }), icon: "Link", href: `/p/${p.slug}/new/link` });
       }
       items.push({ id: "a-dec", label: t("palette.decisions", { project: p.name }), icon: "ListChecks", href: `/p/${p.slug}/decisions` });
+      for (const c of pluginCommands.get().filter((c) => c.project === p.slug)) {
+        items.push({ id: `pl-${c.plugin}-${c.id}`, label: c.label, icon: "Puzzle", href: "", run: () => c.run() });
+      }
     }
     items.push({ id: "a-projects", label: t("nav.projects"), icon: "FolderOpen", href: "/" });
     items.push({ id: "a-profile", label: t("nav.profile"), icon: "UserRound", href: "/settings/profile" });
     items.push({ id: "a-security", label: t("nav.security"), icon: "ShieldCheck", href: "/settings/security" });
     items.push({ id: "a-tokens", label: t("nav.tokens"), icon: "KeyRound", href: "/settings/tokens" });
     if (u?.isAdmin) items.push({ id: "a-users", label: t("users.title"), icon: "Users", href: "/admin/users" });
+    if (u?.isAdmin) items.push({ id: "a-plugins", label: t("plugins.title"), icon: "Puzzle", href: "/admin/plugins" });
     return items;
   }
 
@@ -176,7 +183,8 @@ export class PhxPalette extends SignalWatcher(LitElement) {
   private go(item: Item | undefined) {
     if (!item) return;
     this.dialog.close();
-    navigate(item.href);
+    if (item.run) void item.run();
+    else navigate(item.href);
   }
 
   private onKey(e: KeyboardEvent) {

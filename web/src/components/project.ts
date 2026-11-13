@@ -1,4 +1,5 @@
 import { Routes } from "@lit-labs/router";
+import { loadProjectPlugins } from "../plugin-host";
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
 import { adrRef, api, type Doc, type Favorite, type Project } from "../api";
@@ -106,6 +107,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
       try {
         const p = await api<Project>("GET", `/projects/${this.slug}`);
         currentProject.set(p);
+        void loadProjectPlugins(p.slug);
         applyProjectColor(document.documentElement, p.primaryColor);
         this.docs = (await api<Doc[]>("GET", `/projects/${this.slug}/documents`)) ?? [];
         favorites.set((await api<Favorite[]>("GET", `/projects/${this.slug}/favorites`).catch(() => [])) ?? []);

@@ -21,6 +21,7 @@ import "./project";
 import "./tokens";
 import "./orgs";
 import "./backups";
+import "./plugins-admin";
 import "./shared-view";
 
 const projectView = (slug: string, root: boolean) => html`<phx-project .slug=${slug} .root=${root}></phx-project>`;
@@ -64,6 +65,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/admin/users", render: () => html`<phx-users></phx-users>` },
     { path: "/admin/settings", render: () => html`<phx-admin-settings></phx-admin-settings>` },
     { path: "/admin/backups", render: () => html`<phx-backups></phx-backups>` },
+    { path: "/admin/plugins", render: () => html`<phx-plugins-admin></phx-plugins-admin>` },
     { path: "/orgs", render: () => html`<phx-orgs></phx-orgs>` },
     { path: "/orgs/:slug", render: ({ slug }) => html`<phx-org .slug=${slug!}></phx-org>` },
     { path: "/s/:token", render: ({ token }) => html`<phx-shared-view .token=${token!}></phx-shared-view>` },
