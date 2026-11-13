@@ -11,7 +11,7 @@ Stand: 13.11.2026. Ergebnis der Planungsrunden; der klickbare Prototyp liegt in 
 - **Projekt:** Name, Kürzel, Beschreibung, Primärfarbe (hell/dunkel automatisch auf ≥ 4,5:1 Kontrast angepasst), Mitglieder, Umgebung (Variablen + Geheimnisse).
 - **Einträge:** ULID intern + änderbarer Slug. Erwähnungen `@slug`, projektübergreifend `@projekt/slug`. Löschen nimmt Kanten mit in den Papierkorb. Duplikate (MAC, Seriennummer, Hostname) werden zum Zusammenführen vorgeschlagen. Jeder Eintrag kann eigene Dokumente haben (`documents`).
 - **Hierarchische Grenzen:** Papierkorb-Dauer und Speicherkontingente: System setzt Maximum, Organisation und Nutzer/Projekt dürfen nur darunter bleiben.
-- **Favoriten:** Dokumente pro Projekt (für alle Mitglieder, gesetzt von Bearbeitern) oder pro Nutzer (privat) markieren. Sie stehen in der Seitenleiste ganz oben in einer eigenen, leicht hervorgehobenen Gruppe „Favoriten“; Projekt-Favoriten und eigene sind unterscheidbar, Reihenfolge per Ziehen.
+- **Favoriten:** Dokumente pro Projekt (für alle Mitglieder, gesetzt von Bearbeitern) oder pro Nutzer (privat) markieren. Sie stehen in der Seitenleiste ganz oben in einer eigenen, leicht hervorgehobenen Gruppe „Favoriten“; Projekt-Favoriten setzen Bearbeiter und Besitzer, eigene Favoriten jeder; beide unterscheidbar, Reihenfolge per Ziehen.
 - **Hintergrund-Funktionen** (Gerätesuche, KI-Zusammenfassungen …) sind abschaltbar; Organisationen können sie erzwingen.
 
 ## Doku-Typen
@@ -30,7 +30,7 @@ MVP: Markdown (mit Request-Blöcken), Grundriss. Danach: 3D-Ansicht, Topologie, 
 | Bereich | Entscheidung |
 |---|---|
 | Repos | `phoedox` (App: Go-Server + Lit-Web), `phoedox-sdk` (Plugin-SDK), `phoedox-plugins` (offizielle Plugins), `phoedox-agent`, `phoedox-store`, `phoedox-app` (Flutter) |
-| Lizenzen | App AGPL-3.0; SDK und Agent MIT |
+| Lizenzen | App/Server, Store und Flutter-App AGPL-3.0; SDK, Agent und offizielle Plugins MIT. Store bewusst offen: Sicherheit kommt aus geheimen Schlüsseln und Prüfungen, nicht aus verstecktem Code |
 | Releases | SemVer + Release-Please, Conventional Commits |
 | HTTP | `net/http` + chi |
 | DB | sqlc + goose; Postgres und SQLite (zwei Dialekte). Cloud: eine DB, `tenant_id` + Row-Level-Security |
@@ -47,6 +47,7 @@ MVP: Markdown (mit Request-Blöcken), Grundriss. Danach: 3D-Ansicht, Topologie, 
 | Dateien | Lokal oder S3, inhaltsadressiert, Versionen; Vorschaubilder, PDF-Suche, OCR, Virenscan; tus-Uploads |
 | Betrieb | Geplante Backups (S3/lokal/SFTP) + Wiederherstellung in der UI; Prometheus, OpenTelemetry, JSON-Logs, Statusseite; Ein-Klick-Update mit Backup |
 | Cloud | Hetzner + Docker Compose, später Kubernetes / eigene Server. EU, AV-Vertrag, Verschlüsselung at rest pro Organisation, externe KI nur mit Zustimmung |
+| Flutter-App | Riverpod für Zustand (Streams aus der Sync-Schicht), flutter_rust_bridge für Dart ↔ Rust (yrs), Version gepinnt |
 | Tests | Go-Unit/Integration gegen Postgres + SQLite, Bun-Tests, Playwright, MCP-Vertragstests |
 
 ## Plugins & Store
