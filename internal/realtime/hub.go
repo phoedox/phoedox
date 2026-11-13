@@ -61,9 +61,10 @@ type client struct {
 
 // Control is a JSON message to clients (type 100).
 type Control struct {
-	Type string `json:"type"`           // bootstrap | compact | reset
-	Upto int64  `json:"upto,omitempty"` // compact: include updates up to this seq
-	By   string `json:"by,omitempty"`   // reset: who changed the document
+	Type   string `json:"type"`             // bootstrap | compact | reset | ended
+	Upto   int64  `json:"upto,omitempty"`   // compact: include updates up to this seq
+	By     string `json:"by,omitempty"`     // reset/ended: who changed the document
+	Reason string `json:"reason,omitempty"` // ended: published | cancelled | deleted
 }
 
 func controlMsg(c Control) []byte {
@@ -365,6 +366,25 @@ func (h *Hub) Reset(ctx context.Context, documentID, by string) {
 	r.bootstrapper, r.compactor = nil, nil
 	for c := range r.clients {
 		r.queue(c, controlMsg(Control{Type: "reset", By: by}))
+	}
+}
+
+// End tells all live editors of a document that the draft ended (published,
+// cancelled or the page deleted) and closes the room. The log is already
+// gone with the draft.
+func (h *Hub) End(ctx context.Context, documentID, reason, by string) {
+	h.mu.Lock()
+	r := h.rooms[documentID]
+	h.mu.Unlock()
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.loaded, r.count, r.size, r.nextSeq = false, 0, 0, 1
+	r.bootstrapper, r.compactor = nil, nil
+	for c := range r.clients {
+		r.queue(c, controlMsg(Control{Type: "ended", Reason: reason, By: by}))
 	}
 }
 

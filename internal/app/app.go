@@ -97,6 +97,11 @@ func Open(ctx context.Context) (*App, error) {
 	}
 	svc := core.New(db)
 	svc.Box = box
+	svc.Mail, svc.DefaultLocale = sender, cfg.DefaultLocale
+	svc.PublicURL = cfg.PublicURL
+	if svc.PublicURL == "" && cfg.Domain != "" {
+		svc.PublicURL = "https://" + cfg.Domain
+	}
 	svc.RequestPolicy = requests.Policy{AllowPrivate: cfg.RequestsPrivate}
 	svc.Blobs = blob.Local{Dir: filepath.Join(cfg.DataDir, "files")}
 	if cfg.S3.Endpoint != "" {

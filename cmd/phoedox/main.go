@@ -39,6 +39,7 @@ func main() {
 	a.Core.Plugins.Version = server.Version
 	hub := realtime.NewHub(a.DB)
 	a.Core.OnContentChange = hub.Reset
+	a.Core.OnDraftEnd = hub.End
 	m := metrics.New(metrics.Sources{DB: a.DB.SQL, Version: server.Version, LiveEditors: hub.TotalEditors,
 		JobCounts: func(ctx context.Context) (map[string]int, error) { return a.DB.JobCounts(store.System(ctx)) }})
 	if a.Backups != nil {
@@ -88,6 +89,7 @@ func main() {
 			sys := store.System(ctx) // housekeeping covers all tenants
 			a.Core.PurgeExpiredTrash(sys, a.Config.TrashDays)
 			a.Core.CleanupUploads(sys)
+			a.Core.RemindDrafts(sys, time.Now())
 			_, _ = a.DB.PruneJobs(sys, store.Time{Time: time.Now().Add(-7 * 24 * time.Hour)})
 			select {
 			case <-ctx.Done():

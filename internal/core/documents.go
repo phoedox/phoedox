@@ -131,6 +131,9 @@ type DocResult struct {
 	Applied    bool              `json:"applied"`
 	Document   *store.Document   `json:"document,omitempty"`
 	Suggestion *store.Suggestion `json:"suggestion,omitempty"`
+	// Draft is set when the change went into the open draft of the page
+	// (ADR-0027) instead of the published content.
+	Draft *DraftInfo `json:"draft,omitempty"`
 }
 
 // content builds and validates the JSON content for a type and returns the
@@ -357,7 +360,17 @@ func (s *Service) patched(ctx context.Context, p store.Project, cur store.Docume
 	return doc, text, related, err
 }
 
+// updateDocument applies a change: into the open draft of the page if there
+// is one (ADR-0027), otherwise to the published content.
 func (s *Service) updateDocument(ctx context.Context, a Actor, p store.Project, cur store.Document, patch DocumentPatch) (DocResult, error) {
+	if res, ok, err := s.draftWrite(ctx, a, p, cur, patch); ok || err != nil {
+		return res, err
+	}
+	return s.publishPatch(ctx, a, p, cur, patch)
+}
+
+// publishPatch changes the published content and stores a version.
+func (s *Service) publishPatch(ctx context.Context, a Actor, p store.Project, cur store.Document, patch DocumentPatch) (DocResult, error) {
 	doc, text, related, err := s.patched(ctx, p, cur, patch)
 	if err != nil {
 		return DocResult{}, err
@@ -390,6 +403,10 @@ func (s *Service) DeleteDocument(ctx context.Context, a Actor, ref, docRef strin
 	}
 	if err := s.DB.DeleteDocument(ctx, cur.ID); err != nil {
 		return DocResult{}, err
+	}
+	if _, err := s.DB.GetDraft(ctx, cur.ID); err == nil {
+		_ = s.DB.DeleteDraft(ctx, cur.ID)
+		s.draftEnded(ctx, a, cur.ID, "deleted")
 	}
 	s.unindex(ctx, cur.ID)
 	s.contentChanged(ctx, a, cur.ID)

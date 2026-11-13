@@ -291,12 +291,19 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "list_documents", "List documents of a project (without content), optionally filtered by type or category.", func(ctx context.Context, a core.Actor, in listDocsIn) (any, error) {
 		return svc.Documents(ctx, a, in.Project, store.DocFilter{Type: in.Type, Category: in.Category})
 	})
-	tool(s, "get_document", "Read a document with its full content.", func(ctx context.Context, a core.Actor, in docRef) (any, error) {
+	tool(s, "get_document", "Read a document with its full content (the published version). If the page has an open draft, it is returned as \"draft\" too – your writes go into it.", func(ctx context.Context, a core.Actor, in docRef) (any, error) {
 		d, err := svc.Document(ctx, a, in.Project, in.Document)
 		if err != nil {
 			return nil, err
 		}
-		return view(d), nil
+		v := view(d)
+		if dr, err := svc.Draft(ctx, a, in.Project, d.ID); err == nil {
+			return map[string]any{"document": v, "draft": map[string]any{
+				"title": dr.Title, "category": dr.Category, "markdown": dr.Markdown, "updatedAt": dr.UpdatedAt,
+				"participants": dr.Participants, "note": "Unpublished draft. A person publishes it in Phoedox.",
+			}}, nil
+		}
+		return v, nil
 	})
 	tool(s, "list_document_versions", "List the version history of a document (who changed it when).", func(ctx context.Context, a core.Actor, in docRef) (any, error) {
 		return svc.VersionHistory(ctx, a, in.Project, in.Document)
@@ -310,7 +317,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "create_document", "Create a Markdown page.", func(ctx context.Context, a core.Actor, in createDocIn) (any, error) {
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocMarkdown, Title: in.Title, Slug: in.Slug, Category: in.Category, Position: in.Position, Markdown: in.Markdown})
 	})
-	tool(s, "update_document", "Update a Markdown page. Only given fields change; markdown replaces the whole content.", func(ctx context.Context, a core.Actor, in updateDocIn) (any, error) {
+	tool(s, "update_document", "Update a Markdown page. Only given fields change; markdown replaces the whole content. If the page has an open draft (someone is editing it), the change goes into the draft and is published together with it by a person; the result then contains \"draft\".", func(ctx context.Context, a core.Actor, in updateDocIn) (any, error) {
 		return svc.UpdateDocument(ctx, a, in.Project, in.Document, core.DocumentPatch{Title: in.Title, Markdown: in.Markdown, Category: in.Category, Slug: in.Slug, Position: in.Position, ExpectVersion: in.ExpectVersion})
 	})
 	tool(s, "create_decision", "Record a decision (ADR) with context, decision, consequences and alternatives.", func(ctx context.Context, a core.Actor, in createDecisionIn) (any, error) {

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/phoedox/phoedox/internal/blob"
 	"github.com/phoedox/phoedox/internal/jobs"
+	"github.com/phoedox/phoedox/internal/mail"
 	"github.com/phoedox/phoedox/internal/preview"
 	"github.com/phoedox/phoedox/internal/scan"
 	"sync"
@@ -90,6 +91,14 @@ type Service struct {
 	// OnContentChange is called when a document's content changed outside
 	// the live editor (the realtime hub resets live sessions).
 	OnContentChange func(ctx context.Context, documentID, by string)
+	// OnDraftEnd is called when a draft was published, cancelled or its page
+	// deleted (reason); live editors leave the edit mode.
+	OnDraftEnd func(ctx context.Context, documentID, reason, by string)
+	// Mail sends reminders about forgotten drafts; PublicURL builds links in
+	// them, DefaultLocale picks the language for users without one.
+	Mail          mail.Sender
+	PublicURL     string
+	DefaultLocale string
 	// Blobs stores file contents; TempDir holds uploads while they are
 	// hashed; MaxUpload limits one file (bytes).
 	Blobs     blob.Store
