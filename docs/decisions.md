@@ -16,8 +16,11 @@ Stand: 13.11.2026. Ergebnis der Planungsrunden; der klickbare Prototyp liegt in 
 
 ## Doku-Typen
 
-MVP: Markdown (mit Request-Blöcken), Grundriss. Danach: 3D-Ansicht, Topologie, Datenbankmodell, Dashboard, Komponente, Prozess (EPK/eEPK, BPMN 2.0, Swimlanes). Neue Typen kommen als Plugins.
+**Im Kern:** Markdown (mit Request-Blöcken), Externer Link, Tabelle/Datenbank, Grundriss + 3D + Rack, Topologie, Dashboard, OpenAPI, Entscheidungs-Log (ADR).
 
+**Als offizielle Plugins** (`phoedox-plugins`, beweisen gleichzeitig die Plugin-API): Checkliste/Formular, Glossar, Patchliste/Kabelplan, Netzwerk-Konfiguration, Kalender, Kanban, Zeitleiste/Gantt, Freies Diagramm, Prozess (EPK/eEPK, BPMN 2.0, Swimlanes), Architektur (C4), Sequenzdiagramm, Mindmap/Whiteboard, Datenbankmodell, Komponente, Sicherungskasten/Elektroplan, Karte (Geo), Ausführbares Notebook, Runbook.
+
+- **Externer Link:** Dokumente anderer Systeme stehen als Link-Einträge in der Seitenleiste (Icon `external-link`), in Gruppen/Kategorien und als Favorit möglich, öffnen im neuen Tab. Optional Erreichbarkeits-Prüfung und Archiv-Kopie. Link ist ein Eintrag im Netz und kann mit Geräten verknüpft werden (z. B. Hersteller-Doku ↔ Router).
 - **Request-Blöcke** laufen über den Server, mit Erwartungen (`status == 200`, `$.state >= -70`). Geheimnisse bleiben in der Projekt-Umgebung.
 - **Grundriss:** Millimeter. Importe: Bild/PDF + Kalibrierung, Apple RoomPlan, DXF/DWG, IFC. Editor: Wände zeichnen oder Räume als Polygone. Fotos auf den Plan ziehen; KI erkennt Geräte/Typenschilder.
 - **Serverschränke** sind Kern: `rack`, `server`, `patch_panel`, Kante `mounted_in` mit Position und Höhe (HE).
@@ -77,5 +80,7 @@ Mehrere Projekte → eine öffentliche Seite mit Projekt-Menü und Kategorien pr
 2. 3D + Serverschränke, Veröffentlichungen + Domains, Agent steuern/Updates, Vorlagen, CLI, API + Webhooks.
 3. Plugin-SDK + Store + Lizenzen, Komponente, Überwachung + Alarme, Kommentare + Aufgaben, Flutter-App.
 4. KI-Helfer, Integrationen, Haushalt, E2E-Geheimnisse, Umzug zwischen Instanzen, Kubernetes.
+
+Weitere ausgewählte Features (Runde 4): Verantwortliche pro Eintrag, Review-Termine für Seiten, Pflichtfelder & Doku-Regeln, Standort-Hierarchie mit Karte; Tabellenansicht mit Massenbearbeitung + CSV, gespeicherte Abfragen, Graph-Explorer, wiederverwendbare Blöcke; Wenn-dann-Regeln, Ticket-Anbindung (Zammad, Jira, GitHub), Kontakte & Lieferanten, Einmal-Links für Geheimnisse; zuletzt geöffnet & Verlauf, Fokus-Modus, anpassbare Kurzbefehle.
 
 Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Abschnitte „Feature-Backlog“ und „Entscheidungen Runde 3“).
