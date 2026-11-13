@@ -78,6 +78,17 @@ type Config struct {
 	// Workers is the number of background jobs run in parallel
 	// (PHOEDOX_WORKERS, default 2; 0 runs no jobs in this process).
 	Workers int
+	// Plugins runs WASM plugins (PHOEDOX_PLUGINS, default true).
+	Plugins bool
+	// StoreURL is the plugin store (PHOEDOX_STORE_URL, default
+	// https://store.phoedox.com; "off" disables it).
+	StoreURL string
+	// PluginKeys are extra trusted signing keys "id:base64,…"
+	// (PHOEDOX_PLUGIN_KEYS), added to the built-in store keys.
+	PluginKeys string
+	// PluginsUnsigned accepts uploaded plugins without a trusted signature
+	// (PHOEDOX_PLUGINS_ALLOW_UNSIGNED, development only).
+	PluginsUnsigned bool
 	// OIDC enables sign-in with an external identity provider.
 	OIDC OIDC
 	// SMTP enables emails (invitations, password resets) when Host is set.
@@ -195,6 +206,13 @@ func FromEnv() (Config, error) {
 		return c, fmt.Errorf("PHOEDOX_WORKERS: must be 0 or more")
 	}
 	c.Workers = wk
+	c.Plugins = getenv("PHOEDOX_PLUGINS", "true") == "true"
+	c.StoreURL = getenv("PHOEDOX_STORE_URL", "https://store.phoedox.com")
+	if c.StoreURL == "off" {
+		c.StoreURL = ""
+	}
+	c.PluginKeys = os.Getenv("PHOEDOX_PLUGIN_KEYS")
+	c.PluginsUnsigned = os.Getenv("PHOEDOX_PLUGINS_ALLOW_UNSIGNED") == "true"
 	c.S3 = S3{Endpoint: os.Getenv("PHOEDOX_S3_ENDPOINT"), Bucket: os.Getenv("PHOEDOX_S3_BUCKET"), Region: os.Getenv("PHOEDOX_S3_REGION"),
 		AccessKey: os.Getenv("PHOEDOX_S3_ACCESS_KEY"), SecretKey: os.Getenv("PHOEDOX_S3_SECRET_KEY"), Prefix: os.Getenv("PHOEDOX_S3_PREFIX"),
 		Insecure: os.Getenv("PHOEDOX_S3_INSECURE") == "true"}

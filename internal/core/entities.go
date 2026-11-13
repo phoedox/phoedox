@@ -140,6 +140,9 @@ func (s *Service) upsertEntity(ctx context.Context, a Actor, p store.Project, in
 	if a.Via == "mcp" {
 		source = "mcp"
 	}
+	if a.Plugin != "" {
+		source = string(graph.SourcePlugin)
+	}
 	e, created, err := s.DB.UpsertEntity(ctx, store.Entity{ID: newID(), ProjectID: p.ID, Kind: in.Kind, Slug: in.Slug, Name: in.Name, Attrs: attrs, Source: source})
 	if err != nil {
 		return EntityResult{}, err

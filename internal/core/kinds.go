@@ -50,7 +50,7 @@ type Kind struct {
 	Description string     `json:"description,omitempty"`
 	Group       string     `json:"group"`
 	Icon        string     `json:"icon"`
-	Source      string     `json:"source"` // core | project
+	Source      string     `json:"source"` // core | project | plugin:<id>
 	Attrs       []Attr     `json:"attrs"`
 	Relations   []Relation `json:"relations,omitempty"`
 	Count       int        `json:"count"`
@@ -196,6 +196,12 @@ func (s *Service) model(ctx context.Context, projectID string) (Model, error) {
 	}
 	sort.Slice(own, func(i, j int) bool { return strings.ToLower(own[i].Name) < strings.ToLower(own[j].Name) })
 	m.Kinds = append(m.Kinds, own...)
+	// Kinds of plugins come last; a kind the project or core defines wins.
+	for _, pk := range s.pluginKinds(ctx, projectID) {
+		if _, taken := m.Find(pk.ID); !taken {
+			m.Kinds = append(m.Kinds, pk)
+		}
+	}
 	return m, nil
 }
 
@@ -291,6 +297,9 @@ func (s *Service) DefineKind(ctx context.Context, a Actor, ref string, in KindIn
 	m, err := s.model(ctx, p.ID)
 	if err != nil {
 		return KindResult{}, err
+	}
+	if k, ok := m.Find(strings.TrimSpace(in.ID)); ok && strings.HasPrefix(k.Source, "plugin:") {
+		return KindResult{}, invalid("validation.kind_plugin", map[string]any{"plugin": strings.TrimPrefix(k.Source, "plugin:")}, "the kind belongs to plugin %s", strings.TrimPrefix(k.Source, "plugin:"))
 	}
 	if err := in.normalize(m); err != nil {
 		return KindResult{}, err

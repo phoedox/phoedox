@@ -20,9 +20,11 @@ import (
 	"github.com/phoedox/phoedox/internal/config"
 	"github.com/phoedox/phoedox/internal/core"
 	"github.com/phoedox/phoedox/internal/mail"
+	"github.com/phoedox/phoedox/internal/plugins"
 	"github.com/phoedox/phoedox/internal/requests"
 	"github.com/phoedox/phoedox/internal/secret"
 	"github.com/phoedox/phoedox/internal/store"
+	"github.com/phoedox/phoedox/internal/storeclient"
 )
 
 // App holds the opened services.
@@ -110,6 +112,19 @@ func Open(ctx context.Context) (*App, error) {
 	svc.Preview = preview.Detect(cfg.OCR, cfg.OCRLangs)
 	if cfg.ClamAV != "" {
 		svc.Scanner = scan.Clamd{Addr: cfg.ClamAV}
+	}
+	if cfg.Plugins {
+		keys, err := plugins.ParseKeys(plugins.StoreKeys + "," + cfg.PluginKeys)
+		if err != nil {
+			db.Close()
+			return nil, fmt.Errorf("PHOEDOX_PLUGIN_KEYS: %w", err)
+		}
+		rt := plugins.NewRuntime(slog.Default(), 8)
+		rt.Code = core.PluginErrorCode
+		svc.Plugins = core.PluginConfig{Runtime: rt, Keys: keys, AllowUnsigned: cfg.PluginsUnsigned, Version: "dev"}
+		if cfg.StoreURL != "" {
+			svc.Plugins.Store = storeclient.New(cfg.StoreURL)
+		}
 	}
 	queue := &jobs.Queue{DB: db, Workers: cfg.Workers}
 	svc.RegisterJobs(queue)

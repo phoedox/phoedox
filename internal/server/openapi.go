@@ -14,6 +14,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 
 	"github.com/phoedox/phoedox/internal/core"
+	"github.com/phoedox/phoedox/internal/plugins"
 	"github.com/phoedox/phoedox/internal/requests"
 	"github.com/phoedox/phoedox/internal/store"
 )
@@ -67,6 +68,23 @@ type tokenIn struct {
 type webhookList struct {
 	Webhooks []store.Webhook `json:"webhooks"`
 	Events   []string        `json:"events"`
+}
+
+type pluginList struct {
+	Plugins  []core.PluginInfo `json:"plugins"`
+	Store    bool              `json:"store"`
+	Enabled  bool              `json:"enabled"`
+	Unsigned bool              `json:"unsigned"`
+}
+type enabledIn struct {
+	Enabled bool `json:"enabled"`
+}
+type licenseCodeIn struct {
+	Code string `json:"code"`
+}
+type storeInstallIn struct {
+	ID      string `json:"id"`
+	Version string `json:"version"`
 }
 
 // apiDocs describes every route of /api/v1; a test makes sure none is missing.
@@ -132,44 +150,58 @@ var apiDocs = map[string]op{
 	"POST /orgs/{o}/groups/{g}/members":        {Tag: "organizations", Summary: "Add a member to a group.", In: emailIn{}, Out: ok{}},
 	"POST /orgs/{o}/groups/{g}/members/remove": {Tag: "organizations", Summary: "Remove a member from a group.", In: emailIn{}, Out: ok{}},
 
-	"GET /projects":                              {Tag: "projects", Summary: "Projects you can see, with your role.", Out: []store.Project{}},
-	"POST /projects":                             {Tag: "projects", Summary: "Create a project (personal or in an organization).", In: core.ProjectInput{}, Out: store.Project{}},
-	"GET /projects/{p}":                          {Tag: "projects", Summary: "A project.", Out: store.Project{}},
-	"PATCH /projects/{p}":                        {Tag: "projects", Summary: "Change settings (owners).", In: core.ProjectInput{}, Out: store.Project{}},
-	"GET /projects/{p}/members":                  {Tag: "projects", Summary: "Members (guests have an end date).", Out: []store.Member{}},
-	"PUT /projects/{p}/members":                  {Tag: "projects", Summary: "Add a member or guest (until = end date).", In: memberIn{}},
-	"DELETE /projects/{p}/members/{user}":        {Tag: "projects", Summary: "Remove a member.", Out: ok{}},
-	"GET /projects/{p}/groups":                   {Tag: "projects", Summary: "Groups with access.", Out: []store.ProjectGroup{}},
-	"PUT /projects/{p}/groups/{g}":               {Tag: "projects", Summary: "Give a group a role.", In: roleIn{}, Out: ok{}},
-	"DELETE /projects/{p}/groups/{g}":            {Tag: "projects", Summary: "Remove a group's access.", Out: ok{}},
-	"GET /projects/{p}/storage":                  {Tag: "projects", Summary: "Storage use and quota.", Out: core.Storage{}},
-	"PUT /projects/{p}/storage":                  {Tag: "projects", Summary: "Set the project's own quota (owners).", In: quotaIn{}, Out: core.Storage{}},
-	"GET /projects/{p}/env":                      {Tag: "projects", Summary: "Environment variables for request blocks (secrets hidden).", Out: []store.EnvVar{}},
-	"PUT /projects/{p}/env/{name}":               {Tag: "projects", Summary: "Set a variable or secret."},
-	"DELETE /projects/{p}/env/{name}":            {Tag: "projects", Summary: "Delete a variable."},
-	"GET /projects/{p}/trash":                    {Tag: "projects", Summary: "Deleted pages, entries and files.", Out: []store.TrashItem{}},
-	"POST /projects/{p}/trash/{id}/restore":      {Tag: "projects", Summary: "Restore from the trash.", Out: store.TrashItem{}},
-	"DELETE /projects/{p}/trash/{id}":            {Tag: "projects", Summary: "Delete for good (owners)."},
-	"GET /projects/{p}/favorites":                {Tag: "projects", Summary: "Project and personal favorites.", Out: []store.Favorite{}},
-	"PUT /projects/{p}/favorites":                {Tag: "projects", Summary: "Reorder favorites.", Query: []string{"scope"}},
-	"PUT /projects/{p}/favorites/{d}":            {Tag: "projects", Summary: "Add a favorite.", Query: []string{"scope"}},
-	"DELETE /projects/{p}/favorites/{d}":         {Tag: "projects", Summary: "Remove a favorite.", Query: []string{"scope"}},
-	"GET /projects/{p}/suggestions":              {Tag: "projects", Summary: "AI suggestions waiting for a decision.", Out: []store.Suggestion{}, Query: []string{"status"}},
-	"POST /suggestions/{id}/accept":              {Tag: "projects", Summary: "Accept (apply) a suggestion."},
-	"POST /suggestions/{id}/reject":              {Tag: "projects", Summary: "Reject a suggestion."},
-	"GET /projects/{p}/share-links":              {Tag: "sharing", Summary: "Active read-only links.", Out: []store.ShareLink{}},
-	"POST /projects/{p}/share-links":             {Tag: "sharing", Summary: "Create a read-only link (project or one page); the token is shown once.", In: core.ShareLinkInput{}, Out: core.NewShareLink{}},
-	"DELETE /projects/{p}/share-links/{id}":      {Tag: "sharing", Summary: "Revoke a link.", Out: ok{}},
-	"GET /shared/{token}":                        {Tag: "sharing", Summary: "Open a share link (no account).", Out: core.SharedView{}, Public: true},
-	"GET /shared/{token}/documents/{d}":          {Tag: "sharing", Summary: "A page of a share link.", Out: store.Document{}, Public: true},
-	"GET /shared/{token}/files/{id}":             {Tag: "sharing", Summary: "A file of a shared page.", Public: true, Query: []string{"preview"}},
-	"GET /shared/{token}/files/{id}/{name}":      {Tag: "sharing", Summary: "A file of a shared page (with file name).", Public: true, Query: []string{"preview"}},
-	"GET /projects/{p}/webhooks":                 {Tag: "webhooks", Summary: "Webhooks and the event types they can receive.", Out: webhookList{}},
-	"POST /projects/{p}/webhooks":                {Tag: "webhooks", Summary: "Add a webhook; the signing secret is shown once.", In: core.WebhookInput{}, Out: core.NewWebhook{}},
-	"PATCH /projects/{p}/webhooks/{id}":          {Tag: "webhooks", Summary: "Change or switch a webhook on/off.", In: core.WebhookInput{}, Out: store.Webhook{}},
-	"DELETE /projects/{p}/webhooks/{id}":         {Tag: "webhooks", Summary: "Delete a webhook.", Out: ok{}},
-	"GET /projects/{p}/webhooks/{id}/deliveries": {Tag: "webhooks", Summary: "The latest deliveries.", Out: []store.Delivery{}},
-	"POST /projects/{p}/webhooks/{id}/test":      {Tag: "webhooks", Summary: "Send a ping now.", Out: store.Delivery{}},
+	"GET /projects":                                {Tag: "projects", Summary: "Projects you can see, with your role.", Out: []store.Project{}},
+	"POST /projects":                               {Tag: "projects", Summary: "Create a project (personal or in an organization).", In: core.ProjectInput{}, Out: store.Project{}},
+	"GET /projects/{p}":                            {Tag: "projects", Summary: "A project.", Out: store.Project{}},
+	"PATCH /projects/{p}":                          {Tag: "projects", Summary: "Change settings (owners).", In: core.ProjectInput{}, Out: store.Project{}},
+	"GET /projects/{p}/members":                    {Tag: "projects", Summary: "Members (guests have an end date).", Out: []store.Member{}},
+	"PUT /projects/{p}/members":                    {Tag: "projects", Summary: "Add a member or guest (until = end date).", In: memberIn{}},
+	"DELETE /projects/{p}/members/{user}":          {Tag: "projects", Summary: "Remove a member.", Out: ok{}},
+	"GET /projects/{p}/groups":                     {Tag: "projects", Summary: "Groups with access.", Out: []store.ProjectGroup{}},
+	"PUT /projects/{p}/groups/{g}":                 {Tag: "projects", Summary: "Give a group a role.", In: roleIn{}, Out: ok{}},
+	"DELETE /projects/{p}/groups/{g}":              {Tag: "projects", Summary: "Remove a group's access.", Out: ok{}},
+	"GET /projects/{p}/storage":                    {Tag: "projects", Summary: "Storage use and quota.", Out: core.Storage{}},
+	"PUT /projects/{p}/storage":                    {Tag: "projects", Summary: "Set the project's own quota (owners).", In: quotaIn{}, Out: core.Storage{}},
+	"GET /projects/{p}/env":                        {Tag: "projects", Summary: "Environment variables for request blocks (secrets hidden).", Out: []store.EnvVar{}},
+	"PUT /projects/{p}/env/{name}":                 {Tag: "projects", Summary: "Set a variable or secret."},
+	"DELETE /projects/{p}/env/{name}":              {Tag: "projects", Summary: "Delete a variable."},
+	"GET /projects/{p}/trash":                      {Tag: "projects", Summary: "Deleted pages, entries and files.", Out: []store.TrashItem{}},
+	"POST /projects/{p}/trash/{id}/restore":        {Tag: "projects", Summary: "Restore from the trash.", Out: store.TrashItem{}},
+	"DELETE /projects/{p}/trash/{id}":              {Tag: "projects", Summary: "Delete for good (owners)."},
+	"GET /projects/{p}/favorites":                  {Tag: "projects", Summary: "Project and personal favorites.", Out: []store.Favorite{}},
+	"PUT /projects/{p}/favorites":                  {Tag: "projects", Summary: "Reorder favorites.", Query: []string{"scope"}},
+	"PUT /projects/{p}/favorites/{d}":              {Tag: "projects", Summary: "Add a favorite.", Query: []string{"scope"}},
+	"DELETE /projects/{p}/favorites/{d}":           {Tag: "projects", Summary: "Remove a favorite.", Query: []string{"scope"}},
+	"GET /projects/{p}/suggestions":                {Tag: "projects", Summary: "AI suggestions waiting for a decision.", Out: []store.Suggestion{}, Query: []string{"status"}},
+	"POST /suggestions/{id}/accept":                {Tag: "projects", Summary: "Accept (apply) a suggestion."},
+	"POST /suggestions/{id}/reject":                {Tag: "projects", Summary: "Reject a suggestion."},
+	"GET /projects/{p}/share-links":                {Tag: "sharing", Summary: "Active read-only links.", Out: []store.ShareLink{}},
+	"POST /projects/{p}/share-links":               {Tag: "sharing", Summary: "Create a read-only link (project or one page); the token is shown once.", In: core.ShareLinkInput{}, Out: core.NewShareLink{}},
+	"DELETE /projects/{p}/share-links/{id}":        {Tag: "sharing", Summary: "Revoke a link.", Out: ok{}},
+	"GET /shared/{token}":                          {Tag: "sharing", Summary: "Open a share link (no account).", Out: core.SharedView{}, Public: true},
+	"GET /shared/{token}/documents/{d}":            {Tag: "sharing", Summary: "A page of a share link.", Out: store.Document{}, Public: true},
+	"GET /shared/{token}/files/{id}":               {Tag: "sharing", Summary: "A file of a shared page.", Public: true, Query: []string{"preview"}},
+	"GET /shared/{token}/files/{id}/{name}":        {Tag: "sharing", Summary: "A file of a shared page (with file name).", Public: true, Query: []string{"preview"}},
+	"GET /admin/plugins":                           {Tag: "plugins", Summary: "Installed plugins with permissions, license and problems.", Out: pluginList{}},
+	"POST /admin/plugins":                          {Tag: "plugins", Summary: "Install or update a plugin package (.phxp body; signature in the Phoedox-Signature header).", Raw: true, Out: core.PluginInfo{}},
+	"GET /admin/plugins/catalog":                   {Tag: "plugins", Summary: "Plugins the store offers for this server.", Out: []core.CatalogEntry{}},
+	"POST /admin/plugins/install":                  {Tag: "plugins", Summary: "Install a plugin version from the store.", In: storeInstallIn{}, Out: core.PluginInfo{}},
+	"PATCH /admin/plugins/{id}":                    {Tag: "plugins", Summary: "Switch a plugin on or off for the instance.", In: enabledIn{}, Out: core.PluginInfo{}},
+	"DELETE /admin/plugins/{id}":                   {Tag: "plugins", Summary: "Uninstall a plugin with its data.", Out: ok{}},
+	"GET /admin/plugins/{id}/logs":                 {Tag: "plugins", Summary: "Recent log lines of a plugin.", Out: []plugins.LogLine{}},
+	"PUT /admin/plugins/{id}/license":              {Tag: "plugins", Summary: "Store a signed license file.", Raw: true, Out: core.PluginInfo{}},
+	"POST /admin/plugins/{id}/license/redeem":      {Tag: "plugins", Summary: "Redeem a license code at the store.", In: licenseCodeIn{}, Out: core.PluginInfo{}},
+	"GET /plugins/{id}/{v}/files/*":                {Tag: "plugins", Summary: "A frontend file of an enabled plugin (cacheable, the version is in the path)."},
+	"GET /projects/{p}/plugins":                    {Tag: "plugins", Summary: "Plugins of a project (owners see all installed ones with settings).", Out: []core.ProjectPluginInfo{}},
+	"PUT /projects/{p}/plugins/{id}":               {Tag: "plugins", Summary: "Enable or disable a plugin for the project (owners).", In: enabledIn{}, Out: ok{}},
+	"PUT /projects/{p}/plugins/{id}/secrets":       {Tag: "plugins", Summary: "Set secrets the plugin asks for; empty values remove them. Values are never returned.", In: map[string]string{}, Out: ok{}},
+	"POST /projects/{p}/plugins/{id}/tools/{tool}": {Tag: "plugins", Summary: "Run a tool of a plugin with the caller's rights (JSON arguments as body).", Raw: true},
+	"GET /projects/{p}/webhooks":                   {Tag: "webhooks", Summary: "Webhooks and the event types they can receive.", Out: webhookList{}},
+	"POST /projects/{p}/webhooks":                  {Tag: "webhooks", Summary: "Add a webhook; the signing secret is shown once.", In: core.WebhookInput{}, Out: core.NewWebhook{}},
+	"PATCH /projects/{p}/webhooks/{id}":            {Tag: "webhooks", Summary: "Change or switch a webhook on/off.", In: core.WebhookInput{}, Out: store.Webhook{}},
+	"DELETE /projects/{p}/webhooks/{id}":           {Tag: "webhooks", Summary: "Delete a webhook.", Out: ok{}},
+	"GET /projects/{p}/webhooks/{id}/deliveries":   {Tag: "webhooks", Summary: "The latest deliveries.", Out: []store.Delivery{}},
+	"POST /projects/{p}/webhooks/{id}/test":        {Tag: "webhooks", Summary: "Send a ping now.", Out: store.Delivery{}},
 
 	"GET /projects/{p}/documents":                            {Tag: "documents", Summary: "Pages, decisions and links (without content).", Out: []store.Document{}, Query: []string{"type", "category"}},
 	"POST /projects/{p}/documents":                           {Tag: "documents", Summary: "Create a page, decision (ADR) or link.", In: core.DocumentInput{}, Out: core.DocResult{}},

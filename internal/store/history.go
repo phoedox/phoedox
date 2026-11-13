@@ -47,7 +47,7 @@ func (d *DB) UserNames(ctx context.Context, ids []string) (map[string]string, er
 // (user:<id>, mcp:<id>:<token>, token:<id>:<token>).
 func ActorUserID(actor string) string {
 	parts := strings.Split(actor, ":")
-	if len(parts) >= 2 && (parts[0] == "user" || parts[0] == "mcp" || parts[0] == "token") {
+	if len(parts) >= 2 && (parts[0] == "user" || parts[0] == "mcp" || parts[0] == "token" || parts[0] == "plugin") {
 		return parts[1]
 	}
 	return ""

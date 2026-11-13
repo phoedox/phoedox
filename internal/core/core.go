@@ -11,6 +11,8 @@ import (
 	"github.com/phoedox/phoedox/internal/jobs"
 	"github.com/phoedox/phoedox/internal/preview"
 	"github.com/phoedox/phoedox/internal/scan"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/phoedox/phoedox/internal/graph"
@@ -54,10 +56,16 @@ type Actor struct {
 	TokenID string
 	// Scope narrows the rights of tokens and OAuth grants (nil = full).
 	Scope *Scope
+	// Plugin is set while a plugin acts for the user; it never has more
+	// rights than the user (and an AI client stays an AI client).
+	Plugin string
 }
 
 // String is the actor as stored in events and versions.
 func (a Actor) String() string {
+	if a.Plugin != "" {
+		return "plugin:" + a.User.ID + ":" + a.Plugin
+	}
 	switch a.Via {
 	case "mcp":
 		return "mcp:" + a.User.ID + ":" + a.TokenID
@@ -93,6 +101,13 @@ type Service struct {
 	Preview preview.Tools
 	// Scanner checks uploads for malware; nil skips the check.
 	Scanner scan.Scanner
+	// Plugins configures the plugin runtime (zero = plugins off).
+	Plugins PluginConfig
+
+	plugCache pluginCache
+	pluginGen atomic.Int64
+	schedMu   sync.Mutex
+	schedLast map[string]time.Time
 }
 
 // New returns a service with defaults.
@@ -211,4 +226,5 @@ func newID() string { return string(graph.NewID()) }
 func (s *Service) event(ctx context.Context, a Actor, kind, subject string, payload any) {
 	_ = s.DB.AddEvent(ctx, a.String(), kind, subject, payload)
 	s.emitWebhooks(ctx, a, kind, subject, payload)
+	s.emitPluginEvents(ctx, a, kind, subject, payload)
 }

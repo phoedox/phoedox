@@ -37,6 +37,7 @@ var Tables = []string{
 	"auth_challenges", "oauth_clients", "oauth_grants", "oauth_codes", "oauth_tokens", "user_identities",
 	"doc_updates", "project_env", "instance_settings", "project_kinds",
 	"files", "file_versions", "jobs", "share_links", "webhooks", "webhook_deliveries",
+	"plugins", "project_plugins", "plugin_kv",
 }
 
 // Skipped are tables that are not backed up.
@@ -91,8 +92,10 @@ func Export(ctx context.Context, db *store.DB, blobs blob.Store, withFiles bool,
 			return m, err
 		}
 	}
-	if withFiles && blobs != nil {
-		hashes, err := allHashes(ctx, db)
+	// Plugin packages are always included: without them a restored
+	// instance could not run its plugins.
+	if blobs != nil {
+		hashes, err := allHashes(ctx, db, withFiles)
 		if err != nil {
 			return m, err
 		}
@@ -162,8 +165,12 @@ func boolTrue(db *store.DB) string {
 	return "1"
 }
 
-func allHashes(ctx context.Context, db *store.DB) ([]string, error) {
-	rows, err := db.Query(ctx, `SELECT sha256 FROM file_versions UNION SELECT sha256 FROM files UNION SELECT thumb_sha256 FROM files WHERE thumb_sha256 <> ''`)
+func allHashes(ctx context.Context, db *store.DB, withFiles bool) ([]string, error) {
+	q := `SELECT sha256 FROM plugins`
+	if withFiles {
+		q += ` UNION SELECT sha256 FROM file_versions UNION SELECT sha256 FROM files UNION SELECT thumb_sha256 FROM files WHERE thumb_sha256 <> ''`
+	}
+	rows, err := db.Query(ctx, q)
 	if err != nil {
 		return nil, err
 	}

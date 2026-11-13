@@ -36,6 +36,7 @@ func main() {
 		log.Warn("no users yet – create the first admin with: phx admin create-user --admin --email you@example.org --name 'Your Name'")
 	}
 
+	a.Core.Plugins.Version = server.Version
 	hub := realtime.NewHub(a.DB)
 	a.Core.OnContentChange = hub.Reset
 	m := metrics.New(metrics.Sources{DB: a.DB.SQL, Version: server.Version, LiveEditors: hub.TotalEditors,
@@ -74,6 +75,11 @@ func main() {
 	}
 	log.Info("file tools", "tools", a.Core.Preview.Available(), "virus_scan", a.Core.Scanner != nil)
 
+	if a.Core.Plugins.Runtime != nil {
+		defer a.Core.Plugins.Runtime.Close(context.Background())
+		go runPlugins(ctx, a, log)
+	}
+
 	// Housekeeping: empty the trash, drop stale uploads and old jobs now and every six hours.
 	go func() {
 		t := time.NewTicker(6 * time.Hour)
@@ -95,4 +101,33 @@ func main() {
 	shutdown, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdown)
+}
+
+// runPlugins wakes scheduled plugins every ten seconds and asks the store
+// for updates and recalls every six hours (for every tenant).
+func runPlugins(ctx context.Context, a *app.App, log *slog.Logger) {
+	tick := time.NewTicker(10 * time.Second)
+	defer tick.Stop()
+	var synced time.Time
+	for {
+		sys := store.System(ctx)
+		a.Core.RunPluginSchedules(sys, time.Now())
+		if time.Since(synced) > 6*time.Hour {
+			synced = time.Now()
+			tenants, err := a.DB.Tenants(sys)
+			if err != nil {
+				log.Warn("plugin store sync", "err", err)
+			}
+			for _, t := range tenants {
+				if err := a.Core.SyncPluginStore(store.WithTenant(ctx, t.ID)); err != nil {
+					log.Warn("plugin store sync", "tenant", t.ID, "err", err)
+				}
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-tick.C:
+		}
+	}
 }

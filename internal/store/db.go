@@ -41,6 +41,9 @@ var ErrNotFound = errors.New("not found")
 // ErrConflict is returned for unique constraint violations.
 var ErrConflict = errors.New("already exists")
 
+// ErrQuota means a limit was reached.
+var ErrQuota = errors.New("limit reached")
+
 // DB wraps the connection pool and the dialect.
 type DB struct {
 	SQL     *sql.DB
