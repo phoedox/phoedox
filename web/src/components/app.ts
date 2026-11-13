@@ -5,6 +5,7 @@ import { ApiError, api, type User } from "../api";
 import { t } from "../i18n";
 import { icon } from "../icon";
 import { currentProject, currentUser, isPublicPath, loginURL, navigate, signedIn } from "../state";
+import "./project-switcher";
 import { base } from "./shared";
 import "./auth-pages";
 import "./login";
@@ -99,14 +100,12 @@ export class PhxApp extends SignalWatcher(LitElement) {
   render() {
     if (!this.ready) return html`<p class="muted" style="padding:24px">${t("app.loading")}</p>`;
     const user = currentUser.get();
-    const p = currentProject.get();
-    const inProject = location.pathname.startsWith("/p/");
     const shared = location.pathname.startsWith("/s/");
     return html`
       ${user && !shared
         ? html`<header>
             <a class="brand" href="/"><img src="/logo.svg" alt="" /><span class="word">Phoedox</span></a>
-            ${inProject && p ? html`<a class="crumb" href="/p/${p.slug}"><span class="pi">${p.short}</span><span class="name">${p.name}</span></a>` : ""}
+            <phx-project-switcher .path=${location.pathname}></phx-project-switcher>
             <nav>
               <a href="/" aria-label=${t("nav.projects")}>${icon("FolderOpen", 15)} <span class="lbl">${t("nav.projects")}</span></a>
               <button class="ghost search" @click=${this.openPalette} aria-label=${t("palette.button")} aria-keyshortcuts="Control+K Meta+K">

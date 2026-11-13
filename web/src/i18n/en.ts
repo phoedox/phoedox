@@ -971,4 +971,10 @@ export const en: Record<keyof typeof de, string> = {
   "decisions.range": "{from}–{to} of {total}",
   "decisions.prev": "Previous page",
   "decisions.next": "Next page",
+  "switcher.label": "Switch project",
+  "switcher.choose": "Choose project",
+  "switcher.search": "Search projects …",
+  "switcher.none": "No project found",
+  "switcher.all": "All projects",
+  "switcher.keys": "↑↓ select · Enter open",
 };

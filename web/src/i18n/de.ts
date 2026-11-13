@@ -969,4 +969,10 @@ export const de = {
   "decisions.range": "{from}–{to} von {total}",
   "decisions.prev": "Vorherige Seite",
   "decisions.next": "Nächste Seite",
+  "switcher.label": "Projekt wechseln",
+  "switcher.choose": "Projekt wählen",
+  "switcher.search": "Projekt suchen …",
+  "switcher.none": "Kein Projekt gefunden",
+  "switcher.all": "Alle Projekte",
+  "switcher.keys": "↑↓ wählen · Enter öffnen",
 } as const;
