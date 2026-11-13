@@ -35,7 +35,7 @@ type Sender interface {
 // Disabled is used when no SMTP server is configured.
 type Disabled struct{}
 
-func (Disabled) Enabled() bool                         { return false }
+func (Disabled) Enabled() bool                       { return false }
 func (Disabled) Send(context.Context, Message) error { return errors.New("mail: not configured") }
 
 // TLSMode selects how the SMTP connection is secured.
