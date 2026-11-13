@@ -41,7 +41,8 @@ export interface User {
   id: string; email: string; name: string; isAdmin: boolean; disabled: boolean;
   locale: "" | "de" | "en"; hasPassword: boolean; secondFactor?: boolean; createdAt: string; lastLoginAt: string | null;
 }
-export interface Instance { version: string; domain: string; passwordReset: boolean }
+export interface Instance { version: string; domain: string; passwordReset: boolean; oidc?: { name: string } }
+export interface Grant { id: string; clientId: string; clientName: string; clientUri?: string; createdAt: string; lastUsedAt: string | null }
 export interface LinkInfo { purpose: "invite" | "reset"; email: string; name: string; expiresAt: string }
 export interface LinkResult { user: User; purpose: "invite" | "reset"; link: string; mailed: boolean; expiresAt: string }
 /** Minimum password length, same as the server (auth.MinPasswordLen). */

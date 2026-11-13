@@ -144,3 +144,12 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 | Wiederherstellung | 10 Einmal-Codes (gehasht), beim Aktivieren und auf Wunsch neu. Neue Codes und Abschalten brauchen das Passwort. Admins (Web, `phx admin reset-2fa`) entfernen bei Aussperrung alle Faktoren. |
 | Passkeys | WebAuthn (go-webauthn), auffindbare Schlüssel. Anmeldung ohne Passwort nur mit Nutzerprüfung am Gerät; zusätzlich als zweiter Faktor. RP-ID = Host der öffentlichen URL. |
 | Master-Key | `PHOEDOX_MASTER_KEY` oder `<data>/master.key` (wird angelegt, 0600). Schlüssel-ID im Chiffrat für spätere Rotation. Grundlage auch für Projekt-Geheimnisse. |
+
+## SSO & OAuth für MCP
+
+| Bereich | Entscheidung |
+|---|---|
+| OIDC | Ein Anbieter per Umgebung (`PHOEDOX_OIDC_*`), Discovery beim ersten Gebrauch. Code-Flow mit PKCE, Nonce, State an Cookie gebunden. Verknüpfung über (Issuer, Subject); bestehende Konten nur über bestätigte E-Mail. Neue Konten nur mit `AUTO_CREATE`, optional nur für bestimmte Domains. Zwei-Faktor übernimmt bei SSO der Anbieter. Mehrere Anbieter und Gruppen-Zuordnung kommen mit den Organisationen. |
+| OAuth-Server | Eigener OAuth-2.1-Server nur für MCP: Metadaten (RFC 8414, RFC 9728), offene dynamische Registrierung (RFC 7591, Rate-Limit), Code + PKCE S256 Pflicht, `iss` im Redirect (RFC 9207), Resource `<base>/mcp` (RFC 8707). Redirects: https, Loopback (beliebiger Port) oder App-Schema. |
+| Freigabe | Immer per Freigabeseite im Browser mit Sitzung (nicht per Token), auch bei bekannten Clients – Namen sind selbst angegeben. Eine Freigabe pro Nutzer und Client, widerrufbar unter „API-Tokens & MCP“. |
+| Tokens | Zugriff 1 Stunde (`phxo_`, nur für `/mcp`), Refresh 30 Tage (`phxr_`), rotierend. Wiederverwendung eines Codes oder Refresh-Tokens widerruft die ganze Freigabe. |

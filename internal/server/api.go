@@ -22,6 +22,13 @@ type api struct {
 	auth    *auth.Auth
 	cfg     config.Config
 	limiter *limiter
+	// regLimiter limits open OAuth client registrations per IP.
+	regLimiter *limiter
+}
+
+func clientIP(r *http.Request) string {
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+	return ip
 }
 
 type ctxKey struct{}
@@ -32,8 +39,14 @@ func (a *api) routes(r chi.Router) {
 	r.Post("/auth/login", a.login)
 	r.Post("/auth/logout", a.logout)
 	r.Get("/instance", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"version": Version, "domain": a.cfg.Domain, "passwordReset": a.resetAvailable()})
+		info := map[string]any{"version": Version, "domain": a.cfg.Domain, "passwordReset": a.resetAvailable()}
+		if a.auth.OIDC != nil {
+			info["oidc"] = map[string]string{"name": a.auth.OIDC.Config.Name}
+		}
+		writeJSON(w, http.StatusOK, info)
 	})
+	r.Get("/auth/oidc/start", a.oidcStart)
+	r.Get("/auth/oidc/callback", a.oidcCallback)
 	r.Group(func(r chi.Router) {
 		r.Use(requireHeader)
 		r.Post("/auth/reset-request", a.resetRequest)
@@ -61,6 +74,10 @@ func (a *api) routes(r chi.Router) {
 		r.Post("/me/passkeys/finish", a.passkeyRegisterFinish)
 		r.Patch("/me/passkeys/{id}", a.passkeyRename)
 		r.Delete("/me/passkeys/{id}", a.passkeyDelete)
+		r.Get("/oauth/request", a.oauthRequest)
+		r.Post("/oauth/authorize", a.oauthAuthorize)
+		r.Get("/oauth/grants", a.listGrants)
+		r.Delete("/oauth/grants/{id}", a.revokeGrant)
 		r.Route("/admin", func(r chi.Router) {
 			r.Get("/users", a.listUsers)
 			r.Post("/users", a.inviteUser)

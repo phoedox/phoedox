@@ -37,7 +37,7 @@ func main() {
 		Config: a.Config,
 		Core:   a.Core,
 		Auth:   a.Auth,
-		MCP:    mcp.Handler(a.Core, a.Auth, server.Version),
+		MCP:    mcp.Handler(a.Core, a.Auth, server.Version, server.BaseURL(a.Config)),
 		Web:    web.Dist(),
 	})
 	srv := &http.Server{Addr: a.Config.Listen, Handler: handler, ReadHeaderTimeout: 10 * time.Second}

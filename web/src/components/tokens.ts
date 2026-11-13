@@ -1,13 +1,14 @@
 import { LitElement, css, html } from "lit";
-import { ApiError, api, type Token } from "../api";
+import { ApiError, api, type Grant, type Token } from "../api";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
+import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
 export class PhxTokens extends LitElement {
-  static properties = { tokens: { state: true }, secret: { state: true }, copied: { state: true } };
-  static styles = [base, css`
+  static properties = { tokens: { state: true }, grants: { state: true }, secret: { state: true }, copied: { state: true } };
+  static styles = [base, settingsNavStyles, css`
     :host { display: block; max-width: 760px; margin: 0 auto; padding: 28px 16px; }
     form { display: flex; gap: 8px; margin: 16px 0; flex-wrap: wrap; } form input { flex: 1; min-width: 200px; }
     /* Shown once, rarely: a gentle reveal draws the eye to the secret. */
@@ -21,6 +22,7 @@ export class PhxTokens extends LitElement {
     pre { background: var(--surface2); padding: 12px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; }
   `];
   tokens: Token[] = [];
+  grants: Grant[] = [];
   secret = "";
   copied = false;
 
@@ -31,6 +33,7 @@ export class PhxTokens extends LitElement {
 
   private async load() {
     this.tokens = (await api<Token[]>("GET", "/tokens").catch(() => [])) ?? [];
+    this.grants = (await api<Grant[]>("GET", "/oauth/grants").catch(() => [])) ?? [];
   }
 
   private async create(e: SubmitEvent) {
@@ -56,6 +59,11 @@ export class PhxTokens extends LitElement {
     }
   }
 
+  private async disconnect(id: string) {
+    await api("DELETE", `/oauth/grants/${id}`).catch((err) => toast(err instanceof ApiError ? err.text : t("error.unknown"), "error"));
+    await this.load();
+  }
+
   private async revoke(id: string) {
     await api("DELETE", `/tokens/${id}`).catch((err) => toast(err instanceof ApiError ? err.text : t("error.unknown"), "error"));
     await this.load();
@@ -64,7 +72,8 @@ export class PhxTokens extends LitElement {
   render() {
     const mcpUrl = `${location.origin}/mcp`;
     return html`<div class="enter">
-      <h1>${t("tokens.title")}</h1>
+      <h1 style="margin-bottom:16px">${t("tokens.title")}</h1>
+      ${settingsNav("tokens")}
       <p class="muted">${t("tokens.intro")}</p>
       <form @submit=${this.create}><input name="name" required placeholder=${t("tokens.name")} /><button type="submit">${icon("KeyRound", 14)} ${t("tokens.create")}</button></form>
       ${this.secret ? html`<div class="card secret" role="status"><b>${t("tokens.secret")}</b><code>${this.secret}</code>
@@ -72,8 +81,15 @@ export class PhxTokens extends LitElement {
       ${this.tokens.length === 0 ? html`<p class="muted">${t("tokens.empty")}</p>` : html`<ul>${this.tokens.map((tk) => html`<li class="card">
         <span><b>${tk.name}</b> <span class="mono muted">${tk.prefix}…</span><br /><span class="muted" style="font-size:13px">${tk.lastUsedAt ? t("tokens.last_used", { date: formatDate(tk.lastUsedAt) }) : t("tokens.never_used")}</span></span>
         <button class="danger" @click=${() => this.revoke(tk.id)}>${t("tokens.revoke")}</button></li>`)}</ul>`}
+      <h2 style="font-size:18px;margin:24px 0 6px">${t("tokens.apps_title")}</h2>
+      <p class="muted">${t("tokens.apps_intro")}</p>
+      ${this.grants.length === 0 ? html`<p class="muted">${t("tokens.apps_none")}</p>` : html`<ul>${this.grants.map((g) => html`<li class="card">
+        <span><b>${g.clientName}</b><br /><span class="muted" style="font-size:13px">${t("tokens.app_since", { date: formatDate(g.createdAt) })}${g.lastUsedAt ? html` · ${t("tokens.last_used", { date: formatDate(g.lastUsedAt) })}` : ""}</span></span>
+        <button class="danger" @click=${() => this.disconnect(g.id)}>${t("tokens.revoke")}</button></li>`)}</ul>`}
       <h2 style="font-size:18px;margin:24px 0 6px">${t("tokens.mcp_title")}</h2>
-      <p class="muted">${t("tokens.mcp_text")}</p>
+      <p class="muted">${t("tokens.mcp_oauth")}</p>
+      <pre>${mcpUrl}</pre>
+      <p class="muted">${t("tokens.mcp_token")}</p>
       <pre>${JSON.stringify({ mcpServers: { phoedox: { type: "http", url: mcpUrl, headers: { Authorization: "Bearer phx_…" } } } }, null, 2)}</pre>
     </div>`;
   }

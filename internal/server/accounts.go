@@ -1,12 +1,17 @@
 package server
 
 import (
+	"errors"
+	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/phoedox/phoedox/internal/auth"
+	"github.com/phoedox/phoedox/internal/config"
+	"github.com/phoedox/phoedox/internal/core"
 )
 
 // requireHeader blocks cross-site requests to public endpoints: browsers
@@ -34,16 +39,25 @@ func (a *api) trustedBase() string {
 	return ""
 }
 
-// baseURL is the trusted base or, for admin actions, the request's origin.
-func (a *api) baseURL(r *http.Request) string {
-	if b := a.trustedBase(); b != "" {
-		return b
+// baseURL is the trusted base or the request's origin.
+func (a *api) baseURL(r *http.Request) string { return BaseURL(a.cfg)(r) }
+
+// BaseURL returns a function giving the public origin of a request: the
+// configured public URL or domain, else scheme and host of the request.
+func BaseURL(cfg config.Config) func(*http.Request) string {
+	return func(r *http.Request) string {
+		if cfg.PublicURL != "" {
+			return cfg.PublicURL
+		}
+		if cfg.Domain != "" {
+			return "https://" + cfg.Domain
+		}
+		scheme := "http"
+		if r.TLS != nil || (cfg.BehindProxy && r.Header.Get("X-Forwarded-Proto") == "https") {
+			scheme = "https"
+		}
+		return scheme + "://" + r.Host
 	}
-	scheme := "http"
-	if r.TLS != nil || (a.cfg.BehindProxy && r.Header.Get("X-Forwarded-Proto") == "https") {
-		scheme = "https"
-	}
-	return scheme + "://" + r.Host
 }
 
 func (a *api) resetAvailable() bool {
@@ -155,4 +169,37 @@ func (a *api) updateUser(w http.ResponseWriter, r *http.Request) {
 func (a *api) userLink(w http.ResponseWriter, r *http.Request) {
 	res, err := a.auth.NewAccountLink(r.Context(), actorOf(r), chi.URLParam(r, "id"), a.baseURL(r))
 	respond(w, res, err)
+}
+
+// oidcStart sends the browser to the identity provider.
+func (a *api) oidcStart(w http.ResponseWriter, r *http.Request) {
+	u, c, err := a.auth.OIDCStart(r.Context(), a.baseURL(r), r.URL.Query().Get("return"))
+	if err != nil {
+		http.Redirect(w, r, "/login?error="+url.QueryEscape(errKey(err)), http.StatusFound)
+		return
+	}
+	http.SetCookie(w, c)
+	http.Redirect(w, r, u, http.StatusFound)
+}
+
+// oidcCallback finishes the sign-in and continues in the web app.
+func (a *api) oidcCallback(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{Name: auth.OIDCCookie, Path: "/api/v1/auth/oidc", MaxAge: -1, HttpOnly: true, Secure: a.cfg.SecureCookies})
+	c, ret, err := a.auth.OIDCCallback(r.Context(), a.baseURL(r), r)
+	if err != nil {
+		slog.Info("oidc sign-in failed", "err", err)
+		http.Redirect(w, r, "/login?error="+url.QueryEscape(errKey(err))+"&return="+url.QueryEscape(ret), http.StatusFound)
+		return
+	}
+	http.SetCookie(w, c)
+	http.Redirect(w, r, auth.SafeReturn(ret), http.StatusFound)
+}
+
+// errKey is the translation key of an error for redirects to the web app.
+func errKey(err error) string {
+	var inv *core.InvalidError
+	if errors.As(err, &inv) {
+		return inv.Key
+	}
+	return "validation.oidc_failed"
 }

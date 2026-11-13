@@ -103,6 +103,8 @@ type Auth struct {
 	DefaultLocale string
 	// Box encrypts TOTP seeds with the instance master key.
 	Box *secret.Box
+	// OIDC is the external sign-in provider (nil if not configured).
+	OIDC *OIDC
 }
 
 // Login checks the password. Without two-factor authentication it starts a
@@ -144,24 +146,40 @@ func (a *Auth) Logout(r *http.Request) *http.Cookie {
 }
 
 // FromRequest resolves the actor from a Bearer token or the session cookie.
-// via is used for token requests ("token" for REST, "mcp" for MCP).
+// via is used for token requests ("token" for REST, "mcp" for MCP). OAuth
+// access tokens are only accepted for MCP.
 func (a *Auth) FromRequest(r *http.Request, via string) (core.Actor, bool, error) {
+	actor, _, viaCookie, err := a.FromRequestWithExpiry(r, via)
+	return actor, viaCookie, err
+}
+
+// FromRequestWithExpiry is FromRequest that also returns when an OAuth
+// access token expires (zero for API tokens and sessions).
+func (a *Auth) FromRequestWithExpiry(r *http.Request, via string) (core.Actor, time.Time, bool, error) {
 	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
-		u, t, err := a.DB.UserByToken(r.Context(), HashSecret(strings.TrimSpace(h[7:])))
-		if err != nil {
-			return core.Actor{}, false, err
+		token := strings.TrimSpace(h[7:])
+		if strings.HasPrefix(token, accessPrefix) {
+			if via != "mcp" {
+				return core.Actor{}, time.Time{}, false, store.ErrNotFound
+			}
+			actor, exp, err := a.oauthActor(r.Context(), token)
+			return actor, exp, false, err
 		}
-		return core.Actor{User: u, Via: via, TokenID: t.ID}, false, nil
+		u, t, err := a.DB.UserByToken(r.Context(), HashSecret(token))
+		if err != nil {
+			return core.Actor{}, time.Time{}, false, err
+		}
+		return core.Actor{User: u, Via: via, TokenID: t.ID}, time.Time{}, false, nil
 	}
 	c, err := r.Cookie(CookieName)
 	if err != nil {
-		return core.Actor{}, false, store.ErrNotFound
+		return core.Actor{}, time.Time{}, false, store.ErrNotFound
 	}
 	u, err := a.DB.UserBySession(r.Context(), HashSecret(c.Value))
 	if err != nil {
-		return core.Actor{}, false, err
+		return core.Actor{}, time.Time{}, false, err
 	}
-	return core.Actor{User: u, Via: "web"}, true, nil
+	return core.Actor{User: u, Via: "web"}, time.Time{}, true, nil
 }
 
 // CreateToken creates a personal API token and returns the plain value once.

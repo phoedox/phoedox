@@ -1,8 +1,9 @@
 import { LitElement, css, html } from "lit";
-import { ApiError, api, type User } from "../api";
+import { ApiError, api, type Instance, type User } from "../api";
 import { t } from "../i18n";
 import { icon } from "../icon";
-import { navigate, signedIn } from "../state";
+import { hasKey, type Key } from "../i18n";
+import { navigate, nextPath, signedIn } from "../state";
 import { cancelled, credentialJSON, passkeysSupported, requestOptions } from "../webauthn";
 import { base } from "./shared";
 
@@ -27,7 +28,7 @@ export const authPage = css`
 type LoginStep = { challenge: string; methods: string[] };
 
 export class PhxLogin extends LitElement {
-  static properties = { error: { state: true }, busy: { state: true }, step: { state: true }, mode: { state: true } };
+  static properties = { error: { state: true }, busy: { state: true }, step: { state: true }, mode: { state: true }, instance: { state: true } };
   static styles = [base, authPage, css`
     .sep { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
     .sep::before, .sep::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
@@ -40,6 +41,15 @@ export class PhxLogin extends LitElement {
   /** Set after the password when a second factor is needed. */
   step?: LoginStep;
   mode: "totp" | "recovery" = "totp";
+  instance?: Instance;
+
+  async connectedCallback() {
+    super.connectedCallback();
+    // Errors from the SSO callback arrive as ?error=<translation key>.
+    const key = new URLSearchParams(location.search).get("error");
+    if (key && hasKey(key)) this.error = t(key as Key);
+    this.instance = await api<Instance>("GET", "/instance").catch(() => undefined);
+  }
 
   private fail(err: unknown) {
     if (cancelled(err)) return;
@@ -48,7 +58,7 @@ export class PhxLogin extends LitElement {
 
   private done(u: User) {
     signedIn(u);
-    navigate("/");
+    navigate(nextPath());
   }
 
   private async run(fn: () => Promise<void>) {
@@ -137,8 +147,9 @@ export class PhxLogin extends LitElement {
       <label class="field">${t("login.password")}<input name="password" type="password" autocomplete="current-password" required /></label>
       ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
       <button type="submit" ?disabled=${this.busy}>${t("login.submit")}</button>
-      ${passkeysSupported() ? html`<div class="sep">${t("login.or")}</div>
-        <button type="button" class="ghost" ?disabled=${this.busy} @click=${this.passkeyLogin}>${icon("KeyRound", 15)} ${t("login.passkey")}</button>` : ""}
+      ${passkeysSupported() || this.instance?.oidc ? html`<div class="sep">${t("login.or")}</div>` : ""}
+      ${this.instance?.oidc ? html`<a class="btn ghost" rel="external" style="justify-content:center" href=${`/api/v1/auth/oidc/start?return=${encodeURIComponent(nextPath())}`}>${icon("LogIn", 15)} ${t("login.oidc", { name: this.instance.oidc.name })}</a>` : ""}
+      ${passkeysSupported() ? html`<button type="button" class="ghost" style="justify-content:center" ?disabled=${this.busy} @click=${this.passkeyLogin}>${icon("KeyRound", 15)} ${t("login.passkey")}</button>` : ""}
       <div class="links"><a href="/forgot">${t("login.forgot")}</a></div>
     </form>`;
   }

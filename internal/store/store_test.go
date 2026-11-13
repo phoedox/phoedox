@@ -409,3 +409,57 @@ func TestFactorStore(t *testing.T) {
 		})
 	}
 }
+
+func TestOAuthStore(t *testing.T) {
+	for name, d := range testDBs(t) {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			u, _ := d.CreateUser(ctx, User{ID: id(), Email: "o@y.de", Name: "O"})
+			if _, err := d.CreateOAuthClient(ctx, OAuthClient{ID: "c1", Name: "Claude", RedirectURIs: []string{"https://claude.ai/cb"}}); err != nil {
+				t.Fatal(err)
+			}
+			c, err := d.OAuthClientByID(ctx, "c1")
+			if err != nil || c.RedirectURIs[0] != "https://claude.ai/cb" || c.SecretHash != "" {
+				t.Fatalf("client: %v %+v", err, c)
+			}
+			g, err := d.UpsertGrant(ctx, OAuthGrant{ID: "g1", ClientID: "c1", UserID: u.ID, Scope: "mcp", Resource: "r"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if g2, _ := d.UpsertGrant(ctx, OAuthGrant{ID: "g2", ClientID: "c1", UserID: u.ID, Scope: "mcp", Resource: "r2"}); g2.ID != "g1" {
+				t.Fatalf("grant not reused: %+v", g2)
+			}
+			exp := Now()
+			exp.Time = exp.Time.Add(60e9)
+			if err := d.CreateOAuthCode(ctx, "code", g.ID, "https://claude.ai/cb", "ch", exp); err != nil {
+				t.Fatal(err)
+			}
+			oc, err := d.UseOAuthCode(ctx, "code")
+			if err != nil || oc.Used || oc.Expired || oc.Grant.ClientName != "Claude" || oc.Grant.Resource != "r2" {
+				t.Fatalf("code: %v %+v", err, oc)
+			}
+			if oc, _ := d.UseOAuthCode(ctx, "code"); !oc.Used {
+				t.Fatal("second use not detected")
+			}
+			if err := d.CreateOAuthToken(ctx, "rt", g.ID, "refresh", exp); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.UseRefreshToken(ctx, "rt"); err != nil {
+				t.Fatal(err)
+			}
+			if err := d.UseRefreshToken(ctx, "rt"); !errors.Is(err, ErrConflict) {
+				t.Fatalf("refresh reuse: %v", err)
+			}
+			d.TouchGrant(ctx, g)
+			if gs, err := d.Grants(ctx, u.ID); err != nil || len(gs) != 1 || gs[0].LastUsedAt.IsZero() {
+				t.Fatalf("grants: %v %+v", err, gs)
+			}
+			if err := d.RevokeGrant(ctx, u.ID, g.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := d.OAuthTokenByHash(ctx, "rt"); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("token of revoked grant: %v", err)
+			}
+		})
+	}
+}

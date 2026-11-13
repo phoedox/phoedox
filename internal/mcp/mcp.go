@@ -1,7 +1,9 @@
 // Package mcp exposes Phoedox as an MCP server (Streamable HTTP at /mcp).
 //
-// Clients authenticate with a personal API token (Authorization: Bearer phx_…).
-// Every tool runs with the rights of the token owner. In projects with
+// Clients authenticate with a personal API token (Authorization: Bearer phx_…)
+// or an OAuth access token from Phoedox's authorization server. A 401 points
+// clients to the protected resource metadata, so they can start OAuth on
+// their own. Every tool runs with the rights of the token owner. In projects with
 // ai_write_mode "suggest" (default) writes become suggestions that a human
 // accepts in Phoedox.
 package mcp
@@ -11,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -20,21 +23,28 @@ import (
 	"github.com/phoedox/phoedox/resources"
 )
 
-// Handler returns the HTTP handler for /mcp.
-func Handler(svc *core.Service, a *phxauth.Auth, version string) http.Handler {
+// Handler returns the HTTP handler for /mcp. baseURL returns the public
+// origin of a request (used for the resource metadata URL).
+func Handler(svc *core.Service, a *phxauth.Auth, version string, baseURL func(*http.Request) string) http.Handler {
 	server := sdk.NewServer(&sdk.Implementation{Name: "phoedox", Title: "Phoedox", Version: version}, &sdk.ServerOptions{Instructions: resources.Prompt("mcp-instructions")})
 	registerTools(server, svc)
 
 	verify := func(ctx context.Context, token string, r *http.Request) (*auth.TokenInfo, error) {
-		actor, _, err := a.FromRequest(r, "mcp")
+		actor, exp, _, err := a.FromRequestWithExpiry(r, "mcp")
 		if err != nil {
 			return nil, auth.ErrInvalidToken
 		}
-		return &auth.TokenInfo{Extra: map[string]any{"actor": actor}}, nil
+		return &auth.TokenInfo{Expiration: exp, Extra: map[string]any{"actor": actor}}, nil
 	}
 	h := sdk.NewStreamableHTTPHandler(func(*http.Request) *sdk.Server { return server }, &sdk.StreamableHTTPOptions{Stateless: true, JSONResponse: true})
-	// Personal API tokens have no expiry (they are revoked in the UI).
-	return auth.RequireBearerToken(verify, &auth.RequireBearerTokenOptions{AllowMissingExpiration: true})(h)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Personal API tokens have no expiry (they are revoked in the UI).
+		opts := &auth.RequireBearerTokenOptions{AllowMissingExpiration: true, ClockSkew: 30 * time.Second}
+		if baseURL != nil {
+			opts.ResourceMetadataURL = baseURL(r) + "/.well-known/oauth-protected-resource/mcp"
+		}
+		auth.RequireBearerToken(verify, opts)(h).ServeHTTP(w, r)
+	})
 }
 
 var errNoActor = errors.New("not authenticated")

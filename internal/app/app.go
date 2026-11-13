@@ -51,5 +51,8 @@ func Open(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 	a := &auth.Auth{DB: db, SecureCookies: cfg.SecureCookies, Mail: sender, DefaultLocale: cfg.DefaultLocale, Box: box}
+	if cfg.OIDC.Enabled() {
+		a.OIDC = &auth.OIDC{Config: cfg.OIDC}
+	}
 	return &App{Config: cfg, DB: db, Core: core.New(db), Auth: a}, nil
 }

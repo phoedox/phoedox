@@ -57,6 +57,13 @@ make build && ./bin/phoedox
 | `PHOEDOX_MASTER_KEY` | – | 32 Byte, base64 (`openssl rand -base64 32`). Verschlüsselt Geheimnisse wie TOTP-Schlüssel. Ohne Variable legt Phoedox `<data>/master.key` an – **zusammen mit der Datenbank sichern**, mehrere Server-Instanzen brauchen denselben Schlüssel |
 | `PHOEDOX_PUBLIC_URL` | – | Öffentliche Adresse, z. B. `https://docs.example.org` – für Links in E-Mails. Ohne sie (oder `PHOEDOX_DOMAIN`) gibt es kein „Passwort vergessen“ per E-Mail |
 | `PHOEDOX_DEFAULT_LOCALE` | `de` | Sprache für E-Mails an Nutzer ohne eigene Spracheinstellung |
+| `PHOEDOX_OIDC_ISSUER` | – | Anmeldung über einen OpenID-Connect-Anbieter (Authentik, Keycloak, Entra ID, Google …), z. B. `https://auth.example.org/application/o/phoedox/`. Redirect-URI beim Anbieter: `<öffentliche URL>/api/v1/auth/oidc/callback` |
+| `PHOEDOX_OIDC_CLIENT_ID` / `PHOEDOX_OIDC_CLIENT_SECRET` | – | Zugangsdaten beim Anbieter |
+| `PHOEDOX_OIDC_NAME` | `SSO` | Beschriftung des Knopfs („Mit … anmelden“) |
+| `PHOEDOX_OIDC_SCOPES` | `openid email profile` | |
+| `PHOEDOX_OIDC_AUTO_CREATE` | `false` | `true`: Konten beim ersten Anmelden anlegen, sonst nur für eingeladene Personen |
+| `PHOEDOX_OIDC_DOMAINS` | – | Nur diese E-Mail-Domains dürfen automatisch angelegt werden (Komma-Liste) |
+| `PHOEDOX_OIDC_TRUST_EMAIL` | `false` | E-Mails als bestätigt behandeln, wenn der Anbieter kein `email_verified` sendet (z. B. Entra ID) |
 | `PHOEDOX_SMTP_HOST` | – | SMTP-Server; aktiviert Einladungen und „Passwort vergessen“ per E-Mail |
 | `PHOEDOX_SMTP_PORT` | `587` (`465` bei `tls`) | |
 | `PHOEDOX_SMTP_TLS` | `starttls` | `starttls`, `tls` oder `none` (nur lokales Relay) |
@@ -75,6 +82,12 @@ Passkeys funktionieren nur über HTTPS (oder `localhost`) und sind an die Domain
 `PHOEDOX_PUBLIC_URL` legst du sie fest.
 
 ## KI per MCP anbinden
+
+**Mit OAuth** (z. B. Claude als eigener Connector): nur die Adresse `https://docs.example.org/mcp`
+eintragen. Der Client registriert sich selbst, du meldest dich in Phoedox an und erlaubst den Zugriff.
+Verbundene Apps siehst und widerrufst du unter **API-Tokens & MCP**.
+
+**Mit Token** (Clients ohne OAuth):
 
 1. In der Web-App unter **API-Tokens & MCP** ein Token erzeugen (oder `phx admin create-token`).
 2. Den MCP-Server eintragen, z. B. für Claude Code:

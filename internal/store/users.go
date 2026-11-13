@@ -242,3 +242,26 @@ func affected(res sql.Result, err error) error {
 	}
 	return nil
 }
+
+// UserByIdentity returns the user linked to an external identity.
+func (d *DB) UserByIdentity(ctx context.Context, provider, subject string) (User, error) {
+	u, err := scanUser(d.QueryRow(ctx, `SELECT `+prefixCols("u.", userCols)+` FROM user_identities i JOIN users u ON u.id = i.user_id
+		WHERE i.provider = ? AND i.subject = ?`, provider, subject))
+	if err == nil {
+		_, _ = d.Exec(ctx, `UPDATE user_identities SET last_login_at = ? WHERE provider = ? AND subject = ?`, Now(), provider, subject)
+	}
+	return u, err
+}
+
+// LinkIdentity connects an external identity with a user.
+func (d *DB) LinkIdentity(ctx context.Context, provider, subject, userID, email string) error {
+	now := Now()
+	_, err := d.Exec(ctx, `INSERT INTO user_identities (provider, subject, tenant_id, user_id, email, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		provider, subject, DefaultTenant, userID, email, now, now)
+	return err
+}
+
+// UserByEmailAny returns a user by email, also a disabled one.
+func (d *DB) UserByEmailAny(ctx context.Context, email string) (User, error) {
+	return scanUser(d.QueryRow(ctx, `SELECT `+userCols+` FROM users WHERE tenant_id = ? AND email = ?`, DefaultTenant, strings.ToLower(strings.TrimSpace(email))))
+}

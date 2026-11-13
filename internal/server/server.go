@@ -46,8 +46,9 @@ func New(d Deps) http.Handler {
 	})
 
 	if d.Core != nil && d.Auth != nil {
-		api := &api{core: d.Core, auth: d.Auth, cfg: d.Config, limiter: newLimiter(10, 5*time.Minute)}
+		api := &api{core: d.Core, auth: d.Auth, cfg: d.Config, limiter: newLimiter(10, 5*time.Minute), regLimiter: newLimiter(30, time.Hour)}
 		r.Route("/api/v1", api.routes)
+		api.oauthRoutes(r)
 	}
 	if d.MCP != nil {
 		r.Handle("/mcp", d.MCP)

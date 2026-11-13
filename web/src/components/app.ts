@@ -4,12 +4,13 @@ import { LitElement, css, html } from "lit";
 import { ApiError, api, type User } from "../api";
 import { t } from "../i18n";
 import { icon } from "../icon";
-import { currentProject, currentUser, isPublicPath, navigate, signedIn } from "../state";
+import { currentProject, currentUser, isPublicPath, loginURL, navigate, signedIn } from "../state";
 import { base } from "./shared";
 import "./auth-pages";
 import "./login";
 import "./profile";
 import "./security";
+import "./consent";
 import "./user-menu";
 import "./users";
 import "./projects";
@@ -47,6 +48,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/invite/:token", render: ({ token }) => html`<phx-set-password .token=${token!}></phx-set-password>` },
     { path: "/reset/:token", render: ({ token }) => html`<phx-set-password .token=${token!}></phx-set-password>` },
     { path: "/settings/profile", render: () => html`<phx-profile></phx-profile>` },
+    { path: "/oauth/authorize", render: () => html`<phx-consent></phx-consent>` },
     { path: "/settings/security", render: () => html`<phx-security></phx-security>` },
     { path: "/settings/tokens", render: () => html`<phx-tokens></phx-tokens>` },
     { path: "/admin/users", render: () => html`<phx-users></phx-users>` },
@@ -59,7 +61,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     try {
       signedIn(await api<User>("GET", "/me"));
     } catch (e) {
-      if (e instanceof ApiError && e.status === 401 && !isPublicPath(location.pathname)) navigate("/login");
+      if (e instanceof ApiError && e.status === 401 && !isPublicPath(location.pathname)) navigate(loginURL());
     }
     this.ready = true;
   }

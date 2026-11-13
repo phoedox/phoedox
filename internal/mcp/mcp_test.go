@@ -44,7 +44,7 @@ func TestMCPTools(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	srv := httptest.NewServer(Handler(svc, a, "test"))
+	srv := httptest.NewServer(Handler(svc, a, "test", nil))
 	defer srv.Close()
 
 	// without token: rejected

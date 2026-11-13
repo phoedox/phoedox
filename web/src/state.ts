@@ -21,6 +21,18 @@ export function signedIn(u: User | null) {
   currentUser.set(u);
 }
 
+/** Where to continue after signing in (?next=…), local paths only. */
+export function nextPath(): string {
+  const n = new URLSearchParams(location.search).get("next") ?? "/";
+  return n.startsWith("/") && !n.startsWith("//") && !n.startsWith("/\\") ? n : "/";
+}
+
+/** The login URL that returns to the current page. */
+export function loginURL(): string {
+  const here = location.pathname + location.search;
+  return here === "/" || isPublicPath(location.pathname) ? "/login" : `/login?next=${encodeURIComponent(here)}`;
+}
+
 /** Pages that work without a session. */
 export function isPublicPath(path: string) {
   return path === "/login" || path === "/forgot" || /^\/(invite|reset)\/[^/]+$/.test(path);

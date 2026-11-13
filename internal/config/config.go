@@ -45,9 +45,33 @@ type Config struct {
 	// MasterKey encrypts secrets at rest (PHOEDOX_MASTER_KEY, 32 bytes
 	// base64). Without it, <DataDir>/master.key is used or created.
 	MasterKey string
+	// OIDC enables sign-in with an external identity provider.
+	OIDC OIDC
 	// SMTP enables emails (invitations, password resets) when Host is set.
 	SMTP SMTP
 }
+
+// OIDC is an OpenID Connect provider (PHOEDOX_OIDC_*), e.g. Authentik,
+// Keycloak, Entra ID or Google.
+type OIDC struct {
+	Issuer       string   // PHOEDOX_OIDC_ISSUER
+	ClientID     string   // PHOEDOX_OIDC_CLIENT_ID
+	ClientSecret string   // PHOEDOX_OIDC_CLIENT_SECRET
+	Name         string   // PHOEDOX_OIDC_NAME, button label (default "SSO")
+	Scopes       []string // PHOEDOX_OIDC_SCOPES, default "openid email profile"
+	// AutoCreate creates accounts on first sign-in (PHOEDOX_OIDC_AUTO_CREATE).
+	// Otherwise only existing (e.g. invited) users can sign in.
+	AutoCreate bool
+	// Domains limits auto-created accounts to these email domains
+	// (PHOEDOX_OIDC_DOMAINS, comma separated).
+	Domains []string
+	// TrustEmail treats emails as verified even without email_verified
+	// (PHOEDOX_OIDC_TRUST_EMAIL), for providers like Entra ID that omit it.
+	TrustEmail bool
+}
+
+// Enabled reports whether OIDC is configured.
+func (o OIDC) Enabled() bool { return o.Issuer != "" && o.ClientID != "" }
 
 // SMTP is the outgoing mail server (PHOEDOX_SMTP_*).
 type SMTP struct {
@@ -72,6 +96,16 @@ func FromEnv() (Config, error) {
 		PublicURL:     strings.TrimRight(os.Getenv("PHOEDOX_PUBLIC_URL"), "/"),
 		DefaultLocale: getenv("PHOEDOX_DEFAULT_LOCALE", "de"),
 		MasterKey:     os.Getenv("PHOEDOX_MASTER_KEY"),
+		OIDC: OIDC{
+			Issuer:       strings.TrimRight(os.Getenv("PHOEDOX_OIDC_ISSUER"), "/"),
+			ClientID:     os.Getenv("PHOEDOX_OIDC_CLIENT_ID"),
+			ClientSecret: os.Getenv("PHOEDOX_OIDC_CLIENT_SECRET"),
+			Name:         getenv("PHOEDOX_OIDC_NAME", "SSO"),
+			Scopes:       strings.Fields(getenv("PHOEDOX_OIDC_SCOPES", "openid email profile")),
+			AutoCreate:   os.Getenv("PHOEDOX_OIDC_AUTO_CREATE") == "true",
+			Domains:      splitList(os.Getenv("PHOEDOX_OIDC_DOMAINS")),
+			TrustEmail:   os.Getenv("PHOEDOX_OIDC_TRUST_EMAIL") == "true",
+		},
 		SMTP: SMTP{
 			Host:     os.Getenv("PHOEDOX_SMTP_HOST"),
 			User:     os.Getenv("PHOEDOX_SMTP_USER"),
@@ -117,6 +151,16 @@ func (c Config) Validate() error {
 		return fmt.Errorf("PHOEDOX_MULTI_TENANT requires PHOEDOX_DB_DRIVER=postgres")
 	}
 	return nil
+}
+
+func splitList(s string) []string {
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.ToLower(strings.TrimSpace(p)); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func getenv(k, def string) string {
