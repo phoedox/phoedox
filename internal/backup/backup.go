@@ -523,7 +523,9 @@ func decodeValue(v any, typ, col string, dialect store.Dialect) (any, error) {
 }
 
 // Name is the file name of a backup made at t.
-func Name(t time.Time) string { return "phoedox-" + t.UTC().Format("20060102-150405") + ".tar.gz" }
+// Milliseconds keep two backups of the same second apart (e.g. the one made
+// right before a restore).
+func Name(t time.Time) string { return "phoedox-" + t.UTC().Format("20060102-150405.000") + ".tar.gz" }
 
 // IsName reports whether a file name looks like a backup (no paths).
 func IsName(s string) bool {

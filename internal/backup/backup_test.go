@@ -183,7 +183,10 @@ func TestTablesComplete(t *testing.T) {
 }
 
 func TestNames(t *testing.T) {
-	if !IsName("phoedox-20261113-180000.tar.gz") || IsName("../phoedox-1.tar.gz") || IsName("x.tar.gz") {
+	if Name(time.Unix(0, 0)) == Name(time.Unix(0, int64(time.Millisecond))) {
+		t.Fatal("names of the same second must differ")
+	}
+	if !IsName("phoedox-20261113-180000.000.tar.gz") || IsName("../phoedox-1.tar.gz") || IsName("x.tar.gz") {
 		t.Fatal("IsName")
 	}
 }

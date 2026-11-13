@@ -249,3 +249,13 @@ Feature-Backlog: siehe Konzept-Prototyp (`docs/prototype/app-prototype.html`, Ab
 | Datenbank | CloudNativePG (`Cluster` mit Anwendungsnutzer als Eigentümer, kein Superuser → RLS wirkt), optional fortlaufende Sicherung nach S3 (barman) + täglicher `ScheduledBackup`; alternativ externe Datenbank oder SQLite. Der Server wartet beim Start bis zu zwei Minuten auf die Datenbank. |
 | Gesundheit | `/healthz` (Prozess lebt) als Liveness, `/readyz` (Datenbank antwortet) als Startup/Readiness. |
 | Prüfung | CI: `helm lint` und alle Wertevarianten gerendert und mit kubeconform gegen die Kubernetes-Schemas geprüft. |
+
+## Betrieb: Jobs, Backups, Metriken, API, Webhooks
+
+| Bereich | Entscheidung |
+|---|---|
+| Jobs | Tabelle `jobs`, abgeholt mit `FOR UPDATE SKIP LOCKED` (Postgres), Wiederholung mit exponentiellem Backoff (5 Versuche), `Permanent` für hoffnungslose Fehler, Zuteilung über Lease. `PHOEDOX_WORKERS` (0 = dieser Prozess arbeitet keine Jobs ab). Cron per Leader-Wahl folgt mit mehreren Instanzen. |
+| Backups | Eigenes Format statt `pg_dump`: tar.gz mit Manifest, JSON-Lines pro Tabelle und Dateiinhalten; dadurch SQLite ↔ Postgres und Umzug zwischen Instanzen. Automatisch (`PHOEDOX_BACKUP_HOURS`, `_KEEP`), lokal oder im S3-Bucket, in der Oberfläche erstellen, herunterladen, hochladen und wiederherstellen (Bestätigung per Name, vorher automatisches Backup), CLI `phx admin backup/restore`. Der Master-Key ist nie Teil eines Backups; das Manifest merkt sich seine Kennung und warnt bei einem anderen Schlüssel. Suchindex wird nach dem Wiederherstellen neu aufgebaut. **Abweichung vom Plan:** SFTP als Ziel folgt später; im gehosteten Modus sichert der Betreiber die Datenbank (CloudNativePG). |
+| Metriken | Prometheus unter `/metrics` mit Bearer-Token (`PHOEDOX_METRICS_TOKEN`): Anfragen nach Routenmuster (keine IDs/URLs in Labels), Dauer, Jobs nach Status, Live-Editoren, DB-Pool, Go-Laufzeit. OpenTelemetry folgt. |
+| OpenAPI | `/api/v1/openapi.json` (3.1) aus dem Router und den Go-Typen (Schemas per Reflection); ein Test schlägt fehl, wenn eine Route nicht dokumentiert ist. |
+| Webhooks | Pro Projekt (Besitzer): Ereignisse `document.*`, `entity.*`, `relation.*`, `file.*`, `suggestion.*`, Payload mit `version: 1`. Signatur `Phoedox-Signature: t=…,v1=HMAC-SHA256(t.body)`, Secret einmal angezeigt und mit dem Master-Key verschlüsselt. Zustellung über Jobs mit Wiederholungen, über den SSRF-geschützten Client ohne Weiterleitungen; Protokoll der letzten 50 Zustellungen, Test-Ping; nach 20 Fehlern in Folge wird der Webhook pausiert. |
