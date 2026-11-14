@@ -86,3 +86,27 @@ func TestDiagnoseLoop(t *testing.T) {
 		t.Fatalf("%v %+v", err, d)
 	}
 }
+
+func TestTopology(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _ := setup(t)
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Netz"})
+	for _, e := range []EntityInput{{Kind: "router", Name: "R", Slug: "r"}, {Kind: "switch", Name: "S", Slug: "s"}, {Kind: "server", Name: "NAS", Slug: "nas", Attrs: map[string]any{"status": "offline"}},
+		{Kind: "vm", Name: "VM", Slug: "vm"}, {Kind: "room", Name: "Flur", Slug: "flur"}} {
+		_, _ = s.UpsertEntity(ctx, owner, p.Slug, e)
+	}
+	for _, l := range []EdgeInput{{From: "s", Rel: "wired_to", To: "r"}, {From: "nas", Rel: "wired_to", To: "s"}, {From: "vm", Rel: "runs_on", To: "nas"}, {From: "s", Rel: "located_in", To: "flur"}} {
+		if _, err := s.Link(ctx, owner, p.Slug, l); err != nil {
+			t.Fatal(l, err)
+		}
+	}
+	topo, err := s.Topology(ctx, owner, p.Slug)
+	if err != nil || len(topo.Nodes) != 4 || len(topo.Edges) != 3 { // located_in is not part of the plan
+		t.Fatalf("%v %+v", err, topo)
+	}
+	for _, n := range topo.Nodes {
+		if n.Slug == "nas" && n.Status != "down" {
+			t.Fatalf("status: %+v", n)
+		}
+	}
+}

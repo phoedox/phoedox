@@ -247,6 +247,7 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/entities/{e}/diagnose", a.diagnose)
 			r.Get("/entities/{e}/tree", a.softwareTree)
 			r.Get("/events", a.projectEvents)
+			r.Get("/topology", a.topology)
 			r.Get("/entities/{e}/agent-actions", a.entityAgentActions)
 			r.Post("/entities/{e}/agent-jobs", a.createAgentJob)
 			r.Post("/agent-jobs/{id}/sign", a.signAgentJob)
@@ -753,6 +754,11 @@ func (a *api) traverse(w http.ResponseWriter, r *http.Request) {
 	depth, _ := strconv.Atoi(q.Get("depth"))
 	hops, err := a.core.Traverse(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "e"), q.Get("rel"), q.Get("dir"), depth)
 	respond(w, hops, err)
+}
+
+func (a *api) topology(w http.ResponseWriter, r *http.Request) {
+	out, err := a.core.Topology(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, out, err)
 }
 
 func (a *api) adminEvents(w http.ResponseWriter, r *http.Request) {

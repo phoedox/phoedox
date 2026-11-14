@@ -1313,4 +1313,13 @@ export const en: Record<keyof typeof de, string> = {
   "audit.via.agent": "Agent",
   "audit.via.cli": "Command line",
   "audit.via.oauth": "OAuth",
+  "topo.title": "Network plan",
+  "topo.intro": "Drawn automatically from the relations “uplink”, “wired to” and “runs on”. Click a station to open it.",
+  "topo.empty": "No network relations yet. Connect devices with “uplink” (Wi-Fi) or “wired to” and the plan appears here.",
+  "topo.status_hint": "Dot: green reachable, yellow quiet, red down, grey no data",
+  "topo.list": "All stations",
+  "topo.status.ok": "reachable",
+  "topo.status.warn": "quiet",
+  "topo.status.down": "down",
+  "topo.status.unknown": "no data",
 };

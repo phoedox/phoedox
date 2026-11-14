@@ -9,6 +9,7 @@ import { icon } from "../icon";
 import { contentLocale, currentProject, docsVersion, favorites } from "../state";
 import { preferredLocale } from "../languages";
 import { base } from "./shared";
+import "./topology-view";
 import "./doc-view";
 import "./doc-form";
 import "./decisions";
@@ -121,6 +122,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "model", render: () => this.gated("model", html`<phx-data-model .project=${this.slug}></phx-data-model>`) },
     { path: "files", render: () => this.gated("files", html`<phx-project-files .project=${this.slug}></phx-project-files>`) },
     { path: "graph", render: () => this.gated("graph", html`<phx-graph-view .project=${this.slug}></phx-graph-view>`) },
+    { path: "topology", render: () => this.gated("graph", html`<phx-topology-view .project=${this.slug}></phx-topology-view>`) },
     { path: "e/:entity", render: ({ entity }) => html`<phx-entity-view .project=${this.slug} .entity=${entity!}></phx-entity-view>` },
     { path: "decisions", render: () => this.gated("decisions", html`<phx-decisions .project=${this.slug}></phx-decisions>`) },
     { path: "suggestions", render: () => html`<phx-suggestions .project=${this.slug}></phx-suggestions>` },
@@ -367,7 +369,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
           <div class="grp"><a href="/p/${this.slug}" class=${here === `/p/${this.slug}` ? "on" : ""}>${icon("House", 15)} ${t("project.overview")}</a>
             ${!hasFeature(proj, "decisions") ? "" : html`<a href="/p/${this.slug}/decisions" class=${here === `/p/${this.slug}/decisions` || this.docs.some((d) => d.type === "adr" && here.startsWith(`/p/${this.slug}/d/${d.slug}`)) ? "on" : ""}>${icon("ListChecks", 15)} ${t("nav.decisions")}
               ${decisions ? html`<span class="num">${decisions}</span>` : ""}</a>`}
-            ${docOnly || !hasFeature(proj, "graph") ? "" : html`<a href="/p/${this.slug}/graph" class=${here === `/p/${this.slug}/graph` || here.startsWith(`/p/${this.slug}/e/`) ? "on" : ""}>${icon("Waypoints", 15)} ${t("nav.graph")}</a>`}
+            ${docOnly || !hasFeature(proj, "graph") ? "" : html`<a href="/p/${this.slug}/graph" class=${here === `/p/${this.slug}/graph` || here.startsWith(`/p/${this.slug}/e/`) ? "on" : ""}>${icon("Waypoints", 15)} ${t("nav.graph")}</a>
+              <a href="/p/${this.slug}/topology" class=${here === `/p/${this.slug}/topology` ? "on" : ""}>${icon("Network", 15)} ${t("topo.title")}</a>`}
             ${docOnly || !hasFeature(proj, "model") ? "" : html`<a href="/p/${this.slug}/model" class=${here === `/p/${this.slug}/model` ? "on" : ""}>${icon("Shapes", 15)} ${t("nav.model")}</a>`}
             ${docOnly || !hasFeature(proj, "files") ? "" : html`<a href="/p/${this.slug}/files" class=${here === `/p/${this.slug}/files` ? "on" : ""}>${icon("Paperclip", 15)} ${t("nav.files")}</a>`}</div>
           ${this.tree(here, canEdit)}

@@ -1311,4 +1311,13 @@ export const de = {
   "audit.via.agent": "Agent",
   "audit.via.cli": "Kommandozeile",
   "audit.via.oauth": "OAuth",
+  "topo.title": "Netzplan",
+  "topo.intro": "Automatisch aus den Beziehungen „uplink“, „verkabelt mit“ und „läuft auf“ gezeichnet. Klick auf eine Station öffnet sie.",
+  "topo.empty": "Noch keine Netzbeziehungen. Verbinde Geräte mit „uplink“ (WLAN) oder „verkabelt mit“, dann entsteht hier der Plan.",
+  "topo.status_hint": "Punkt: grün erreichbar, gelb still, rot ausgefallen, grau ohne Daten",
+  "topo.list": "Alle Stationen",
+  "topo.status.ok": "erreichbar",
+  "topo.status.warn": "still",
+  "topo.status.down": "ausgefallen",
+  "topo.status.unknown": "keine Daten",
 } as const;

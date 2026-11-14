@@ -226,6 +226,7 @@ var apiDocs = map[string]op{
 	"POST /projects/{p}/documents/{d}/sharing/grants":        {Tag: "sharing", Summary: "Share a page with a person or group.", In: core.GrantInput{}, Out: core.DocSharing{}},
 	"DELETE /projects/{p}/documents/{d}/sharing/grants/{id}": {Tag: "sharing", Summary: "Stop sharing.", Out: core.DocSharing{}},
 	"GET /admin/events":                                      {Tag: "admin", Summary: "Audit log of the instance (?via=web|mcp|token|plugin|agent|cli, user, kind prefix, days, before, limit).", Out: []core.AuditEvent{}},
+	"GET /projects/{p}/topology":                             {Tag: "graph", Summary: "Network plan: stations connected by uplink, wired_to and runs_on, with status.", Out: core.Topology{}},
 	"GET /projects/{p}/events":                               {Tag: "projects", Summary: "Audit log of a project (owners); same filters as /admin/events.", Out: []core.AuditEvent{}},
 	"GET /projects/{p}/entities/{e}/tree":                    {Tag: "graph", Summary: "Software tree of a host: software, VMs, stacks and containers that are installed on, run on or are part of it.", Out: core.TreeNode{}},
 	"GET /projects/{p}/entities/{e}/diagnose":                {Tag: "graph", Summary: "Network path of a device or of the devices in a room, with a status per station.", Out: core.Diagnosis{}},
