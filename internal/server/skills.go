@@ -79,3 +79,21 @@ func (a *api) downloadSkills(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="`+file+`.zip"`)
 	_, _ = w.Write(buf.Bytes())
 }
+
+// home returns the numbers of the projects page.
+func (a *api) home(w http.ResponseWriter, r *http.Request) {
+	res, err := a.core.Home(r.Context(), actorOf(r))
+	respond(w, res, err)
+}
+
+func (a *api) setPinned(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Projects []string `json:"projects"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	res, err := a.core.SetPinnedProjects(r.Context(), actorOf(r), in.Projects)
+	respond(w, map[string]any{"pinned": res}, err)
+}

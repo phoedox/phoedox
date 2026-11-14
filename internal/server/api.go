@@ -103,6 +103,8 @@ func (a *api) routes(r chi.Router) {
 		r.Get("/me/notifications", a.listNotifications)
 		r.Get("/me/tasks", a.myTasks)
 		r.Get("/me/skills", a.mySkills)
+		r.Get("/me/home", a.home)
+		r.Put("/me/pinned", a.setPinned)
 		r.Get("/me/devices", a.sharedDevices)
 		r.Post("/me/devices/{grant}/control", a.controlShared)
 		r.Post("/me/notifications/read", a.readNotifications)
