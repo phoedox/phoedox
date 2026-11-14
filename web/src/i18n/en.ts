@@ -1322,4 +1322,12 @@ export const en: Record<keyof typeof de, string> = {
   "topo.status.warn": "quiet",
   "topo.status.down": "down",
   "topo.status.unknown": "no data",
+  "rack.title": "Rack ({units} U)",
+  "rack.conflict": "Two devices take the same height units.",
+  "rack.height": "Height",
+  "rack.set": "Set",
+  "rack.unplaced": "not placed",
+  "rack.empty": "No devices yet. Connect devices with “mounted in” this rack.",
+  "rack.unplaced_hint": "{count} device(s) without a position – enter the lowest height unit.",
+  "validation.rack_unit": "Height units are whole numbers from 1 to 60 ({field}).",
 };

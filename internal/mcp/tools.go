@@ -239,7 +239,7 @@ type linkIn struct {
 	From    string         `json:"from" jsonschema:"entity slug or id"`
 	Rel     string         `json:"rel" jsonschema:"relation, e.g. depends_on, runs_on, located_in, uplink, documents"`
 	To      string         `json:"to" jsonschema:"entity slug or id"`
-	Attrs   map[string]any `json:"attrs,omitempty"`
+	Attrs   map[string]any `json:"attrs,omitempty" jsonschema:"attributes of the relation, e.g. for mounted_in: u (lowest height unit, 1 = bottom) and height (units)"`
 }
 
 type unlinkIn struct {

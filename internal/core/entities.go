@@ -195,6 +195,11 @@ func (s *Service) Link(ctx context.Context, a Actor, ref string, in EdgeInput) (
 	if err != nil {
 		return EntityResult{}, err
 	}
+	if in.Rel == "mounted_in" {
+		if err := rackPlace(in.Attrs); err != nil {
+			return EntityResult{}, err
+		}
+	}
 	if allowed := m.AllowedRels(from.Kind, to.Kind); !slices.Contains(allowed, in.Rel) {
 		return EntityResult{}, invalid("validation.rel_not_allowed", map[string]any{"rel": in.Rel, "from": from.Kind, "to": to.Kind, "allowed": strings.Join(allowed, ", ")},
 			"relation %q is not allowed from %s to %s; allowed: %s", in.Rel, from.Kind, to.Kind, strings.Join(allowed, ", "))
@@ -358,4 +363,24 @@ func (s *Service) ProjectGraph(ctx context.Context, a Actor, ref string) (Graph,
 		edges = []store.Edge{}
 	}
 	return Graph{Entities: es, Edges: edges}, err
+}
+
+// rackPlace checks the position of a device in a rack: u is the lowest
+// height unit it occupies (1 = bottom), height the units it takes.
+func rackPlace(attrs map[string]any) error {
+	for _, k := range []string{"u", "height"} {
+		v, ok := attrs[k]
+		if !ok {
+			continue
+		}
+		f, isNum := v.(float64)
+		if i, isInt := v.(int); isInt {
+			f, isNum = float64(i), true
+		}
+		if !isNum || f != float64(int(f)) || f < 1 || f > 60 {
+			return invalid("validation.rack_unit", map[string]any{"field": k}, "%s must be a whole number of height units from 1 to 60", k)
+		}
+		attrs[k] = int(f)
+	}
+	return nil
 }

@@ -143,7 +143,7 @@ export interface Favorite { documentId: string; personal: boolean; position: num
 export interface Entity { id: string; kind: string; slug: string; name: string; attrs: Record<string, unknown>; source?: string; updatedAt?: string }
 export interface Edge {
   id: string; from: string; rel: string; to: string; fromName: string; toName: string;
-  fromSlug?: string; toSlug?: string; fromKind?: string; toKind?: string;
+  fromSlug?: string; toSlug?: string; fromKind?: string; toKind?: string; attrs?: Record<string, unknown>;
 }
 export interface Suggestion { id: string; actor: string; op: string; summary: string; status: string; createdAt: string }
 export interface Token { id: string; name: string; prefix: string; createdAt: string; lastUsedAt: string | null; access: "read" | "write"; projects: string[] | null }

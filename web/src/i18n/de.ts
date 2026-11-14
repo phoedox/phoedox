@@ -1320,4 +1320,12 @@ export const de = {
   "topo.status.warn": "still",
   "topo.status.down": "ausgefallen",
   "topo.status.unknown": "keine Daten",
+  "rack.title": "Schrank ({units} HE)",
+  "rack.conflict": "Zwei Geräte belegen dieselben Höheneinheiten.",
+  "rack.height": "Höhe",
+  "rack.set": "Setzen",
+  "rack.unplaced": "ohne Position",
+  "rack.empty": "Noch keine Geräte. Verbinde Geräte mit „montiert in“ diesem Schrank.",
+  "rack.unplaced_hint": "{count} Gerät(e) ohne Position – trage die unterste Höheneinheit ein.",
+  "validation.rack_unit": "Höheneinheiten sind ganze Zahlen von 1 bis 60 ({field}).",
 } as const;
