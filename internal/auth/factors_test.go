@@ -36,7 +36,13 @@ func TestTwoFactorLogin(t *testing.T) {
 		t.Fatalf("login before confirm must be one step: %v %+v", err, step)
 	}
 	seed, _ := b32.DecodeString(setup.Secret)
-	code := func(offset int64) string { return totpCode(seed, time.Now().Unix()/30+offset) }
+	// Run inside one 30-second step: near its end, wait for the next one, so
+	// "the same code again" is not a fresh code by then.
+	if sec := time.Now().Unix() % 30; sec > 24 {
+		time.Sleep(time.Duration(31-sec) * time.Second)
+	}
+	step0 := time.Now().Unix() / 30
+	code := func(offset int64) string { return totpCode(seed, step0+offset) }
 	if _, err := a.ConfirmTOTP(ctx, me, "000000"); keyOf(err) != "validation.totp_code" && code(0) != "000000" {
 		t.Fatalf("wrong confirm code: %v", err)
 	}
