@@ -42,5 +42,7 @@ export function projectBadge(p: Pick<Project, "slug" | "short" | "primaryColor" 
   const st = `width:${size}px;height:${size}px;border-radius:${Math.round(size / 4)}px`;
   return p.image
     ? html`<img class="pimg" src=${projectImageURL(p.slug, p.image)} alt="" width=${size} height=${size} style=${st + ";object-fit:cover;flex:none"}>`
-    : html`<span class="pi" style=${st + `;background:${p.primaryColor}`}>${p.short}</span>`;
+    // Self-contained styles: the badge is used in many shadow roots.
+    : html`<span class="pi" style=${st + `;background:${p.primaryColor};display:inline-grid;place-items:center;flex:none;color:var(--on-color);`
+      + `font:600 ${Math.max(10, Math.round(size * 0.36))}px var(--font-mono);line-height:1`}>${p.short}</span>`;
 }

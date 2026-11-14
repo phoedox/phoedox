@@ -56,7 +56,7 @@ export class PhxLiveEditor extends LitElement {
     @media (hover: hover) and (pointer: fine) { .bar button:hover { background: var(--surface2); } }
     .bar .sep { width: 1px; height: 20px; background: var(--line); margin: 0 4px; }
     .bar .state { margin-left: auto; display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--muted); }
-    .avatars { display: flex; } .avatars span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: #fff;
+    .avatars { display: flex; } .avatars span { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: var(--on-color);
       font: 600 10px var(--font-mono); margin-left: -6px; border: 2px solid var(--bg); }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
     .dot.connected { background: var(--good); } .dot.disconnected { background: var(--bad); }

@@ -3,6 +3,8 @@
   --bg: #f6f4f2; --surface: #ffffff; --surface2: #eeeae6; --line: #ddd5ce;
   --fg: #1f1a17; --muted: #6b6159; --accent: #b84a0c; --accent-soft: #fbe4d4;
   --signal: #9a7200; --bad: #b4372f; --good: #2c8a4b; --wire: #3a5bb8;
+  /* Text on project colors and other saturated fills (same in both themes). */
+  --on-color: #fff;
   --font-display: "Bricolage Grotesque", system-ui, sans-serif;
   --font-body: "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;

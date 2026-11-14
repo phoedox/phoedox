@@ -46,7 +46,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     dialog.zoom::backdrop { background: color-mix(in srgb, #000 70%, transparent); }
     dialog.zoom figure { margin: 0; display: grid; gap: 8px; justify-items: center; }
     dialog.zoom img { max-width: 94vw; max-height: 86vh; border-radius: 8px; object-fit: contain; cursor: zoom-out; }
-    dialog.zoom figcaption { color: #fff; font-size: 14px; }
+    dialog.zoom figcaption { color: var(--on-color); font-size: 14px; }
     dialog.zoom .close { position: fixed; top: 16px; right: 16px; background: var(--surface); }
     @media (prefers-reduced-motion: reduce) { dialog.zoom { transition: opacity var(--dur) ease; @starting-style { opacity: 0; transform: none; } } }
     .notice.small-note { padding: 6px 12px; font-size: 13px; color: var(--muted); }

@@ -19,7 +19,7 @@ export class PhxProjectSwitcher extends SignalWatcher(LitElement) {
     .btn .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
     .btn .car { color: var(--muted); flex: none; transition: transform var(--dur-fast) var(--ease-out); }
     .btn[aria-expanded="true"] .car { transform: rotate(180deg); }
-    .pi { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: #fff; font: 600 10px var(--font-mono); flex: none; background: var(--accent); }
+    .pi { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; color: var(--on-color); font: 600 10px var(--font-mono); flex: none; background: var(--accent); }
     .pi.none { background: var(--surface2); color: var(--muted); }
     .pop { position: absolute; top: calc(100% + 6px); left: 0; width: 320px; max-width: calc(100vw - 32px); z-index: 40; padding: 8px;
       display: flex; flex-direction: column; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;

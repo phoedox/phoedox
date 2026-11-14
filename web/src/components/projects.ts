@@ -15,7 +15,7 @@ export class PhxProjects extends LitElement {
       transition: border-color var(--dur-fast) ease, transform var(--dur-press) var(--ease-out); }
     a.p:active { transform: scale(0.98); }
     @media (hover: hover) and (pointer: fine) { a.p:hover { border-color: var(--muted); } }
-    .pi { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; color: #fff; font: 600 12px var(--font-mono); flex: none; }
+    .pi { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; color: var(--on-color); font: 600 12px var(--font-mono); flex: none; }
     form { display: grid; gap: 10px; max-width: 480px; }
     h2.org { font-size: 15px; display: flex; gap: 8px; align-items: center; margin: 22px 0 0; color: var(--muted); }
     h2.org a { color: inherit; text-decoration: none; }

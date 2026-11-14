@@ -15,7 +15,7 @@ export class PhxToasts extends LitElement {
       transition: opacity var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
       @starting-style { opacity: 0; transform: translateY(100%); }
     }
-    .t.error { background: var(--bad); color: #fff; }
+    .t.error { background: var(--bad); color: var(--on-color); }
     .t { display: flex; align-items: center; gap: 12px; }
     .t button { background: none; border: 0; padding: 0; color: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
     .t.leaving { opacity: 0; transform: translateY(100%); }
