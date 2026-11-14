@@ -115,6 +115,8 @@ type Service struct {
 	AgentReleaseDir string
 	// OSVURL is the vulnerability database (default https://api.osv.dev).
 	OSVURL string
+	// LookupTXT resolves DNS TXT records (nil = system resolver; tests replace it).
+	LookupTXT func(ctx context.Context, name string) ([]string, error)
 	// gitAllowFile allows file:// repositories (tests only).
 	gitAllowFile bool
 	MaxUpload    int64

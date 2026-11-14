@@ -166,6 +166,11 @@ affinity: {}
 publications:
   domains: []
 
+# App domains of organizations (e.g. docs.example.com): the app with the
+# organization's name. The organization proves the domain with a DNS TXT
+# record in its settings; add the domain here so it gets a certificate.
+appDomains: []
+
 # Product website (phoedox.com): served by the app on these domains instead of
 # the app itself. Remove them from ingress.redirectFrom when you set them here.
 # Legal pages are Markdown; the links are hidden while a text is empty.

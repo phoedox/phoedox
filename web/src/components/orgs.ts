@@ -6,6 +6,7 @@ import { icon } from "../icon";
 import { currentProject, currentUser, navigate } from "../state";
 import { base } from "./shared";
 import { toast } from "./toasts";
+import "./org-domain";
 
 const fail = (e: unknown) => toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
 
@@ -180,7 +181,9 @@ export class PhxOrg extends SignalWatcher(LitElement) {
           <p class="muted" style="margin:0;font-size:13px">${t("orgs.ai_hint")}</p>
           <label class="field">${t("orgs.quota")}<input name="quota" type="number" min="0" .value=${String(o.quotaMb || "")} placeholder="∞" style="max-width:180px"></label>
           <div><button>${t("doc.save")}</button></div>
-        </form>` : ""}
+        </form>
+        <h2>${icon("Globe", 16)} ${t("orgdomain.title")}</h2>
+        <phx-org-domain .org=${this.slug}></phx-org-domain>` : ""}
 
       <h2>${t("orgs.members")}</h2>
       <table>${o.members.map((m) => html`<tr><td>${m.name}</td><td class="muted">${m.email}</td>

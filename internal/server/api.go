@@ -47,8 +47,12 @@ func actorOf(r *http.Request) core.Actor { return r.Context().Value(ctxKey{}).(c
 func (a *api) routes(r chi.Router) {
 	r.Post("/auth/login", a.login)
 	r.Post("/auth/logout", a.logout)
-	r.Get("/instance", func(w http.ResponseWriter, _ *http.Request) {
+	r.Get("/instance", func(w http.ResponseWriter, req *http.Request) {
 		info := map[string]any{"version": Version, "domain": a.cfg.Domain, "passwordReset": a.resetAvailable()}
+		// On an organization's own app domain the app shows its name.
+		if c := a.core.AppContextFor(req.Context(), req.Host); c.Org != nil {
+			info["org"] = c.Org
+		}
 		if a.auth.OIDC != nil {
 			info["oidc"] = map[string]string{"name": a.auth.OIDC.Config.Name}
 		}
@@ -155,6 +159,9 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/{o}", a.getOrg)
 			r.Patch("/{o}", a.updateOrg)
 			r.Put("/{o}/members", a.setOrgMember)
+			r.Get("/{o}/domain", a.orgDomain)
+			r.Put("/{o}/domain", a.setOrgDomain)
+			r.Post("/{o}/domain/verify", a.verifyOrgDomain)
 			r.Delete("/{o}/members/{user}", a.removeOrgMember)
 			r.Post("/{o}/groups", a.saveGroup)
 			r.Patch("/{o}/groups/{g}", a.saveGroup)

@@ -21,7 +21,7 @@ spec:
   tls:
     - hosts: [{{ .Values.domain | quote }}]
       secretName: {{ default (printf "%s-tls" (include "phoedox.fullname" .)) .Values.ingress.tls.secretName }}
-    {{- range concat .Values.publications.domains .Values.website.domains }}
+    {{- range concat .Values.publications.domains .Values.website.domains .Values.appDomains }}
     - hosts: [{{ . | quote }}]
       secretName: {{ printf "%s-pub-%s" (include "phoedox.fullname" $) (. | replace "." "-") | trunc 63 | trimSuffix "-" }}
     {{- end }}
@@ -36,8 +36,8 @@ spec:
               service:
                 name: {{ include "phoedox.fullname" . }}
                 port: { name: http }
-    {{- /* Own domains of publications (ADR-0006): served by the same app, picked by host. */}}
-    {{- range concat .Values.publications.domains .Values.website.domains }}
+    {{- /* Own domains of publications (ADR-0006) and app domains of organizations: served by the same app, picked by host. */}}
+    {{- range concat .Values.publications.domains .Values.website.domains .Values.appDomains }}
     - host: {{ . | quote }}
       http:
         paths:

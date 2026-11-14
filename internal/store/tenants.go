@@ -40,6 +40,10 @@ func (d *DB) TenantByDomain(ctx context.Context, domain string) (string, error) 
 	var id string
 	err := d.QueryRow(System(ctx), `SELECT tenant_id FROM tenant_domains WHERE domain = ?`, strings.ToLower(domain)).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
+		// Verified app domains of organizations belong to their tenant.
+		if od, oerr := d.OrgByDomain(ctx, domain); oerr == nil {
+			return od.TenantID, nil
+		}
 		return "", ErrNotFound
 	}
 	return id, err

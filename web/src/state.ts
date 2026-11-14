@@ -5,6 +5,8 @@ import { detectLocale, setLocale } from "./i18n";
 /** Shared app state as signals (decision ADR-0007: signals + context). */
 export const currentUser = signal<User | null>(null);
 export const currentProject = signal<Project | null>(null);
+/** The organization whose own app domain this is (null on the instance's address). */
+export const appOrg = signal<{ id: string; slug: string; name: string } | null>(null);
 /** Favorites of the current project (project-wide and the user's own). */
 export const favorites = signal<import("./api").Favorite[]>([]);
 /** Bumped when documents of the current project change, so the sidebar reloads. */

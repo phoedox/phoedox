@@ -1,15 +1,16 @@
+import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
 import { ApiError, api, type Org, type Project } from "../api";
 import { locale, t } from "../i18n";
 import { icon } from "../icon";
-import { currentProject, navigate } from "../state";
+import { appOrg, currentProject, navigate } from "../state";
 import { base } from "./shared";
 import { projectBadge } from "../pictures";
 import "./project-transfer";
 
 interface Template { id: string; name: string; description: string; icon: string }
 
-export class PhxProjects extends LitElement {
+export class PhxProjects extends SignalWatcher(LitElement) {
   static properties = { projects: { state: true }, orgs: { state: true }, templates: { state: true }, error: { state: true } };
   static styles = [base, css`
     :host { display: block; max-width: 980px; margin: 0 auto; padding: 28px 16px; }
@@ -69,18 +70,32 @@ export class PhxProjects extends LitElement {
       [id ? orgOf.get(id)?.name ?? ps[0].orgName ?? "" : t("projects.personal"), id ? orgOf.get(id)?.slug ?? "" : "", ps]);
   }
 
-  render() {
-    return html`<div class="enter">
-      <h1>${t("projects.title")}</h1>
-      ${this.projects.length === 0 ? html`<p class="muted">${t("projects.empty")}</p>` : ""}
-      ${this.groups().map(([name, slug, ps]) => html`
+  /** On an organization's own domain its projects come first, the rest folds away. */
+  private orgFirst() {
+    const all = this.groups();
+    const org = appOrg.get();
+    if (!org || all.length < 2) return { main: all, rest: [] as typeof all };
+    return { main: all.filter((g) => g[1] === org.slug), rest: all.filter((g) => g[1] !== org.slug) };
+  }
+
+  private group([name, slug, ps]: [string, string, Project[]]) {
+    return html`
         ${name ? html`<h2 class="org">${icon(slug ? "Building2" : "UserRound", 15)} ${slug ? html`<a href="/orgs/${slug}">${name}</a>` : name}</h2>` : ""}
         <div class="grid">
           ${ps.map((p) => html`<a class="p card" href="/p/${p.slug}">
             ${projectBadge(p, 36)}
             <span><b>${p.name}</b><br /><span class="muted" style="font-size:13px">${p.description || t(`settings.role.${p.role || "reader"}` as any)}</span></span>
           </a>`)}
-        </div>`)}
+        </div>`;
+  }
+
+  render() {
+    return html`<div class="enter">
+      <h1>${t("projects.title")}</h1>
+      ${this.projects.length === 0 ? html`<p class="muted">${t("projects.empty")}</p>` : ""}
+      ${this.orgFirst().main.map((g) => this.group(g))}
+      ${this.orgFirst().rest.length ? html`<details style="margin-top:18px"><summary style="cursor:pointer;font-weight:600">${t("projects.other")}</summary>
+        ${this.orgFirst().rest.map((g) => this.group(g))}</details>` : ""}
       <h2 style="font-size:18px;margin-bottom:10px">${icon("Plus", 16)} ${t("projects.new")}</h2>
       <form @submit=${this.create}>
         <label class="field">${t("projects.name")}<input name="name" required /></label>

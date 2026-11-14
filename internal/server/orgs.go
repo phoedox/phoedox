@@ -188,3 +188,25 @@ func parseUntil(s string) (time.Time, error) {
 	}
 	return time.Parse(time.RFC3339, s)
 }
+
+func (a *api) orgDomain(w http.ResponseWriter, r *http.Request) {
+	d, err := a.core.OrgDomain(r.Context(), actorOf(r), chi.URLParam(r, "o"))
+	respond(w, map[string]any{"domain": d}, err)
+}
+
+func (a *api) setOrgDomain(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Domain string `json:"domain"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	d, err := a.core.SetOrgDomain(r.Context(), actorOf(r), chi.URLParam(r, "o"), in.Domain)
+	respond(w, map[string]any{"domain": d}, err)
+}
+
+func (a *api) verifyOrgDomain(w http.ResponseWriter, r *http.Request) {
+	d, err := a.core.VerifyOrgDomain(r.Context(), actorOf(r), chi.URLParam(r, "o"))
+	respond(w, map[string]any{"domain": d}, err)
+}

@@ -4,7 +4,7 @@ import { LitElement, css, html } from "lit";
 import { ApiError, api, type User } from "../api";
 import { t } from "../i18n";
 import { icon } from "../icon";
-import { currentProject, currentUser, isPublicPath, loginURL, navigate, signedIn } from "../state";
+import { appOrg, currentProject, currentUser, isPublicPath, loginURL, navigate, signedIn } from "../state";
 import "./audit-log";
 import "./project-switcher";
 import "./lang-switcher";
@@ -89,6 +89,13 @@ export class PhxApp extends SignalWatcher(LitElement) {
 
   async connectedCallback() {
     super.connectedCallback();
+    // On an organization's own domain the app carries its name.
+    void api<{ org?: { id: string; slug: string; name: string } }>("GET", "/instance").then((i) => {
+      if (i?.org) {
+        appOrg.set(i.org);
+        document.title = i.org.name;
+      }
+    }).catch(() => {});
     try {
       signedIn(await api<User>("GET", "/me"));
     } catch (e) {
@@ -114,7 +121,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     return html`
       ${user && !shared
         ? html`<header>
-            <a class="brand" href="/"><img src="/logo.svg" alt="" /><span class="word">Phoedox</span></a>
+            <a class="brand" href="/"><img src="/logo.svg" alt="" /><span class="word">${appOrg.get()?.name ?? "Phoedox"}</span></a>
             <phx-project-switcher .path=${location.pathname}></phx-project-switcher>
             <phx-lang-switcher .path=${location.pathname}></phx-lang-switcher>
             <nav>
