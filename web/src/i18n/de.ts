@@ -2062,4 +2062,10 @@ export const de = {
   "term.end": "Beenden",
   "term.hide": "Terminal ausblenden",
   "term.recorded": "Eingaben und Ausgaben werden aufgezeichnet und als Datei am Eintrag gespeichert. Die Sitzung endet nach 60 Minuten oder 15 Minuten ohne Eingabe.",
+  "slash.map": "Karte",
+  "block.map": "Karte",
+  "block.map_source": "Marker und Strecken",
+  "block.map_hint": "Eine Zeile pro Element: „marker 52.52, 13.40 Name“, „marker @eintrag“ (nutzt lat/lng des Eintrags), „track Name: lat,lng lat,lng …“, „gpx <Datei-ID> Name“, „view lat,lng zoom 12“.",
+  "block.map_errors": "Nicht erkannte Zeilen: {lines}",
+  "block.map_gpx": "GPX-Datei aus den Anhängen",
 } as const;

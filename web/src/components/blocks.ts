@@ -4,7 +4,7 @@
 import { LitElement, css, html, type PropertyValues } from "lit";
 import { api, type Doc } from "../api";
 import { locale, t } from "../i18n";
-import { icon } from "../icon";
+import { icon, iconSVG } from "../icon";
 import { attrLabel } from "../model";
 import { base } from "./shared";
 
@@ -489,3 +489,101 @@ export class PhxQueryBlock extends LitElement {
   }
 }
 customElements.get("phx-query-block") || customElements.define("phx-query-block", PhxQueryBlock);
+
+const MAP_OK = "phx.map.tiles";
+const mapAllowed = () => {
+  try {
+    return localStorage.getItem(MAP_OK) === "1";
+  } catch {
+    return false;
+  }
+};
+
+/** ```map: markers, tracks and GPX files on an OpenStreetMap map. Tiles load
+ * only after the person agreed (remembered per browser, like the Locations page). */
+export class PhxMapBlock extends LitElement {
+  static properties = { src: { attribute: "data-src" }, project: { attribute: "data-project" }, on: { state: true }, note: { state: true } };
+  static styles = [base, css`
+    :host { display: block; margin: 1em 0; }
+    .map { height: 360px; border-radius: 12px; border: 1px solid var(--line); z-index: 0; }
+    .consent { border: 1px dashed var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 8px; justify-items: start; font-size: 14px; }
+    .trk { stroke: var(--accent); stroke-width: 4px; fill: none; }
+    .pin { color: var(--accent); }
+    .note { font-size: 12.5px; }
+  `];
+  src = "";
+  project = "";
+  on = mapAllowed();
+  note = "";
+  private map?: import("leaflet").Map;
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.map?.remove();
+    this.map = undefined;
+  }
+
+  private allow() {
+    try {
+      localStorage.setItem(MAP_OK, "1");
+    } catch { /* only for this page then */ }
+    this.on = true;
+  }
+
+  async updated() {
+    if (!this.on || this.map) return;
+    const el = this.renderRoot.querySelector<HTMLElement>(".map");
+    if (!el) return;
+    const [L, { parseMap, gpxPoints }, cssMod] = await Promise.all([import("leaflet"), import("../map-block"), import("leaflet/dist/leaflet.css?inline")]);
+    if (!this.renderRoot.querySelector("style[data-leaflet]")) {
+      const st = document.createElement("style");
+      st.dataset.leaflet = "1";
+      st.textContent = cssMod.default;
+      this.renderRoot.appendChild(st);
+    }
+    const spec = parseMap(this.src || this.querySelector("pre")?.textContent || "");
+    const map = L.map(el);
+    this.map = map;
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+    const pin = L.divIcon({ className: "pin", html: iconSVG("MapPin", 28), iconSize: [28, 28], iconAnchor: [14, 28] });
+    const pts: [number, number][] = [];
+    for (const m of spec.markers) {
+      let { lat, lng, label } = m;
+      if ((lat === undefined || lng === undefined) && m.entity) {
+        const d = await api<{ entity: { name: string; attrs: Record<string, unknown> } }>("GET", `/projects/${this.project}/entities/${encodeURIComponent(m.entity)}`).catch(() => undefined);
+        const a = d?.entity.attrs ?? {};
+        if (a.lat == null || a.lng == null || a.lat === "" || a.lng === "") continue;
+        lat = Number(a.lat);
+        lng = Number(a.lng);
+        label ||= d?.entity.name ?? m.entity;
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      }
+      if (lat === undefined || lng === undefined) continue;
+      pts.push([lat, lng]);
+      const mk = L.marker([lat, lng], { icon: pin, title: label || m.entity || "", keyboard: true }).addTo(map);
+      if (label) mk.bindTooltip(label);
+      if (m.entity) mk.on("click", () => location.assign(`/p/${this.project}/e/${m.entity}`));
+    }
+    const line = (points: [number, number][], label: string) => {
+      pts.push(...points);
+      const pl = L.polyline(points, { className: "trk" }).addTo(map);
+      if (label) pl.bindTooltip(label, { sticky: true });
+    };
+    for (const tr of spec.tracks) line(tr.points, tr.label);
+    for (const g of spec.gpx) {
+      const res = await fetch(`/api/v1/files/${g.file}`, { credentials: "same-origin" }).catch(() => undefined);
+      if (res?.ok) line(gpxPoints(await res.text()), g.label);
+    }
+    if (spec.view) map.setView([spec.view.lat, spec.view.lng], spec.view.zoom);
+    else if (pts.length > 1) map.fitBounds(L.latLngBounds(pts), { padding: [30, 30] });
+    else if (pts.length === 1) map.setView(pts[0], 14);
+    else map.setView([51, 10], 4);
+    if (spec.errors.length) this.note = t("block.map_errors", { lines: spec.errors.join(", ") });
+  }
+
+  render() {
+    if (!this.on) return html`<div class="consent"><span>${t("loc.map_consent")}</span><button class="ghost" @click=${this.allow}>${icon("MapPin", 14)} ${t("loc.show_map")}</button></div>`;
+    return html`<div class="map" role="region" aria-label=${t("block.map")}></div>${this.note ? html`<p class="note muted">${this.note}</p>` : ""}`;
+  }
+}
+customElements.get("phx-map-block") || customElements.define("phx-map-block", PhxMapBlock);

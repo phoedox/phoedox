@@ -165,6 +165,8 @@ func (r fenceRenderer) render(w util.BufWriter, src []byte, n ast.Node, entering
 		if r.links.Include != nil {
 			_, _ = w.WriteString(r.links.Include(text))
 		}
+	case "map":
+		_, _ = w.WriteString(mapList(text))
 	case "query":
 		// Live queries need the app; published pages leave them out.
 	default:
@@ -179,7 +181,7 @@ func (r fenceRenderer) render(w util.BufWriter, src []byte, n ast.Node, entering
 
 var policy = func() *bluemonday.Policy {
 	p := bluemonday.UGCPolicy()
-	p.AllowAttrs("class").OnElements("span", "div", "code", "pre", "li", "input", "table", "td", "th", "section", "small", "h3")
+	p.AllowAttrs("class").OnElements("span", "div", "code", "pre", "ul", "li", "input", "table", "td", "th", "section", "small", "h3")
 	p.AllowAttrs("data-kind", "data-icon").OnElements("div", "span")
 	p.AllowElements("u", "phx-math", "phx-embed", "phx-mermaid", "time", "section", "article", "h2", "h3")
 	p.AllowNoAttrs().OnElements("phx-mermaid") // the source is the <pre> inside

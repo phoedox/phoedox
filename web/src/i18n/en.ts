@@ -2064,4 +2064,10 @@ export const en: Record<keyof typeof de, string> = {
   "term.end": "End",
   "term.hide": "Hide terminal",
   "term.recorded": "Input and output are recorded and kept as a file of the entry. The session ends after 60 minutes or 15 minutes without input.",
+  "slash.map": "Map",
+  "block.map": "Map",
+  "block.map_source": "Markers and tracks",
+  "block.map_hint": "One line per item: “marker 52.52, 13.40 Name”, “marker @entry” (uses the entry's lat/lng), “track Name: lat,lng lat,lng …”, “gpx <file id> Name”, “view lat,lng zoom 12”.",
+  "block.map_errors": "Lines not recognised: {lines}",
+  "block.map_gpx": "GPX file from the attachments",
 };

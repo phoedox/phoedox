@@ -24,7 +24,7 @@ import { icon } from "../icon";
 import { currentUser, docsVersion, navigate, wideReading } from "../state";
 import { prose } from "./doc-view";
 import { base } from "./shared";
-import { fileURL, isImage, uploadFile } from "../files";
+import { fileURL, isImage, uploadFile, type FileInfo } from "../files";
 import type { PhxAttachments } from "./attachments";
 import "./review-actions";
 import "./attachments";
@@ -474,6 +474,19 @@ export class PhxLiveEditor extends LitElement {
         toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
         return undefined;
       }
+    }
+    if (kind === "map") {
+      // GPX files attached to this page can be added with one pick.
+      const gpx = this.doc ? ((await api<FileInfo[]>("GET", `/projects/${this.project}/files?document=${this.doc.id}`).catch(() => [])) ?? [])
+        .filter((f) => /\.gpx$/i.test(f.name) || f.mime.includes("gpx")) : [];
+      const fields: FormField[] = [{ name: "v", label: t("block.map_source"), type: "textarea", value: current || "marker 52.5200, 13.4050 Berlin\ntrack Route: 52.52,13.40 52.40,13.06" }];
+      if (gpx.length) fields.push({ name: "gpx", label: t("block.map_gpx"), type: "select", value: "", options: [["", "–"], ...gpx.map((f): [string, string] => [f.id, f.name])] });
+      const v = await this.askForm({ title: t("slash.map"), hint: t("block.map_hint"), fields });
+      if (!v) return undefined;
+      let src = v.v.trim();
+      const f = gpx.find((x) => x.id === v.gpx);
+      if (f) src += `${src ? "\n" : ""}gpx ${f.id} ${f.name.replace(/\.gpx$/i, "")}`;
+      return src || undefined;
     }
     if (kind === "include") {
       const pages = ((await api<Doc[]>("GET", `/projects/${this.project}/documents?type=markdown`).catch(() => [])) ?? []).filter((d) => d.id !== this.doc?.id);

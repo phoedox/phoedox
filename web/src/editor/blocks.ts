@@ -159,6 +159,10 @@ export class FenceNode extends DecoratorNode<null> {
       el = document.createElement(this.__kind === "status" ? "phx-status" : "phx-entity-card");
       el.dataset.src = src;
       el.dataset.project = project;
+    } else if (this.__kind === "map") {
+      el = document.createElement("phx-map-block");
+      el.dataset.src = src;
+      el.dataset.project = project;
     } else if (this.__kind === "include") {
       el = document.createElement("phx-include");
       el.dataset.page = src;
