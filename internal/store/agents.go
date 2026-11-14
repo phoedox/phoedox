@@ -109,3 +109,21 @@ func (d *DB) RevokeAgent(ctx context.Context, projectID, id string) error {
 	res, err := d.Exec(ctx, `UPDATE agents SET revoked_at = ? WHERE project_id = ? AND id = ? AND revoked_at IS NULL`, Now(), projectID, id)
 	return affected(res, err)
 }
+
+// TenantAgents lists the active agents of the current tenant with their last report.
+func (d *DB) TenantAgents(ctx context.Context) ([]Agent, error) {
+	rows, err := d.Query(ctx, `SELECT `+agentCols+` FROM agents WHERE tenant_id = ? AND revoked_at IS NULL ORDER BY hostname`, TenantOf(ctx))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Agent{}
+	for rows.Next() {
+		a, err := scanAgent(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}

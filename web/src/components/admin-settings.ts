@@ -7,7 +7,7 @@ import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
-interface Settings { aiEnabled: boolean; quotaProjectMb: number; tools?: Record<string, boolean> }
+interface Settings { aiEnabled: boolean; quotaProjectMb: number; vulnCheck: boolean; tools?: Record<string, boolean> }
 
 /** Instance settings for system admins. */
 export class PhxAdminSettings extends SignalWatcher(LitElement) {
@@ -43,6 +43,8 @@ export class PhxAdminSettings extends SignalWatcher(LitElement) {
       ${settingsNav("instance")}
       ${this.s ? html`<label class="switch"><input type="checkbox" .checked=${this.s.aiEnabled} @change=${(e: Event) => this.set({ aiEnabled: (e.target as HTMLInputElement).checked })} /> ${t("admin.ai")}</label>
         <p class="muted">${t("admin.ai_hint")}</p>
+        <label class="switch"><input type="checkbox" .checked=${this.s.vulnCheck} @change=${(e: Event) => this.set({ vulnCheck: (e.target as HTMLInputElement).checked })} /> ${t("admin.vuln_check")}</label>
+        <p class="muted">${t("admin.vuln_check_hint")}</p>
         <h2>${t("admin.files")}</h2>
         <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.set({ quotaProjectMb: Number(new FormData(e.target as HTMLFormElement).get("quota") || 0) }); }}>
           <label class="field">${t("admin.quota")}

@@ -115,10 +115,13 @@ type Container struct {
 	ComposeDir string `json:"composeDir,omitempty"`
 }
 
-// Package is an installed system package.
+// Package is an installed system package; Source is the source package
+// when it differs (vulnerability advisories are keyed by it).
 type Package struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Name          string `json:"name"`
+	Version       string `json:"version"`
+	Source        string `json:"source,omitempty"`
+	SourceVersion string `json:"sourceVersion,omitempty"`
 }
 
 func gib(b uint64) float64 { return float64(b*10/(1<<30)) / 10 }

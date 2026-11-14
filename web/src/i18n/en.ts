@@ -1470,4 +1470,9 @@ export const en: Record<keyof typeof de, string> = {
   "agentjob.agent.update": "Update the agent",
   "tree.update": "Update available",
   "tree.update_hint": "The registry has a newer image for this tag. “Update container” pulls it.",
+  "admin.vuln_check": "Check packages for known vulnerabilities (osv.dev)",
+  "admin.vuln_check_hint": "Once a day the package lists reported by agents (name and version, no host names) are sent to osv.dev. Affected packages appear on the host's page. Leave it off if you do not want to share the lists.",
+  "vulns.title": "Known vulnerabilities",
+  "vulns.checked": "Checked {date} (osv.dev)",
+  "vulns.none": "No known vulnerabilities for the reported packages.",
 };

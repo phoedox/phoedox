@@ -1468,4 +1468,9 @@ export const de = {
   "agentjob.agent.update": "Agent aktualisieren",
   "tree.update": "Update verfügbar",
   "tree.update_hint": "Die Registry hat für dieses Tag ein neueres Image. „Container aktualisieren“ holt es.",
+  "admin.vuln_check": "Pakete auf bekannte Sicherheitslücken prüfen (osv.dev)",
+  "admin.vuln_check_hint": "Einmal am Tag gehen die Paketlisten, die Agenten melden (Name und Version, ohne Hostnamen), an osv.dev. Betroffene Pakete erscheinen auf der Seite des Hosts. Aus, solange du die Listen nicht teilen willst.",
+  "vulns.title": "Bekannte Sicherheitslücken",
+  "vulns.checked": "Geprüft am {date} (osv.dev)",
+  "vulns.none": "Keine bekannten Lücken für die gemeldeten Pakete.",
 } as const;

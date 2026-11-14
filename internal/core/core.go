@@ -113,7 +113,9 @@ type Service struct {
 	// AgentReleaseDir caches downloaded binaries.
 	AgentReleases   string
 	AgentReleaseDir string
-	MaxUpload       int64
+	// OSVURL is the vulnerability database (default https://api.osv.dev).
+	OSVURL    string
+	MaxUpload int64
 	// Jobs runs background work (previews, text extraction); nil runs it inline.
 	Jobs *jobs.Queue
 	// Preview makes preview images and extracts text (external tools optional).

@@ -1,7 +1,7 @@
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html, svg } from "lit";
 import { ApiError, api, type Doc, type Edge, type Entity } from "../api";
-import { t } from "../i18n";
+import { t, formatDate } from "../i18n";
 import { icon } from "../icon";
 import { allowedRels, attrLabel, findKind, formatValue, groupColor, groupName, kindName, loadModel, relLabel, type Model } from "../model";
 import { currentProject, docsVersion, navigate } from "../state";
@@ -27,6 +27,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
     error: { state: true }, relError: { state: true }, confirming: { state: true }, busy: { state: true },
   };
   static styles = [base, css`
+    ul.vulns { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; font-size: 13.5px; } ul.vulns a { font-family: var(--font-mono); font-size: 12px; margin-right: 6px; }
     header { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 18px; }
     header .title { flex: 1; min-width: 220px; }
     .kic { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 11px; flex: none;
@@ -252,13 +253,26 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
     ${this.relError ? html`<p class="error" role="alert">${this.relError}</p>` : ""}`;
   }
 
+  /** Known vulnerabilities from the daily OSV check (host entries). */
+  private vulns(attrs: Record<string, unknown>) {
+    const list = attrs.vulnerabilities as { package: string; version: string; ids: string[] }[] | undefined;
+    if (!Array.isArray(list) || !attrs.vulns_checked) return "";
+    return html`<h2 style="margin-top:12px">${icon("ShieldAlert", 15)} ${t("vulns.title")}</h2>
+      <p class="muted" style="margin:0 0 6px;font-size:13px">${t("vulns.checked", { date: formatDate(String(attrs.vulns_checked)) })}</p>
+      ${list.length ? html`<ul class="vulns">${list.map((v) => html`<li><code>${v.package}</code> <span class="muted">${v.version}</span><br>
+          ${v.ids.map((id) => html`<a href="https://osv.dev/vulnerability/${encodeURIComponent(id)}" target="_blank" rel="noopener external">${id}</a> `)}</li>`)}</ul>`
+        : html`<p class="muted">${t("vulns.none")}</p>`}`;
+  }
+
   render() {
     if (this.error) return html`<p class="error">${this.error}</p>`;
     if (!this.d || !this.model) return html`<p class="muted">${t("app.loading")}</p>`;
     const { entity: e, edges, documents } = this.d;
     const k = findKind(this.model, e.kind);
     const values = (k?.attrs ?? []).filter((a) => e.attrs?.[a.name] !== undefined && e.attrs?.[a.name] !== "");
-    const extra = Object.entries(e.attrs ?? {}).filter(([n]) => !k?.attrs.some((a) => a.name === n));
+    // Shown in their own sections below.
+    const own = ["vulnerabilities", "vulns_checked"];
+    const extra = Object.entries(e.attrs ?? {}).filter(([n]) => !k?.attrs.some((a) => a.name === n) && !own.includes(n));
     const edit = this.canEdit;
     return html`<article class="enter">
       <header>
@@ -289,6 +303,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
           </dl>` : html`<p class="muted">${t("entity.none")}</p>`}
           <h2 style="margin-top:12px">${t("entity.mentioned_in")}</h2>
           ${documents.length ? html`<ul>${documents.map((d) => html`<li><a href="/p/${this.project}/d/${d.slug}">${icon("FileText", 14)} ${d.title}</a></li>`)}</ul>` : html`<p class="muted">${t("entity.none")}</p>`}
+          ${this.vulns(e.attrs ?? {})}
           ${["server", "vm", "lxc", "stack"].includes(e.kind) ? html`<phx-software-tree style="margin-top:12px" .project=${this.project} .entity=${e.slug}></phx-software-tree>` : ""}
           <phx-attachments style="margin-top:12px" .project=${this.project} .entity=${e.id} .editable=${edit}></phx-attachments>
         </section>

@@ -54,6 +54,9 @@ type InstanceSettings struct {
 	AIEnabled bool `json:"aiEnabled"`
 	// QuotaProjectMB limits the stored files of each project (0 = no limit).
 	QuotaProjectMB int `json:"quotaProjectMb"`
+	// VulnCheck sends reported package lists to osv.dev once a day to find
+	// known vulnerabilities (off by default: the lists leave the instance).
+	VulnCheck bool `json:"vulnCheck"`
 	// Tools tells which file tools were found (PDF previews, OCR, virus scan); read only.
 	Tools map[string]bool `json:"tools,omitempty"`
 }
@@ -62,6 +65,7 @@ type InstanceSettings struct {
 type SettingsPatch struct {
 	AIEnabled      *bool `json:"aiEnabled,omitempty"`
 	QuotaProjectMB *int  `json:"quotaProjectMb,omitempty"`
+	VulnCheck      *bool `json:"vulnCheck,omitempty"`
 }
 
 const settingQuota = "quota_project_mb"
@@ -75,7 +79,7 @@ func (s *Service) instanceQuotaMB(ctx context.Context) int {
 func (s *Service) settings(ctx context.Context) InstanceSettings {
 	tools := s.Preview.Available()
 	tools["virus_scan"] = s.Scanner != nil
-	return InstanceSettings{AIEnabled: s.AIEnabled(ctx), QuotaProjectMB: s.instanceQuotaMB(ctx), Tools: tools}
+	return InstanceSettings{AIEnabled: s.AIEnabled(ctx), QuotaProjectMB: s.instanceQuotaMB(ctx), VulnCheck: s.vulnCheckOn(ctx), Tools: tools}
 }
 
 // Settings returns the instance settings (admins only).
@@ -96,6 +100,11 @@ func (s *Service) UpdateSettings(ctx context.Context, a Actor, in SettingsPatch)
 	}
 	if in.AIEnabled != nil {
 		if err := s.DB.SetSetting(ctx, settingAI, strconv.FormatBool(*in.AIEnabled), a.String()); err != nil {
+			return InstanceSettings{}, err
+		}
+	}
+	if in.VulnCheck != nil {
+		if err := s.DB.SetSetting(ctx, settingVulnCheck, strconv.FormatBool(*in.VulnCheck), a.String()); err != nil {
 			return InstanceSettings{}, err
 		}
 	}
