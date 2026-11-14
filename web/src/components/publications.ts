@@ -6,6 +6,8 @@ import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
+interface Release { id: string; number: number; note: string; createdAt: string }
+
 interface Publication {
   id: string; slug: string; title: string; description: string; projects: string[]; projectNames: string[];
   access: "public" | "password" | "members"; hasPassword: boolean; domain: string; color: string; css: string; noindex: boolean;
@@ -14,7 +16,7 @@ interface Publication {
 
 /** Publications (ADR-0006): projects as a public or protected site. */
 export class PhxPublications extends LitElement {
-  static properties = { list: { state: true }, projects: { state: true }, editing: { state: true }, error: { state: true }, busy: { state: true } };
+  static properties = { list: { state: true }, projects: { state: true }, editing: { state: true }, error: { state: true }, busy: { state: true }, releases: { state: true } };
   static styles = [base, settingsNavStyles, css`
     :host { display: block; max-width: 900px; margin: 0 auto; padding: 28px 16px; }
     .cards { display: grid; gap: 12px; margin: 16px 0 24px; }
@@ -36,6 +38,8 @@ export class PhxPublications extends LitElement {
   editing?: Publication | "new";
   error = "";
   busy = false;
+  /** Releases per publication id (loaded with the list). */
+  releases: Record<string, Release[]> = {};
 
   connectedCallback() {
     super.connectedCallback();
@@ -45,6 +49,11 @@ export class PhxPublications extends LitElement {
   private async load() {
     try {
       this.list = await api<Publication[]>("GET", "/publications");
+      const rel: Record<string, Release[]> = {};
+      await Promise.all((this.list ?? []).filter((p) => p.canEdit).map(async (p) => {
+        rel[p.id] = (await api<Release[]>("GET", `/publications/${p.id}/releases`).catch(() => [])) ?? [];
+      }));
+      this.releases = rel;
       this.projects = ((await api<Project[]>("GET", "/projects")) ?? []).filter((p) => p.role === "owner");
     } catch (e) {
       this.error = e instanceof ApiError ? e.text : t("error.unknown");
@@ -76,6 +85,18 @@ export class PhxPublications extends LitElement {
       this.error = err instanceof ApiError ? err.text : t("error.unknown");
     } finally {
       this.busy = false;
+    }
+  }
+
+  private async release(p: Publication) {
+    const note = prompt(t("pub.release_prompt"));
+    if (note === null) return;
+    try {
+      const r = await api<Release>("POST", `/publications/${p.id}/releases`, { note });
+      toast(t("pub.release_done", { number: r.number }));
+      await this.load();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
     }
   }
 
@@ -135,6 +156,10 @@ export class PhxPublications extends LitElement {
           <span class="muted" style="font-size:12.5px">${t("pub.llms")} <a class="url" href=${this.urlOf(p) + "llms.txt"} target="_blank" rel="noopener">llms.txt</a></span>
           ${p.domain ? html`<a class="url" href=${`${location.origin}/pub/${p.slug}/`} target="_blank" rel="noopener">${location.origin}/pub/${p.slug}/</a>` : ""}
           <span class="muted" style="font-size:13px">${p.projectNames.join(", ")} · ${t("doc.updated", { date: formatDate(p.updatedAt) })}</span>
+          ${p.canEdit ? html`<div class="row" style="font-size:13px">
+            <button class="ghost" style="padding:3px 9px;font-size:13px" @click=${() => this.release(p)}>${icon("Flag", 13)} ${t("pub.release")}</button>
+            ${(this.releases[p.id] ?? []).slice(0, 5).map((r) => html`<a href=${`${this.urlOf(p)}v/${r.number}/`} target="_blank" rel="noopener" title=${r.note}>v${r.number} · ${formatDate(r.createdAt)}</a>`)}
+          </div>` : ""}
         </div>`)}
         ${this.list.length === 0 ? html`<p class="muted">${t("pub.empty")}</p>` : ""}</div>`}
       ${this.editing ? this.form() : this.projects.length ? html`<button @click=${() => { this.editing = "new"; this.error = ""; }}>${icon("Plus", 14)} ${t("pub.new")}</button>` : html`<p class="hint">${t("pub.no_projects")}</p>`}

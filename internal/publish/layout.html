@@ -41,7 +41,7 @@
   <main>
     <article>
       {{if .Doc}}<h1>{{.Doc.Title}}</h1><div class="meta"><span>{{index .T "updated"}}: {{.Doc.UpdatedAt.Format "02.01.2006"}}</span></div>{{end}}
-      {{if .Note}}<p class="note" role="note">{{.Note}}</p>{{end}}
+      {{if .Note}}<p class="note" role="note">{{.Note}}{{if .NoteLink}} <a href="{{.NoteLink}}">{{.NoteLinkText}}</a>{{end}}</p>{{end}}
       <div class="prose">{{.Body}}</div>
     </article>
   </main>

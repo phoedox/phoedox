@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/phoedox/phoedox/internal/blob"
 	"github.com/phoedox/phoedox/internal/graph"
@@ -248,13 +249,24 @@ type PubProject struct {
 // Site loads a publication with the published pages of its projects. ctx
 // must carry the publication's tenant.
 func (s *Service) Site(ctx context.Context, p store.Publication) ([]PubProject, error) {
+	return s.SiteAt(ctx, p, nil)
+}
+
+// SiteAt is Site as of a release (nil = now): pages that existed then, in
+// their last version before it.
+func (s *Service) SiteAt(ctx context.Context, p store.Publication, release *store.PublicationRelease) ([]PubProject, error) {
 	out := []PubProject{}
 	for _, id := range p.Projects {
 		pr, err := s.DB.ProjectFor(ctx, id, "")
 		if err != nil {
 			continue // deleted meanwhile
 		}
-		docs, err := s.DB.ListDocuments(ctx, pr.ID, store.DocFilter{WithContent: true})
+		var docs []store.Document
+		if release != nil {
+			docs, err = s.DB.DocumentsAt(ctx, pr.ID, release.CreatedAt)
+		} else {
+			docs, err = s.DB.ListDocuments(ctx, pr.ID, store.DocFilter{WithContent: true})
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -379,4 +391,36 @@ func docText(d store.Document) string {
 		}
 	}
 	return strings.Join(parts, "\n")
+}
+
+// CreateRelease freezes the current state of a publication as the next
+// numbered release (/v/<number>/).
+func (s *Service) CreateRelease(ctx context.Context, a Actor, ref, note string) (store.PublicationRelease, error) {
+	if a.Via == "mcp" {
+		return store.PublicationRelease{}, ErrForbidden
+	}
+	p, err := s.editablePublication(ctx, a, ref)
+	if err != nil {
+		return store.PublicationRelease{}, err
+	}
+	if r := []rune(note); len(r) > 200 {
+		note = string(r[:200])
+	}
+	// One second later than now, so edits saved in this second are included.
+	r, err := s.DB.AddRelease(ctx, store.PublicationRelease{ID: newID(), PublicationID: p.ID, Note: strings.TrimSpace(note), CreatedBy: a.User.ID,
+		CreatedAt: store.Time{Time: time.Now().UTC().Add(time.Second)}})
+	if err != nil {
+		return r, err
+	}
+	s.event(ctx, a, "publication.release", p.ID, map[string]any{"number": r.Number})
+	return r, nil
+}
+
+// Releases lists the releases of a publication.
+func (s *Service) Releases(ctx context.Context, a Actor, ref string) ([]store.PublicationRelease, error) {
+	p, err := s.editablePublication(ctx, a, ref)
+	if err != nil {
+		return nil, err
+	}
+	return s.DB.Releases(ctx, p.ID)
 }

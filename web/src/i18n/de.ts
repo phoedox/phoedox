@@ -1337,4 +1337,7 @@ export const de = {
   "validation.template": "Diese Vorlage gibt es nicht ({template}).",
   "pub.access_members": "Nur angemeldete Nutzer",
   "pub.llms": "Für KI-Leser:",
+  "pub.release": "Stand festhalten",
+  "pub.release_prompt": "Notiz zu diesem Stand (optional), z. B. „Version 2.1“:",
+  "pub.release_done": "Stand {number} festgehalten. Er bleibt unter /v/{number}/ erreichbar.",
 } as const;

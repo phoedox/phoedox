@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/phoedox/phoedox/internal/core"
 	"github.com/phoedox/phoedox/internal/store"
@@ -46,6 +47,27 @@ func TestSiteLLMsAndMembers(t *testing.T) {
 	w = get("/handbuch/start.md")
 	if w.Code != 200 || w.Body.String() != "# Start\n\nHallo **Welt**" || !strings.HasPrefix(w.Header().Get("Content-Type"), "text/markdown") {
 		t.Fatalf("markdown: %d %q", w.Code, w.Body)
+	}
+
+	// A release keeps the state of its moment; the live site moves on.
+	rl, err := svc.CreateRelease(ctx, a, pub.ID, "Erste Ausgabe")
+	if err != nil || rl.Number != 1 {
+		t.Fatalf("release: %v %+v", err, rl)
+	}
+	time.Sleep(1100 * time.Millisecond)
+	md := "Hallo **Mond**"
+	if _, err := svc.UpdateDocument(ctx, a, p.Slug, "start", core.DocumentPatch{Markdown: &md}); err != nil {
+		t.Fatal(err)
+	}
+	if w = get("/v/1/handbuch/start"); w.Code != 200 || !strings.Contains(w.Body.String(), "Welt") || strings.Contains(w.Body.String(), "Mond") ||
+		!strings.Contains(w.Body.String(), "Erste Ausgabe") || !strings.Contains(w.Body.String(), `href="/pub/`+pub.Slug+`/handbuch/start"`) {
+		t.Fatalf("release page: %d %s", w.Code, w.Body)
+	}
+	if w = get("/handbuch/start"); !strings.Contains(w.Body.String(), "Mond") {
+		t.Fatalf("live page: %s", w.Body)
+	}
+	if w = get("/v/9/handbuch/start"); w.Code != http.StatusNotFound {
+		t.Fatalf("unknown release: %d", w.Code)
 	}
 
 	// Members only: strangers go to the app's login and come back.

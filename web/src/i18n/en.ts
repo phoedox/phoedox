@@ -1339,4 +1339,7 @@ export const en: Record<keyof typeof de, string> = {
   "validation.template": "This template does not exist ({template}).",
   "pub.access_members": "Signed-in users only",
   "pub.llms": "For AI readers:",
+  "pub.release": "Freeze this state",
+  "pub.release_prompt": "Note for this state (optional), e.g. “Version 2.1”:",
+  "pub.release_done": "State {number} frozen. It stays available under /v/{number}/.",
 };

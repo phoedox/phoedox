@@ -28,5 +28,7 @@
   "made_with": "Made with Phoedox",
   "menu": "Menu",
   "pages": "Pages",
-  "board_empty": "No cards."
+  "board_empty": "No cards.",
+  "release_note": "Fixed state %d of %s.",
+  "release_current": "Go to the current version"
 }

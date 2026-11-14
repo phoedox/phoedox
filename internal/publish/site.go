@@ -1,6 +1,7 @@
 package publish
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	_ "embed"
@@ -104,6 +105,13 @@ func (s *Site) islands() (js string, css []string) {
 }
 
 // page is the data of the layout template.
+type releaseKey struct{}
+
+type releaseInfo struct {
+	Release store.PublicationRelease
+	Live    string // base of the live publication
+}
+
 type page struct {
 	T           texts
 	Base        string
@@ -119,15 +127,18 @@ type page struct {
 	Langs       []langLink
 	Search      string
 	Note        string
-	JS          string
-	CSS         []string
-	Version     string
-	Accent      template.CSS
-	Custom      template.CSS
-	Lang        string
-	Status      int
-	Login       bool
-	LoginError  bool
+	// NoteLink adds a link to the note (e.g. to the current version).
+	NoteLink     string
+	NoteLinkText string
+	JS           string
+	CSS          []string
+	Version      string
+	Accent       template.CSS
+	Custom       template.CSS
+	Lang         string
+	Status       int
+	Login        bool
+	LoginError   bool
 }
 
 type navGroup struct {
@@ -203,12 +214,28 @@ func (s *Site) Serve(w http.ResponseWriter, r *http.Request, p store.Publication
 		h.Set("X-Robots-Tag", "noindex")
 	}
 
-	site, err := s.Core.Site(r.Context(), p)
+	// Fixed states: /v/<n>/… shows the publication as it was at release n.
+	parts := strings.Split(strings.Trim(rel, "/"), "/")
+	var release *store.PublicationRelease
+	if len(parts) >= 2 && parts[0] == "v" {
+		n, err := strconv.Atoi(parts[1])
+		rl, err2 := s.Core.DB.Release(r.Context(), p.ID, n)
+		if err != nil || err2 != nil {
+			http.NotFound(w, r)
+			return
+		}
+		release = &rl
+		r = r.WithContext(context.WithValue(r.Context(), releaseKey{}, releaseInfo{Release: rl, Live: base}))
+		base += "/v/" + parts[1]
+		rel = "/" + strings.Join(parts[2:], "/")
+		parts = strings.Split(strings.Trim(rel, "/"), "/")
+		h.Set("X-Robots-Tag", "noindex") // the live pages are the ones to find
+	}
+	site, err := s.Core.SiteAt(r.Context(), p, release)
 	if err != nil {
 		http.Error(w, "unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	parts := strings.Split(strings.Trim(rel, "/"), "/")
 	switch {
 	case rel == "/sitemap.xml":
 		s.sitemap(w, r, p, base, site)
@@ -410,7 +437,15 @@ func (s *Site) doc(w http.ResponseWriter, r *http.Request, p store.Publication, 
 	pg := &page{T: t, Base: base, Pub: p, Site: site, Project: &pp, Doc: &d, Title: d.Title + " – " + p.Title, Body: template.HTML(body.String()),
 		Nav: nav(base, pp, d.Slug, t, lang), Canonical: s.absolute(r, base+"/"+pp.Project.Slug+"/"+d.Slug), Lang: pp.Project.MainLocale}
 	pg.Description = summary(str("markdown") + str("decision") + str("description"))
-	if pp.Project.MainLocale != "" {
+	if ri, ok := r.Context().Value(releaseKey{}).(releaseInfo); ok {
+		pg.Note = fmt.Sprintf(t["release_note"], ri.Release.Number, ri.Release.CreatedAt.Format(time.DateOnly))
+		if ri.Release.Note != "" {
+			pg.Note += " – " + ri.Release.Note
+		}
+		live := ri.Live + "/" + pp.Project.Slug + "/" + d.Slug
+		pg.NoteLink, pg.NoteLinkText = live, t["release_current"]
+		pg.Canonical = s.absolute(r, live)
+	} else if pp.Project.MainLocale != "" {
 		pg.Lang = pp.Project.MainLocale
 		if d.Translation != nil {
 			pg.Lang = d.Locale

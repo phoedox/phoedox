@@ -28,5 +28,7 @@
   "made_with": "Erstellt mit Phoedox",
   "menu": "Menü",
   "pages": "Seiten",
-  "board_empty": "Keine Karten."
+  "board_empty": "Keine Karten.",
+  "release_note": "Fester Stand %d vom %s.",
+  "release_current": "Zur aktuellen Fassung"
 }

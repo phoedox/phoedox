@@ -91,6 +91,8 @@ func (a *api) routes(r chi.Router) {
 			r.Post("/publications", a.createPublication)
 			r.Patch("/publications/{id}", a.updatePublication)
 			r.Delete("/publications/{id}", a.deletePublication)
+			r.Get("/publications/{id}/releases", a.listReleases)
+			r.Post("/publications/{id}/releases", a.createRelease)
 			r.Delete("/me/avatar", a.deleteAvatar)
 			r.Get("/images/user/{id}", a.userImage)
 			r.Post("/me/password", a.changePassword)
@@ -615,6 +617,23 @@ func (a *api) updatePublication(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) deletePublication(w http.ResponseWriter, r *http.Request) {
 	respond(w, map[string]bool{"ok": true}, a.core.DeletePublication(r.Context(), actorOf(r), chi.URLParam(r, "id")))
+}
+
+func (a *api) listReleases(w http.ResponseWriter, r *http.Request) {
+	out, err := a.core.Releases(r.Context(), actorOf(r), chi.URLParam(r, "id"))
+	respond(w, out, err)
+}
+
+func (a *api) createRelease(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Note string `json:"note"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	rl, err := a.core.CreateRelease(r.Context(), actorOf(r), chi.URLParam(r, "id"), in.Note)
+	respondStatus(w, http.StatusCreated, rl, err)
 }
 
 func (a *api) listTasks(w http.ResponseWriter, r *http.Request) {
