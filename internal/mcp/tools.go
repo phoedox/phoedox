@@ -483,8 +483,19 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "list_entities", "List entities of a project, optionally of one kind.", func(ctx context.Context, a core.Actor, in listEntitiesIn) (any, error) {
 		return svc.Entities(ctx, a, in.Project, in.Kind)
 	})
-	tool(s, "get_entity", "Read an entity with all its relations and the documents that mention it.", func(ctx context.Context, a core.Actor, in entityRef) (any, error) {
-		return svc.Entity(ctx, a, in.Project, in.Entity)
+	tool(s, "get_entity", "Read an entity: a context pack (values, status, network path, relations, document snippets, what runs on it) followed by the raw entity, relations and documents.", func(ctx context.Context, a core.Actor, in entityRef) (any, error) {
+		d, err := svc.Entity(ctx, a, in.Project, in.Entity)
+		if err != nil {
+			return nil, err
+		}
+		pack, err := svc.EntityContext(ctx, a, in.Project, in.Entity)
+		if err != nil {
+			return nil, err
+		}
+		return struct {
+			Context string `json:"context"`
+			core.EntityDetail
+		}{pack, d}, nil
 	})
 	tool(s, "upsert_entity", "Create an entity or update it if the slug exists.", func(ctx context.Context, a core.Actor, in upsertEntityIn) (any, error) {
 		return svc.UpsertEntity(ctx, a, in.Project, core.EntityInput{Kind: in.Kind, Name: in.Name, Slug: in.Slug, Attrs: in.Attrs})

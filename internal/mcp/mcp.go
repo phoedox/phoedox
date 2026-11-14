@@ -33,6 +33,7 @@ func Handler(svc *core.Service, a *phxauth.Auth, version string, baseURL func(*h
 	build := func(ctx context.Context) *sdk.Server {
 		server := sdk.NewServer(&sdk.Implementation{Name: "phoedox", Title: "Phoedox", Version: version}, &sdk.ServerOptions{Instructions: resources.Prompt("mcp-instructions")})
 		registerTools(server, svc)
+		registerResources(server, svc)
 		registerPluginTools(ctx, server, svc)
 		return server
 	}
@@ -141,10 +142,14 @@ func registerPluginTools(ctx context.Context, s *sdk.Server, svc *core.Service) 
 var errNoActor = errors.New("not authenticated")
 
 func actorFrom(req *sdk.CallToolRequest) (core.Actor, error) {
-	if req.Extra == nil || req.Extra.TokenInfo == nil {
+	return actorOfExtra(req.Extra)
+}
+
+func actorOfExtra(extra *sdk.RequestExtra) (core.Actor, error) {
+	if extra == nil || extra.TokenInfo == nil {
 		return core.Actor{}, errNoActor
 	}
-	a, ok := req.Extra.TokenInfo.Extra["actor"].(core.Actor)
+	a, ok := extra.TokenInfo.Extra["actor"].(core.Actor)
 	if !ok {
 		return core.Actor{}, errNoActor
 	}

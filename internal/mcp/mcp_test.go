@@ -121,6 +121,30 @@ func TestMCPTools(t *testing.T) {
 		t.Fatalf("relation rules: %+v", res0)
 	}
 
+	// Context packs and resources.
+	call("link_entities", map[string]any{"project": "phoedox", "from": "events", "rel": "depends_on", "to": "go-server"})
+	if ent := call("get_entity", map[string]any{"project": "phoedox", "entity": "go-server"}); !strings.Contains(ent, "# Go-Server (service, @go-server)") ||
+		!strings.Contains(ent, "← depends_on from Events") || !strings.Contains(ent, "Values: lang: go") {
+		t.Fatalf("context pack: %s", ent)
+	}
+	if list, err := session.ListResourceTemplates(ctx, nil); err != nil || len(list.ResourceTemplates) != 2 {
+		t.Fatalf("templates: %v %+v", err, list)
+	}
+	rr, err := session.ReadResource(ctx, &sdk.ReadResourceParams{URI: "phoedox://phoedox/doc/go-version"})
+	if err != nil || !strings.Contains(rr.Contents[0].Text, "## Decision") || !strings.Contains(rr.Contents[0].Text, "Dockerfile und CI") {
+		t.Fatalf("doc resource: %v %+v", err, rr)
+	}
+	rr, err = session.ReadResource(ctx, &sdk.ReadResourceParams{URI: "phoedox://phoedox/entity/go-server"})
+	if err != nil || !strings.Contains(rr.Contents[0].Text, "@go-server") {
+		t.Fatalf("entity resource: %v %+v", err, rr)
+	}
+	if rr, err = session.ReadResource(ctx, &sdk.ReadResourceParams{URI: "phoedox://projects"}); err != nil || !strings.Contains(rr.Contents[0].Text, `"phoedox"`) {
+		t.Fatalf("projects resource: %v %+v", err, rr)
+	}
+	if _, err := session.ReadResource(ctx, &sdk.ReadResourceParams{URI: "phoedox://phoedox/doc/gibt-es-nicht"}); err == nil {
+		t.Fatal("missing resource")
+	}
+
 	// suggest mode: AI writes become suggestions
 	out = call("create_document", map[string]any{"project": "wohnung", "title": "Netz", "markdown": "Router"})
 	if !strings.Contains(out, `"applied": false`) || !strings.Contains(out, `"status": "pending"`) {
