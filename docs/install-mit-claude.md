@@ -170,7 +170,7 @@ for u in https://github.com/phoedox/phoedox https://ghcr.io/v2/phoedox/phoedox/t
 If private: ask the user to enter the token **themselves in the terminal**:
 
 ```bash
-read -rsp "GitHub-Token: " GH_TOKEN; echo
+read -rsp "GitHub token: " GH_TOKEN; echo
 ```
 
 ```bash
@@ -253,16 +253,16 @@ EOF
 ## Step 9 – Install Phoedox
 
 ```bash
-helm status phoedox -n phoedox >/dev/null 2>&1 && echo "schon installiert" || echo "neu"
+helm status phoedox -n phoedox >/dev/null 2>&1 && echo "already installed" || echo "new"
 ```
 
-New (`neu`):
+New (`new`):
 
 ```bash
 helm install phoedox /root/phoedox/deploy/helm/phoedox -n phoedox -f /root/phoedox.yaml
 ```
 
-Already installed (`schon installiert`; values changed or update):
+Already installed (`already installed`; values changed or update):
 
 ```bash
 helm upgrade phoedox /root/phoedox/deploy/helm/phoedox -n phoedox -f /root/phoedox.yaml
@@ -287,7 +287,7 @@ Expected: `{"status":"ok",…}` twice.
 ## Step 10 – Create the first admin
 
 ```bash
-kubectl -n phoedox exec -it deploy/phoedox -- phx admin create-user --admin --email "$EMAIL" --name "Name des Nutzers"
+kubectl -n phoedox exec -it deploy/phoedox -- phx admin create-user --admin --email "$EMAIL" --name "Name of the user"
 ```
 
 The command asks for a password in the terminal (at least 10 characters) – the user types it

@@ -114,16 +114,16 @@ Create a file `phoedox.yaml` with your own values (all options: `deploy/helm/pho
 domain: docs.example.org
 certManager:
   email: admin@example.org
-# Solange das Image privat ist:
+# While the image is private:
 imagePullSecrets:
   - name: ghcr
-# Optional: Mails für Einladungen und Passwort-Reset
+# Optional: mail for invitations and password resets
 mail:
   enabled: true
   host: smtp.example.org
   from: "Phoedox <docs@example.org>"
   user: docs@example.org
-  existingSecret: phoedox-mail   # Schlüssel: password
+  existingSecret: phoedox-mail   # key: password
 ```
 
 ```bash
@@ -133,7 +133,7 @@ kubectl create namespace phoedox
 As long as the repository is private, create a pull secret for ghcr.io (token with `read:packages`):
 
 ```bash
-kubectl -n phoedox create secret docker-registry ghcr --docker-server=ghcr.io --docker-username=DEIN_GITHUB_NAME --docker-password=DEIN_TOKEN
+kubectl -n phoedox create secret docker-registry ghcr --docker-server=ghcr.io --docker-username=YOUR_GITHUB_NAME --docker-password=YOUR_TOKEN
 ```
 
 ```bash
@@ -147,7 +147,7 @@ kubectl -n phoedox get pods -w
 Create the first admin:
 
 ```bash
-kubectl -n phoedox exec -it deploy/phoedox -- phx admin create-user --admin --email du@example.org --name "Dein Name"
+kubectl -n phoedox exec -it deploy/phoedox -- phx admin create-user --admin --email you@example.org --name "Your Name"
 ```
 
 ## 5. Back up – three things

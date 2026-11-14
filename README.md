@@ -14,7 +14,7 @@ the Flutter app and any AI via MCP.
 
 ```bash
 docker compose up -d
-docker compose exec phoedox phx admin create-user --admin --email du@example.org --name "Dein Name"
+docker compose exec phoedox phx admin create-user --admin --email you@example.org --name "Your Name"
 ```
 
 The password is asked for interactively. The app runs on `127.0.0.1:8080`; put a
@@ -40,7 +40,7 @@ virus scanning, run a ClamAV container (`clamav/clamav`) next to it and set `PHO
 
 ```bash
 docker run -d --name phoedox -p 127.0.0.1:8080:8080 -v phoedox-data:/data ghcr.io/phoedox/phoedox:main
-docker exec -it phoedox phx admin create-user --admin --email du@example.org --name "Dein Name"
+docker exec -it phoedox phx admin create-user --admin --email you@example.org --name "Your Name"
 ```
 
 ### Kubernetes (k3s on one server)
