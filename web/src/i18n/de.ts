@@ -2151,4 +2151,6 @@ export const de = {
   "board.paste_hint": "oder ein Bild mit Strg+V einfügen bzw. hineinziehen",
   "board.uploading": "Wird hochgeladen …",
   "board.pasted_image": "Bild",
+  "tokens.phoedox_skill": "Damit KI-Clients alle Phoedox-Werkzeuge richtig nutzen, gibt es einen fertigen Skill (SKILL.md) – z. B. für Claude Code nach ~/.claude/skills entpacken.",
+  "tokens.phoedox_skill_download": "Phoedox-Skill herunterladen",
 } as const;

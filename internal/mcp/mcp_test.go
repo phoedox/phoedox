@@ -13,6 +13,7 @@ import (
 	phxauth "github.com/phoedox/phoedox/internal/auth"
 	"github.com/phoedox/phoedox/internal/core"
 	"github.com/phoedox/phoedox/internal/store"
+	"github.com/phoedox/phoedox/resources"
 )
 
 type bearer struct {
@@ -62,6 +63,13 @@ func TestMCPTools(t *testing.T) {
 	tools, err := session.ListTools(ctx, nil)
 	if err != nil || len(tools.Tools) < 15 {
 		t.Fatalf("tools: %v %d", err, len(tools.Tools))
+	}
+	// The Phoedox skill (resources/skills) explains every tool.
+	skill := resources.SkillText()
+	for _, tl := range tools.Tools {
+		if !strings.Contains(skill, "`"+tl.Name+"`") {
+			t.Errorf("tool %s is not explained in resources/skills/phoedox", tl.Name)
+		}
 	}
 
 	call := func(name string, args map[string]any) string {

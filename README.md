@@ -142,7 +142,16 @@ only**, **Suggest** (default – changes arrive as suggestions that a human acce
 
 Tools: list and create projects, project overview; read, create, change and version documents (Markdown, decisions/ADRs,
 external links); read and extend the data model; maintain and search entries
-and relations in the knowledge graph.
+and relations in the knowledge graph; boards, floor plans, checks, readings, agent actions and more.
+
+**Phoedox skill**: [`resources/skills/phoedox`](resources/skills/phoedox/SKILL.md) teaches AI clients which tool to use
+when and the rules for writing. Every instance serves it at `/api/v1/phoedox-skill.zip`; for Claude Code:
+
+```bash
+curl -sL https://docs.example.org/api/v1/phoedox-skill.zip -o /tmp/phoedox-skill.zip && unzip -o /tmp/phoedox-skill.zip -d ~/.claude/skills
+```
+
+Pages marked as **AI skills** in a project (ADR-0049) are found by AI clients with `list_skills` and `get_skill`.
 
 ## Repositories
 

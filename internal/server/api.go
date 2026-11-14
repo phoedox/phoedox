@@ -81,6 +81,7 @@ func (a *api) routes(r chi.Router) {
 	r.Get("/shared/{token}/files/{id}/{name}", a.sharedFile)
 	r.Get("/auth/oidc/start", a.oidcStart)
 	r.Get("/auth/oidc/callback", a.oidcCallback)
+	r.Get("/phoedox-skill.zip", a.phoedoxSkill)
 	r.Get("/auth/ha/start", a.haStart)
 	r.Get("/auth/ha/callback", a.haCallback)
 	r.Group(func(r chi.Router) {

@@ -5,9 +5,12 @@
 package resources
 
 import (
+	"archive/zip"
 	"bytes"
 	"embed"
 	"fmt"
+	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -136,4 +139,46 @@ func Mail(name, locale string, data any) (subject, body string, err error) {
 		return "", "", fmt.Errorf("resources: %s must start with a Subject line", file)
 	}
 	return strings.TrimSpace(subject), strings.TrimSpace(rest) + "\n", nil
+}
+
+//go:embed skills
+var skills embed.FS
+
+// SkillText returns all files of the Phoedox skill joined (tests check that
+// every MCP tool is explained).
+func SkillText() string {
+	var b strings.Builder
+	_ = fs.WalkDir(skills, "skills", func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			c, _ := skills.ReadFile(p)
+			b.Write(c)
+		}
+		return nil
+	})
+	return b.String()
+}
+
+// WriteSkill writes the Phoedox skill for AI clients (resources/skills/phoedox)
+// as a ZIP with the folder phoedox/ (SKILL.md and references).
+func WriteSkill(w io.Writer) error {
+	z := zip.NewWriter(w)
+	err := fs.WalkDir(skills, "skills", func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		b, err := skills.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		f, err := z.Create(strings.TrimPrefix(p, "skills/"))
+		if err != nil {
+			return err
+		}
+		_, err = f.Write(b)
+		return err
+	})
+	if err != nil {
+		return err
+	}
+	return z.Close()
 }

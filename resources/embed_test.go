@@ -1,6 +1,9 @@
 package resources
 
 import (
+	"archive/zip"
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -34,5 +37,31 @@ func TestMail(t *testing.T) {
 	}
 	if _, _, err := Mail("invite", "de", map[string]any{}); err == nil {
 		t.Fatal("missing fields must fail")
+	}
+}
+
+func TestWriteSkill(t *testing.T) {
+	var buf bytes.Buffer
+	if err := WriteSkill(&buf); err != nil {
+		t.Fatal(err)
+	}
+	z, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]string{}
+	for _, f := range z.File {
+		rc, _ := f.Open()
+		b, _ := io.ReadAll(rc)
+		names[f.Name] = string(b)
+	}
+	md := names["phoedox/SKILL.md"]
+	if !strings.HasPrefix(md, "---\nname: phoedox\ndescription: ") || names["phoedox/references/workflows.md"] == "" || names["phoedox/references/page-syntax.md"] == "" {
+		t.Fatalf("zip: %v", len(names))
+	}
+	// The front matter follows the SKILL.md rules.
+	desc := strings.SplitN(strings.SplitN(md, "description: ", 2)[1], "\n", 2)[0]
+	if len(desc) > 1024 || strings.ContainsAny(desc, "<>") {
+		t.Fatalf("description: %d", len(desc))
 	}
 }

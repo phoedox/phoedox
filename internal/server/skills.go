@@ -7,7 +7,21 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/phoedox/phoedox/internal/core"
+	"github.com/phoedox/phoedox/resources"
 )
+
+// phoedoxSkill sends the skill that teaches AI clients to use Phoedox's MCP
+// tools (public: it holds no instance data).
+func (a *api) phoedoxSkill(w http.ResponseWriter, r *http.Request) {
+	var buf bytes.Buffer
+	if err := resources.WriteSkill(&buf); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", `attachment; filename="phoedox-skill.zip"`)
+	_, _ = w.Write(buf.Bytes())
+}
 
 func (a *api) pageSkill(w http.ResponseWriter, r *http.Request) {
 	sk, err := a.core.PageSkill(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"))
