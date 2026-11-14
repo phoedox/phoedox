@@ -105,6 +105,12 @@ func New(d Deps) http.Handler {
 	if d.MCP != nil {
 		r.Handle("/mcp", d.MCP)
 	}
+	if d.Publish != nil && d.Auth != nil && d.Publish.Member == nil {
+		d.Publish.Member = func(r *http.Request) bool {
+			a, _, err := d.Auth.FromRequest(r, "web")
+			return err == nil && a.User.ID != "" && !a.User.Disabled
+		}
+	}
 	if d.Publish != nil && d.Core != nil {
 		servePub := func(w http.ResponseWriter, r *http.Request) {
 			slug := chi.URLParam(r, "slug")

@@ -8,7 +8,7 @@ import { toast } from "./toasts";
 
 interface Publication {
   id: string; slug: string; title: string; description: string; projects: string[]; projectNames: string[];
-  access: "public" | "password"; hasPassword: boolean; domain: string; color: string; css: string; noindex: boolean;
+  access: "public" | "password" | "members"; hasPassword: boolean; domain: string; color: string; css: string; noindex: boolean;
   canEdit: boolean; updatedAt: string;
 }
 
@@ -104,7 +104,8 @@ export class PhxPublications extends LitElement {
       <div class="two">
         <label class="field">${t("pub.access")}<select name="access">
           <option value="public" ?selected=${p?.access !== "password"}>${t("pub.access_public")}</option>
-          <option value="password" ?selected=${p?.access === "password"}>${t("pub.access_password")}</option></select></label>
+          <option value="password" ?selected=${p?.access === "password"}>${t("pub.access_password")}</option>
+          <option value="members" ?selected=${p?.access === "members"}>${t("pub.access_members")}</option></select></label>
         <label class="field">${t("pub.password")}<input name="password" type="password" minlength="8" autocomplete="new-password" placeholder=${p?.hasPassword ? t("pub.password_keep") : ""}></label>
       </div>
       <label class="field">${t("pub.domain")}<input name="domain" .value=${p?.domain ?? ""} placeholder="docs.example.org"></label>
@@ -127,10 +128,11 @@ export class PhxPublications extends LitElement {
       ${!this.list ? html`<p class="muted">${t("app.loading")}</p>` : html`
         <div class="cards">${this.list.map((p) => html`<div class="card">
           <div class="row"><h2>${p.title}</h2>
-            <span class="chip">${p.access === "password" ? html`${icon("Lock", 11)} ${t("pub.access_password")}` : html`${icon("Globe", 11)} ${t("pub.access_public")}`}</span>
+            <span class="chip">${p.access === "password" ? html`${icon("Lock", 11)} ${t("pub.access_password")}` : p.access === "members" ? html`${icon("Users", 11)} ${t("pub.access_members")}` : html`${icon("Globe", 11)} ${t("pub.access_public")}`}</span>
             ${p.canEdit ? html`<button class="ghost" @click=${() => (this.editing = p)}>${icon("Pencil", 13)} ${t("doc.edit")}</button>
               <button class="danger" @click=${() => this.unpublish(p)}>${icon("Trash2", 13)}</button>` : ""}</div>
           <a class="url" href=${this.urlOf(p)} target="_blank" rel="noopener">${this.urlOf(p)}</a>
+          <span class="muted" style="font-size:12.5px">${t("pub.llms")} <a class="url" href=${this.urlOf(p) + "llms.txt"} target="_blank" rel="noopener">llms.txt</a></span>
           ${p.domain ? html`<a class="url" href=${`${location.origin}/pub/${p.slug}/`} target="_blank" rel="noopener">${location.origin}/pub/${p.slug}/</a>` : ""}
           <span class="muted" style="font-size:13px">${p.projectNames.join(", ")} · ${t("doc.updated", { date: formatDate(p.updatedAt) })}</span>
         </div>`)}

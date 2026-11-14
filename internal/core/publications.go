@@ -118,9 +118,9 @@ func (s *Service) normalizePublication(ctx context.Context, a Actor, in *Publica
 	switch in.Access {
 	case "", "public":
 		in.Access = "public"
-	case "password":
+	case "password", "members":
 	default:
-		return invalid("validation.pub_access", nil, "access must be public or password")
+		return invalid("validation.pub_access", nil, "access must be public, password or members")
 	}
 	in.Domain = strings.ToLower(strings.TrimSpace(strings.TrimSuffix(in.Domain, ".")))
 	if in.Domain != "" && (!hostRe.MatchString(in.Domain) || in.Domain == strings.ToLower(s.appHost())) {

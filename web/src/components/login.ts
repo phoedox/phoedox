@@ -58,7 +58,10 @@ export class PhxLogin extends LitElement {
 
   private done(u: User) {
     signedIn(u);
-    navigate(nextPath());
+    const next = nextPath();
+    // Publications are served by the server, not by the app's router.
+    if (next.startsWith("/pub/")) location.assign(next);
+    else navigate(next);
   }
 
   private async run(fn: () => Promise<void>) {

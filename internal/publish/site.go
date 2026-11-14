@@ -39,6 +39,9 @@ type Site struct {
 	Version string
 	// AppURL is the instance (for links back), e.g. https://app.example.org.
 	AppURL string
+	// Member reports whether the request comes from a signed-in user of the
+	// instance (access "members"); nil means nobody is.
+	Member func(r *http.Request) bool
 }
 
 type texts map[string]string
@@ -172,6 +175,16 @@ func (s *Site) Serve(w http.ResponseWriter, r *http.Request, p store.Publication
 	}
 
 	t := textsFor(uiLocale(r))
+	if p.Access == "members" && (s.Member == nil || !s.Member(r)) {
+		// The app's session cookie only exists on the app's own domain.
+		target := base + rel
+		if !strings.HasPrefix(base, "/pub/") {
+			target = "/pub/" + p.Slug + rel
+		}
+		h.Set("Cache-Control", "private, no-store")
+		http.Redirect(w, r, strings.TrimRight(s.AppURL, "/")+"/login?next="+url.QueryEscape(target), http.StatusFound)
+		return
+	}
 	if p.Access == "password" && !s.unlocked(r, p) {
 		if rel == "/_login" && r.Method == http.MethodPost {
 			if s.Core.VerifyPassword != nil && s.Core.VerifyPassword(p.PasswordHash, r.FormValue("password")) {
@@ -185,7 +198,7 @@ func (s *Site) Serve(w http.ResponseWriter, r *http.Request, p store.Publication
 		s.render(w, r, http.StatusUnauthorized, &page{T: t, Base: base, Pub: p, Title: t["password_title"], Login: true})
 		return
 	}
-	if p.Access == "password" {
+	if p.Access != "public" {
 		h.Set("Cache-Control", "private, no-store")
 		h.Set("X-Robots-Tag", "noindex")
 	}
@@ -199,6 +212,10 @@ func (s *Site) Serve(w http.ResponseWriter, r *http.Request, p store.Publication
 	switch {
 	case rel == "/sitemap.xml":
 		s.sitemap(w, r, p, base, site)
+	case rel == "/llms.txt":
+		s.llms(w, r, p, base, site)
+	case len(parts) == 2 && strings.HasSuffix(parts[1], ".md"):
+		s.markdown(w, r, site, parts[0], strings.TrimSuffix(parts[1], ".md"))
 	case rel == "/search":
 		s.search(w, r, p, base, site, t)
 	case parts[0] == "_files" && len(parts) >= 2:
@@ -569,6 +586,57 @@ type urlset struct {
 		Loc     string `xml:"loc"`
 		LastMod string `xml:"lastmod,omitempty"`
 	} `xml:"url"`
+}
+
+// llms.txt (llmstxt.org): an index for AI readers with links to the
+// Markdown of every page.
+func (s *Site) llms(w http.ResponseWriter, r *http.Request, p store.Publication, base string, site []core.PubProject) {
+	var b strings.Builder
+	fmt.Fprintf(&b, "# %s\n\n", p.Title)
+	if p.Description != "" {
+		fmt.Fprintf(&b, "> %s\n\n", strings.ReplaceAll(p.Description, "\n", " "))
+	}
+	for _, pp := range site {
+		fmt.Fprintf(&b, "## %s\n\n", pp.Project.Name)
+		for _, d := range pp.Docs {
+			fmt.Fprintf(&b, "- [%s](%s)\n", strings.ReplaceAll(d.Title, "]", ")"), s.absolute(r, base+"/"+pp.Project.Slug+"/"+d.Slug+".md"))
+		}
+		b.WriteString("\n")
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = io.WriteString(w, b.String())
+}
+
+// markdown serves the source of a page for AI readers (…/<project>/<page>.md).
+func (s *Site) markdown(w http.ResponseWriter, r *http.Request, site []core.PubProject, projectSlug, docSlug string) {
+	_, d, err := s.Core.PubDocument(r.Context(), site, projectSlug, docSlug, r.URL.Query().Get("lang"))
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	c := map[string]any{}
+	_ = json.Unmarshal(d.Content, &c)
+	str := func(k string) string { v, _ := c[k].(string); return v }
+	var b strings.Builder
+	switch d.Type {
+	case store.DocADR:
+		fmt.Fprintf(&b, "# %s\n\n%s · %s\n\n", d.Title, core.DecisionRef(d.Number), str("status"))
+		for _, k := range []string{"context", "decision", "consequences", "alternatives"} {
+			if v := str(k); v != "" {
+				fmt.Fprintf(&b, "## %s\n\n%s\n\n", strings.ToUpper(k[:1])+k[1:], v)
+			}
+		}
+	case store.DocMarkdown:
+		md := str("markdown")
+		if !strings.HasPrefix(strings.TrimSpace(md), "# ") {
+			fmt.Fprintf(&b, "# %s\n\n", d.Title)
+		}
+		b.WriteString(md)
+	default:
+		fmt.Fprintf(&b, "# %s\n\n%s\n", d.Title, str("description"))
+	}
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	_, _ = io.WriteString(w, b.String())
 }
 
 func (s *Site) sitemap(w http.ResponseWriter, r *http.Request, p store.Publication, base string, site []core.PubProject) {

@@ -1162,7 +1162,7 @@ export const de = {
   "pub.empty": "Noch keine Veröffentlichungen.",
   "pub.no_projects": "Du besitzt noch kein Projekt, das du veröffentlichen könntest.",
   "validation.pub_projects": "Eine Veröffentlichung umfasst 1 bis 50 Projekte.",
-  "validation.pub_access": "Zugriff ist öffentlich oder mit Passwort.",
+  "validation.pub_access": "Zugriff ist öffentlich, mit Passwort oder nur für angemeldete Nutzer.",
   "validation.pub_domain": "„{domain}“ ist keine nutzbare Domain.",
   "validation.pub_css": "Eigenes CSS darf kein „<“ enthalten und höchstens 20 000 Zeichen haben.",
   "validation.pub_password": "Für eine geschützte Veröffentlichung braucht es ein Passwort.",
@@ -1335,4 +1335,6 @@ export const de = {
   "projects.template_empty": "Leer",
   "projects.template_empty_desc": "Ohne Startinhalte.",
   "validation.template": "Diese Vorlage gibt es nicht ({template}).",
+  "pub.access_members": "Nur angemeldete Nutzer",
+  "pub.llms": "Für KI-Leser:",
 } as const;

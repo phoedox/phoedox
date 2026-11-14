@@ -1164,7 +1164,7 @@ export const en: Record<keyof typeof de, string> = {
   "pub.empty": "No publications yet.",
   "pub.no_projects": "You do not own a project to publish yet.",
   "validation.pub_projects": "A publication has 1 to 50 projects.",
-  "validation.pub_access": "Access is public or with a password.",
+  "validation.pub_access": "Access is public, with a password or for signed-in users only.",
   "validation.pub_domain": "“{domain}” is not a usable domain.",
   "validation.pub_css": "Custom CSS must not contain “<” and is limited to 20 000 characters.",
   "validation.pub_password": "A protected publication needs a password.",
@@ -1337,4 +1337,6 @@ export const en: Record<keyof typeof de, string> = {
   "projects.template_empty": "Empty",
   "projects.template_empty_desc": "No starting content.",
   "validation.template": "This template does not exist ({template}).",
+  "pub.access_members": "Signed-in users only",
+  "pub.llms": "For AI readers:",
 };
