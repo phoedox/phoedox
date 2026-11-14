@@ -2145,4 +2145,8 @@ export const en: Record<keyof typeof de, string> = {
   "login.homeassistant": "Sign in with Home Assistant",
   "validation.ha_login_failed": "Signing in with Home Assistant did not work. Please try again.",
   "validation.ha_no_account": "No account is linked to this Home Assistant user yet. Ask an administrator for an invitation.",
+  "agentjob.ha.turn_on": "Switch on",
+  "agentjob.ha.turn_off": "Switch off",
+  "agentjob.ha.toggle": "Toggle",
+  "agentjob.ha.call": "Switch in Home Assistant",
 };

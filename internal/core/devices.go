@@ -99,8 +99,12 @@ func attrString(e store.Entity, name string) string {
 
 // deviceTools lists the control tools of the project's plugins that act on an entry.
 func (s *Service) deviceTools(ctx context.Context, p store.Project, e store.Entity) []DeviceTool {
-	aps, _ := s.activePlugins(ctx, p.ID)
 	out := []DeviceTool{}
+	if attrString(e, "bridge_agent") != "" {
+		// Bridged by an agent: switched only with signed agent jobs (ADR-0053).
+		return out
+	}
+	aps, _ := s.activePlugins(ctx, p.ID)
 	for _, ap := range aps {
 		for _, t := range ap.pkg.Manifest.Contributes.MCPTools {
 			if !t.Control || t.Target == nil {

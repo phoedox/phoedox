@@ -8,11 +8,13 @@ import { base } from "./shared";
 import { toast } from "./toasts";
 import "./web-terminal";
 
-interface Action { action: string; args?: string[]; agent?: string; hostname?: string }
+interface Action { id?: string; action: string; args?: string[]; agent?: string; hostname?: string }
+
+const actId = (a: Action) => a.id ?? a.action;
 interface Job { id: string; action: string; payload: string; status: string; ok: boolean; output?: string; createdAt: string; finishedAt: string; createdBy?: string }
 interface Actions { agentId?: string; hostname?: string; actions: Action[]; jobs: Job[] }
 
-const ICONS: Record<string, string> = { "container.restart": "RefreshCw", "container.update": "Download", "stack.redeploy": "Rocket", "system.update": "Download", "agent.update": "CircleArrowUp", wol: "Power", speedtest: "Gauge", terminal: "SquareTerminal" };
+const ICONS: Record<string, string> = { "container.restart": "RefreshCw", "container.update": "Download", "stack.redeploy": "Rocket", "system.update": "Download", "agent.update": "CircleArrowUp", wol: "Power", speedtest: "Gauge", terminal: "SquareTerminal", "ha.turn_on": "Zap", "ha.turn_off": "Power", "ha.toggle": "Repeat", "ha.call": "Power" };
 
 /** Agent actions of an entry: signed in this browser, run by the agent (ADR-0036). */
 export class PhxAgentActions extends LitElement {
@@ -64,10 +66,10 @@ export class PhxAgentActions extends LitElement {
 
   private async run(act: Action) {
     const host = act.hostname ?? this.a?.hostname ?? "";
-    if (!confirm(t(act.action === "terminal" ? "agentjob.confirm_terminal" : "agentjob.confirm", { action: t(`agentjob.${act.action}` as any), host }))) return;
-    this.busy = act.action;
+    if (!confirm(t(act.action === "terminal" ? "agentjob.confirm_terminal" : "agentjob.confirm", { action: t(`agentjob.${actId(act)}` as any), host }))) return;
+    this.busy = actId(act);
     try {
-      const job = await api<Job>("POST", `/projects/${this.project}/entities/${this.entity}/agent-jobs`, { action: act.action });
+      const job = await api<Job>("POST", `/projects/${this.project}/entities/${this.entity}/agent-jobs`, { action: actId(act) });
       const signed = await signPayload(job.payload);
       if (!signed) {
         toast(t("agentjob.no_key"), "error");
@@ -102,7 +104,7 @@ export class PhxAgentActions extends LitElement {
       ${this.terminal ? html`<phx-web-terminal .project=${this.project} .job=${this.terminal} .host=${a.hostname ?? ""} @closed=${() => void this.load()}></phx-web-terminal>
         <button class="ghost" @click=${() => (this.terminal = "")}>${t("term.hide")}</button>` : ""}
       ${canRun ? html`<div class="acts">${offered.map((x) => html`<button class="ghost" ?disabled=${!!this.busy} @click=${() => this.run(x)}>
-        ${icon(ICONS[x.action] ?? "Play", 14)} ${t(`agentjob.${x.action}` as any)}${x.action === "agent.update" ? ` (${x.args?.[0]?.split("/")[5] ?? ""})` : ""}${x.action === "wol" && x.hostname ? ` (${t("agentjob.via", { host: x.hostname })})` : ""}</button>`)}</div>
+        ${icon(ICONS[actId(x)] ?? "Play", 14)} ${t(`agentjob.${actId(x)}` as any)}${x.action === "agent.update" ? ` (${x.args?.[0]?.split("/")[5] ?? ""})` : ""}${(x.action === "wol" || x.action === "ha.call") && x.hostname ? ` (${t("agentjob.via", { host: x.hostname })})` : ""}</button>`)}</div>
         <p class="hint">${t("agentjob.hint")} <a href="/settings/security">${t("agentjob.keys")}</a></p>` : ""}
       ${a.jobs.length ? html`<table>${a.jobs.map((j) => html`<tr>
         <td>${t(`agentjob.${j.action}` as any)}</td><td>${formatDate(j.createdAt)}</td><td>${this.status(j)}</td>

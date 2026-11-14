@@ -2143,4 +2143,8 @@ export const de = {
   "login.homeassistant": "Mit Home Assistant anmelden",
   "validation.ha_login_failed": "Die Anmeldung mit Home Assistant hat nicht geklappt. Bitte versuche es noch einmal.",
   "validation.ha_no_account": "Mit diesem Home-Assistant-Benutzer ist noch kein Konto verknüpft. Bitte eine Administratorin oder einen Administrator um eine Einladung.",
+  "agentjob.ha.turn_on": "Einschalten",
+  "agentjob.ha.turn_off": "Ausschalten",
+  "agentjob.ha.toggle": "Umschalten",
+  "agentjob.ha.call": "Home Assistant schalten",
 } as const;

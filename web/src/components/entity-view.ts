@@ -301,7 +301,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
       ${e.kind === "rack" ? html`<phx-rack-view .project=${this.project} .rack=${e} .edges=${edges} .model=${this.model} ?canEdit=${edit} @changed=${() => this.load()}></phx-rack-view>` : ""}
       <phx-device-panel .project=${this.project} .entity=${e.slug}></phx-device-panel>
       <phx-readings .project=${this.project} .entity=${e.slug}></phx-readings>
-      ${["container", "stack", "server", "vm", "lxc"].includes(e.kind) || e.attrs?.mac ? html`<phx-agent-actions .project=${this.project} .entity=${e.slug}></phx-agent-actions>` : ""}
+      ${["container", "stack", "server", "vm", "lxc"].includes(e.kind) || e.attrs?.mac || e.attrs?.bridge_agent ? html`<phx-agent-actions .project=${this.project} .entity=${e.slug}></phx-agent-actions>` : ""}
       ${e.kind === "room" || e.kind === "floor" || edges.some((x) => x.from === e.id && ["uplink", "wired_to", "runs_on"].includes(x.rel))
         ? html`<phx-diagnosis .project=${this.project} .entity=${e.slug}></phx-diagnosis>` : ""}
       <div class="cols">

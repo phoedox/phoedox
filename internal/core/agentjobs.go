@@ -81,10 +81,16 @@ func (s *Service) DeleteSigningKey(ctx context.Context, a Actor, id string) erro
 	return nil
 }
 
+// haSwitchRe matches Home Assistant entities the agent may switch.
+var haSwitchRe = regexp.MustCompile(`^(switch|light|fan|input_boolean)\.[a-z0-9_]+$`)
+
 var macRe = regexp.MustCompile(`^[0-9A-Fa-f]{2}([:-]?[0-9A-Fa-f]{2}){5}$`)
 
 // AgentAction is something an agent can do for an entry.
 type AgentAction struct {
+	// ID tells offers of the same action apart (ha.turn_on, ha.turn_off …);
+	// empty means Action.
+	ID     string   `json:"id,omitempty"`
 	Action string   `json:"action"`
 	Args   []string `json:"args,omitempty"`
 	// Agent runs the action when it is not the entry's own agent (Wake-on-LAN
@@ -137,6 +143,15 @@ func (s *Service) EntityAgentActions(ctx context.Context, a Actor, ref, slug str
 			out.Actions = append(out.Actions, AgentAction{Action: "wol", Args: []string{mac}, Agent: agents[w].ID, Hostname: agents[w].Hostname})
 		}
 	}
+	// Home Assistant devices bridged by an agent in the home network: the
+	// agent switches them (ADR-0053).
+	if id, agent := str("ha_entity"), str("bridge_agent"); haSwitchRe.MatchString(id) && agent != "" {
+		if w := slices.IndexFunc(agents, func(ag store.Agent) bool { return ag.ID == agent && ag.RevokedAt.IsZero() }); w >= 0 {
+			for _, svc := range []string{"turn_on", "turn_off", "toggle"} {
+				out.Actions = append(out.Actions, AgentAction{ID: "ha." + svc, Action: "ha.call", Args: []string{id, svc}, Agent: agents[w].ID, Hostname: agents[w].Hostname})
+			}
+		}
+	}
 	if i < 0 {
 		if out.Jobs, err = s.DB.EntityJobs(ctx, p.ID, e.Slug, 10); err != nil {
 			return out, err
@@ -183,7 +198,7 @@ func (s *Service) CreateAgentJob(ctx context.Context, a Actor, ref, slug, action
 	if err != nil {
 		return store.AgentJob{}, err
 	}
-	i := slices.IndexFunc(acts.Actions, func(x AgentAction) bool { return x.Action == action })
+	i := slices.IndexFunc(acts.Actions, func(x AgentAction) bool { return x.ID == action || (x.ID == "" && x.Action == action) })
 	if i < 0 {
 		return store.AgentJob{}, invalid("validation.agent_action", map[string]any{"action": action}, "action %q is not available for this entry", action)
 	}
@@ -196,6 +211,7 @@ func (s *Service) CreateAgentJob(ctx context.Context, a Actor, ref, slug, action
 	if action == "terminal" && p.Role != store.RoleOwner {
 		return store.AgentJob{}, ErrForbidden // a shell on the host: owners only
 	}
+	action = act.Action
 	job := Job{ID: newID(), Agent: agent, Action: action, Args: act.Args, Expires: now.Add(jobTTL)}
 	if action == "terminal" {
 		job.Args = []string{job.ID} // the session id is the job id

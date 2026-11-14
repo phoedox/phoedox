@@ -6,6 +6,8 @@ import (
 	"encoding/base32"
 	"encoding/json"
 	"errors"
+	"log/slog"
+	"math"
 	"strings"
 	"time"
 
@@ -101,6 +103,24 @@ type Report struct {
 	PkgFormat string            `json:"packageFormat,omitempty"`
 	Version   string            `json:"agentVersion,omitempty"`
 	TakenAt   time.Time         `json:"takenAt,omitzero"`
+	// HomeAssistant is what the agent read from a Home Assistant in its
+	// network (ADR-0053); the Home Assistant plugin turns it into entries.
+	HomeAssistant *HAReport `json:"homeassistant,omitempty"`
+}
+
+// HAReport is Home Assistant data an agent bridges: the device registry
+// (the plugin's template result) and current states.
+type HAReport struct {
+	Devices json.RawMessage `json:"devices,omitempty"`
+	States  []HAState       `json:"states,omitempty"`
+	Error   string          `json:"error,omitempty"`
+}
+
+// HAState is the state of one Home Assistant entity.
+type HAState struct {
+	EntityID string `json:"entity_id"`
+	State    string `json:"state"`
+	Unit     string `json:"unit,omitempty"`
 }
 
 // Container is a Docker container of a report.
@@ -166,6 +186,11 @@ func (s *Service) AgentReport(ctx context.Context, token string, r Report) error
 		return err
 	}
 	s.softwareTree(ctx, a, ag.ProjectID, host, r)
+	s.hostReadings(ctx, ag.ProjectID, host, r)
+	if r.HomeAssistant != nil {
+		s.bridgeHomeAssistant(ctx, a, ag, r.HomeAssistant)
+		r.HomeAssistant.States = nil // the history keeps them; the report stays small
+	}
 	raw, _ := json.Marshal(r)
 	return s.DB.SaveAgentReport(ctx, ag.ID, r.Hostname, host, r.Version, raw)
 }
@@ -353,4 +378,58 @@ func imageTag(image string) string {
 		return image[i+1:]
 	}
 	return ""
+}
+
+// hostReadings records memory and disk usage of a host as readings.
+func (s *Service) hostReadings(ctx context.Context, projectID, host string, r Report) {
+	p, err := s.DB.ProjectFor(ctx, projectID, "")
+	if err != nil {
+		return
+	}
+	var in []ReadingInput
+	if r.MemTotal > 0 {
+		in = append(in, ReadingInput{Entity: host, Metric: "memory_used", Value: math.Round(float64(r.MemTotal-min(r.MemAvail, r.MemTotal))*1000/float64(r.MemTotal)) / 10, Unit: "%"})
+	}
+	for _, raw := range r.Disks {
+		var d struct {
+			Mount string `json:"mount"`
+			Total uint64 `json:"totalBytes"`
+			Free  uint64 `json:"freeBytes"`
+		}
+		if json.Unmarshal(raw, &d) != nil || d.Total == 0 || len(in) >= 20 {
+			continue
+		}
+		in = append(in, ReadingInput{Entity: host, Metric: "disk_used:" + d.Mount, Value: math.Round(float64(d.Total-min(d.Free, d.Total))*1000/float64(d.Total)) / 10, Unit: "%"})
+	}
+	if len(in) > 0 {
+		if _, err := s.recordReadings(ctx, p, in, func(string) bool { return true }); err != nil {
+			slog.Debug("host readings", "err", err)
+		}
+	}
+}
+
+// bridgeHomeAssistant hands Home Assistant data from an agent to the
+// project's plugins that subscribe to agent.homeassistant.
+func (s *Service) bridgeHomeAssistant(ctx context.Context, a Actor, ag store.Agent, h *HAReport) {
+	if !s.pluginsOn() || (len(h.Devices) == 0 && len(h.States) == 0) {
+		return
+	}
+	if len(h.States) > 5000 {
+		h.States = h.States[:5000]
+	}
+	list, err := s.activePlugins(ctx, ag.ProjectID)
+	if err != nil {
+		return
+	}
+	p, err := s.DB.ProjectFor(ctx, ag.ProjectID, "")
+	if err != nil {
+		return
+	}
+	data, _ := json.Marshal(map[string]any{"agent": ag.ID, "hostname": ag.Hostname, "devices": h.Devices, "states": h.States})
+	for _, ap := range list {
+		if ap.pkg.Manifest.Backend == nil || !ap.pkg.Manifest.Subscribes("agent.homeassistant") {
+			continue
+		}
+		s.queuePluginEvent(ctx, pluginJob{Project: p.ID, Plugin: ap.row.ID, Event: PluginEvent{Type: "agent.homeassistant", Project: p.Slug, Subject: ag.ID, Actor: a.String(), Data: data, At: time.Now().UTC()}})
+	}
 }
