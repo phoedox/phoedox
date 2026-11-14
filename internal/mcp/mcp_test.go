@@ -103,8 +103,24 @@ func TestMCPTools(t *testing.T) {
 	call("upsert_entity", map[string]any{"project": "phoedox", "kind": "service", "name": "Go-Server", "attrs": map[string]any{"lang": "go"}})
 	call("create_link", map[string]any{"project": "phoedox", "title": "Riverpod", "url": "https://riverpod.dev"})
 	ov := call("get_project", map[string]any{"project": "phoedox"})
-	if !strings.Contains(ov, `"Entscheidungen"`) || !strings.Contains(ov, `"Technik"`) || !strings.Contains(ov, `"service": 1`) {
+	if !strings.Contains(ov, `"Decisions"`) || !strings.Contains(ov, `"Technik"`) || !strings.Contains(ov, `"service": 1`) {
 		t.Fatalf("overview: %s", ov)
+	}
+	// links and boards can be changed through MCP
+	if l := call("update_document", map[string]any{"project": "phoedox", "document": "riverpod", "description": "State management"}); !strings.Contains(l, "State management") || !strings.Contains(l, "riverpod.dev") {
+		t.Fatalf("update link: %s", l)
+	}
+	call("create_board", map[string]any{"project": "phoedox", "title": "Plan"})
+	call("create_task", map[string]any{"project": "phoedox", "board": "plan", "title": "Erste Karte"})
+	if _, err := session.CallTool(ctx, &sdk.CallToolParams{Name: "update_board", Arguments: map[string]any{"project": "phoedox", "board": "plan",
+		"columns": []map[string]any{{"id": "doing", "name": "Doing"}, {"id": "done", "name": "Done", "done": true}}}}); err != nil {
+		t.Fatal(err)
+	} else if b := call("get_document", map[string]any{"project": "phoedox", "document": "plan"}); strings.Contains(b, "Doing") {
+		t.Fatalf("removed a column with tasks: %s", b)
+	}
+	if b := call("update_board", map[string]any{"project": "phoedox", "board": "plan", "title": "Roadmap", "description": "Next steps",
+		"columns": []map[string]any{{"id": "backlog", "name": "Backlog"}, {"id": "todo", "name": "To do"}, {"id": "doing", "name": "In progress"}, {"id": "done", "name": "Done", "done": true}}}); !strings.Contains(b, "Backlog") || !strings.Contains(b, "Roadmap") {
+		t.Fatalf("update board: %s", b)
 	}
 	if s := call("search", map[string]any{"query": "stabile go"}); !strings.Contains(s, "go-version") {
 		t.Fatalf("search: %s", s)

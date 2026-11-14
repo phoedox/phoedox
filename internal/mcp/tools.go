@@ -3,6 +3,9 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"slices"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -158,7 +161,19 @@ type updateDocIn struct {
 	Category      *string `json:"category,omitempty"`
 	Slug          *string `json:"slug,omitempty"`
 	Position      *int    `json:"position,omitempty"`
+	URL           *string `json:"url,omitempty" jsonschema:"links only: the new address"`
+	Description   *string `json:"description,omitempty" jsonschema:"links only: the new description"`
 	ExpectVersion int     `json:"expect_version,omitempty" jsonschema:"fail if the document changed since this version"`
+}
+
+type updateBoardIn struct {
+	Project       string             `json:"project" jsonschema:"project slug"`
+	Board         string             `json:"board" jsonschema:"board slug or id"`
+	Title         *string            `json:"title,omitempty"`
+	Category      *string            `json:"category,omitempty"`
+	Description   *string            `json:"description,omitempty" jsonschema:"Markdown shown above the board"`
+	Columns       []core.BoardColumn `json:"columns,omitempty" jsonschema:"all columns in order (replaces them); keep the ids of existing columns; a column can only be removed when it has no tasks"`
+	ExpectVersion int                `json:"expect_version,omitempty"`
 }
 
 type decisionFields struct {
@@ -186,7 +201,7 @@ type listDecisionsIn struct {
 type createDecisionIn struct {
 	Project  string `json:"project" jsonschema:"project slug"`
 	Title    string `json:"title"`
-	Category string `json:"category,omitempty" jsonschema:"defaults to Entscheidungen"`
+	Category string `json:"category,omitempty" jsonschema:"defaults to the category of the project's other decisions, else Decisions"`
 	Slug     string `json:"slug,omitempty"`
 	decisionFields
 }
@@ -451,12 +466,63 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "create_document", "Create a Markdown page.", func(ctx context.Context, a core.Actor, in createDocIn) (any, error) {
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocMarkdown, Title: in.Title, Slug: in.Slug, Category: in.Category, Position: in.Position, Markdown: in.Markdown})
 	})
-	tool(s, "update_document", "Update a Markdown page. Only given fields change; markdown replaces the whole content. If the page has an open draft (someone is editing it), the change goes into the draft and is published together with it by a person; the result then contains \"draft\".", func(ctx context.Context, a core.Actor, in updateDocIn) (any, error) {
-		return svc.UpdateDocument(ctx, a, in.Project, in.Document, core.DocumentPatch{Title: in.Title, Markdown: in.Markdown, Category: in.Category, Slug: in.Slug, Position: in.Position, ExpectVersion: in.ExpectVersion})
+	tool(s, "update_document", "Update a Markdown page or a link. Only given fields change; markdown replaces the whole content; url and description apply to links. If the page has an open draft (someone is editing it), the change goes into the draft and is published together with it by a person; the result then contains \"draft\".", func(ctx context.Context, a core.Actor, in updateDocIn) (any, error) {
+		patch := core.DocumentPatch{Title: in.Title, Markdown: in.Markdown, Category: in.Category, Slug: in.Slug, Position: in.Position, ExpectVersion: in.ExpectVersion}
+		if in.URL != nil || in.Description != nil {
+			cur, err := svc.Document(ctx, a, in.Project, in.Document)
+			if err != nil {
+				return nil, err
+			}
+			if cur.Type != store.DocLink {
+				return nil, errors.New("url and description apply to links only")
+			}
+			var link core.Link
+			_ = json.Unmarshal(cur.Content, &link)
+			setIf(&link.URL, in.URL)
+			setIf(&link.Description, in.Description)
+			patch.Link = &link
+		}
+		return svc.UpdateDocument(ctx, a, in.Project, in.Document, patch)
+	})
+	tool(s, "update_board", "Change a board: title, category, description above it, or its columns (rename, reorder, add; remove only empty ones). Only given fields change.", func(ctx context.Context, a core.Actor, in updateBoardIn) (any, error) {
+		cur, err := svc.Document(ctx, a, in.Project, in.Board)
+		if err != nil {
+			return nil, err
+		}
+		if cur.Type != store.DocBoard {
+			return nil, errors.New("this document is not a board")
+		}
+		var b core.Board
+		_ = json.Unmarshal(cur.Content, &b)
+		setIf(&b.Description, in.Description)
+		if len(in.Columns) > 0 {
+			for _, old := range b.Columns {
+				if slices.ContainsFunc(in.Columns, func(c core.BoardColumn) bool { return c.ID == old.ID }) {
+					continue
+				}
+				tasks, err := svc.Tasks(ctx, a, in.Project, cur.ID, old.ID, "", false)
+				if err != nil {
+					return nil, err
+				}
+				if len(tasks) > 0 {
+					return nil, fmt.Errorf("column %q still has %d tasks; move them first", old.Name, len(tasks))
+				}
+			}
+			b.Columns = in.Columns
+		}
+		return svc.UpdateDocument(ctx, a, in.Project, cur.ID, core.DocumentPatch{Title: in.Title, Category: in.Category, Board: &b, ExpectVersion: in.ExpectVersion})
 	})
 	tool(s, "create_decision", "Record a decision (ADR) with context, decision, consequences and alternatives.", func(ctx context.Context, a core.Actor, in createDecisionIn) (any, error) {
 		if in.Category == "" {
-			in.Category = "Entscheidungen"
+			// Where the project keeps its decisions; "Decisions" for the first one.
+			in.Category = "Decisions"
+			if docs, err := svc.Documents(ctx, a, in.Project, store.DocFilter{Type: store.DocADR}); err == nil {
+				for _, d := range docs {
+					if d.Category != "" && d.Number > 0 {
+						in.Category = d.Category
+					}
+				}
+			}
 		}
 		adr := in.adr()
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocADR, Title: in.Title, Slug: in.Slug, Category: in.Category, ADR: &adr})
