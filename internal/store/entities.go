@@ -246,3 +246,34 @@ func (d *DB) Traverse(ctx context.Context, startID, rel, dir string, maxDepth in
 	}
 	return out, rows.Err()
 }
+
+// MergeEntities moves relations, page links and attachments of remove to
+// keep and puts remove in the trash. Relations that would exist twice or
+// point to keep itself are dropped.
+func (d *DB) MergeEntities(ctx context.Context, keep, remove string) error {
+	now := Now()
+	return d.InTx(ctx, func(tx *Tx) error {
+		steps := []struct {
+			q    string
+			args []any
+		}{
+			{`UPDATE edges SET from_id = ? WHERE from_id = ? AND deleted_at IS NULL`, []any{keep, remove}},
+			{`UPDATE edges SET to_id = ? WHERE to_id = ? AND deleted_at IS NULL`, []any{keep, remove}},
+			{`UPDATE edges SET deleted_at = ? WHERE from_id = to_id AND from_id = ? AND deleted_at IS NULL`, []any{now, keep}},
+			// Keep the oldest of edges that now exist twice.
+			{`UPDATE edges SET deleted_at = ? WHERE deleted_at IS NULL AND (from_id = ? OR to_id = ?) AND EXISTS (
+				SELECT 1 FROM edges o WHERE o.deleted_at IS NULL AND o.from_id = edges.from_id AND o.rel = edges.rel AND o.to_id = edges.to_id
+				AND (o.created_at < edges.created_at OR (o.created_at = edges.created_at AND o.id < edges.id)))`, []any{now, keep, keep}},
+			{`DELETE FROM document_links WHERE entity_id = ? AND document_id IN (SELECT document_id FROM document_links WHERE entity_id = ?)`, []any{remove, keep}},
+			{`UPDATE document_links SET entity_id = ? WHERE entity_id = ?`, []any{keep, remove}},
+			{`UPDATE files SET entity_id = ? WHERE entity_id = ?`, []any{keep, remove}},
+			{`UPDATE entities SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL`, []any{now, remove}},
+		}
+		for _, s := range steps {
+			if _, err := tx.Exec(ctx, s.q, s.args...); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}

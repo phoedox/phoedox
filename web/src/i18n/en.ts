@@ -1342,4 +1342,12 @@ export const en: Record<keyof typeof de, string> = {
   "pub.release": "Freeze this state",
   "pub.release_prompt": "Note for this state (optional), e.g. “Version 2.1”:",
   "pub.release_done": "State {number} frozen. It stays available under /v/{number}/.",
+  "dup.title": "Possible duplicates",
+  "dup.confirm": "Merge “{remove}” into “{keep}”? Relations, page links and attachments move over, “{remove}” goes to the trash.",
+  "dup.done": "Merged into {name}.",
+  "dup.keep": "Keep {name}",
+  "dup.reason.mac": "same MAC {value}",
+  "dup.reason.serial": "same serial number {value}",
+  "dup.reason.hostname": "same hostname {value}",
+  "validation.merge_self": "An entry cannot be merged with itself.",
 };

@@ -253,6 +253,8 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/entities/{e}/tree", a.softwareTree)
 			r.Get("/events", a.projectEvents)
 			r.Get("/topology", a.topology)
+			r.Get("/duplicates", a.duplicates)
+			r.Post("/entities-merge", a.mergeEntities)
 			r.Get("/entities/{e}/agent-actions", a.entityAgentActions)
 			r.Post("/entities/{e}/agent-jobs", a.createAgentJob)
 			r.Post("/agent-jobs/{id}/sign", a.signAgentJob)
@@ -776,6 +778,24 @@ func (a *api) traverse(w http.ResponseWriter, r *http.Request) {
 	depth, _ := strconv.Atoi(q.Get("depth"))
 	hops, err := a.core.Traverse(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "e"), q.Get("rel"), q.Get("dir"), depth)
 	respond(w, hops, err)
+}
+
+func (a *api) duplicates(w http.ResponseWriter, r *http.Request) {
+	out, err := a.core.Duplicates(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, out, err)
+}
+
+func (a *api) mergeEntities(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Keep   string `json:"keep"`
+		Remove string `json:"remove"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	e, err := a.core.MergeEntities(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.Keep, in.Remove)
+	respond(w, e, err)
 }
 
 func (a *api) topology(w http.ResponseWriter, r *http.Request) {

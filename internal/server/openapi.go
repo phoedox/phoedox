@@ -229,6 +229,8 @@ var apiDocs = map[string]op{
 	"POST /publications/{id}/releases":                       {Tag: "publications", Summary: "Freeze the current state as the next release (/v/<n>/).", Out: store.PublicationRelease{}},
 	"GET /templates":                                         {Tag: "projects", Summary: "Project templates (?lang=de|en): name, description, icon, tabs.", Out: []core.Template{}},
 	"GET /admin/events":                                      {Tag: "admin", Summary: "Audit log of the instance (?via=web|mcp|token|plugin|agent|cli, user, kind prefix, days, before, limit).", Out: []core.AuditEvent{}},
+	"GET /projects/{p}/duplicates":                           {Tag: "graph", Summary: "Entries that look like the same thing (same MAC, serial number or hostname).", Out: []core.Duplicate{}},
+	"POST /projects/{p}/entities-merge":                      {Tag: "graph", Summary: "Merge entry remove into keep: relations, page links and attachments move over.", Out: store.Entity{}},
 	"GET /projects/{p}/topology":                             {Tag: "graph", Summary: "Network plan: stations connected by uplink, wired_to and runs_on, with status.", Out: core.Topology{}},
 	"GET /projects/{p}/events":                               {Tag: "projects", Summary: "Audit log of a project (owners); same filters as /admin/events.", Out: []core.AuditEvent{}},
 	"GET /projects/{p}/entities/{e}/tree":                    {Tag: "graph", Summary: "Software tree of a host: software, VMs, stacks and containers that are installed on, run on or are part of it.", Out: core.TreeNode{}},

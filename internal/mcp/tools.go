@@ -251,6 +251,12 @@ type unlinkIn struct {
 	To      string `json:"to"`
 }
 
+type mergeIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Keep    string `json:"keep" jsonschema:"entry that stays (slug)"`
+	Remove  string `json:"remove" jsonschema:"entry that is merged into keep and goes to the trash (slug)"`
+}
+
 type agentActionIn struct {
 	Project string `json:"project" jsonschema:"project slug"`
 	Entity  string `json:"entity" jsonschema:"entity slug"`
@@ -527,6 +533,12 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "list_agent_actions", "Agent actions available for an entry (container, stack, server, VM, LXC) and its recent jobs with results.", func(ctx context.Context, a core.Actor, in entityRefIn) (any, error) {
 		return svc.EntityAgentActions(ctx, a, in.Project, in.Entity)
+	})
+	tool(s, "list_duplicates", "Entries that look like the same device (same MAC address, serial number or hostname), e.g. reported by the agent and by Home Assistant.", func(ctx context.Context, a core.Actor, in projectRef) (any, error) {
+		return svc.Duplicates(ctx, a, in.Project)
+	})
+	tool(s, "merge_entities", "Merge entry remove into keep (relations, page links and attachments move over; keep's attributes win). Only in projects where AI writes directly; otherwise ask a person to merge in Phoedox.", func(ctx context.Context, a core.Actor, in mergeIn) (any, error) {
+		return svc.MergeEntities(ctx, a, in.Project, in.Keep, in.Remove)
 	})
 	tool(s, "diagnose", "Check the network path of a device (or of every device in a room) towards the internet along uplink, wired_to and runs_on, with a status per station from agent reports and state attributes. Use it first when someone says something does not work.", func(ctx context.Context, a core.Actor, in entityRefIn) (any, error) {
 		return svc.Diagnose(ctx, a, in.Project, in.Entity)

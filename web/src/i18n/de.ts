@@ -1340,4 +1340,12 @@ export const de = {
   "pub.release": "Stand festhalten",
   "pub.release_prompt": "Notiz zu diesem Stand (optional), z. B. „Version 2.1“:",
   "pub.release_done": "Stand {number} festgehalten. Er bleibt unter /v/{number}/ erreichbar.",
+  "dup.title": "Mögliche Duplikate",
+  "dup.confirm": "„{remove}“ in „{keep}“ zusammenführen? Beziehungen, Seiten-Verweise und Anhänge wandern mit, „{remove}“ kommt in den Papierkorb.",
+  "dup.done": "Zusammengeführt in {name}.",
+  "dup.keep": "{name} behalten",
+  "dup.reason.mac": "gleiche MAC {value}",
+  "dup.reason.serial": "gleiche Seriennummer {value}",
+  "dup.reason.hostname": "gleicher Hostname {value}",
+  "validation.merge_self": "Ein Eintrag kann nicht mit sich selbst zusammengeführt werden.",
 } as const;

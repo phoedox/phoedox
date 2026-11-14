@@ -1,3 +1,4 @@
+import "./duplicates";
 import { LitElement, css, html, svg } from "lit";
 import { ApiError, api, type Edge, type Entity } from "../api";
 import { t } from "../i18n";
@@ -175,7 +176,7 @@ export class PhxGraphView extends LitElement {
     const P = (id: string) => this.pos.get(id)!;
     const { k, x, y } = this.view;
     return html`<div class="enter">
-      ${head}
+      ${head}<phx-duplicates .project=${this.project} @changed=${() => { this.loaded = ""; this.requestUpdate(); }}></phx-duplicates>
       <div class="bar">
         <input type="search" placeholder=${t("graph.search")} aria-label=${t("graph.search")} .value=${this.query}
           @input=${(e: Event) => (this.query = (e.target as HTMLInputElement).value)} @keydown=${(e: KeyboardEvent) => this.onSearchKey(e, matches)}>
