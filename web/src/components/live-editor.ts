@@ -26,6 +26,7 @@ import { prose } from "./doc-view";
 import { base } from "./shared";
 import { fileURL, isImage, uploadFile } from "../files";
 import type { PhxAttachments } from "./attachments";
+import "./review-actions";
 import "./attachments";
 import { toast } from "./toasts";
 
@@ -760,9 +761,12 @@ export class PhxLiveEditor extends LitElement {
         <div class="actions">
           ${dr?.canEnd ? html`<button class="ghost" @click=${() => this.ask("cancel")}>${icon("Undo2", 15)} ${t("draft.cancel")}</button>` : ""}
           <button class="ghost" title=${t("draft.save_hint")} @click=${this.save}>${icon("Save", 15)} ${t("draft.save")}</button>
-          ${dr?.canEnd ? html`<button @click=${() => this.ask("publish")}>${icon("Send", 15)} ${t("draft.publish")}</button>` : ""}
+          <phx-review-actions .project=${this.project} .doc=${this.doc?.id ?? ""} .draft=${dr} @draft-changed=${(e: CustomEvent) => (this.draft = e.detail)}></phx-review-actions>
+          ${dr?.canPublish ?? dr?.canEnd ? html`<button @click=${() => this.ask("publish")}>${icon("Send", 15)} ${dr?.reviewBy ? t("review.approve") : t("draft.publish")}</button>` : ""}
         </div>
       </header>
+      ${dr?.approval && dr.reviewNote && !dr.reviewBy ? html`<div class="banner warn" role="note">${icon("MessageSquareWarning", 16)} <span>${t("review.changes_requested", { note: dr.reviewNote })}</span></div>` : ""}
+      ${dr?.approval && !dr.canPublish && !dr.reviewBy ? html`<div class="banner" role="note">${icon("ShieldCheck", 16)} <span>${t("review.hint")}</span></div>` : ""}
       ${dr?.outdated ? html`<div class="banner warn" role="note">${icon("TriangleAlert", 16)} <span>${t("draft.outdated")}</span></div>` : ""}
       ${this.source ? html`
         <div class="banner" role="note">${icon("FileCode", 16)} <span>${t("draft.source_mode")}</span></div>

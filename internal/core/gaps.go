@@ -30,7 +30,7 @@ type GapReport struct {
 }
 
 // Kinds of findings, in the order they are shown.
-var gapKinds = []string{"failing_check", "broken_mention", "unplaced_device", "undocumented_entry", "incomplete_entry", "empty_page", "stale_page"}
+var gapKinds = []string{"failing_check", "review_due", "broken_mention", "unplaced_device", "undocumented_entry", "incomplete_entry", "empty_page", "stale_page"}
 
 // placeless kinds need no location.
 var placeless = map[string]bool{"room": true, "floor": true, "building": true, "site": true, "person": true, "service": true, "network": true, "vlan": true, "software": true, "contract": true}
@@ -145,6 +145,22 @@ func (s *Service) DocumentationGaps(ctx context.Context, a Actor, ref string, st
 			add(Gap{Kind: "empty_page", Subject: d.Slug, Title: d.Title})
 		} else if d.UpdatedAt.Before(stale) {
 			add(Gap{Kind: "stale_page", Subject: d.Slug, Title: d.Title, Detail: map[string]any{"updatedAt": d.UpdatedAt}})
+		}
+	}
+	// Pages whose review date has passed (any type).
+	if rules, err := s.DB.PageRules(ctx, p.ID); err == nil {
+		now := time.Now()
+		for _, rule := range rules {
+			if rule.ReviewDays <= 0 || !allowed(rule.DocumentID, false) {
+				continue
+			}
+			doc, err := s.DB.GetDocument(ctx, p.ID, rule.DocumentID)
+			if err != nil || !allowed(doc.ID, doc.Restricted) {
+				continue
+			}
+			if due := reviewDue(rule, doc); !due.After(now) {
+				add(Gap{Kind: "review_due", Subject: doc.Slug, Title: doc.Title, Detail: map[string]any{"due": due.Format(time.DateOnly)}})
+			}
 		}
 	}
 	if checks, err := s.DB.ProjectChecks(ctx, p.ID); err == nil {

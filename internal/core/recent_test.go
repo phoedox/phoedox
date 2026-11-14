@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/phoedox/phoedox/internal/store"
 )
@@ -21,6 +22,7 @@ func TestRecentAndShortcuts(t *testing.T) {
 		if err := s.RecordView(ctx, reader, p.Slug, "document", ref); err != nil {
 			t.Fatal(err)
 		}
+		time.Sleep(2 * time.Millisecond) // views are stored in milliseconds
 	}
 	if err := s.RecordView(ctx, reader, p.Slug, "entity", e.Entity.Slug); err != nil {
 		t.Fatal(err)

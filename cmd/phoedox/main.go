@@ -101,6 +101,8 @@ func main() {
 					a.Core.SendDigests(store.System(ctx), time.Now())
 					a.Core.RunGitSyncs(store.System(ctx), time.Now())
 					a.Core.SendSummaries(ctx, time.Now())
+					a.Core.RunMaintenance(ctx, time.Now())
+					a.Core.RemindReviews(ctx, time.Now())
 					a.Core.PurgeSecretLinks(ctx, time.Now())
 				}
 			}

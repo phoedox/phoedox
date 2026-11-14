@@ -437,6 +437,14 @@ func (s *Service) updateDocument(ctx context.Context, a Actor, p store.Project, 
 	if res, ok, err := s.draftWrite(ctx, a, p, cur, patch); ok || err != nil {
 		return res, err
 	}
+	// Approval projects: editors' changes go into a draft for review (ADR-0042).
+	if hasDrafts(cur.Type) && (patch.Markdown != nil || patch.Floorplan != nil || patch.Title != nil || patch.Category != nil) && s.needsApproval(ctx, p) {
+		if err := s.openDraft(ctx, a, cur); err != nil {
+			return DocResult{}, err
+		}
+		res, _, err := s.draftWrite(ctx, a, p, cur, patch)
+		return res, err
+	}
 	return s.publishPatch(ctx, a, p, cur, patch)
 }
 

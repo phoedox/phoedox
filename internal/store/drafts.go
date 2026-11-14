@@ -22,7 +22,11 @@ type Draft struct {
 	UpdatedBy    string   `json:"-"`
 	UpdatedAt    Time     `json:"updatedAt"`
 	RemindedAt   Time     `json:"-"`
-	TenantID     string   `json:"-"` // filled by DueDrafts
+	// ReviewBy is the actor who asked for approval (approval workflow).
+	ReviewBy   string `json:"-"`
+	ReviewAt   Time   `json:"reviewAt"`
+	ReviewNote string `json:"reviewNote,omitempty"`
+	TenantID   string `json:"-"` // filled by DueDrafts
 }
 
 // AddParticipant records an actor (once).
@@ -32,12 +36,12 @@ func (d *Draft) AddParticipant(actor string) {
 	}
 }
 
-const draftCols = `document_id, base_version, title, category, markdown, participants, started_by, started_at, updated_by, updated_at, reminded_at`
+const draftCols = `document_id, base_version, title, category, markdown, participants, started_by, started_at, updated_by, updated_at, reminded_at, review_by, review_at, review_note`
 
 func scanDraft(r interface{ Scan(...any) error }, extra ...any) (Draft, error) {
 	var d Draft
 	var parts string
-	err := r.Scan(append([]any{&d.DocumentID, &d.BaseVersion, &d.Title, &d.Category, &d.Markdown, &parts, &d.StartedBy, &d.StartedAt, &d.UpdatedBy, &d.UpdatedAt, &d.RemindedAt}, extra...)...)
+	err := r.Scan(append([]any{&d.DocumentID, &d.BaseVersion, &d.Title, &d.Category, &d.Markdown, &parts, &d.StartedBy, &d.StartedAt, &d.UpdatedBy, &d.UpdatedAt, &d.RemindedAt, &d.ReviewBy, &d.ReviewAt, &d.ReviewNote}, extra...)...)
 	if errors.Is(err, sql.ErrNoRows) {
 		return d, ErrNotFound
 	}
@@ -54,12 +58,13 @@ func (d *DB) GetDraft(ctx context.Context, documentID string) (Draft, error) {
 
 // SaveDraft creates or updates a draft.
 func (d *DB) SaveDraft(ctx context.Context, x Draft) error {
-	_, err := d.Exec(ctx, `INSERT INTO drafts (document_id, tenant_id, base_version, title, category, markdown, participants, started_by, started_at, updated_by, updated_at, reminded_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := d.Exec(ctx, `INSERT INTO drafts (document_id, tenant_id, base_version, title, category, markdown, participants, started_by, started_at, updated_by, updated_at, reminded_at, review_by, review_at, review_note)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (document_id) DO UPDATE SET title = excluded.title, category = excluded.category, markdown = excluded.markdown,
-		  participants = excluded.participants, updated_by = excluded.updated_by, updated_at = excluded.updated_at, reminded_at = excluded.reminded_at`,
+		  participants = excluded.participants, updated_by = excluded.updated_by, updated_at = excluded.updated_at, reminded_at = excluded.reminded_at,
+		  review_by = excluded.review_by, review_at = excluded.review_at, review_note = excluded.review_note`,
 		x.DocumentID, TenantOf(ctx), x.BaseVersion, x.Title, x.Category, x.Markdown, strings.Join(x.Participants, ","), x.StartedBy, x.StartedAt,
-		x.UpdatedBy, x.UpdatedAt, x.RemindedAt)
+		x.UpdatedBy, x.UpdatedAt, x.RemindedAt, x.ReviewBy, x.ReviewAt, x.ReviewNote)
 	return err
 }
 

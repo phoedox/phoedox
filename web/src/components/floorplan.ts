@@ -1154,7 +1154,8 @@ export class PhxFloorplan extends LitElement {
           ${this.error ? html`<span class="error" role="alert">${this.error}</span>` : ""}
           <button class="ghost" ?disabled=${this.busy} @click=${() => this.close()} title=${t("plan.leave_hint")}>${t("plan.leave")}</button>
           ${this.draft?.canEnd !== false ? html`<button class="ghost danger" ?disabled=${this.busy} @click=${this.discard}>${t("plan.discard_button")}</button>
-          <button ?disabled=${this.busy} @click=${this.publish}>${icon("Check", 14)} ${t("plan.publish")}</button>` : ""}`
+          <phx-review-actions .project=${this.project} .doc=${this.doc?.id ?? ""} .draft=${this.draft} @draft-changed=${(e: CustomEvent) => (this.draft = e.detail)}></phx-review-actions>
+          ${this.draft?.canPublish ?? true ? html`<button ?disabled=${this.busy} @click=${this.publish}>${icon("Check", 14)} ${this.draft?.reviewBy ? t("review.approve") : t("plan.publish")}</button>` : ""}` : ""}`
         : html`<div class="tools" role="group" aria-label=${t("plan3d.view")}>
             <button aria-pressed=${this.view3d ? "false" : "true"} @click=${() => this.show3d(false)}>${icon("LandPlot", 15)} 2D</button>
             <button aria-pressed=${this.view3d ? "true" : "false"} ?disabled=${this.busy} @click=${() => this.show3d(true)}>${icon("Box", 15)} 3D</button></div>

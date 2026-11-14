@@ -23,7 +23,7 @@ type EnvVar = { name: string; value?: string; secret: boolean; vaultRef?: string
 export class PhxProjectSettings extends LitElement {
   static properties = {
     project: {}, p: { state: true }, members: { state: true }, env: { state: true }, storage: { state: true }, error: { state: true },
-    groups: { state: true }, orgGroups: { state: true }, orgs: { state: true }, links: { state: true }, newLink: { state: true }, mainDraft: { state: true },
+    groups: { state: true }, orgGroups: { state: true }, orgs: { state: true }, links: { state: true }, newLink: { state: true }, mainDraft: { state: true }, approval: { state: true },
   };
   static styles = [base, storageStyles, css`
     form { display: grid; gap: 12px; max-width: 560px; margin-bottom: 28px; }
@@ -52,13 +52,26 @@ export class PhxProjectSettings extends LitElement {
   links: ShareLink[] = [];
   /** A link just created: its token is shown once. */
   newLink?: ShareLink;
+  /** Page changes need an owner's approval (ADR-0042). */
+  approval = false;
 
   async connectedCallback() {
     super.connectedCallback();
     this.p = await api<Project>("GET", `/projects/${this.project}`).catch(() => undefined);
     await this.loadEnv();
+    this.approval = (await api<{ enabled: boolean }>("GET", `/projects/${this.project}/approval`).catch(() => undefined))?.enabled ?? false;
     this.storage = await api<Storage>("GET", `/projects/${this.project}/storage`).catch(() => undefined);
     await this.loadAccess();
+  }
+
+  private async setApproval(on: boolean) {
+    try {
+      await api("PUT", `/projects/${this.project}/approval`, { enabled: on });
+      this.approval = on;
+      toast(t("admin.saved"), "ok");
+    } catch (e) {
+      toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
+    }
   }
 
   private async loadAccess() {
@@ -304,6 +317,9 @@ export class PhxProjectSettings extends LitElement {
         </fieldset>
         ${owner ? html`<div><button type="submit">${t("doc.save")}</button></div>` : ""}
       </form>
+      ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("approval.title")}</h2>
+        <div class="checks"><label><input type="checkbox" .checked=${this.approval} @change=${(e: Event) => this.setApproval((e.target as HTMLInputElement).checked)}> ${t("approval.enable")}</label></div>
+        <p class="muted">${t("approval.hint")}</p>` : ""}
       ${this.accessSection(owner, canEdit)}
       ${this.envSection(owner, canEdit)}
       <h2 style="font-size:18px;margin:28px 0 6px">${t("check.title")}</h2>

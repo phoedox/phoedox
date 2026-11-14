@@ -123,6 +123,12 @@ export interface DraftInfo {
   outdated: boolean;
   /** The caller may publish or cancel. */
   canEnd: boolean;
+  /** Approval workflow (ADR-0042): editors request a review, owners publish. */
+  approval?: boolean;
+  canPublish?: boolean;
+  reviewBy?: DraftParticipant;
+  reviewAt?: string | null;
+  reviewNote?: string;
 }
 export type DecisionStatus = "proposed" | "accepted" | "rejected" | "deprecated" | "superseded";
 export const decisionStatuses: readonly DecisionStatus[] = ["proposed", "accepted", "rejected", "deprecated", "superseded"];

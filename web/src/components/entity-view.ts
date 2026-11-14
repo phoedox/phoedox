@@ -10,6 +10,7 @@ import { pluginViews } from "../plugin-host";
 import { unsafeStatic, html as shtml } from "lit/static-html.js";
 import { base } from "./shared";
 import "./attachments";
+import "./maintenance";
 import "./diagnosis";
 import "./software-tree";
 import "./agent-actions";
@@ -309,6 +310,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
           ${this.vulns(e.attrs ?? {})}
           ${["server", "vm", "lxc", "stack"].includes(e.kind) ? html`<phx-software-tree style="margin-top:12px" .project=${this.project} .entity=${e.slug}></phx-software-tree>` : ""}
           <phx-attachments style="margin-top:12px" .project=${this.project} .entity=${e.id} .editable=${edit}></phx-attachments>
+          <phx-maintenance .project=${this.project} .entity=${e.slug} ?canEdit=${edit}></phx-maintenance>
         </section>
         <section>
           <h2>${t("entity.relations")}</h2>

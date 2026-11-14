@@ -11,8 +11,8 @@ interface EntryChange { slug: string; name: string; kind: string; added?: boolea
 interface ChangeSummary { since: string; pages: PageChange[]; entries: EntryChange[]; tasksDone: string[]; comments: number; people: string[] }
 
 type Key = Parameters<typeof t>[0];
-const KINDS = ["failing_check", "broken_mention", "unplaced_device", "undocumented_entry", "incomplete_entry", "empty_page", "stale_page"];
-const DOC_KINDS = new Set(["broken_mention", "empty_page", "stale_page"]);
+const KINDS = ["failing_check", "review_due", "broken_mention", "unplaced_device", "undocumented_entry", "incomplete_entry", "empty_page", "stale_page"];
+const DOC_KINDS = new Set(["broken_mention", "empty_page", "stale_page", "review_due"]);
 
 /** Project insights without AI: what changed recently and where documentation is missing. */
 export class PhxInsights extends LitElement {
@@ -57,6 +57,7 @@ export class PhxInsights extends LitElement {
     if (g.kind === "incomplete_entry") return t("insights.missing", { fields: (d.missing as string[]).join(", ") });
     if (g.kind === "stale_page" && d.updatedAt) return t("insights.updated", { date: formatDate(String(d.updatedAt)) });
     if (g.kind === "failing_check" && d.detail) return String(d.detail);
+    if (g.kind === "review_due" && d.due) return formatDate(String(d.due));
     return typeof d.kind === "string" ? d.kind : "";
   }
 

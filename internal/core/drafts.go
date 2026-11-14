@@ -41,6 +41,11 @@ type DraftInfo struct {
 	Outdated bool `json:"outdated"`
 	// CanEnd tells whether the caller may publish or cancel.
 	CanEnd bool `json:"canEnd"`
+	// Approval: the project requires an owner's approval (ADR-0042);
+	// CanPublish is false for editors there, they request a review.
+	Approval   bool         `json:"approval"`
+	CanPublish bool         `json:"canPublish"`
+	ReviewBy   *Participant `json:"reviewBy,omitempty"`
 }
 
 // DraftPatch changes a draft.
@@ -94,6 +99,13 @@ func (s *Service) draftInfo(ctx context.Context, a Actor, p store.Project, doc s
 		info.StartedBy, info.UpdatedBy = ps[0], ps[1]
 	}
 	info.CanEnd = s.mayEndDraft(a, p, d)
+	info.Approval, _ = s.DB.ProjectApproval(ctx, p.ID)
+	info.CanPublish = info.CanEnd && (!info.Approval || p.Role == store.RoleOwner)
+	if d.ReviewBy != "" {
+		if ps := s.participants(ctx, []string{d.ReviewBy}); len(ps) == 1 {
+			info.ReviewBy = &ps[0]
+		}
+	}
 	return info
 }
 
@@ -306,6 +318,9 @@ func (s *Service) PublishDraft(ctx context.Context, a Actor, ref, docRef string)
 	if !s.mayEndDraft(a, p, d) {
 		return DocResult{}, ErrForbidden
 	}
+	if s.needsApproval(ctx, p) {
+		return DocResult{}, invalid("validation.approval_required", nil, "an owner has to approve this change")
+	}
 	res := DocResult{Applied: true, Document: &doc}
 	pub := DocumentPatch{Markdown: &d.Markdown, Title: &d.Title, Category: &d.Category}
 	changed := d.Title != doc.Title || d.Category != doc.Category
@@ -337,7 +352,10 @@ func (s *Service) PublishDraft(ctx context.Context, a Actor, ref, docRef string)
 	if err := s.DB.DeleteDraft(ctx, doc.ID); err != nil {
 		return res, err
 	}
-	s.event(ctx, a, "document.draft_publish", doc.ID, map[string]any{"changed": changed, "participants": d.Participants})
+	s.event(ctx, a, "document.draft_publish", doc.ID, map[string]any{"changed": changed, "participants": d.Participants, "approved": d.ReviewBy != ""})
+	if d.ReviewBy != "" {
+		s.notifyParticipants(ctx, a, p, doc, d, "draft.approved", "")
+	}
 	s.draftEnded(ctx, a, doc.ID, "published")
 	return res, nil
 }

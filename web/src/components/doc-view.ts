@@ -15,6 +15,7 @@ import { recordView } from "../recent";
 import { blockStyles } from "./blocks";
 import { base } from "./shared";
 import "./attachments";
+import "./page-rules";
 import "./doc-share";
 import "./comments";
 import type { PhxComments } from "./comments";
@@ -446,7 +447,9 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         ? html`<p class="notice" role="note">${t("adr.superseded_notice")} ${t("adr.superseded_by")}: ${this.decisionLink(c.supersededBy)}</p>` : ""}
       ${this.languageNotes(d)}
       ${this.draftNotice(d)}
+      <phx-page-rules .project=${this.project} .doc=${d.id} .version=${d.version} ?canEdit=${canEdit}></phx-page-rules>
       ${this.body(d)}
+      <phx-page-rules mode="settings" .project=${this.project} .doc=${d.id} .version=${d.version} ?canEdit=${canEdit}></phx-page-rules>
       ${canEdit ? html`<phx-doc-share .project=${currentProject.get()} .doc=${d} @changed=${() => this.reload()}></phx-doc-share>` : ""}
       ${d.type !== "link" ? html`<phx-comments .project=${this.project} .document=${d.id}></phx-comments>` : ""}
       ${d.type !== "link" ? html`<phx-attachments style="margin-top:28px" .project=${this.project} .document=${d.id} .editable=${canEdit}></phx-attachments>` : ""}

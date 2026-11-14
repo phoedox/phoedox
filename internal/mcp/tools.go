@@ -103,6 +103,17 @@ type addCommentIn struct {
 	Mentions []string `json:"mentions,omitempty" jsonschema:"e-mails of people to notify"`
 }
 
+type maintenanceListIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Entity  string `json:"entity,omitempty" jsonschema:"entry slug; empty = all plans of the project"`
+}
+
+type maintenanceSaveIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	ID      string `json:"id,omitempty" jsonschema:"plan id to change; empty creates a plan"`
+	core.MaintenanceInput
+}
+
 type gapsIn struct {
 	Project   string `json:"project" jsonschema:"project slug"`
 	StaleDays int    `json:"staleDays,omitempty" jsonschema:"pages unchanged for this many days count as stale (default 365)"`
@@ -592,6 +603,12 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "add_comment", "Comment on a page, on one block of it (anchor = a short quote of the block's text) or answer a thread (parent = comment id). Mentioned people (e-mails of people who can read the page) get a mail.", func(ctx context.Context, a core.Actor, in addCommentIn) (any, error) {
 		return svc.AddComment(ctx, a, in.Project, in.Document, core.CommentInput{Body: in.Body, Anchor: in.Anchor, Parent: in.Parent, Mentions: in.Mentions})
+	})
+	tool(s, "list_maintenance_plans", "List maintenance plans (recurring tasks per entry, e.g. filter changes or battery swaps) with their next due date.", func(ctx context.Context, a core.Actor, in maintenanceListIn) (any, error) {
+		return svc.MaintenancePlans(ctx, a, in.Project, in.Entity)
+	})
+	tool(s, "save_maintenance_plan", "Create or change a maintenance plan for an entry: every N days/weeks/months/years Phoedox puts a card on the given board, leadDays before it is due. Only in projects where AI writes directly.", func(ctx context.Context, a core.Actor, in maintenanceSaveIn) (any, error) {
+		return svc.SaveMaintenancePlan(ctx, a, in.Project, in.ID, in.MaintenanceInput)
 	})
 	tool(s, "find_documentation_gaps", "Find missing or outdated documentation in a project: failing checks, mentions of entries that do not exist, devices without a location, entries no page mentions, entries with most attributes empty, empty pages and pages unchanged for a long time.", func(ctx context.Context, a core.Actor, in gapsIn) (any, error) {
 		return svc.DocumentationGaps(ctx, a, in.Project, in.StaleDays)
