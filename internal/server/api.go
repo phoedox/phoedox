@@ -238,6 +238,7 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/entities/{e}", a.getEntity)
 			r.Delete("/entities/{e}", a.deleteEntity)
 			r.Get("/entities/{e}/traverse", a.traverse)
+			r.Get("/entities/{e}/diagnose", a.diagnose)
 			r.Post("/edges", a.link)
 			r.Post("/edges/remove", a.unlink)
 			r.Get("/suggestions", a.listSuggestions)
@@ -673,6 +674,11 @@ func (a *api) traverse(w http.ResponseWriter, r *http.Request) {
 	depth, _ := strconv.Atoi(q.Get("depth"))
 	hops, err := a.core.Traverse(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "e"), q.Get("rel"), q.Get("dir"), depth)
 	respond(w, hops, err)
+}
+
+func (a *api) diagnose(w http.ResponseWriter, r *http.Request) {
+	d, err := a.core.Diagnose(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "e"))
+	respond(w, d, err)
 }
 
 func (a *api) link(w http.ResponseWriter, r *http.Request) {

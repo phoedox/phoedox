@@ -249,6 +249,11 @@ type unlinkIn struct {
 	To      string `json:"to"`
 }
 
+type entityRefIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Entity  string `json:"entity" jsonschema:"entity slug or id (a device, server or room)"`
+}
+
 type traverseIn struct {
 	Project   string `json:"project" jsonschema:"project slug"`
 	Entity    string `json:"entity" jsonschema:"start entity slug or id"`
@@ -489,6 +494,9 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "traverse", "Follow relations from an entity, e.g. the path to the internet (rel uplink) or everything a service depends on.", func(ctx context.Context, a core.Actor, in traverseIn) (any, error) {
 		return svc.Traverse(ctx, a, in.Project, in.Entity, in.Rel, in.Direction, in.Depth)
+	})
+	tool(s, "diagnose", "Check the network path of a device (or of every device in a room) towards the internet along uplink, wired_to and runs_on, with a status per station from agent reports and state attributes. Use it first when someone says something does not work.", func(ctx context.Context, a core.Actor, in entityRefIn) (any, error) {
+		return svc.Diagnose(ctx, a, in.Project, in.Entity)
 	})
 	tool(s, "list_suggestions", "List suggestions (pending AI changes) of a project.", func(ctx context.Context, a core.Actor, in suggestionsIn) (any, error) {
 		return svc.Suggestions(ctx, a, in.Project, in.Status)

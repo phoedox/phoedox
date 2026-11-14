@@ -9,6 +9,7 @@ import { pluginViews } from "../plugin-host";
 import { unsafeStatic, html as shtml } from "lit/static-html.js";
 import { base } from "./shared";
 import "./attachments";
+import "./diagnosis";
 import { toast } from "./toasts";
 
 type Detail = { entity: Entity; edges: Edge[]; documents: Doc[] };
@@ -270,6 +271,8 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
         </div>` : ""}
       </header>
       ${pluginViews.get()[e.kind] ? html`<section class="plugin card" style="margin-bottom:18px">${shtml`<${unsafeStatic(pluginViews.get()[e.kind])} entity=${e.slug}></${unsafeStatic(pluginViews.get()[e.kind])}>`}</section>` : ""}
+      ${e.kind === "room" || e.kind === "floor" || edges.some((x) => x.from === e.id && ["uplink", "wired_to", "runs_on"].includes(x.rel))
+        ? html`<phx-diagnosis .project=${this.project} .entity=${e.slug}></phx-diagnosis>` : ""}
       <div class="cols">
         <section>
           <h2>${t("entity.attrs")}</h2>

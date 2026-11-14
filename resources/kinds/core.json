@@ -7,7 +7,7 @@
     {"id": "device", "group": "general", "icon": "Cpu", "attrs": [
       {"name": "manufacturer", "type": "text"}, {"name": "model", "type": "text"}, {"name": "serial", "type": "text"},
       {"name": "ip", "type": "ip"}, {"name": "mac", "type": "text"}],
-      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}, {"rel": "wired_to", "to": ["switch", "router", "lan_port"]}]},
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}, {"rel": "wired_to", "to": ["switch", "router", "lan_port"]}, {"rel": "uplink", "to": ["router", "repeater", "access_point"]}]},
 
     {"id": "floor", "group": "building", "icon": "Layers", "attrs": [
       {"name": "level", "type": "number", "required": true}, {"name": "ceiling_height", "type": "number", "unit": "m"}]},
