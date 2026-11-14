@@ -2155,4 +2155,5 @@ export const en: Record<keyof typeof de, string> = {
   "board.pasted_image": "Image",
   "tokens.phoedox_skill": "So AI clients use all Phoedox tools well, there is a ready-made skill (SKILL.md) – for Claude Code, unpack it into ~/.claude/skills.",
   "tokens.phoedox_skill_download": "Download the Phoedox skill",
+  "nav.account": "My account",
 };

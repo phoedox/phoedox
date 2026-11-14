@@ -2153,4 +2153,5 @@ export const de = {
   "board.pasted_image": "Bild",
   "tokens.phoedox_skill": "Damit KI-Clients alle Phoedox-Werkzeuge richtig nutzen, gibt es einen fertigen Skill (SKILL.md) – z. B. für Claude Code nach ~/.claude/skills entpacken.",
   "tokens.phoedox_skill_download": "Phoedox-Skill herunterladen",
+  "nav.account": "Mein Konto",
 } as const;
