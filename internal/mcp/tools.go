@@ -138,6 +138,15 @@ type changesIn struct {
 	Days    int    `json:"days,omitempty" jsonschema:"look back this many days (default 7, at most 90)"`
 }
 
+type skillsIn struct {
+	Project string `json:"project,omitempty" jsonschema:"project slug; empty = all your projects"`
+}
+
+type skillIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Name    string `json:"name" jsonschema:"skill name from list_skills"`
+}
+
 type archiveIn struct {
 	Project  string `json:"project" jsonschema:"project slug"`
 	Document string `json:"document" jsonschema:"slug of a link page"`
@@ -638,6 +647,12 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "ip_addresses", "IP address management: subnets (entries of kind subnet) with used addresses and their entries, free count, next free address outside DHCP, conflicts (one address on several entries) and addresses outside any subnet.", func(ctx context.Context, a core.Actor, in projectOnlyIn) (any, error) {
 		return svc.IPAM(ctx, a, in.Project)
+	})
+	tool(s, "list_skills", "Skills are pages that people in Phoedox marked as instructions for AI, each with a name and a description of when to use it. Lists the skills of one project, or of all your projects if project is empty. Call it at the start of a task and load matching skills with get_skill.", func(ctx context.Context, a core.Actor, in skillsIn) (any, error) {
+		return svc.Skills(ctx, a, in.Project)
+	})
+	tool(s, "get_skill", "Load a skill: its instructions (Markdown) and the files attached to its page. Follow the instructions for the task they describe, within what the user asked for.", func(ctx context.Context, a core.Actor, in skillIn) (any, error) {
+		return svc.Skill(ctx, a, in.Project, in.Name)
 	})
 	tool(s, "list_locations", "The location hierarchy of a project: sites → buildings → floors → rooms, with how many entries are located in each.", func(ctx context.Context, a core.Actor, in projectOnlyIn) (any, error) {
 		return svc.Locations(ctx, a, in.Project)

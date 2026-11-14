@@ -16,9 +16,11 @@ const DOC_KINDS = new Set(["broken_mention", "empty_page", "stale_page", "review
 
 /** Project insights without AI: what changed recently and where documentation is missing. */
 export class PhxInsights extends LitElement {
-  static properties = { project: {}, days: { state: true }, changes: { state: true }, gaps: { state: true }, open: { state: true } };
+  static properties = { project: {}, days: { state: true }, changes: { state: true }, gaps: { state: true }, skills: { state: true }, open: { state: true } };
   static styles = [base, css`
     :host { display: block; max-width: 980px; margin: 0 auto; padding: 24px 16px 60px; }
+    ul.skills { list-style: none; padding: 0; display: grid; gap: 8px; }
+    ul.skills code { font-family: var(--font-mono); }
     h2 { font-size: 18px; margin: 28px 0 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     h2 select { width: auto; margin-left: auto; font-size: 14px; font-weight: 400; }
@@ -34,10 +36,12 @@ export class PhxInsights extends LitElement {
   days = 7;
   changes?: ChangeSummary;
   gaps?: GapReport;
+  skills?: { name: string; description: string; document: string; title: string }[];
 
   connectedCallback() {
     super.connectedCallback();
     this.loadChanges();
+    api<NonNullable<PhxInsights["skills"]>>("GET", `/projects/${this.project}/skills`).then((x) => (this.skills = x)).catch(() => (this.skills = []));
     api<GapReport>("GET", `/projects/${this.project}/gaps`).then((g) => (this.gaps = g)).catch(() => (this.gaps = { gaps: [], counts: {} }));
   }
 
@@ -103,7 +107,12 @@ export class PhxInsights extends LitElement {
         </select></h2>
       ${this.renderChanges()}
       <h2>${icon("ListChecks", 18)} ${t("insights.gaps")}</h2>
-      ${this.renderGaps()}`;
+      ${this.renderGaps()}
+      <h2>${icon("Sparkles", 18)} ${t("skill.list_title")}
+        ${this.skills?.length ? html`<a class="btn ghost" href="/api/v1/projects/${this.project}/skills.zip" download>${icon("Download", 14)} ${t("skill.download_all")}</a>` : ""}</h2>
+      ${!this.skills ? "" : this.skills.length ? html`<ul class="skills">${this.skills.map((x) => html`<li>
+          <a href="/p/${this.project}/d/${x.document}"><code>${x.name}</code></a> <span class="muted">${x.description}</span></li>`)}</ul>`
+        : html`<p class="muted">${t("skill.none")}</p>`}`;
   }
 }
 customElements.define("phx-insights", PhxInsights);

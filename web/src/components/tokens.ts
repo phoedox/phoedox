@@ -111,6 +111,7 @@ export class PhxTokens extends LitElement {
       <pre>${mcpUrl}</pre>
       <p class="muted">${t("tokens.mcp_token")}</p>
       <pre>${JSON.stringify({ mcpServers: { phoedox: { type: "http", url: mcpUrl, headers: { Authorization: "Bearer phx_…" } } } }, null, 2)}</pre>
+      <p class="muted">${t("tokens.mcp_skills")}</p>
     </div>`;
   }
 }

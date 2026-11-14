@@ -16,6 +16,7 @@ import { blockStyles } from "./blocks";
 import { base } from "./shared";
 import "./attachments";
 import "./page-rules";
+import "./page-skill";
 import "./doc-share";
 import "./comments";
 import type { PhxComments } from "./comments";
@@ -450,6 +451,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       <phx-page-rules .project=${this.project} .doc=${d.id} .version=${d.version} ?canEdit=${canEdit}></phx-page-rules>
       ${this.body(d)}
       <phx-page-rules mode="settings" .project=${this.project} .doc=${d.id} .version=${d.version} ?canEdit=${canEdit}></phx-page-rules>
+      ${d.type === "markdown" ? html`<phx-page-skill .project=${this.project} .doc=${d.id} .pageTitle=${d.title} ?canEdit=${canEdit}></phx-page-skill>` : ""}
       ${canEdit ? html`<phx-doc-share .project=${currentProject.get()} .doc=${d} @changed=${() => this.reload()}></phx-doc-share>` : ""}
       ${d.type !== "link" ? html`<phx-comments .project=${this.project} .document=${d.id}></phx-comments>` : ""}
       ${d.type !== "link" ? html`<phx-attachments style="margin-top:28px" .project=${this.project} .document=${d.id} .editable=${canEdit}></phx-attachments>` : ""}

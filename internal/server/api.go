@@ -96,6 +96,7 @@ func (a *api) routes(r chi.Router) {
 		r.Get("/me", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, actorOf(r).User) })
 		r.Get("/me/notifications", a.listNotifications)
 		r.Get("/me/tasks", a.myTasks)
+		r.Get("/me/skills", a.mySkills)
 		r.Post("/me/notifications/read", a.readNotifications)
 		// Account changes need the full rights of the user (no narrowed token).
 		r.Group(func(r chi.Router) {
@@ -245,6 +246,13 @@ func (a *api) routes(r chi.Router) {
 			r.Post("/documents/{d}/draft/publish", a.publishDraft)
 			r.Post("/documents/{d}/draft/review", a.requestReview)
 			r.Post("/documents/{d}/draft/reject", a.rejectReview)
+			r.Get("/documents/{d}/skill", a.pageSkill)
+			r.Put("/documents/{d}/skill", a.setPageSkill)
+			r.Delete("/documents/{d}/skill", a.removePageSkill)
+			r.Get("/skills", a.listSkills)
+			r.Get("/skills.zip", a.downloadSkills)
+			r.Get("/skills/{name}", a.getSkill)
+			r.Get("/skills/{name}/download", a.downloadSkills)
 			r.Get("/documents/{d}/rules", a.pageRules)
 			r.Put("/documents/{d}/rules", a.setPageRules)
 			r.Post("/documents/{d}/reviewed", a.markReviewed)

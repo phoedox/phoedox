@@ -341,7 +341,15 @@ func (s *Service) UpdateDocument(ctx context.Context, a Actor, ref, docRef strin
 	if _, _, _, err := s.patched(ctx, p, cur, patch); err != nil {
 		return DocResult{}, err
 	}
-	if sug, ok, err := s.maybeSuggest(ctx, a, p, "document.update", "Änderung an „"+cur.Title+"“", opPayload{Project: p.ID, Doc: cur.ID, Patch: &patch}); ok || err != nil {
+	gate := p
+	if a.Via == "mcp" && gate.AIWriteMode == AIDirect {
+		// AI changes to a skill page always need a person: the page
+		// instructs AI clients (ADR-0049).
+		if _, err := s.DB.GetSkill(ctx, cur.ID); err == nil {
+			gate.AIWriteMode = AISuggest
+		}
+	}
+	if sug, ok, err := s.maybeSuggest(ctx, a, gate, "document.update", "Änderung an „"+cur.Title+"“", opPayload{Project: p.ID, Doc: cur.ID, Patch: &patch}); ok || err != nil {
 		return DocResult{Suggestion: sug}, err
 	}
 	return s.updateDocument(ctx, a, p, cur, patch)
