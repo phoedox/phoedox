@@ -1,0 +1,5 @@
+# Home Assistant add-on repository for Phoedox. Add its URL under
+# Settings → Add-ons → Add-on store → ⋮ → Repositories.
+name: Phoedox
+url: https://phoedox.com
+maintainer: Phoedox

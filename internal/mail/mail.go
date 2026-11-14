@@ -26,6 +26,12 @@ type Message struct {
 	Body    string
 }
 
+// Undeliverable reports placeholder addresses in the reserved .invalid
+// domain (RFC 2606) that are never sent to.
+func Undeliverable(to string) bool {
+	return strings.HasSuffix(strings.ToLower(strings.TrimSpace(to)), ".invalid")
+}
+
 // Sender delivers messages.
 type Sender interface {
 	Enabled() bool
@@ -65,6 +71,9 @@ func (s *SMTP) Enabled() bool { return true }
 func (s *SMTP) Send(ctx context.Context, m Message) error {
 	if strings.ContainsAny(m.To, "\r\n") || strings.ContainsAny(m.Subject, "\r\n") {
 		return errors.New("mail: invalid header value")
+	}
+	if Undeliverable(m.To) {
+		return nil // placeholder address (e.g. accounts from Home Assistant sign-in)
 	}
 	timeout := s.Timeout
 	if timeout == 0 {

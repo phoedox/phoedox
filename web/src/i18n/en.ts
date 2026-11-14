@@ -2142,4 +2142,7 @@ export const en: Record<keyof typeof de, string> = {
   "readings.range": "Range",
   "validation.readings_count": "At most {max} values per call.",
   "validation.reading": "Value {row}: needs an entry, a metric, a number, a unit (up to 20 characters) and a time within 90 days.",
+  "login.homeassistant": "Sign in with Home Assistant",
+  "validation.ha_login_failed": "Signing in with Home Assistant did not work. Please try again.",
+  "validation.ha_no_account": "No account is linked to this Home Assistant user yet. Ask an administrator for an invitation.",
 };

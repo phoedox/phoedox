@@ -48,6 +48,11 @@ docker exec -it phoedox phx admin create-user --admin --email you@example.org --
 Helm chart in [`deploy/helm/phoedox`](deploy/helm/phoedox), step-by-step guide with k3s,
 CloudNativePG and cert-manager in [`docs/kubernetes.md`](docs/kubernetes.md).
 
+### Home Assistant add-on
+
+Add-on in [`deploy/homeassistant`](deploy/homeassistant): data in the add-on (part of Home Assistant
+backups), sign-in with Home Assistant users. Setup in [`DOCS.md`](deploy/homeassistant/phoedox/DOCS.md).
+
 ### Without Docker
 
 ```bash
@@ -71,6 +76,9 @@ make build && ./bin/phoedox
 | `PHOEDOX_PUBLIC_URL` | – | Public address, e.g. `https://docs.example.org` – for links in emails. Without it (or `PHOEDOX_DOMAIN`), there is no "forgot password" by email |
 | `PHOEDOX_DEFAULT_LOCALE` | `de` | Language for emails to users without their own language setting |
 | `PHOEDOX_OIDC_ISSUER` | – | Sign-in through an OpenID Connect provider (Authentik, Keycloak, Entra ID, Google …), e.g. `https://auth.example.org/application/o/phoedox/`. Redirect URI at the provider: `<public URL>/api/v1/auth/oidc/callback` |
+| `PHOEDOX_HA_URL` | – | Sign-in with Home Assistant users: the address browsers use for Home Assistant, e.g. `http://homeassistant.local:8123`. Phoedox's public URL is the client ID. |
+| `PHOEDOX_HA_INTERNAL_URL` | `PHOEDOX_HA_URL` | Address the server uses for Home Assistant (token and WebSocket), e.g. `http://homeassistant:8123` in the add-on |
+| `PHOEDOX_HA_AUTO_CREATE` | `true` | Create accounts on first sign-in with Home Assistant; the HA owner becomes a system admin |
 | `PHOEDOX_OIDC_CLIENT_ID` / `PHOEDOX_OIDC_CLIENT_SECRET` | – | Credentials at the provider |
 | `PHOEDOX_OIDC_NAME` | `SSO` | Label of the button ("Sign in with …") |
 | `PHOEDOX_OIDC_SCOPES` | `openid email profile` | |

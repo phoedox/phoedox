@@ -151,7 +151,8 @@ export class PhxLogin extends LitElement {
       <label class="field">${t("login.password")}<input name="password" type="password" autocomplete="current-password" required /></label>
       ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
       <button type="submit" ?disabled=${this.busy}>${t("login.submit")}</button>
-      ${passkeysSupported() || this.instance?.oidc ? html`<div class="sep">${t("login.or")}</div>` : ""}
+      ${passkeysSupported() || this.instance?.oidc || this.instance?.homeassistant ? html`<div class="sep">${t("login.or")}</div>` : ""}
+      ${this.instance?.homeassistant ? html`<a class="btn ghost" rel="external" style="justify-content:center" href=${`/api/v1/auth/ha/start?return=${encodeURIComponent(nextPath())}`}>${icon("House", 15)} ${t("login.homeassistant")}</a>` : ""}
       ${this.instance?.oidc ? html`<a class="btn ghost" rel="external" style="justify-content:center" href=${`/api/v1/auth/oidc/start?return=${encodeURIComponent(nextPath())}`}>${icon("LogIn", 15)} ${t("login.oidc", { name: this.instance.oidc.name })}</a>` : ""}
       ${passkeysSupported() ? html`<button type="button" class="ghost" style="justify-content:center" ?disabled=${this.busy} @click=${this.passkeyLogin}>${icon("KeyRound", 15)} ${t("login.passkey")}</button>` : ""}
       <div class="links"><a href="/forgot">${t("login.forgot")}</a></div>

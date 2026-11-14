@@ -2140,4 +2140,7 @@ export const de = {
   "readings.range": "Spanne",
   "validation.readings_count": "Höchstens {max} Werte pro Aufruf.",
   "validation.reading": "Wert {row}: Eintrag, Messgröße, Zahl, Einheit (bis 20 Zeichen) und eine Zeit innerhalb von 90 Tagen nötig.",
+  "login.homeassistant": "Mit Home Assistant anmelden",
+  "validation.ha_login_failed": "Die Anmeldung mit Home Assistant hat nicht geklappt. Bitte versuche es noch einmal.",
+  "validation.ha_no_account": "Mit diesem Home-Assistant-Benutzer ist noch kein Konto verknüpft. Bitte eine Administratorin oder einen Administrator um eine Einladung.",
 } as const;

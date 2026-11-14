@@ -195,6 +195,30 @@ func (a *api) oidcCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, auth.SafeReturn(ret), http.StatusFound)
 }
 
+// haStart sends the browser to Home Assistant's login.
+func (a *api) haStart(w http.ResponseWriter, r *http.Request) {
+	u, c, err := a.auth.HAStart(r.Context(), a.baseURL(r), r.URL.Query().Get("return"))
+	if err != nil {
+		http.Redirect(w, r, "/login?error="+url.QueryEscape(errKey(err)), http.StatusFound)
+		return
+	}
+	http.SetCookie(w, c)
+	http.Redirect(w, r, u, http.StatusFound)
+}
+
+// haCallback finishes the sign-in with Home Assistant.
+func (a *api) haCallback(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{Name: auth.HACookie, Path: "/api/v1/auth/ha", MaxAge: -1, HttpOnly: true, Secure: a.cfg.SecureCookies})
+	c, ret, err := a.auth.HACallback(r.Context(), a.baseURL(r), r)
+	if err != nil {
+		slog.Info("home assistant sign-in failed", "err", err)
+		http.Redirect(w, r, "/login?error="+url.QueryEscape(errKey(err))+"&return="+url.QueryEscape(ret), http.StatusFound)
+		return
+	}
+	http.SetCookie(w, c)
+	http.Redirect(w, r, auth.SafeReturn(ret), http.StatusFound)
+}
+
 // errKey is the translation key of an error for redirects to the web app.
 func errKey(err error) string {
 	var inv *core.InvalidError

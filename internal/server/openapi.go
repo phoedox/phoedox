@@ -108,6 +108,8 @@ var apiDocs = map[string]op{
 	"POST /auth/links/{token}":           {Tag: "auth", Summary: "Set the password with an invitation or reset link.", Public: true},
 	"GET /auth/oidc/start":               {Tag: "auth", Summary: "Start single sign-on (redirect).", Public: true},
 	"GET /auth/oidc/callback":            {Tag: "auth", Summary: "Single sign-on callback (redirect).", Public: true},
+	"GET /auth/ha/start":                 {Tag: "auth", Summary: "Start sign-in with Home Assistant (redirect).", Public: true},
+	"GET /auth/ha/callback":              {Tag: "auth", Summary: "Sign-in with Home Assistant callback (redirect).", Public: true},
 	"GET /instance":                      {Tag: "auth", Summary: "Version and sign-in options of this instance.", Public: true},
 	"GET /openapi.json":                  {Tag: "auth", Summary: "This description (OpenAPI 3.1).", Public: true},
 

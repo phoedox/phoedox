@@ -59,6 +59,9 @@ func (a *api) routes(r chi.Router) {
 		if a.auth.OIDC != nil {
 			info["oidc"] = map[string]string{"name": a.auth.OIDC.Config.Name}
 		}
+		if a.auth.HA.Enabled() {
+			info["homeassistant"] = true
+		}
 		writeJSON(w, http.StatusOK, info)
 	})
 	r.Get("/openapi.json", a.serveOpenAPI)
@@ -78,6 +81,8 @@ func (a *api) routes(r chi.Router) {
 	r.Get("/shared/{token}/files/{id}/{name}", a.sharedFile)
 	r.Get("/auth/oidc/start", a.oidcStart)
 	r.Get("/auth/oidc/callback", a.oidcCallback)
+	r.Get("/auth/ha/start", a.haStart)
+	r.Get("/auth/ha/callback", a.haCallback)
 	r.Group(func(r chi.Router) {
 		r.Use(requireHeader)
 		r.Post("/auth/reset-request", a.resetRequest)

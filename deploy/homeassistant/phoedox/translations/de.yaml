@@ -1,0 +1,12 @@
+configuration:
+  ha_url:
+    name: Adresse von Home Assistant
+    description: Wie Browser Home Assistant erreichen, z. B. http://homeassistant.local:8123. Nötig für „Mit Home Assistant anmelden“.
+  public_url:
+    name: Adresse von Phoedox
+    description: Die Adresse, unter der Phoedox genutzt wird, z. B. http://homeassistant.local:8080 oder eine https-Adresse eines Reverse Proxys. Für Links in E-Mails und die Anmeldung.
+  sign_in_with_home_assistant:
+    name: Mit Home Assistant anmelden
+    description: Personen melden sich mit ihrem Home-Assistant-Benutzer an. Die Eigentümerin oder der Eigentümer von Home Assistant wird Administrator in Phoedox.
+network:
+  8080/tcp: Weboberfläche

@@ -99,6 +99,13 @@ type Config struct {
 	PluginsUnsigned bool
 	// OIDC enables sign-in with an external identity provider.
 	OIDC OIDC
+	// HAURL enables sign-in with Home Assistant (PHOEDOX_HA_URL): the address
+	// browsers use. HAInternalURL is the one the server uses
+	// (PHOEDOX_HA_INTERNAL_URL, default HAURL). HAAutoCreate creates accounts
+	// on first sign-in (PHOEDOX_HA_AUTO_CREATE, default true).
+	HAURL         string
+	HAInternalURL string
+	HAAutoCreate  bool
 	// SMTP enables emails (invitations, password resets) when Host is set.
 	SMTP SMTP
 }
@@ -223,6 +230,9 @@ func FromEnv() (Config, error) {
 		c.StoreURL = ""
 	}
 	c.PluginKeys = os.Getenv("PHOEDOX_PLUGIN_KEYS")
+	c.HAURL = strings.TrimRight(os.Getenv("PHOEDOX_HA_URL"), "/")
+	c.HAInternalURL = strings.TrimRight(os.Getenv("PHOEDOX_HA_INTERNAL_URL"), "/")
+	c.HAAutoCreate = getenv("PHOEDOX_HA_AUTO_CREATE", "true") == "true"
 	c.PluginsUnsigned = os.Getenv("PHOEDOX_PLUGINS_ALLOW_UNSIGNED") == "true"
 	c.S3 = S3{Endpoint: os.Getenv("PHOEDOX_S3_ENDPOINT"), Bucket: os.Getenv("PHOEDOX_S3_BUCKET"), Region: os.Getenv("PHOEDOX_S3_REGION"),
 		AccessKey: os.Getenv("PHOEDOX_S3_ACCESS_KEY"), SecretKey: os.Getenv("PHOEDOX_S3_SECRET_KEY"), Prefix: os.Getenv("PHOEDOX_S3_PREFIX"),

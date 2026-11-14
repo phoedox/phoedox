@@ -92,6 +92,9 @@ func Open(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 	a := &auth.Auth{DB: db, SecureCookies: cfg.SecureCookies, Mail: sender, DefaultLocale: cfg.DefaultLocale, Box: box}
+	if cfg.HAURL != "" {
+		a.HA = &auth.HAConfig{URL: cfg.HAURL, InternalURL: cfg.HAInternalURL, AutoCreate: cfg.HAAutoCreate}
+	}
 	if cfg.OIDC.Enabled() {
 		a.OIDC = &auth.OIDC{Config: cfg.OIDC}
 	}

@@ -1,0 +1,12 @@
+configuration:
+  ha_url:
+    name: Home Assistant address
+    description: How browsers reach Home Assistant, e.g. http://homeassistant.local:8123. Needed for "Sign in with Home Assistant".
+  public_url:
+    name: Phoedox address
+    description: The address people use for Phoedox, e.g. http://homeassistant.local:8080 or an https address of a reverse proxy. Used in links in e-mails and for sign-in.
+  sign_in_with_home_assistant:
+    name: Sign in with Home Assistant
+    description: People sign in with their Home Assistant user. The Home Assistant owner becomes a Phoedox administrator.
+network:
+  8080/tcp: Web interface

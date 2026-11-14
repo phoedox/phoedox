@@ -105,6 +105,8 @@ type Auth struct {
 	Box *secret.Box
 	// OIDC is the external sign-in provider (nil if not configured).
 	OIDC *OIDC
+	// HA enables sign-in with Home Assistant (nil if not configured).
+	HA *HAConfig
 }
 
 // Login checks the password. Without two-factor authentication it starts a
