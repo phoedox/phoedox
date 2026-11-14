@@ -1,6 +1,13 @@
 import { signal } from "@lit-labs/signals";
 import { api, type ProjectPlugin } from "./api";
-import { icon } from "./icon";
+import { iconSVG } from "./icon";
+
+/** An icon as a DOM element. */
+function iconElement(name: string, size: number): SVGElement {
+  const t = document.createElement("template");
+  t.innerHTML = iconSVG(name, size);
+  return t.content.firstElementChild as SVGElement;
+}
 import { toast } from "./components/toasts";
 import { currentProject } from "./state";
 
@@ -27,7 +34,8 @@ export interface PluginCommand extends Command { plugin: string; project: string
 /** Commands plugins add to the command palette (current project). */
 export const pluginCommands = signal<PluginCommand[]>([]);
 /** kind -> element tag of the current project's plugins. */
-export const pluginViews = signal<Record<string, string>>({});
+/** Plugin elements per entry kind (several plugins may add one each). */
+export const pluginViews = signal<Record<string, string[]>>({});
 
 const tagRe = /^phx-[a-z0-9]+(-[a-z0-9]+)*$/;
 const loaded = new Map<string, Promise<PluginDef | undefined>>();
@@ -73,7 +81,9 @@ function makeSdk(pluginId: string) {
         pluginCommands.set([...pluginCommands.get().filter((c) => !(c.plugin === pluginId && c.id === cmd.id)), { ...cmd, plugin: pluginId, project: p }]);
       },
     },
-    icons: { render: (name: string, size = 16) => icon(pascal(name), size) },
+    // A real SVG element: plugins bundle their own Lit, and templates or
+    // directives of the host's Lit do not render there.
+    icons: { render: (name: string, size = 16) => iconElement(pascal(name), size) },
   };
 }
 
@@ -116,12 +126,13 @@ export async function loadProjectPlugins(slug: string) {
   pluginCommands.set([]);
   pluginViews.set({});
   const list = await api<ProjectPlugin[]>("GET", `/projects/${slug}/plugins`).catch(() => [] as ProjectPlugin[]);
-  const views: Record<string, string> = {};
+  const views: Record<string, string[]> = {};
   for (const p of (list ?? []).filter((x) => x.enabled && x.frontend)) {
     const def = await load(p);
     if (current !== slug) return;
     for (const [kind, tag] of Object.entries(def?.views ?? {})) {
-      if (tagRe.test(tag) && customElements.get(tag) && p.kinds.includes(kind)) views[kind] = tag;
+      // Own kinds and core kinds; the element decides whether an entry is its business.
+      if (tagRe.test(tag) && customElements.get(tag) && /^[a-z][a-z0-9_]{0,39}$/.test(kind)) (views[kind] ??= []).push(tag);
     }
   }
   pluginViews.set(views);

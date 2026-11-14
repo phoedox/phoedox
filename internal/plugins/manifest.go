@@ -77,6 +77,11 @@ type ToolDef struct {
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Input       string `json:"input,omitempty"` // JSON Schema file in the package
+	// Control marks tools that act on the physical world: only editors run
+	// them, and AI calls become suggestions a person confirms.
+	Control bool `json:"control,omitempty"`
+	// TimeoutSec limits one call (1–60 s, default: the runtime timeout).
+	TimeoutSec int `json:"timeoutSec,omitempty"`
 }
 
 var (
@@ -133,6 +138,9 @@ func (m Manifest) Validate() error {
 	for _, t := range m.Contributes.MCPTools {
 		if !toolRe.MatchString(t.Name) || len(t.Name) > 60 {
 			return fmt.Errorf("manifest: tool name %q is invalid", t.Name)
+		}
+		if t.TimeoutSec < 0 || t.TimeoutSec > 60 {
+			return fmt.Errorf("manifest: tool %s: timeoutSec must be between 1 and 60", t.Name)
 		}
 	}
 	for _, e := range m.Contributes.Events {

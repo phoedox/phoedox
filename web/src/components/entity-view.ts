@@ -51,6 +51,8 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
     line { stroke: var(--line); stroke-width: 1.5; }
     text.e.side { text-anchor: start; }
     text.e { font-size: 12px; fill: var(--muted); text-anchor: middle; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; }
+    /* Plugin views hide themselves (hidden) when an entry is not their business. */
+    section.plugin:has(> [hidden]) { display: none; }
     @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } form.add { grid-template-columns: 1fr; } }
   `];
   project = "";
@@ -270,7 +272,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
             : html`<button class="danger" @click=${() => (this.confirming = true)}>${icon("Trash2", 14)} ${t("doc.delete")}</button>`}
         </div>` : ""}
       </header>
-      ${pluginViews.get()[e.kind] ? html`<section class="plugin card" style="margin-bottom:18px">${shtml`<${unsafeStatic(pluginViews.get()[e.kind])} entity=${e.slug}></${unsafeStatic(pluginViews.get()[e.kind])}>`}</section>` : ""}
+      ${(pluginViews.get()[e.kind] ?? []).map((tag) => html`<section class="plugin card" style="margin-bottom:12px">${shtml`<${unsafeStatic(tag)} entity=${e.slug}></${unsafeStatic(tag)}>`}</section>`)}
       ${e.kind === "room" || e.kind === "floor" || edges.some((x) => x.from === e.id && ["uplink", "wired_to", "runs_on"].includes(x.rel))
         ? html`<phx-diagnosis .project=${this.project} .entity=${e.slug}></phx-diagnosis>` : ""}
       <div class="cols">

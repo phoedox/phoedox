@@ -57,7 +57,8 @@ const Manifest = `{
   "contributes": {
     "kinds": [{ "id": "ups", "schema": "schemas/ups.json", "icon": "battery-charging" }],
     "relations": [{ "id": "powers", "from": ["ups"], "to": ["*"] }],
-    "mcpTools": [{ "name": "ups.runtime", "description": "Runtime of a UPS.", "input": "schemas/runtime.json" }],
+    "mcpTools": [{ "name": "ups.runtime", "description": "Runtime of a UPS.", "input": "schemas/runtime.json" },
+      { "name": "ups.switch", "description": "Switch the UPS outlet.", "control": true, "timeoutSec": 20 }],
     "events": ["schedule:every=60s", "entity.*"]
   },
   "permissions": ["graph:read", "graph:write:ups", "secrets:nut_password", "net:fetch:127.0.0.1"]

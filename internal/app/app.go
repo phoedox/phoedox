@@ -114,6 +114,11 @@ func Open(ctx context.Context) (*App, error) {
 		svc.Blobs = s3
 	}
 	svc.TempDir = filepath.Join(cfg.DataDir, "tmp")
+	// Uploads, plugin packages and file processing write here; S3 setups have no local files dir.
+	if err := os.MkdirAll(svc.TempDir, 0o700); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("temp dir: %w", err)
+	}
 	svc.MaxUpload = int64(cfg.MaxUploadMB) << 20
 	svc.Preview = preview.Detect(cfg.OCR, cfg.OCRLangs)
 	if cfg.ClamAV != "" {

@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -144,11 +145,32 @@ func TestPlugins(t *testing.T) {
 	if _, err := s.PluginTool(ctx, reader, p.Slug, "de.example.ups", "nope", nil); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("unknown tool: %v", err)
 	}
+
+	// Control tools: readers may not run them, AI clients only propose them.
+	if _, err := s.PluginTool(ctx, reader, p.Slug, "de.example.ups", "ups.switch", json.RawMessage(`{"on":false}`)); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("reader must not switch: %v", err)
+	}
+	ai := Actor{User: owner.User, Via: "mcp"}
+	out, err = s.PluginTool(ctx, ai, p.Slug, "de.example.ups", "ups.switch", json.RawMessage(`{"on":false}`))
+	if err != nil || !strings.Contains(string(out), `"applied":false`) {
+		t.Fatalf("AI switch must become a suggestion: %s %v", out, err)
+	}
+	sugs, _ := s.Suggestions(ctx, owner, p.Slug, "pending")
+	if len(sugs) != 1 || sugs[0].Op != "plugin.call" {
+		t.Fatalf("suggestion: %+v", sugs)
+	}
+	res, err := s.DecideSuggestion(ctx, owner, sugs[0].ID, true)
+	if err != nil || !strings.Contains(fmt.Sprint(string(res.(json.RawMessage))), `"ups.switch"`) {
+		t.Fatalf("accept runs the tool: %v %v", res, err)
+	}
+	if out, err := s.PluginTool(ctx, owner, p.Slug, "de.example.ups", "ups.switch", json.RawMessage(`{"on":true}`)); err != nil || !strings.Contains(string(out), `"on":true`) {
+		t.Fatalf("owner switches directly: %s %v", out, err)
+	}
 	readerEnv := s.pluginEnv(Actor{User: reader.User, Via: "web", Plugin: "de.example.ups"}, p, ap)
 	if _, err := readerEnv.GraphApply(ctx, plugins.Ops{Ops: []plugins.Op{{Op: "upsert", Kind: "ups", ID: "x"}}}, ap.pkg.Manifest.CanWriteKind); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("a plugin must not write more than a reader: %v", err)
 	}
-	if tools := s.PluginTools(ctx); len(tools) != 1 || tools[0].Name != "ups.runtime" || len(tools[0].Input) == 0 {
+	if tools := s.PluginTools(ctx); len(tools) != 2 || tools[0].Name != "ups.runtime" || len(tools[0].Input) == 0 || !strings.Contains(tools[1].Description, "confirm") {
 		t.Fatalf("tools: %+v", tools)
 	}
 

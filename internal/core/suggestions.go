@@ -18,6 +18,10 @@ type opPayload struct {
 	EntityRef string         `json:"entityRef,omitempty"`
 	Edge      *EdgeInput     `json:"edge,omitempty"`
 	Kind      *KindInput     `json:"kind,omitempty"`
+	// plugin.call: a control tool an AI client asked for.
+	Plugin string          `json:"plugin,omitempty"`
+	Tool   string          `json:"tool,omitempty"`
+	Args   json.RawMessage `json:"args,omitempty"`
 }
 
 // maybeSuggest stores a suggestion instead of applying the change when an
@@ -99,6 +103,11 @@ func (s *Service) DecideSuggestion(ctx context.Context, a Actor, id string, acce
 		res, err = s.link(ctx, a, *op.Edge)
 	case "kind.define":
 		res, err = s.defineKind(ctx, a, p, *op.Kind)
+	case "plugin.call":
+		var out json.RawMessage
+		if out, err = s.PluginTool(ctx, a, p.Slug, op.Plugin, op.Tool, op.Args); err == nil {
+			res = out
+		}
 	case "edge.unlink":
 		err = s.DB.UnlinkEntities(ctx, op.Edge.From, op.Edge.Rel, op.Edge.To)
 	default:

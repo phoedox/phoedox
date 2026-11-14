@@ -191,6 +191,14 @@ func (r *Runtime) Has(ctx context.Context, p *Package, fn string) bool {
 // Call runs an exported function with JSON input and returns its output.
 // logKey groups the plugin's log lines (tenant + plugin).
 func (r *Runtime) Call(ctx context.Context, p *Package, logKey, fn string, input any, env Env) (json.RawMessage, error) {
+	return r.CallWithin(ctx, p, logKey, fn, input, env, 0)
+}
+
+// CallWithin is Call with an own time limit (0 = the runtime default).
+func (r *Runtime) CallWithin(ctx context.Context, p *Package, logKey, fn string, input any, env Env, limit time.Duration) (json.RawMessage, error) {
+	if limit <= 0 {
+		limit = r.Timeout
+	}
 	if p.Manifest.Backend == nil {
 		return nil, fmt.Errorf("plugin %s has no backend", p.Manifest.ID)
 	}
@@ -208,9 +216,10 @@ func (r *Runtime) Call(ctx context.Context, p *Package, logKey, fn string, input
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	ctx, cancel := context.WithTimeout(ctx, r.Timeout)
+	ctx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
-	cfg := wazero.NewModuleConfig().WithSysWalltime().WithSysNanotime().WithRandSource(rand.Reader)
+	// Nanosleep lets plugins wait (e.g. power off, wait, power on) within their limit.
+	cfg := wazero.NewModuleConfig().WithSysWalltime().WithSysNanotime().WithSysNanosleep().WithRandSource(rand.Reader)
 	inst, err := c.Instance(ctx, extism.PluginInstanceConfig{ModuleConfig: cfg})
 	if err != nil {
 		return nil, fmt.Errorf("plugin %s: %w", p.Manifest.ID, err)
@@ -224,7 +233,7 @@ func (r *Runtime) Call(ctx context.Context, p *Package, logKey, fn string, input
 	started := time.Now()
 	rc, out, err := inst.CallWithContext(ctx, fn, in)
 	if ctx.Err() != nil {
-		err = fmt.Errorf("plugin %s: %s took longer than %s", p.Manifest.ID, fn, r.Timeout)
+		err = fmt.Errorf("plugin %s: %s took longer than %s", p.Manifest.ID, fn, limit)
 	} else if err == nil && rc != 0 {
 		err = fmt.Errorf("plugin %s: %s returned %d", p.Manifest.ID, fn, rc)
 	} else if err != nil {

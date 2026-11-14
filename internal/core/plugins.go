@@ -637,19 +637,59 @@ func (s *Service) PluginTool(ctx context.Context, a Actor, ref, pluginID, tool s
 	if err != nil {
 		return nil, err
 	}
-	if !slices.ContainsFunc(ap.pkg.Manifest.Contributes.MCPTools, func(t plugins.ToolDef) bool { return t.Name == tool }) {
+	i := slices.IndexFunc(ap.pkg.Manifest.Contributes.MCPTools, func(t plugins.ToolDef) bool { return t.Name == tool })
+	if i < 0 {
 		return nil, ErrNotFound
 	}
+	def := ap.pkg.Manifest.Contributes.MCPTools[i]
 	if len(args) == 0 {
 		args = json.RawMessage("{}")
 	}
+	if def.Control {
+		// Acting on the physical world needs edit rights; AI clients only
+		// ever propose it, a person confirms in the suggestions.
+		if _, err := s.project(ctx, a, ref, store.RoleEditor); err != nil {
+			return nil, err
+		}
+		if a.Via == "mcp" {
+			if p.AIWriteMode == AIOff || p.AIWriteMode == AIRead {
+				return nil, ErrForbidden
+			}
+			summary := fmt.Sprintf("%s: %s %s", ap.pkg.Manifest.Name, tool, compactJSON(args, 160))
+			b, _ := json.Marshal(opPayload{Project: p.ID, Plugin: pluginID, Tool: tool, Args: args})
+			sug, err := s.DB.CreateSuggestion(ctx, store.Suggestion{ID: newID(), ProjectID: p.ID, Actor: a.String(), Op: "plugin.call", Summary: summary, Payload: b})
+			if err != nil {
+				return nil, err
+			}
+			s.event(ctx, a, "suggestion.create", sug.ID, map[string]string{"op": "plugin.call", "tool": tool})
+			return json.Marshal(map[string]any{"applied": false, "suggestion": sug,
+				"note": "This tool acts on real devices. A person must confirm it in Phoedox (Suggestions) before it runs."})
+		}
+	}
 	pa := a
 	pa.Plugin = pluginID
-	out, err := s.Plugins.Runtime.Call(ctx, ap.pkg, logKey(ctx, pluginID), "tool", map[string]any{"name": tool, "args": args, "project": p.Slug}, s.pluginEnv(pa, p, ap))
+	out, err := s.Plugins.Runtime.CallWithin(ctx, ap.pkg, logKey(ctx, pluginID), "tool", map[string]any{"name": tool, "args": args, "project": p.Slug}, s.pluginEnv(pa, p, ap),
+		time.Duration(def.TimeoutSec)*time.Second)
+	if def.Control {
+		s.event(ctx, a, "plugin.control", pluginID, map[string]any{"tool": tool, "args": args, "ok": err == nil})
+	}
 	if err != nil {
 		return nil, invalid("validation.plugin_failed", map[string]any{"plugin": pluginID}, "%v", err)
 	}
 	return out, nil
+}
+
+// compactJSON shortens arguments for a one-line summary.
+func compactJSON(raw json.RawMessage, max int) string {
+	var buf bytes.Buffer
+	if json.Compact(&buf, raw) != nil {
+		return ""
+	}
+	out := buf.String()
+	if len(out) > max {
+		out = out[:max] + "…"
+	}
+	return out
 }
 
 // PluginEvent is what on_event receives.
@@ -1195,6 +1235,9 @@ func (s *Service) PluginTools(ctx context.Context) []PluginToolSpec {
 			spec := PluginToolSpec{Plugin: row.ID, Name: t.Name, Description: t.Description}
 			if spec.Description == "" {
 				spec.Description = "Tool of the plugin " + row.Name + "."
+			}
+			if t.Control {
+				spec.Description += " Acts on real devices: your call becomes a suggestion a person must confirm in Phoedox."
 			}
 			if b, ok := pkg.File(t.Input); ok && t.Input != "" {
 				spec.Input = b
