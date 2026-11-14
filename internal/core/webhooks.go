@@ -39,6 +39,7 @@ var webhookEvents = map[string]string{
 	"edge.link": "relation.created", "edge.unlink": "relation.deleted",
 	"file.upload": "file.uploaded", "file.version": "file.updated", "file.delete": "file.deleted",
 	"suggestion.create": "suggestion.created", "suggestion.accept": "suggestion.accepted", "suggestion.reject": "suggestion.rejected",
+	"check.fail": "check.failed", "check.recover": "check.recovered",
 }
 
 // WebhookEventTypes lists the event types a webhook can subscribe to.

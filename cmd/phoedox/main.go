@@ -84,6 +84,20 @@ func main() {
 		go runPlugins(ctx, a, log)
 	}
 
+	// Monitoring: run due checks (request blocks) every fifteen seconds.
+	go func() {
+		t := time.NewTicker(15 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				a.Core.RunChecks(store.System(ctx), time.Now())
+			}
+		}
+	}()
+
 	// Housekeeping: empty the trash, drop stale uploads and old jobs now and every six hours.
 	go func() {
 		t := time.NewTicker(6 * time.Hour)

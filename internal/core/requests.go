@@ -23,17 +23,9 @@ func (s *Service) RunRequest(ctx context.Context, a Actor, ref, docRef string, i
 	if err != nil {
 		return requests.Result{}, err
 	}
-	var c struct {
-		Markdown string `json:"markdown"`
-	}
-	_ = json.Unmarshal(doc.Content, &c)
-	blocks := requests.Blocks(c.Markdown)
-	if doc.Type != store.DocMarkdown || index < 0 || index >= len(blocks) {
-		return requests.Result{}, invalid("validation.request_missing", nil, "the document has no request block %d", index)
-	}
-	req, err := requests.Parse(blocks[index])
+	req, err := blockRequest(doc, index)
 	if err != nil {
-		return requests.Result{}, invalid("validation.request_syntax", nil, "the request block cannot be read")
+		return requests.Result{}, err
 	}
 	if !requests.Safe(req.Method) {
 		if a.Via == "mcp" {
@@ -43,23 +35,49 @@ func (s *Service) RunRequest(ctx context.Context, a Actor, ref, docRef string, i
 			return requests.Result{}, ErrForbidden
 		}
 	}
-	values, secrets, err := s.envValues(ctx, p.ID)
+	res, host, err := s.execRequest(ctx, p.ID, req)
 	if err != nil {
-		return requests.Result{}, err
+		return res, err
+	}
+	s.event(ctx, a, "request.run", doc.ID, map[string]any{"index": index, "method": req.Method, "host": host, "status": res.Status})
+	return res, nil
+}
+
+// blockRequest parses request block number index of a page.
+func blockRequest(doc store.Document, index int) (requests.Request, error) {
+	var c struct {
+		Markdown string `json:"markdown"`
+	}
+	_ = json.Unmarshal(doc.Content, &c)
+	blocks := requests.Blocks(c.Markdown)
+	if doc.Type != store.DocMarkdown || index < 0 || index >= len(blocks) {
+		return requests.Request{}, invalid("validation.request_missing", nil, "the document has no request block %d", index)
+	}
+	req, err := requests.Parse(blocks[index])
+	if err != nil {
+		return requests.Request{}, invalid("validation.request_syntax", nil, "the request block cannot be read")
+	}
+	return req, nil
+}
+
+// execRequest fills a request from the project environment and sends it;
+// secrets are masked in the result and in the returned host.
+func (s *Service) execRequest(ctx context.Context, projectID string, req requests.Request) (requests.Result, string, error) {
+	values, secrets, err := s.envValues(ctx, projectID)
+	if err != nil {
+		return requests.Result{}, "", err
 	}
 	filled, missing := req.Fill(values)
 	if len(missing) > 0 {
-		return requests.Result{}, invalid("validation.request_variable", map[string]any{"name": missing[0]}, "the variable %s is not set in the project environment", missing[0])
+		return requests.Result{}, "", invalid("validation.request_variable", map[string]any{"name": missing[0]}, "the variable %s is not set in the project environment", missing[0])
 	}
-	client := s.RequestPolicy.Client()
-	res := requests.Run(ctx, client, filled)
+	res := requests.Run(ctx, s.RequestPolicy.Client(), filled)
 	res.Mask(secrets)
 	host := ""
 	if u, err := url.Parse(filled.URL); err == nil {
 		host = u.Host
 	}
-	s.event(ctx, a, "request.run", doc.ID, map[string]any{"index": index, "method": req.Method, "host": maskHost(host, secrets), "status": res.Status})
-	return res, nil
+	return res, maskHost(host, secrets), nil
 }
 
 func maskHost(host string, secrets []string) string {

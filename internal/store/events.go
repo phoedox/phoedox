@@ -102,7 +102,8 @@ func (d *DB) ProjectOfSubject(ctx context.Context, subject string) string {
 		UNION ALL SELECT project_id FROM webhooks WHERE id = ?
 		UNION ALL SELECT project_id FROM agents WHERE id = ?
 		UNION ALL SELECT project_id FROM agent_jobs WHERE id = ?
-	) s LIMIT 1`, subject, subject, subject, subject, subject, subject, subject, subject, subject, subject).Scan(&p)
+		UNION ALL SELECT project_id FROM checks WHERE id = ?
+	) s LIMIT 1`, subject, subject, subject, subject, subject, subject, subject, subject, subject, subject, subject).Scan(&p)
 	if err != nil {
 		return ""
 	}

@@ -10,6 +10,7 @@ import { storageBar, storageStyles } from "./project-files";
 import "./webhooks";
 import "./agents";
 import "./audit-log";
+import "./checks";
 import "./project-plugins";
 import { toast } from "./toasts";
 import { contentLocales, languageName } from "../languages";
@@ -300,6 +301,9 @@ export class PhxProjectSettings extends LitElement {
       </form>
       ${this.accessSection(owner, canEdit)}
       ${this.envSection(owner, canEdit)}
+      <h2 style="font-size:18px;margin:28px 0 6px">${t("check.title")}</h2>
+      <p class="muted">${t("check.settings_hint")}</p>
+      <phx-checks .project=${this.project}></phx-checks>
       ${this.storageSection(owner)}
       ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("plugins.title")}</h2><phx-project-plugins .project=${this.project}></phx-project-plugins>` : ""}
       ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("audit.project_title")}</h2><details><summary class="muted" style="cursor:pointer">${t("audit.project_show")}</summary>

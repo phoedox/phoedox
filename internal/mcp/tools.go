@@ -90,6 +90,20 @@ type runRequestIn struct {
 	Index    int    `json:"index" jsonschema:"0-based number of the request block in the page"`
 }
 
+type listChecksIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Document string `json:"document,omitempty" jsonschema:"only checks of this page (slug)"`
+}
+
+type createCheckIn struct {
+	Project     string `json:"project" jsonschema:"project slug"`
+	Document    string `json:"document" jsonschema:"slug of the Markdown page with the request block"`
+	Index       int    `json:"index" jsonschema:"0-based number of the request block in the page"`
+	Name        string `json:"name,omitempty" jsonschema:"short name, e.g. Nextcloud reachable"`
+	IntervalSec int    `json:"intervalSec,omitempty" jsonschema:"seconds between runs, 60 to 86400 (default 300)"`
+	Entity      string `json:"entity,omitempty" jsonschema:"slug of an entry whose state follows the check"`
+}
+
 type createProjectIn struct {
 	Name         string   `json:"name"`
 	Slug         string   `json:"slug,omitempty" jsonschema:"optional, derived from name"`
@@ -472,6 +486,12 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "run_request", "Run a request block (```request) of a page and check its expectations. Only reading requests (GET, HEAD, OPTIONS); secrets are masked.", func(ctx context.Context, a core.Actor, in runRequestIn) (any, error) {
 		return svc.RunRequest(ctx, a, in.Project, in.Document, in.Index)
+	})
+	tool(s, "list_checks", "Monitoring checks of a project (request blocks that run on a schedule) with their last state: ok, fail or unknown.", func(ctx context.Context, a core.Actor, in listChecksIn) (any, error) {
+		return svc.Checks(ctx, a, in.Project, in.Document)
+	})
+	tool(s, "create_check", "Monitor a reading request block (```request with GET, HEAD or OPTIONS) of a page every intervalSec seconds (60–86400, default 300). Optionally link an entry; its state attribute then shows online/offline. The creator gets a mail when the state changes.", func(ctx context.Context, a core.Actor, in createCheckIn) (any, error) {
+		return svc.CreateCheck(ctx, a, in.Project, core.CheckInput{Document: in.Document, Block: in.Index, Entity: in.Entity, Name: in.Name, IntervalSec: in.IntervalSec})
 	})
 	tool(s, "search", "Search documents and entities in one or all visible projects.", func(ctx context.Context, a core.Actor, in searchIn) (any, error) {
 		return svc.Search(ctx, a, in.Query, in.Project, in.Limit)

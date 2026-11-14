@@ -123,6 +123,7 @@ type Service struct {
 	pluginGen atomic.Int64
 	schedMu   sync.Mutex
 	schedLast map[string]time.Time
+	checkMu   sync.Mutex
 }
 
 // New returns a service with defaults.
