@@ -217,7 +217,8 @@ func (d *DB) RestoreFile(ctx context.Context, projectID, id string) (File, error
 func (d *DB) HashInUse(ctx context.Context, hash string) (bool, error) {
 	var one int
 	err := d.QueryRow(ctx, `SELECT 1 FROM file_versions WHERE sha256 = ?
-		UNION ALL SELECT 1 FROM files WHERE sha256 = ? OR thumb_sha256 = ? LIMIT 1`, hash, hash, hash).Scan(&one)
+		UNION ALL SELECT 1 FROM files WHERE sha256 = ? OR thumb_sha256 = ?
+		UNION ALL SELECT 1 FROM user_exports WHERE sha256 = ? LIMIT 1`, hash, hash, hash, hash).Scan(&one)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}

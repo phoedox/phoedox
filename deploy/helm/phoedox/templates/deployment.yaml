@@ -99,6 +99,10 @@ spec:
             - { name: PHOEDOX_SMTP_TLS, value: {{ .Values.mail.tls | quote }} }
             - { name: PHOEDOX_SMTP_FROM, value: {{ .Values.mail.from | quote }} }
             - { name: PHOEDOX_SMTP_USER, value: {{ .Values.mail.user | quote }} }
+            - { name: PHOEDOX_SMTP_HELO, value: {{ .Values.mail.helo | default .Values.domain | quote }} }
+            {{- if .Values.mail.caSecret }}
+            - { name: PHOEDOX_SMTP_CA_FILE, value: /etc/phoedox/smtp-ca/ca.crt }
+            {{- end }}
             {{- if .Values.mail.existingSecret }}
             - name: PHOEDOX_SMTP_PASSWORD
               valueFrom: { secretKeyRef: { name: {{ .Values.mail.existingSecret }}, key: password } }
@@ -128,6 +132,9 @@ spec:
             - { name: data, mountPath: /data }
             # PDF and OCR tools write temporary files.
             - { name: tmp, mountPath: /tmp }
+            {{- if and .Values.mail.enabled .Values.mail.caSecret }}
+            - { name: smtp-ca, mountPath: /etc/phoedox/smtp-ca, readOnly: true }
+            {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -151,6 +158,10 @@ spec:
             claimName: {{ default (printf "%s-data" $fn) .Values.persistence.existingClaim }}
         - name: tmp
           emptyDir: { sizeLimit: 2Gi }
+        {{- if and .Values.mail.enabled .Values.mail.caSecret }}
+        - name: smtp-ca
+          secret: { secretName: {{ .Values.mail.caSecret }}, items: [{ key: ca.crt, path: ca.crt }] }
+        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

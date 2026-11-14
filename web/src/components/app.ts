@@ -18,6 +18,7 @@ import "./login";
 import "./profile";
 import "./publications";
 import "./security";
+import "./account";
 import "./notification-bell";
 import "./notification-settings";
 import "./my-tasks";
@@ -81,6 +82,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/settings/shortcuts", render: () => html`<phx-shortcut-settings></phx-shortcut-settings>` },
     { path: "/settings/notifications", render: () => html`<phx-notification-settings></phx-notification-settings>` },
     { path: "/settings/security", render: () => html`<phx-security></phx-security>` },
+    { path: "/settings/account", render: () => html`<phx-account></phx-account>` },
     { path: "/settings/tokens", render: () => html`<phx-tokens></phx-tokens>` },
     { path: "/settings/publications", render: () => html`<phx-publications></phx-publications>` },
     { path: "/admin/users", render: () => html`<phx-users></phx-users>` },

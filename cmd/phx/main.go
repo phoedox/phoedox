@@ -18,6 +18,7 @@ import (
 	"github.com/phoedox/phoedox/internal/auth"
 	"github.com/phoedox/phoedox/internal/backup"
 	"github.com/phoedox/phoedox/internal/core"
+	"github.com/phoedox/phoedox/internal/mail"
 	"github.com/phoedox/phoedox/internal/store"
 )
 
@@ -28,6 +29,8 @@ Admin commands (run on the server, same environment as phoedox):
   phx admin invite --email E [--name N] [--admin]  Invitation link (emailed if SMTP is set)
   phx admin reset-password --email E [--password P]
   phx admin reset-2fa --email E                    Remove TOTP, recovery codes and passkeys
+  phx admin delete-user --email E --yes            Delete and anonymise an account (like Settings → Account)
+  phx admin test-mail --email E                    Send a test mail with the SMTP settings (PHOEDOX_SMTP_*)
   phx admin create-token --email E [--name N]     Personal API token (REST, MCP)
   phx admin reindex                                Rebuild the search index
   phx admin backup [--file F]                      Make a backup (to the backup target, or to file F)
@@ -74,7 +77,7 @@ func admin(args []string) error {
 	tenant := fs.String("tenant", store.DefaultTenant, "tenant (hosted mode)")
 	tenantID := fs.String("id", "", "tenant id (create-tenant)")
 	file := fs.String("file", "", "backup file")
-	yes := fs.Bool("yes", false, "confirm the restore")
+	yes := fs.Bool("yes", false, "confirm restore or delete-user")
 	var domains multi
 	fs.Var(&domains, "domain", "domain of the tenant (repeatable)")
 	if err := fs.Parse(args[1:]); err != nil {
@@ -214,6 +217,40 @@ func admin(args []string) error {
 			return err
 		}
 		fmt.Println("two-factor authentication and passkeys removed")
+	case "test-mail":
+		if a.Core.Mail == nil || !a.Core.Mail.Enabled() {
+			return fmt.Errorf("mail is not configured: set PHOEDOX_SMTP_HOST (Helm: mail.enabled)")
+		}
+		if *email == "" {
+			return fmt.Errorf("add --email with the address to send to")
+		}
+		err := a.Core.Mail.Send(ctx, mail.Message{To: *email, Subject: "Phoedox: test mail",
+			Body: "This test mail shows that Phoedox can send e-mail with its SMTP settings.\n\nDiese Test-Mail zeigt, dass Phoedox mit seinen SMTP-Einstellungen E-Mails versenden kann."})
+		if err != nil {
+			return err
+		}
+		fmt.Printf("test mail sent to %s via %s:%d (%s)\n", *email, a.Config.SMTP.Host, a.Config.SMTP.Port, a.Config.SMTP.TLS)
+	case "delete-user":
+		// Disabled accounts can be deleted too.
+		u, err := a.DB.UserByEmailAny(ctx, *email)
+		if err != nil {
+			return fmt.Errorf("user %s: %w", *email, err)
+		}
+		if !*yes {
+			return fmt.Errorf("deleting %s cannot be undone: add --yes", u.Email)
+		}
+		cli := core.Actor{User: store.User{ID: "cli", IsAdmin: true}, Via: "cli"}
+		plan, err := a.Core.DeleteAccount(ctx, cli, u.ID)
+		for _, b := range plan.Blockers {
+			fmt.Fprintf(os.Stderr, "blocked by %s %s %s\n", b.Kind, b.Slug, b.Name)
+		}
+		if err != nil {
+			return err
+		}
+		for _, d := range plan.Deletes {
+			fmt.Printf("deleted %s %s\n", d.Kind, d.Slug)
+		}
+		fmt.Println("account deleted and anonymised")
 	case "create-token":
 		u, err := a.DB.UserByEmail(ctx, *email)
 		if err != nil {

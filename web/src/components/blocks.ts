@@ -101,14 +101,32 @@ export function embedFor(raw: string): { src?: string; kind: "video" | "card" | 
   return { kind: "card", title: host };
 }
 
-/** ```embed (known players, other links as cards) and ```iframe (any https page in a sandbox). */
+const EMBED_OK = "phx.embed.allow";
+const embedAllowed = (): string[] => {
+  try {
+    const v = JSON.parse(localStorage.getItem(EMBED_OK) ?? "[]");
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+};
+
+/** ```embed (known players, other links as cards) and ```iframe (any https
+ * page in a sandbox). Content from other sites loads only after a click,
+ * because the provider then sees the reader's IP address; a provider can be
+ * allowed for good in this browser (like map tiles). */
 export class PhxEmbed extends LitElement {
-  static properties = { url: { attribute: "data-url" }, kind: { attribute: "data-kind" } };
+  static properties = { url: { attribute: "data-url" }, kind: { attribute: "data-kind" }, on: { state: true } };
   static styles = [base, css`
     :host { display: block; margin: .8em 0; }
     .frame { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: var(--surface2); }
     .frame.page { aspect-ratio: auto; height: 480px; resize: vertical; }
     iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+    .consent { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 10px; padding: 16px; text-align: center; font-size: 14px; }
+    .consent p { margin: 0; max-width: 46ch; color: var(--muted); }
+    .consent .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
+    .consent label.always { display: inline-flex; flex-direction: row; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); width: auto; }
+    .consent label.always input { width: auto; margin: 0; }
     a.card { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
       color: var(--fg); text-decoration: none; }
     @media (hover: hover) and (pointer: fine) { a.card:hover { border-color: var(--muted); } }
@@ -117,6 +135,29 @@ export class PhxEmbed extends LitElement {
   `];
   url = "";
   kind = "embed";
+  on = false;
+
+  private load(provider: string, e: Event) {
+    const always = (e.target as HTMLElement).closest(".consent")?.querySelector<HTMLInputElement>("input[type=checkbox]")?.checked;
+    if (always) {
+      try {
+        localStorage.setItem(EMBED_OK, JSON.stringify([...new Set([...embedAllowed(), provider])]));
+      } catch { /* only this time then */ }
+    }
+    this.on = true;
+  }
+
+  /** Placeholder until the reader agrees to load content from provider. */
+  private consent(provider: string, href: string, page: boolean) {
+    return html`<div class="frame ${page ? "page" : ""}"><div class="consent">
+      ${icon(page ? "Frame" : "SquarePlay", 28)}
+      <b>${t("embed.title", { provider })}</b>
+      <p>${t("embed.ip", { provider })}</p>
+      <div class="row"><button @click=${(e: Event) => this.load(provider, e)}>${t("embed.load")}</button>
+        <a href=${href} target="_blank" rel="noopener external">${t("embed.open")}</a></div>
+      <label class="always"><input type="checkbox"> ${t("embed.always", { provider })}</label>
+    </div></div>`;
+  }
 
   render() {
     let u: URL | undefined;
@@ -129,11 +170,13 @@ export class PhxEmbed extends LitElement {
     if (this.kind === "iframe") {
       // Same-site pages must not run scripts with our origin.
       const same = u.host === location.host;
+      if (!same && !this.on && !embedAllowed().includes(u.host)) return this.consent(u.host, u.href, true);
       return html`<div class="frame page"><iframe src=${u.href} title=${u.host} loading="lazy" referrerpolicy="no-referrer"
         sandbox=${same ? "allow-popups" : "allow-scripts allow-same-origin allow-popups allow-forms"}></iframe></div>`;
     }
     const e = embedFor(u.href);
     if (e.kind === "video" && e.src) {
+      if (!this.on && !embedAllowed().includes(e.title)) return this.consent(e.title, u.href, false);
       return html`<div class="frame"><iframe src=${e.src} title=${e.title} loading="lazy" referrerpolicy="strict-origin-when-cross-origin"
         allow="encrypted-media; picture-in-picture; fullscreen" allowfullscreen sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"></iframe></div>`;
     }

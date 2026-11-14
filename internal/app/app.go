@@ -83,8 +83,20 @@ func Open(ctx context.Context) (*App, error) {
 	}
 	var sender mail.Sender = mail.Disabled{}
 	if cfg.SMTP.Host != "" {
-		sender = &mail.SMTP{Host: cfg.SMTP.Host, Port: cfg.SMTP.Port, User: cfg.SMTP.User, Password: cfg.SMTP.Password,
-			From: cfg.SMTP.From, TLS: mail.TLSMode(cfg.SMTP.TLS)}
+		smtpSender := &mail.SMTP{Host: cfg.SMTP.Host, Port: cfg.SMTP.Port, User: cfg.SMTP.User, Password: cfg.SMTP.Password,
+			From: cfg.SMTP.From, TLS: mail.TLSMode(cfg.SMTP.TLS), Helo: cfg.SMTP.Helo}
+		if smtpSender.Helo == "" {
+			smtpSender.Helo = cfg.Domain
+		}
+		if cfg.SMTP.CAFile != "" {
+			pool, err := mail.CertPool(cfg.SMTP.CAFile)
+			if err != nil {
+				db.Close()
+				return nil, err
+			}
+			smtpSender.RootCAs = pool
+		}
+		sender = smtpSender
 	}
 	box, err := secret.Load(cfg.MasterKey, filepath.Join(cfg.DataDir, "master.key"))
 	if err != nil {
@@ -103,6 +115,7 @@ func Open(ctx context.Context) (*App, error) {
 	svc.Mail, svc.DefaultLocale = sender, cfg.DefaultLocale
 	svc.HashPassword, svc.VerifyPassword = auth.HashPassword, auth.VerifyPassword
 	svc.PublicURL = cfg.PublicURL
+	svc.BackupDays = (cfg.BackupKeep*cfg.BackupHours + 23) / 24
 	if svc.PublicURL == "" && cfg.Domain != "" {
 		svc.PublicURL = "https://" + cfg.Domain
 	}

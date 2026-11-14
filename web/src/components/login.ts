@@ -4,6 +4,7 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { hasKey, type Key } from "../i18n";
 import { navigate, nextPath, signedIn } from "../state";
+import { toast } from "./toasts";
 import { cancelled, credentialJSON, passkeysSupported, requestOptions } from "../webauthn";
 import { base } from "./shared";
 
@@ -48,6 +49,7 @@ export class PhxLogin extends LitElement {
     // Errors from the SSO callback arrive as ?error=<translation key>.
     const key = new URLSearchParams(location.search).get("error");
     if (key && hasKey(key)) this.error = t(key as Key);
+    if (new URLSearchParams(location.search).has("deleted")) toast(t("account.deleted"));
     this.instance = await api<Instance>("GET", "/instance").catch(() => undefined);
   }
 

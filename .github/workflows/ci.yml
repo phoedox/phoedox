@@ -55,7 +55,7 @@ jobs:
                    "--set database.type=sqlite --set ingress.tls.enabled=false --set ingress.redirectFrom={example.org}" \
                    "--set ingress.redirectFrom={example.org,www.example.org} --set ingress.httpsRedirect=false" \
                    "--set database.type=external --set database.external.url=postgres://u:p@db/phoedox --set image.variant=" \
-                   "--set clamav.enabled=true --set metrics.enabled=true --set metrics.serviceMonitor=true --set s3.enabled=true --set backups.target=s3 --set mail.enabled=true --set mail.existingSecret=mail --set database.cnpg.backup.enabled=true --set oidc.enabled=true --set oidc.issuer=https://id.example.org --set oidc.clientId=phx --set oidc.existingSecret=oidc"; do
+                   "--set clamav.enabled=true --set metrics.enabled=true --set metrics.serviceMonitor=true --set s3.enabled=true --set backups.target=s3 --set mail.enabled=true --set mail.existingSecret=mail --set mail.caSecret=smtp-ca --set database.cnpg.backup.enabled=true --set oidc.enabled=true --set oidc.issuer=https://id.example.org --set oidc.clientId=phx --set oidc.existingSecret=oidc"; do
             echo "== helm template $v"
             helm template t deploy/helm/phoedox $v | ./kubeconform -strict -ignore-missing-schemas -summary
           done

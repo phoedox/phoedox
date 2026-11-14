@@ -346,3 +346,67 @@ func SessionID(r *http.Request) string {
 	}
 	return ""
 }
+
+// DeletionNeeds is the confirmation deleting an account needs.
+type DeletionNeeds struct {
+	NeedsPassword    bool `json:"needsPassword"`
+	NeedsCode        bool `json:"needsCode"`
+	NeedsRecentLogin bool `json:"needsRecentLogin"`
+}
+
+// recentLogin is how fresh a session must be to delete an account without
+// password or authenticator (OIDC, passkey or Home Assistant sign-in).
+const recentLogin = 10 * time.Minute
+
+// DeletionNeeds returns how the person confirms deleting their account.
+func (a *Auth) DeletionNeeds(ctx context.Context, userID string) (DeletionNeeds, error) {
+	u, err := a.DB.UserByID(ctx, userID)
+	if err != nil {
+		return DeletionNeeds{}, err
+	}
+	n := DeletionNeeds{NeedsPassword: u.HasPassword, NeedsCode: a.totpActive(ctx, u.ID)}
+	n.NeedsRecentLogin = !n.NeedsPassword && !n.NeedsCode
+	return n, nil
+}
+
+// DeleteInput confirms deleting one's own account.
+type DeleteInput struct {
+	Password string `json:"password"`
+	Code     string `json:"code"`
+	Email    string `json:"email"`
+}
+
+// ConfirmDeletion checks that the signed-in person typed their e-mail
+// address and confirmed with password and/or authenticator code (or,
+// without both, signed in within the last minutes).
+func (a *Auth) ConfirmDeletion(ctx context.Context, actor core.Actor, session string, in DeleteInput) error {
+	if actor.Via != "web" && actor.Via != "" {
+		return core.ErrForbidden
+	}
+	u, err := a.DB.UserByID(ctx, actor.User.ID)
+	if err != nil {
+		return err
+	}
+	needs, err := a.DeletionNeeds(ctx, u.ID)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(strings.TrimSpace(in.Email), u.Email) {
+		return core.Invalid("validation.email_mismatch", nil, "type your e-mail address to confirm")
+	}
+	if needs.NeedsPassword && !VerifyPassword(u.PasswordHash, in.Password) {
+		return core.Invalid("validation.password_wrong", nil, "the current password is wrong")
+	}
+	if needs.NeedsCode {
+		if err := a.checkTOTP(ctx, u.ID, in.Code, false); err != nil {
+			return err
+		}
+	}
+	if needs.NeedsRecentLogin {
+		started, err := a.DB.SessionCreated(ctx, session)
+		if err != nil || time.Since(started.Time) > recentLogin {
+			return core.Invalid("validation.reauth_needed", nil, "sign in again, then delete the account within 10 minutes")
+		}
+	}
+	return nil
+}

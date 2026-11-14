@@ -41,7 +41,9 @@ var Tables = []string{
 }
 
 // Skipped are tables that are not backed up.
-var Skipped = []string{"goose_db_version", "sqlite_sequence", "search_index", "uploads"}
+// user_exports: personal data exports are short-lived (7 days) and must not
+// come back from a backup after they were deleted.
+var Skipped = []string{"goose_db_version", "sqlite_sequence", "search_index", "uploads", "user_exports"}
 
 // Manifest describes a backup.
 type Manifest struct {

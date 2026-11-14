@@ -3,7 +3,7 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { currentUser } from "../state";
 
-type Tab = "profile" | "notifications" | "shortcuts" | "security" | "tokens" | "publications" | "users" | "instance" | "backups" | "plugins" | "audit";
+type Tab = "profile" | "account" | "notifications" | "shortcuts" | "security" | "tokens" | "publications" | "users" | "instance" | "backups" | "plugins" | "audit";
 
 /** Tabs above the personal settings and admin pages: two groups (account,
  * administration) that wrap, so every tab stays visible without scrolling. */
@@ -20,6 +20,7 @@ export function settingsNav(active: Tab) {
       ${tab("security", "/settings/security", "ShieldCheck", t("nav.security"))}
       ${tab("tokens", "/settings/tokens", "KeyRound", t("nav.tokens"))}
       ${tab("publications", "/settings/publications", "Globe", t("pub.title_page"))}
+      ${tab("account", "/settings/account", "UserRound", t("account.title"))}
     </div>
     ${admin ? html`<div class="group" role="group" aria-label=${t("nav.admin")}>
       <span class="glabel">${t("nav.admin")}</span>

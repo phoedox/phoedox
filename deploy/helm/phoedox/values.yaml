@@ -109,15 +109,25 @@ backups:
   # local = on the data volume (same disk!), s3 = into the S3 bucket above.
   target: local
 
+# Outgoing mail: invitations, password resets, notifications, data exports
+# (see docs/kubernetes.md, "Mail"). Test with: phx admin test-mail --to you@…
 mail:
   enabled: false
   host: smtp.example.org
+  # 587 + starttls (submission), 465 + tls (implicit TLS), or 25 + none
+  # (only for a relay in your own network; no password over plain text).
   port: 587
   tls: starttls
+  # The sender must be allowed on the server (SPF/DKIM of its domain).
   from: "Phoedox <docs@example.org>"
   user: ""
   # Secret with key password.
   existingSecret: ""
+  # Name sent in EHLO; default: domain.
+  helo: ""
+  # Secret with key ca.crt (PEM) for a mail server with an internal or
+  # self-signed certificate; added to the system roots.
+  caSecret: ""
 
 oidc:
   enabled: false

@@ -14,8 +14,9 @@ type User struct {
 	Name         string `json:"name"`
 	IsAdmin      bool   `json:"isAdmin"`
 	Disabled     bool   `json:"disabled"`
-	Locale       string `json:"locale"`           // "" = follow the browser
-	Avatar       string `json:"avatar,omitempty"` // version of the profile picture, "" = none
+	Deleted      bool   `json:"deleted,omitempty"` // account deleted and anonymised (ADR-0055)
+	Locale       string `json:"locale"`            // "" = follow the browser
+	Avatar       string `json:"avatar,omitempty"`  // version of the profile picture, "" = none
 	HasPassword  bool   `json:"hasPassword"`
 	SecondFactor bool   `json:"secondFactor"` // filled by ListUsers
 	PasswordHash string `json:"-"`
@@ -23,16 +24,17 @@ type User struct {
 	LastLoginAt  Time   `json:"lastLoginAt"`
 }
 
-const userCols = `id, email, name, is_admin, password_hash, created_at, disabled_at, last_login_at, locale, avatar`
+const userCols = `id, email, name, is_admin, password_hash, created_at, disabled_at, last_login_at, locale, avatar, deleted_at`
 
 func scanUser(r interface{ Scan(...any) error }) (User, error) {
 	var u User
-	var disabled Time
-	err := r.Scan(&u.ID, &u.Email, &u.Name, &u.IsAdmin, &u.PasswordHash, &u.CreatedAt, &disabled, &u.LastLoginAt, &u.Locale, &u.Avatar)
+	var disabled, deleted Time
+	err := r.Scan(&u.ID, &u.Email, &u.Name, &u.IsAdmin, &u.PasswordHash, &u.CreatedAt, &disabled, &u.LastLoginAt, &u.Locale, &u.Avatar, &deleted)
 	if errors.Is(err, sql.ErrNoRows) {
 		return u, ErrNotFound
 	}
 	u.Disabled = !disabled.IsZero()
+	u.Deleted = !deleted.IsZero()
 	u.HasPassword = u.PasswordHash != ""
 	return u, err
 }
@@ -59,7 +61,7 @@ func (d *DB) UserByID(ctx context.Context, id string) (User, error) {
 
 // ListUsers returns all users of the instance, ordered by name.
 func (d *DB) ListUsers(ctx context.Context) ([]User, error) {
-	rows, err := d.Query(ctx, `SELECT `+userCols+` FROM users WHERE tenant_id = ? ORDER BY lower(name), email`, TenantOf(ctx))
+	rows, err := d.Query(ctx, `SELECT `+userCols+` FROM users WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY lower(name), email`, TenantOf(ctx))
 	if err != nil {
 		return nil, err
 	}

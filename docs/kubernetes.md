@@ -216,6 +216,41 @@ For your own domain such as `docs.phoedox.com`:
 
 3. In Phoedox, enter the same domain for the publication.
 
+## Mail (own SMTP server)
+
+Phoedox sends invitations, password resets, notifications and the links to personal data exports by
+mail. Any SMTP server works. Without mail, admins copy invitation links by hand, and data exports are off.
+
+```yaml
+mail:
+  enabled: true
+  host: mail.example.org
+  port: 587            # 587 + starttls, 465 + tls, or 25 + none
+  tls: starttls
+  from: "Phoedox <docs@example.org>"
+  user: docs@example.org
+  existingSecret: phoedox-mail   # key: password
+  # caSecret: smtp-ca            # key: ca.crt, for an internal or self-signed certificate
+```
+
+```bash
+kubectl -n phoedox create secret generic phoedox-mail --from-literal=password='…'
+# only for a mail server with its own CA:
+kubectl -n phoedox create secret generic smtp-ca --from-file=ca.crt=ca.pem
+# after helm upgrade: send a test mail
+kubectl -n phoedox exec deploy/phoedox -- phx admin test-mail --email you@example.org
+```
+
+| Setting | Notes |
+|---|---|
+| `tls: starttls` | Port 587; the certificate is checked against `host`. |
+| `tls: tls` | Port 465 (implicit TLS). |
+| `tls: none` | Only for a relay in your own network without sign-in: Phoedox never sends a password over an unencrypted connection (except to localhost). |
+| Sign-in | PLAIN, or LOGIN if the server offers only that (Microsoft 365). Gmail needs an app password; Microsoft 365 needs "Authenticated SMTP" enabled for the mailbox. |
+| `from` | The server must allow this sender; set SPF and DKIM for its domain, otherwise mails end up as spam. |
+| `helo` | Name in EHLO, defaults to `domain`. |
+| `caSecret` | Adds your CA to the system roots for the mail connection only; other connections are unchanged. |
+
 ## Product website (phoedox.com)
 
 The marketing website is its own service, separate from the app (ADR-0054): image

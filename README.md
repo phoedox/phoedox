@@ -90,6 +90,8 @@ make build && ./bin/phoedox
 | `PHOEDOX_SMTP_TLS` | `starttls` | `starttls`, `tls` or `none` (local relay only) |
 | `PHOEDOX_SMTP_USER` / `PHOEDOX_SMTP_PASSWORD` | – | Sign-in at the SMTP server |
 | `PHOEDOX_SMTP_FROM` | – | Sender, e.g. `Phoedox <noreply@example.org>` (required with SMTP) |
+| `PHOEDOX_SMTP_HELO` | domain | Name sent in EHLO; servers may reject `localhost` |
+| `PHOEDOX_SMTP_CA_FILE` | – | Extra CA certificates (PEM) for a mail server with an internal or self-signed certificate |
 | `PHOEDOX_MAX_UPLOAD_MB` | `100` | Largest file per upload (larger files upload resumably via tus) |
 | `PHOEDOX_CLAMAV` | – | clamd address for virus scanning, e.g. `clamav:3310` or `unix:/run/clamav/clamd.ctl`; without a response, uploads are rejected |
 | `PHOEDOX_OCR`, `PHOEDOX_OCR_LANGS` | `true`, `deu+eng` | Text recognition in images and scans, if tesseract is installed |

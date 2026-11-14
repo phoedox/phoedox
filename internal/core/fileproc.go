@@ -30,6 +30,7 @@ func (s *Service) RegisterJobs(q *jobs.Queue) {
 	s.Jobs = q
 	s.registerWebhookJobs(q)
 	s.registerPluginJobs()
+	s.registerExportJobs(q)
 	q.Handle(JobFileProcess, func(ctx context.Context, payload json.RawMessage) error {
 		var j fileJob
 		if err := json.Unmarshal(payload, &j); err != nil {

@@ -154,6 +154,11 @@ type SMTP struct {
 	Password string // PHOEDOX_SMTP_PASSWORD
 	From     string // PHOEDOX_SMTP_FROM, e.g. "Phoedox <noreply@example.org>"
 	TLS      string // PHOEDOX_SMTP_TLS: starttls (default), tls or none
+	// Helo is the name in EHLO (PHOEDOX_SMTP_HELO, default: the domain).
+	Helo string
+	// CAFile adds certificate authorities for an own mail server with an
+	// internal or self-signed certificate (PHOEDOX_SMTP_CA_FILE, PEM).
+	CAFile string
 }
 
 // FromEnv reads the configuration and applies defaults.
@@ -187,6 +192,8 @@ func FromEnv() (Config, error) {
 			Password: os.Getenv("PHOEDOX_SMTP_PASSWORD"),
 			From:     os.Getenv("PHOEDOX_SMTP_FROM"),
 			TLS:      strings.ToLower(getenv("PHOEDOX_SMTP_TLS", "starttls")),
+			Helo:     os.Getenv("PHOEDOX_SMTP_HELO"),
+			CAFile:   os.Getenv("PHOEDOX_SMTP_CA_FILE"),
 		},
 	}
 	c.RequestsPrivate = getenv("PHOEDOX_REQUESTS_PRIVATE", map[bool]string{true: "false", false: "true"}[c.MultiTenant]) == "true"

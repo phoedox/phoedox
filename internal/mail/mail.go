@@ -6,11 +6,13 @@ package mail
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"mime"
 	"net"
 	"net/smtp"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -62,6 +64,12 @@ type SMTP struct {
 	From     string // "Phoedox <noreply@example.org>"
 	TLS      TLSMode
 	Timeout  time.Duration
+	// Helo is the name sent in EHLO (the instance's domain); some servers
+	// reject or penalise the default "localhost".
+	Helo string
+	// RootCAs trusts additional certificate authorities (own mail server
+	// with an internal CA); nil = system roots.
+	RootCAs *x509.CertPool
 }
 
 func (s *SMTP) Enabled() bool { return true }
@@ -83,8 +91,9 @@ func (s *SMTP) Send(ctx context.Context, m Message) error {
 	dialer := &net.Dialer{Timeout: timeout}
 	var conn net.Conn
 	var err error
+	tlsConf := &tls.Config{ServerName: s.Host, MinVersion: tls.VersionTLS12, RootCAs: s.RootCAs}
 	if s.TLS == Implicit {
-		conn, err = tls.DialWithDialer(dialer, "tcp", addr, &tls.Config{ServerName: s.Host, MinVersion: tls.VersionTLS12})
+		conn, err = tls.DialWithDialer(dialer, "tcp", addr, tlsConf)
 	} else {
 		conn, err = dialer.DialContext(ctx, "tcp", addr)
 	}
@@ -98,13 +107,18 @@ func (s *SMTP) Send(ctx context.Context, m Message) error {
 		return fmt.Errorf("mail: hello: %w", err)
 	}
 	defer c.Close()
+	if s.Helo != "" {
+		if err := c.Hello(s.Helo); err != nil {
+			return fmt.Errorf("mail: ehlo: %w", err)
+		}
+	}
 	if s.TLS == StartTLS || s.TLS == "" {
-		if err := c.StartTLS(&tls.Config{ServerName: s.Host, MinVersion: tls.VersionTLS12}); err != nil {
+		if err := c.StartTLS(tlsConf); err != nil {
 			return fmt.Errorf("mail: starttls: %w", err)
 		}
 	}
 	if s.User != "" {
-		if err := c.Auth(smtp.PlainAuth("", s.User, s.Password, s.Host)); err != nil {
+		if err := c.Auth(s.auth(c)); err != nil {
 			return fmt.Errorf("mail: auth: %w", err)
 		}
 	}
@@ -126,6 +140,59 @@ func (s *SMTP) Send(ctx context.Context, m Message) error {
 		return err
 	}
 	return c.Quit()
+}
+
+// CertPool returns the system roots plus the PEM certificates in file.
+func CertPool(file string) (*x509.CertPool, error) {
+	pem, err := os.ReadFile(file)
+	if err != nil {
+		return nil, fmt.Errorf("PHOEDOX_SMTP_CA_FILE: %w", err)
+	}
+	pool, err := x509.SystemCertPool()
+	if err != nil || pool == nil {
+		pool = x509.NewCertPool()
+	}
+	if !pool.AppendCertsFromPEM(pem) {
+		return nil, fmt.Errorf("PHOEDOX_SMTP_CA_FILE: no PEM certificate in %s", file)
+	}
+	return pool, nil
+}
+
+// auth picks PLAIN, or LOGIN when the server offers only that (e.g.
+// Microsoft 365). Both refuse to send the password unencrypted except to
+// localhost.
+func (s *SMTP) auth(c *smtp.Client) smtp.Auth {
+	_, mechs := c.Extension("AUTH")
+	if !strings.Contains(" "+strings.ToUpper(mechs)+" ", " PLAIN ") && strings.Contains(" "+strings.ToUpper(mechs)+" ", " LOGIN ") {
+		return &loginAuth{user: s.User, pass: s.Password, host: s.Host}
+	}
+	return smtp.PlainAuth("", s.User, s.Password, s.Host)
+}
+
+type loginAuth struct{ user, pass, host string }
+
+func (a *loginAuth) Start(server *smtp.ServerInfo) (string, []byte, error) {
+	local := server.Name == "localhost" || server.Name == "127.0.0.1" || server.Name == "::1"
+	if !server.TLS && !local {
+		return "", nil, errors.New("unencrypted connection")
+	}
+	if server.Name != a.host {
+		return "", nil, errors.New("wrong host name")
+	}
+	return "LOGIN", nil, nil
+}
+
+func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
+	if !more {
+		return nil, nil
+	}
+	switch strings.ToLower(strings.TrimSpace(string(fromServer))) {
+	case "username:", "user name:", "username":
+		return []byte(a.user), nil
+	case "password:", "password":
+		return []byte(a.pass), nil
+	}
+	return nil, fmt.Errorf("unexpected server challenge %q", fromServer)
 }
 
 // Render builds the RFC 5322 message with UTF-8 subject and body.

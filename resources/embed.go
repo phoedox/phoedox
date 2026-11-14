@@ -25,6 +25,16 @@ var prompts embed.FS
 //go:embed mail/*.md
 var mails embed.FS
 
+//go:embed texts/*.txt
+var texts embed.FS
+
+// Text returns a fixed text file shipped with Phoedox (resources/texts),
+// e.g. the README of personal data exports.
+func Text(name string) (string, error) {
+	b, err := texts.ReadFile("texts/" + name)
+	return string(b), err
+}
+
 //go:embed publish/*.json
 var publishTexts embed.FS
 
