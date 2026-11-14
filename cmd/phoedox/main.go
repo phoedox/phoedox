@@ -99,6 +99,7 @@ func main() {
 				if time.Since(digests) > 10*time.Minute {
 					digests = time.Now()
 					a.Core.SendDigests(store.System(ctx), time.Now())
+					a.Core.RunGitSyncs(store.System(ctx), time.Now())
 				}
 			}
 		}

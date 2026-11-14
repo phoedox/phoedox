@@ -5,6 +5,7 @@ import { icon } from "../icon";
 import { currentProject, navigate } from "../state";
 import { base } from "./shared";
 import { projectBadge } from "../pictures";
+import "./project-transfer";
 
 interface Template { id: string; name: string; description: string; icon: string }
 
@@ -94,6 +95,8 @@ export class PhxProjects extends LitElement {
         ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
         <div><button type="submit">${t("projects.create")}</button></div>
       </form>
+      <details style="margin-top:22px"><summary style="cursor:pointer;font-weight:600">${icon("ArrowRightLeft", 15)} ${t("transfer.title")}</summary>
+        <phx-project-import></phx-project-import></details>
     </div>`;
   }
 }

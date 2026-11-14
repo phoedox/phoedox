@@ -11,6 +11,7 @@ import "./webhooks";
 import "./agents";
 import "./audit-log";
 import "./checks";
+import "./project-transfer";
 import "./project-plugins";
 import { toast } from "./toasts";
 import { contentLocales, languageName } from "../languages";
@@ -309,6 +310,7 @@ export class PhxProjectSettings extends LitElement {
       ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("audit.project_title")}</h2><details><summary class="muted" style="cursor:pointer">${t("audit.project_show")}</summary>
         <phx-audit-log .project=${this.project}></phx-audit-log></details>` : ""}
       ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("agents.title")}</h2><phx-agents .project=${this.project}></phx-agents>` : ""}
+      ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("transfer.settings_title")}</h2><phx-project-transfer .project=${this.project}></phx-project-transfer>` : ""}
       ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("hooks.title")}</h2><phx-webhooks .project=${this.project}></phx-webhooks>` : ""}
     </div>`;
   }

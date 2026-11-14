@@ -114,8 +114,10 @@ type Service struct {
 	AgentReleases   string
 	AgentReleaseDir string
 	// OSVURL is the vulnerability database (default https://api.osv.dev).
-	OSVURL    string
-	MaxUpload int64
+	OSVURL string
+	// gitAllowFile allows file:// repositories (tests only).
+	gitAllowFile bool
+	MaxUpload    int64
 	// Jobs runs background work (previews, text extraction); nil runs it inline.
 	Jobs *jobs.Queue
 	// Preview makes preview images and extracts text (external tools optional).

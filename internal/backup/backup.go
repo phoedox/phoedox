@@ -37,7 +37,7 @@ var Tables = []string{
 	"auth_challenges", "oauth_clients", "oauth_grants", "oauth_codes", "oauth_tokens", "user_identities",
 	"doc_updates", "project_env", "instance_settings", "project_kinds",
 	"files", "file_versions", "jobs", "share_links", "webhooks", "webhook_deliveries",
-	"plugins", "project_plugins", "plugin_kv", "drafts", "document_translations", "tasks", "images", "publications", "agent_enrollments", "agents", "signing_keys", "agent_jobs", "publication_releases", "checks", "comments", "notifications", "notification_settings", "push_subscriptions",
+	"plugins", "project_plugins", "plugin_kv", "drafts", "document_translations", "tasks", "images", "publications", "agent_enrollments", "agents", "signing_keys", "agent_jobs", "publication_releases", "checks", "comments", "notifications", "notification_settings", "push_subscriptions", "project_git",
 }
 
 // Skipped are tables that are not backed up.
