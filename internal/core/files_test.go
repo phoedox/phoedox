@@ -280,3 +280,25 @@ func pngImage(t *testing.T) []byte {
 	}
 	return b.Bytes()
 }
+
+func TestFileText(t *testing.T) {
+	ctx := context.Background()
+	s, owner, reader, _ := setup(t)
+	dir := t.TempDir()
+	s.Blobs, s.TempDir = blob.Local{Dir: filepath.Join(dir, "files")}, filepath.Join(dir, "tmp")
+	_ = os.MkdirAll(s.TempDir, 0o700)
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Haus"})
+	_ = s.SetMember(ctx, owner, p.Slug, "reader@x.de", store.RoleReader)
+	f, err := s.UploadFile(ctx, owner, p.Slug, FileInput{Name: "plate.txt"}, strings.NewReader("Model: XR-500\nS/N: 12345"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Without a job queue the file is processed right away.
+	ft, err := s.FileText(ctx, reader, p.Slug, f.ID)
+	if err != nil || ft.Status != "done" || !strings.Contains(ft.Text, "S/N: 12345") {
+		t.Fatalf("text: %+v %v", ft, err)
+	}
+	if _, err := s.FileText(ctx, owner, p.Slug, "nope"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown: %v", err)
+	}
+}

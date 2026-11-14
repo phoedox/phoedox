@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"regexp"
 	"strconv"
 	"strings"
@@ -49,6 +51,16 @@ func TranslationRef(documentID, locale string) string { return documentID + "~" 
 func (d *DB) IndexDelete(ctx context.Context, refID string) error {
 	_, err := d.Exec(ctx, `DELETE FROM search_index WHERE ref_id = ? OR ref_id LIKE ? ESCAPE '\'`, refID, escapeLike(refID)+"~%")
 	return err
+}
+
+// IndexBody returns the indexed text of an entry ("" if none).
+func (d *DB) IndexBody(ctx context.Context, refID string) (string, error) {
+	var body string
+	err := d.QueryRow(ctx, `SELECT body FROM search_index WHERE ref_id = ?`, refID).Scan(&body)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return body, err
 }
 
 // IndexCount returns the number of indexed entries.

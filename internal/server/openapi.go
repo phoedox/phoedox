@@ -317,6 +317,7 @@ var apiDocs = map[string]op{
 	"GET /projects/{p}/files/{id}/versions":              {Tag: "files", Summary: "Versions of a file.", Out: []store.FileVersion{}},
 	"POST /projects/{p}/files/{id}/versions":             {Tag: "files", Summary: "Upload a new version (raw body).", Raw: true, Out: store.File{}},
 	"POST /projects/{p}/files/{id}/versions/{n}/restore": {Tag: "files", Summary: "Make an older version current.", Out: store.File{}},
+	"GET /projects/{p}/files/{id}/text":                  {Tag: "files", Summary: "Text recognised in a file (PDF text or OCR); status is empty while processing.", Out: core.FileText{}},
 	"POST /projects/{p}/files/{id}/plan-image":           {Tag: "files", Summary: "Render a PDF as floor plan background (PNG of the first page).", Out: store.File{}},
 	"GET /files/{id}":                                    {Tag: "files", Summary: "Download a file (version, preview image).", Query: []string{"version", "preview", "download"}},
 	"GET /files/{id}/{name}":                             {Tag: "files", Summary: "Download a file with its name in the URL.", Query: []string{"version", "preview", "download"}},

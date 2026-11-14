@@ -488,3 +488,23 @@ func (s *Service) freeBlobs(ctx context.Context, hashes []string) {
 		}
 	}
 }
+
+// FileText is the text recognised in a file (PDF text or OCR of images).
+type FileText struct {
+	// Status is "" while processing, then done, none or failed.
+	Status string `json:"status"`
+	Text   string `json:"text"`
+}
+
+// FileText returns the extracted text of a file (readers of the file).
+func (s *Service) FileText(ctx context.Context, a Actor, ref, id string) (FileText, error) {
+	f, err := s.fileIn(ctx, a, ref, id, store.RoleReader)
+	if err != nil {
+		return FileText{}, err
+	}
+	out := FileText{Status: f.TextStatus}
+	if f.TextStatus == "done" {
+		out.Text, err = s.DB.IndexBody(ctx, f.ID)
+	}
+	return out, err
+}

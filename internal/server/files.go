@@ -236,3 +236,9 @@ func (a *api) planImage(w http.ResponseWriter, r *http.Request) {
 	f, err := a.core.PlanImage(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"))
 	respond(w, f, err)
 }
+
+// fileText returns the text recognised in a file (PDF text, OCR).
+func (a *api) fileText(w http.ResponseWriter, r *http.Request) {
+	t, err := a.core.FileText(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"))
+	respond(w, t, err)
+}
