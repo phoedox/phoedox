@@ -8,10 +8,15 @@ export interface FloorWall { id: string; a: Pt; b: Pt; thickness: number; height
 /** A door or window; offset is the distance from the wall start to its centre. */
 export interface FloorOpening { id: string; wall: string; kind: "door" | "window"; offset: number; width: number }
 export interface FloorPhoto { id: string; file: string; x: number; y: number; caption?: string }
+/** A cable route: [x, y, height above this floor] in mm; from/to are entries at its ends. */
+export type Pt3 = [number, number, number];
+export type CableKind = "network" | "power" | "coax" | "other";
+export interface FloorCable { id: string; kind: CableKind; label?: string; points: Pt3[]; from?: string; to?: string; entity?: string }
+export const CABLE_KINDS: CableKind[] = ["network", "power", "coax", "other"];
 export interface Floorplan {
   description?: string; floor?: string; image?: string; imageWidth?: number;
   width: number; height: number; rooms: FloorRoom[]; devices: FloorDevice[];
-  walls: FloorWall[]; openings: FloorOpening[]; photos: FloorPhoto[];
+  walls: FloorWall[]; openings: FloorOpening[]; photos: FloorPhoto[]; cables: FloorCable[];
 }
 
 export const WALL_THICKNESS = 120;
@@ -28,13 +33,14 @@ export function normalizePlan(c: Partial<Floorplan> | undefined): Floorplan {
     walls: (c?.walls ?? []).map((w) => ({ ...w, a: [w.a[0], w.a[1]] as Pt, b: [w.b[0], w.b[1]] as Pt, thickness: w.thickness || WALL_THICKNESS })),
     openings: (c?.openings ?? []).map((o) => ({ ...o })),
     photos: (c?.photos ?? []).map((p) => ({ ...p })),
+    cables: (c?.cables ?? []).map((k) => ({ ...k, kind: k.kind || "network", points: k.points.map((q) => [q[0], q[1], q[2] ?? 0] as Pt3) })),
   };
 }
 
 /** The plan as the server stores it: empty stage-2 lists are left out. */
 export function planForSave(p: Floorplan): Partial<Floorplan> {
   const out: Partial<Floorplan> = { ...p };
-  for (const k of ["walls", "openings", "photos"] as const) if (!p[k].length) delete out[k];
+  for (const k of ["walls", "openings", "photos", "cables"] as const) if (!p[k].length) delete out[k];
   return out;
 }
 
@@ -98,8 +104,9 @@ export function openingSpan(w: FloorWall, o: Pick<FloorOpening, "offset" | "widt
 }
 
 /** The extent of everything drawn (rooms, walls, devices, photos). */
-export function bounds(p: Pick<Floorplan, "rooms" | "walls" | "devices" | "photos">): { min: Pt; max: Pt } | undefined {
+export function bounds(p: Pick<Floorplan, "rooms" | "walls" | "devices" | "photos"> & { cables?: FloorCable[] }): { min: Pt; max: Pt } | undefined {
   const pts: Pt[] = [...p.rooms.flatMap((r) => r.points), ...p.walls.flatMap((w) => [w.a, w.b]),
+    ...(p.cables ?? []).flatMap((c) => c.points.map((q) => [q[0], q[1]] as Pt)),
     ...p.devices.map((d) => [d.x, d.y] as Pt), ...p.photos.map((f) => [f.x, f.y] as Pt)];
   if (!pts.length) return undefined;
   const xs = pts.map((q) => q[0]);
@@ -113,8 +120,8 @@ export function bounds(p: Pick<Floorplan, "rooms" | "walls" | "devices" | "photo
 
 export type PlanItem =
   | ({ t: "room" } & FloorRoom) | ({ t: "device" } & FloorDevice) | ({ t: "wall" } & FloorWall)
-  | ({ t: "opening" } & FloorOpening) | ({ t: "photo" } & FloorPhoto);
-export type PlanMeta = Omit<Floorplan, "rooms" | "devices" | "walls" | "openings" | "photos">;
+  | ({ t: "opening" } & FloorOpening) | ({ t: "photo" } & FloorPhoto) | ({ t: "cable" } & FloorCable);
+export type PlanMeta = Omit<Floorplan, "rooms" | "devices" | "walls" | "openings" | "photos" | "cables">;
 
 export function planItems(p: Floorplan): Map<string, PlanItem> {
   const m = new Map<string, PlanItem>();
@@ -123,11 +130,12 @@ export function planItems(p: Floorplan): Map<string, PlanItem> {
   for (const w of p.walls) m.set(w.id, { t: "wall", ...w });
   for (const o of p.openings) m.set(o.id, { t: "opening", ...o });
   for (const f of p.photos) m.set(f.id, { t: "photo", ...f });
+  for (const c of p.cables) m.set(c.id, { t: "cable", ...c });
   return m;
 }
 
 export function planMeta(p: Floorplan): PlanMeta {
-  const { rooms: _r, devices: _d, walls: _w, openings: _o, photos: _f, ...meta } = p;
+  const { rooms: _r, devices: _d, walls: _w, openings: _o, photos: _f, cables: _c, ...meta } = p;
   return meta;
 }
 
@@ -145,6 +153,7 @@ export function planFrom(meta: Partial<PlanMeta>, items: Iterable<PlanItem>): Fl
     else if (it.t === "wall") p.walls.push(strip(it) as FloorWall);
     else if (it.t === "opening") p.openings.push(strip(it) as FloorOpening);
     else if (it.t === "photo") p.photos.push(strip(it) as FloorPhoto);
+    else if (it.t === "cable") p.cables.push(strip(it) as FloorCable);
   }
   const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   p.rooms.sort((a, b) => area(b.points) - area(a.points) || byId(a, b));
@@ -153,6 +162,7 @@ export function planFrom(meta: Partial<PlanMeta>, items: Iterable<PlanItem>): Fl
   const walls = new Set(p.walls.map((w) => w.id));
   p.openings = p.openings.filter((o) => walls.has(o.wall)).sort(byId);
   p.photos.sort(byId);
+  p.cables.sort(byId);
   return p;
 }
 

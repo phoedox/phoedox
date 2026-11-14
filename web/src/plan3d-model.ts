@@ -21,7 +21,9 @@ export interface Box {
 /** A room floor: polygon in the x/z plane at height y. */
 export interface Slab { id: string; slug?: string; name: string; color: string; y: number; points: [number, number][] }
 export interface Label { text: string; x: number; y: number; z: number; slug?: string; kind: "room" | "device" | "level" }
-export interface Scene3D { boxes: Box[]; slabs: Slab[]; labels: Label[]; min: [number, number, number]; max: [number, number, number] }
+/** A cable route in metres (y up), coloured by kind. */
+export interface Cable3D { kind: string; slug?: string; name: string; points: [number, number, number][] }
+export interface Scene3D { boxes: Box[]; slabs: Slab[]; labels: Label[]; cables: Cable3D[]; min: [number, number, number]; max: [number, number, number] }
 
 export interface Level {
   plan: Floorplan;
@@ -90,6 +92,7 @@ export function buildScene(levels: Level[], entries: Map<string, EntryInfo>, mou
   const boxes: Box[] = [];
   const slabs: Slab[] = [];
   const labels: Label[] = [];
+  const cables: Cable3D[] = [];
   for (const lv of levels) {
     const p = lv.plan;
     const base = lv.elevation;
@@ -135,12 +138,18 @@ export function buildScene(levels: Level[], entries: Map<string, EntryInfo>, mou
         labels.push({ kind: "device", text: e?.name ?? d.entity, x: m(d.x), y: m(base) + 0.55, z: m(d.y), slug: e?.slug ?? d.entity });
       }
     }
+    for (const c of p.cables ?? []) {
+      // A cable opens the entry of its far end (or the cable entry itself).
+      const slug = c.entity ?? c.to ?? c.from;
+      cables.push({ kind: c.kind, slug, name: c.label || slug || c.kind, points: c.points.map(([x, y, h]) => [m(x), m(base + h), m(y)]) });
+    }
     if (levels.length > 1 && lv.name) labels.push({ kind: "level", text: lv.name, x: -0.5, y: m(base) + 0.1, z: -0.5 });
   }
   // Extent, for the camera.
   const pts: [number, number, number][] = [
     ...boxes.flatMap((b) => [[b.x - b.w / 2, b.y - b.h / 2, b.z - b.d / 2], [b.x + b.w / 2, b.y + b.h / 2, b.z + b.d / 2]] as [number, number, number][]),
     ...slabs.flatMap((s) => s.points.map(([x, z]) => [x, s.y, z] as [number, number, number])),
+    ...cables.flatMap((c) => c.points),
   ];
   if (!pts.length) {
     const p = levels[0]?.plan;
@@ -148,7 +157,7 @@ export function buildScene(levels: Level[], entries: Map<string, EntryInfo>, mou
   }
   const min = [0, 1, 2].map((i) => Math.min(...pts.map((q) => q[i]))) as [number, number, number];
   const max = [0, 1, 2].map((i) => Math.max(...pts.map((q) => q[i]))) as [number, number, number];
-  return { boxes, slabs, labels, min, max };
+  return { boxes, slabs, labels, cables, min, max };
 }
 
 /** Devices mounted in racks (mounted_in edges with u and height). */

@@ -39,6 +39,20 @@ type Floorplan struct {
 	Walls    []FloorWall    `json:"walls,omitempty"`
 	Openings []FloorOpening `json:"openings,omitempty"`
 	Photos   []FloorPhoto   `json:"photos,omitempty"`
+	Cables   []FloorCable   `json:"cables,omitempty"`
+}
+
+// FloorCable is a cable route: points with x, y and the height above this
+// floor (mm; above the ceiling it runs into the storey above, below 0 into
+// the one beneath). From and To are the entries at its ends.
+type FloorCable struct {
+	ID     string       `json:"id"`
+	Kind   string       `json:"kind"` // network | power | coax | other
+	Label  string       `json:"label,omitempty"`
+	Points [][3]float64 `json:"points"`
+	From   string       `json:"from,omitempty"`
+	To     string       `json:"to,omitempty"`
+	Entity string       `json:"entity,omitempty"` // the cable itself as an entry, optional
 }
 
 // FloorWall is a straight wall from A to B (centre line).
@@ -98,6 +112,8 @@ const (
 	maxPlanWalls  = 5000
 	maxPlanOpen   = 2000
 	maxPlanPhotos = 500
+	maxPlanCables = 1000
+	maxCablePts   = 200
 )
 
 func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
@@ -121,7 +137,7 @@ func floorplanContent(fp *Floorplan) (store.JSON, string, error) {
 	if !finite(fp.ImageWidth) || fp.ImageWidth < 0 || fp.ImageWidth > maxPlanSize {
 		return nil, "", bad("imageWidth")
 	}
-	if len(fp.Rooms) > maxPlanRooms || len(fp.Devices) > maxPlanDevs || len(fp.Walls) > maxPlanWalls || len(fp.Openings) > maxPlanOpen || len(fp.Photos) > maxPlanPhotos {
+	if len(fp.Rooms) > maxPlanRooms || len(fp.Devices) > maxPlanDevs || len(fp.Walls) > maxPlanWalls || len(fp.Openings) > maxPlanOpen || len(fp.Photos) > maxPlanPhotos || len(fp.Cables) > maxPlanCables {
 		return nil, "", bad("count")
 	}
 	if fp.Rooms == nil {
@@ -181,6 +197,28 @@ func floorplanContent(fp *Floorplan) (store.JSON, string, error) {
 			return nil, "", bad("opening")
 		}
 		ids[o.ID] = true
+	}
+	cableKinds := map[string]bool{"network": true, "power": true, "coax": true, "other": true}
+	for i := range fp.Cables {
+		c := &fp.Cables[i]
+		c.Label = strings.TrimSpace(c.Label)
+		if c.Kind == "" {
+			c.Kind = "network"
+		}
+		if !planIDRe.MatchString(c.ID) || ids[c.ID] || !cableKinds[c.Kind] || len(c.Points) < 2 || len(c.Points) > maxCablePts || len(c.Label) > 200 {
+			return nil, "", bad("cable")
+		}
+		for _, pt := range c.Points {
+			if !inside(pt[0], pt[1]) || !finite(pt[2]) || pt[2] < -20000 || pt[2] > 100000 {
+				return nil, "", bad("cable")
+			}
+		}
+		for _, r := range []string{c.From, c.To, c.Entity} {
+			if r != "" {
+				refs = append(refs, r)
+			}
+		}
+		ids[c.ID] = true
 	}
 	for i := range fp.Photos {
 		ph := &fp.Photos[i]
@@ -285,6 +323,18 @@ func (s *Service) syncFloorplan(ctx context.Context, a Actor, p store.Project, d
 			}
 		}
 	}
+	// ensureEdge adds an edge (never removes: one entry can have several cables).
+	ensureEdge := func(from store.Entity, rel string, to store.Entity) {
+		edges, _ := s.DB.EdgesOf(ctx, from.ID)
+		for _, e := range edges {
+			if e.From == from.ID && e.Rel == rel && e.To == to.ID {
+				return
+			}
+		}
+		if _, err := s.DB.LinkEntities(ctx, store.Edge{ID: newID(), From: from.ID, Rel: rel, To: to.ID, Attrs: []byte("{}"), Source: floorplanSource}); err == nil {
+			linked++
+		}
+	}
 	floor, hasFloor := get(fp.Floor)
 	for _, r := range fp.Rooms {
 		room, ok := get(r.Entity)
@@ -312,6 +362,22 @@ func (s *Service) syncFloorplan(ctx context.Context, a Actor, p store.Project, d
 		r, in := fp.RoomAt(d.X, d.Y)
 		room, ok := get(r.Entity)
 		ensure(dev, "located_in", room, in && ok)
+	}
+	// Cables link their ends: network cables wired_to, power cables
+	// powered_by (in whichever direction the data model allows).
+	for _, c := range fp.Cables {
+		rel := map[string]string{"network": "wired_to", "power": "powered_by"}[c.Kind]
+		from, ok1 := get(c.From)
+		to, ok2 := get(c.To)
+		if rel == "" || !ok1 || !ok2 || from.ID == to.ID {
+			continue
+		}
+		switch {
+		case slices.Contains(m.AllowedRels(from.Kind, to.Kind), rel):
+			ensureEdge(from, rel, to)
+		case slices.Contains(m.AllowedRels(to.Kind, from.Kind), rel):
+			ensureEdge(to, rel, from)
+		}
 	}
 	if linked+unlinked > 0 {
 		s.event(ctx, a, "floorplan.sync", doc.ID, map[string]int{"linked": linked, "unlinked": unlinked})

@@ -9,9 +9,9 @@ import type { PlanInput } from "./plan3d";
 import { userColor } from "../collab";
 import { fileURL, isImage, uploadFile, type FileInfo } from "../files";
 import {
-  DOOR_WIDTH, ROOM_COLORS, WALL_THICKNESS, WINDOW_WIDTH, areaM2, calibrate, clampOpening, distance, labelPoint, metres, nearestWall, newId,
+  CABLE_KINDS, DOOR_WIDTH, ROOM_COLORS, WALL_THICKNESS, WINDOW_WIDTH, areaM2, calibrate, clampOpening, distance, labelPoint, metres, nearestWall, newId,
   normalizePlan, onWall, openingSpan, orthogonal, planForSave, roomAt, snap, snapToEnds, wallLength, wallOutline,
-  type FloorDevice, type FloorOpening, type FloorRoom, type FloorWall, type Floorplan, type Pt,
+  type FloorCable, type Pt3, type FloorDevice, type FloorOpening, type FloorRoom, type FloorWall, type Floorplan, type Pt,
 } from "../floorplan";
 import { ImportError, addImport, parseImport, type ImportResult } from "../floorplan-import";
 import { connectPlan, type PlanLive, type PlanPeer, type Status } from "../floorplan-live";
@@ -22,15 +22,16 @@ import { currentUser, navigate } from "../state";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
-type Tool = "select" | "room" | "wall" | "opening" | "device" | "photo" | "calibrate";
+type Tool = "select" | "room" | "wall" | "opening" | "device" | "photo" | "cable" | "calibrate";
 type Box = { x: number; y: number; w: number; h: number };
 /** What the side panel asks for before something is added. */
 type Pending =
   | { kind: "room"; points: Pt[] } | { kind: "device"; at: Pt } | { kind: "calibrate"; a: Pt; b: Pt }
-  | { kind: "opening"; wall: string; offset: number } | { kind: "import"; result: ImportResult; name: string };
+  | { kind: "opening"; wall: string; offset: number } | { kind: "import"; result: ImportResult; name: string }
+  | { kind: "cable"; points: Pt3[] };
 type Drag =
   | { kind: "pan"; from: Pt; box: Box } | { kind: "device" | "photo"; id: string } | { kind: "vertex"; room: string; index: number }
-  | { kind: "wallEnd"; wall: string; end: "a" | "b" } | { kind: "opening"; id: string };
+  | { kind: "wallEnd"; wall: string; end: "a" | "b" } | { kind: "opening"; id: string } | { kind: "cvertex"; cable: string; index: number };
 
 const GRID = 100; // snap: 10 cm
 const NEW = "__new__";
@@ -42,7 +43,7 @@ export class PhxFloorplan extends LitElement {
     plan: { state: true }, editing: { state: true }, tool: { state: true }, selected: { state: true }, chain: { state: true },
     cursor: { state: true }, pending: { state: true }, entities: { state: true }, model: { state: true }, box: { state: true },
     busy: { state: true }, error: { state: true }, peers: { state: true }, status: { state: true }, saving: { state: true },
-    photo: { state: true }, wallThickness: { state: true }, view3d: { state: true }, allFloors: { state: true }, cut: { state: true }, others: { state: true }, edges: { state: true },
+    photo: { state: true }, wallThickness: { state: true }, cableHeight: { state: true }, view3d: { state: true }, allFloors: { state: true }, cut: { state: true }, others: { state: true }, edges: { state: true },
   };
   static styles = [base, css`
     :host { display: block; }
@@ -75,6 +76,10 @@ export class PhxFloorplan extends LitElement {
     .draft { fill: color-mix(in srgb, var(--accent) 12%, transparent); stroke: var(--accent); stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; stroke-width: 2; }
     .vertex { fill: var(--surface); stroke: var(--accent); vector-effect: non-scaling-stroke; stroke-width: 2; cursor: move; }
     .measure { stroke: var(--wire); stroke-width: 2; vector-effect: non-scaling-stroke; }
+    .cable { fill: none; stroke-width: 3; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+    .cable.network { stroke: var(--wire); } .cable.power { stroke: var(--bad); } .cable.coax { stroke: var(--signal); } .cable.other { stroke: var(--muted); }
+    .cable.sel { stroke-width: 5; }
+    .cable-hit { fill: none; stroke: transparent; stroke-width: 14; vector-effect: non-scaling-stroke; cursor: pointer; }
     .peer text { stroke-width: 0; paint-order: normal; fill: var(--surface); font-weight: 600; }
     .zoom { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 4px; }
     .zoom button { padding: 4px 7px; }
@@ -134,6 +139,8 @@ export class PhxFloorplan extends LitElement {
   /** The photo shown large (view mode). */
   photo = "";
   wallThickness = WALL_THICKNESS;
+  /** Height above the floor (mm) for new cable points. */
+  cableHeight = 300;
   /** 3D view (three.js, loaded on demand). */
   view3d = false;
   allFloors = false;
@@ -334,6 +341,7 @@ export class PhxFloorplan extends LitElement {
   private onEnded(reason: string, by: string) {
     if (this.ended) return;
     this.ended = true;
+    this.draft = undefined;
     if (by && by !== currentUser.get()?.name) {
       const key = reason === "published" ? "draft.ended_published" : reason === "deleted" ? "draft.ended_deleted" : reason === "cancelled" ? "draft.ended_cancelled" : "draft.ended";
       toast(t(key, { by }));
@@ -349,6 +357,7 @@ export class PhxFloorplan extends LitElement {
       await this.live?.flush();
       this.ended = true;
       await api("POST", `/projects/${this.project}/documents/${this.doc.id}/draft/publish`);
+      this.draft = undefined;
       toast(t("plan.saved"));
       await this.close();
     } catch (e) {
@@ -365,6 +374,7 @@ export class PhxFloorplan extends LitElement {
     try {
       this.ended = true;
       await api("DELETE", `/projects/${this.project}/documents/${this.doc.id}/draft`);
+      this.draft = undefined;
       toast(t("draft.cancelled_toast"));
       await this.close();
     } catch (e) {
@@ -396,6 +406,32 @@ export class PhxFloorplan extends LitElement {
   private wallPoint(e: PointerEvent, from?: Pt, skip?: string): Pt {
     const end = e.altKey ? undefined : snapToEnds(this.plan, this.toPlan(e), SNAP_PX * this.mmPerPx, skip);
     return end ? [end[0], end[1]] : this.gridded(e, from);
+  }
+
+  /** A device near a point (for cable ends). */
+  private deviceNear(p: Pt): FloorDevice | undefined {
+    let best: FloorDevice | undefined;
+    let bestD = SNAP_PX * this.mmPerPx;
+    for (const d of this.plan.devices) {
+      const dist = distance([d.x, d.y], p);
+      if (dist < bestD) [best, bestD] = [d, dist];
+    }
+    return best;
+  }
+
+  private cablePoint(e: PointerEvent): Pt3 {
+    const raw = this.toPlan(e);
+    const dev = e.altKey ? undefined : this.deviceNear(raw);
+    const p = dev ? ([dev.x, dev.y] as Pt) : this.gridded(e, this.chain[this.chain.length - 1]);
+    return [p[0], p[1], this.cableHeight];
+  }
+
+  private cableChain: Pt3[] = [];
+
+  private finishCable() {
+    if (this.cableChain.length >= 2) this.pending = { kind: "cable", points: this.cableChain };
+    this.cableChain = [];
+    this.chain = [];
   }
 
   private onDown(e: PointerEvent) {
@@ -447,6 +483,11 @@ export class PhxFloorplan extends LitElement {
       case "device":
         this.pending = { kind: "device", at: this.gridded(e) };
         return;
+      case "cable": {
+        this.cableChain = [...this.cableChain, this.cablePoint(e)];
+        this.chain = this.cableChain.map((q) => [q[0], q[1]] as Pt);
+        return;
+      }
       case "photo":
         this.photoAt = this.toPlan(e);
         this.renderRoot.querySelector<HTMLInputElement>("input.photo-file")?.click();
@@ -463,6 +504,16 @@ export class PhxFloorplan extends LitElement {
     }
     // select
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    const cvertex = target.closest<SVGElement>("[data-cvertex]");
+    const cableId = ds("cable", "cable");
+    if (cvertex) {
+      this.drag = { kind: "cvertex", cable: cvertex.dataset.cvertex!, index: Number(cvertex.dataset.index) };
+      return;
+    }
+    if (cableId && !openingId && !devId && !photoId) {
+      this.selected = cableId;
+      return;
+    }
     const vertex = target.closest<SVGElement>("[data-vertex]");
     const end = target.closest<SVGElement>("[data-end]");
     if (vertex) {
@@ -499,6 +550,7 @@ export class PhxFloorplan extends LitElement {
       this.live?.setCursor(at);
       if (this.tool === "room") this.cursor = this.gridded(e, this.chain[this.chain.length - 1]);
       else if (this.tool === "wall") this.cursor = this.wallPoint(e, this.chain[this.chain.length - 1]);
+      else if (this.tool === "cable") this.cursor = this.cablePoint(e).slice(0, 2) as Pt;
       else if (this.tool === "calibrate") this.cursor = at;
     }
     const d = this.drag;
@@ -527,6 +579,12 @@ export class PhxFloorplan extends LitElement {
         const len = wallLength(ww);
         for (const o of p.openings) if (o.wall === ww.id) { o.width = Math.min(o.width, len); o.offset = clampOpening(len, o.offset, o.width); }
       });
+    } else if (d.kind === "cvertex") {
+      const p = this.cablePoint(e);
+      this.change((q) => {
+        const pts = q.cables.find((x) => x.id === d.cable)!.points;
+        pts[d.index] = [p[0], p[1], pts[d.index][2]];
+      });
     } else if (d.kind === "opening") {
       const o = this.plan.openings.find((x) => x.id === d.id);
       const w = o && this.plan.walls.find((x) => x.id === o.wall);
@@ -549,13 +607,17 @@ export class PhxFloorplan extends LitElement {
     } else if (mod && e.key.toLowerCase() === "y") {
       this.live?.redo();
     } else if (e.key === "Escape") {
-      if (this.chain.length) this.chain = [];
-      else if (this.pending) this.pending = undefined;
+      if (this.chain.length) {
+        this.chain = [];
+        this.cableChain = [];
+      } else if (this.pending) this.pending = undefined;
       else this.selected = "";
     } else if (e.key === "Enter" && this.tool === "room" && this.chain.length >= 3) {
       this.closeRoom();
     } else if (e.key === "Enter" && this.tool === "wall") {
       this.chain = [];
+    } else if (e.key === "Enter" && this.tool === "cable") {
+      this.finishCable();
     } else if (e.key === "Backspace" && this.chain.length && this.tool === "room") {
       this.chain = this.chain.slice(0, -1);
     } else if ((e.key === "Delete" || e.key === "Backspace") && this.selected) {
@@ -573,6 +635,7 @@ export class PhxFloorplan extends LitElement {
   private setTool(tool: Tool) {
     this.tool = tool;
     this.chain = [];
+    this.cableChain = [];
     this.pending = undefined;
     this.cursor = undefined;
   }
@@ -585,6 +648,7 @@ export class PhxFloorplan extends LitElement {
       p.walls = p.walls.filter((w) => w.id !== id);
       p.openings = p.openings.filter((o) => o.id !== id && o.wall !== id);
       p.photos = p.photos.filter((f) => f.id !== id);
+      p.cables = p.cables.filter((c) => c.id !== id);
     });
     this.selected = "";
   }
@@ -625,6 +689,11 @@ export class PhxFloorplan extends LitElement {
         const o: FloorOpening = { id: newId("o"), wall: w.id, kind: s("kind") === "window" ? "window" : "door", width, offset: clampOpening(len, pend.offset, width) };
         this.change((p) => p.openings.push(o));
         this.selected = o.id;
+      } else if (pend.kind === "cable") {
+        const c: FloorCable = { id: newId("c"), kind: (s("kind") || "network") as FloorCable["kind"], label: s("label") || undefined,
+          points: pend.points, from: s("from") || undefined, to: s("to") || undefined };
+        this.change((p) => p.cables.push(c));
+        this.selected = c.id;
       } else if (pend.kind === "import") {
         const level = pend.result.levels[Number(s("level")) || 0];
         this.applyImport(level, pend.result.skipped);
@@ -810,6 +879,17 @@ export class PhxFloorplan extends LitElement {
           <circle cx=${f.x} cy=${f.y} r=${r}/>
           <g transform="translate(${f.x - r * 0.6} ${f.y - r * 0.6})">${icon("Camera", r * 1.2)}</g></g>`;
       })}
+      ${p.cables.map((c) => {
+        const d = c.points.map((q, i) => `${i ? "L" : "M"}${q[0]} ${q[1]}`).join(" ");
+        return svg`<g data-cable=${c.id}><title>${c.label || t(`plan.cable.${c.kind}` as any)}</title>
+          <path class="cable-hit" d=${d}/><path class="cable ${c.kind} ${sel(c.id)}" d=${d}/></g>`;
+      })}
+      ${this.editing && p.cables.some((c) => c.id === this.selected) ? p.cables.find((c) => c.id === this.selected)!.points.map((q, i) =>
+        svg`<circle class="vertex" data-cvertex=${this.selected} data-index=${i} cx=${q[0]} cy=${q[1]} r=${unit * 0.2}/>`) : nothing}
+      ${this.tool === "cable" && this.cableChain.length ? svg`<path class="cable network" stroke-dasharray="6 4"
+        d=${[...this.cableChain.map((q) => [q[0], q[1]] as Pt), ...(this.cursor ? [this.cursor] : [])].map((q, i) => `${i ? "L" : "M"}${q[0]} ${q[1]}`).join(" ")}/>
+        ${this.cableChain.map((q) => svg`<circle class="vertex" cx=${q[0]} cy=${q[1]} r=${unit * 0.16}/>`)}` : nothing}
+      ${this.pending?.kind === "cable" ? svg`<path class="cable network" stroke-dasharray="6 4" d=${this.pending.points.map((q, i) => `${i ? "L" : "M"}${q[0]} ${q[1]}`).join(" ")}/>` : nothing}
       ${selRoom ? selRoom.points.map((q, i) => svg`<circle class="vertex" data-vertex=${selRoom.id} data-index=${i} cx=${q[0]} cy=${q[1]} r=${unit * 0.22}/>`) : nothing}
       ${selWall ? (["a", "b"] as const).map((k) => svg`<circle class="vertex" data-end=${selWall.id} data-which=${k} cx=${selWall[k][0]} cy=${selWall[k][1]} r=${unit * 0.22}/>`) : nothing}
       ${this.chain.length && this.tool === "room" ? svg`<polygon class="draft" points=${pts(this.cursor ? [...this.chain, this.cursor] : this.chain)}/>
@@ -886,6 +966,20 @@ export class PhxFloorplan extends LitElement {
           ${this.formButtons()}
         </form></section>`;
     }
+    if (pend?.kind === "cable") {
+      const near = (q: Pt3) => this.deviceNear([q[0], q[1]])?.entity ?? "";
+      const [from, to] = [near(pend.points[0]), near(pend.points[pend.points.length - 1])];
+      const ends = (cur: string) => html`<option value="">${t("plan.no_entry")}</option>${this.entryOptions((e) => e.kind !== "room" && e.kind !== "floor", cur)}`;
+      return html`<section><h3>${t("plan.new_cable")}</h3>
+        <form @submit=${this.submitPending} style="display:grid;gap:8px">
+          <label class="field">${t("plan.cable_kind")}<select name="kind" autofocus>${CABLE_KINDS.map((k) => html`<option value=${k}>${t(`plan.cable.${k}` as any)}</option>`)}</select></label>
+          <label class="field">${t("plan.cable_label")}<input name="label" maxlength="200" placeholder="Patch 12"></label>
+          <label class="field">${t("plan.cable_from")}<select name="from">${ends(from)}</select></label>
+          <label class="field">${t("plan.cable_to")}<select name="to">${ends(to)}</select></label>
+          <p class="hint">${t("plan.cable_link_hint")}</p>
+          ${this.formButtons()}
+        </form></section>`;
+    }
     if (pend?.kind === "import") {
       return html`<section><h3>${t("plan.import")}</h3>
         <form @submit=${this.submitPending} style="display:grid;gap:8px">
@@ -944,6 +1038,23 @@ export class PhxFloorplan extends LitElement {
         <p class="hint">${t("plan.opening_hint")}</p>
         <div class="row">${remove}</div></section>`;
     }
+    const cable = p.cables.find((c) => c.id === this.selected);
+    if (cable) {
+      const set = (fn: (c: FloorCable) => void) => this.change((q) => fn(q.cables.find((c) => c.id === cable.id)!));
+      const ends = (cur?: string) => html`<option value="">${t("plan.no_entry")}</option>${this.entryOptions((e) => e.kind !== "room" && e.kind !== "floor", cur)}`;
+      const len = cable.points.slice(1).reduce((sum, q, i) => sum + Math.hypot(q[0] - cable.points[i][0], q[1] - cable.points[i][1], q[2] - cable.points[i][2]), 0);
+      return html`<section><h3>${cable.label || t(`plan.cable.${cable.kind}` as any)} · ${metres(len, loc)}</h3>
+        <label class="field">${t("plan.cable_kind")}<select @change=${(e: Event) => set((c) => (c.kind = (e.target as HTMLSelectElement).value as FloorCable["kind"]))}>
+          ${CABLE_KINDS.map((k) => html`<option value=${k} ?selected=${k === cable.kind}>${t(`plan.cable.${k}` as any)}</option>`)}</select></label>
+        <label class="field">${t("plan.cable_label")}<input .value=${cable.label ?? ""} maxlength="200" @change=${(e: Event) => set((c) => (c.label = (e.target as HTMLInputElement).value.trim() || undefined))}></label>
+        <label class="field">${t("plan.cable_from")}<select @change=${(e: Event) => set((c) => (c.from = (e.target as HTMLSelectElement).value || undefined))}>${ends(cable.from)}</select></label>
+        <label class="field">${t("plan.cable_to")}<select @change=${(e: Event) => set((c) => (c.to = (e.target as HTMLSelectElement).value || undefined))}>${ends(cable.to)}</select></label>
+        <table><thead><tr><th>#</th><th>${t("plan.cable_height")}</th></tr></thead><tbody>${cable.points.map((q, i) => html`<tr><td>${i + 1}</td>
+          <td><input type="number" step="5" style="max-width:110px" .value=${String(q[2] / 10)} aria-label=${t("plan.cable_height")}
+            @change=${(e: Event) => set((c) => { c.points[i] = [c.points[i][0], c.points[i][1], Math.round(Number((e.target as HTMLInputElement).value) * 10) || 0]; })}></td></tr>`)}</tbody></table>
+        <p class="hint">${t("plan.cable_edit_hint")}</p>
+        <div class="row">${remove}</div></section>`;
+    }
     if (photo) {
       return html`<section><h3>${t("plan.photo")}</h3>
         <img src=${fileURL({ id: photo.file, name: "photo" })} alt=${photo.caption ?? ""}>
@@ -960,11 +1071,14 @@ export class PhxFloorplan extends LitElement {
     }
     const hints: Record<Tool, string> = {
       select: t("plan.hint_select"), room: t("plan.hint_room"), wall: t("plan.hint_wall"), opening: t("plan.hint_opening"),
-      device: t("plan.hint_device"), photo: t("plan.hint_photo"), calibrate: t("plan.hint_calibrate"),
+      device: t("plan.hint_device"), photo: t("plan.hint_photo"), cable: t("plan.hint_cable"), calibrate: t("plan.hint_calibrate"),
     };
     return html`<section><p class="hint">${hints[this.tool]}</p>
         ${this.tool === "wall" ? html`<label class="field">${t("plan.thickness_cm")}<input type="number" min="1" max="200" step="0.5" .value=${String(this.wallThickness / 10)}
-          @change=${(e: Event) => (this.wallThickness = Math.min(2000, Math.max(10, Math.round(Number((e.target as HTMLInputElement).value) * 10) || WALL_THICKNESS)))}></label>` : ""}</section>
+          @change=${(e: Event) => (this.wallThickness = Math.min(2000, Math.max(10, Math.round(Number((e.target as HTMLInputElement).value) * 10) || WALL_THICKNESS)))}></label>` : ""}
+        ${this.tool === "cable" ? html`<label class="field">${t("plan.cable_height")}<input type="number" step="5" min="-2000" max="10000" .value=${String(this.cableHeight / 10)}
+          @change=${(e: Event) => (this.cableHeight = Math.round(Number((e.target as HTMLInputElement).value) * 10) || 0)}></label>
+          <p class="hint">${t("plan.cable_height_hint")}</p>` : ""}</section>
       <section><h3>${t("plan.settings")}</h3>
         <div class="row">
           <label class="field" style="flex:1">${t("plan.width")}<input type="number" min="1" max="1000" step="0.5" .value=${String(p.width / 1000)}
@@ -1022,6 +1136,7 @@ export class PhxFloorplan extends LitElement {
     const tools: [Tool, string, string][] = [
       ["select", "MousePointer2", t("plan.tool_select")], ["wall", "BrickWall", t("plan.tool_wall")], ["opening", "DoorOpen", t("plan.tool_opening")],
       ["room", "PenTool", t("plan.tool_room")], ["device", "MapPin", t("plan.tool_device")], ["photo", "Camera", t("plan.tool_photo")],
+      ["cable", "Cable", t("plan.tool_cable")],
     ];
     if (this.plan.image) tools.push(["calibrate", "Ruler", t("plan.tool_calibrate")]);
     const state = this.status !== "connected" ? t(this.status === "connecting" ? "editor.connecting" : "editor.disconnected") : this.saving ? t("editor.saving") : t("editor.saved");
@@ -1054,7 +1169,7 @@ export class PhxFloorplan extends LitElement {
           <svg class="plan" viewBox="${b.x} ${b.y} ${b.w} ${b.h}" role="img" aria-label=${this.doc?.title ?? ""}
             @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp}
             @pointerleave=${() => { this.cursor = undefined; this.live?.setCursor(); }}
-            @dblclick=${() => { if (this.tool === "room" && this.chain.length >= 3) this.closeRoom(); else if (this.tool === "wall") this.chain = []; }}
+            @dblclick=${() => { if (this.tool === "room" && this.chain.length >= 3) this.closeRoom(); else if (this.tool === "wall") this.chain = []; else if (this.tool === "cable") this.finishCable(); }}
             @wheel=${this.onWheel}>
             <rect x="0" y="0" width=${this.plan.width} height=${this.plan.height} fill="none" stroke="var(--line)" vector-effect="non-scaling-stroke"/>
             ${this.drawPlan()}

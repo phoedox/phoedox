@@ -196,6 +196,19 @@ export class PhxPlan3D extends LitElement {
       scene.add(mesh);
       if (s.slug) this.pickable.push(mesh);
     }
+    // Cables as thin tubes along their route.
+    const cableColor: Record<string, string> = { network: "--wire", power: "--bad", coax: "--signal", other: "--muted" };
+    for (const c of data.cables) {
+      const path = new THREE.CurvePath<THREE.Vector3>();
+      for (let i = 1; i < c.points.length; i++) {
+        path.add(new THREE.LineCurve3(new THREE.Vector3(...c.points[i - 1]), new THREE.Vector3(...c.points[i])));
+      }
+      const geo = new THREE.TubeGeometry(path, Math.max(8, c.points.length * 8), 0.03, 8, false);
+      const mesh = new THREE.Mesh(geo, mat(this.token(cableColor[c.kind] ?? "--muted"), { roughness: 0.5 }));
+      mesh.userData.slug = c.slug;
+      scene.add(mesh);
+      if (c.slug) this.pickable.push(mesh);
+    }
     for (const l of data.labels) {
       const div = document.createElement("div");
       div.className = `lbl ${l.kind}${l.slug ? " link" : ""}`;

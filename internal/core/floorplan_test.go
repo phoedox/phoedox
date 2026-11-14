@@ -191,3 +191,45 @@ func TestFloorplanStage2(t *testing.T) {
 		t.Fatalf("published: %+v v%d", after, pub.Document.Version)
 	}
 }
+
+// TestFloorplanCables: cable routes are validated and link their ends.
+func TestFloorplanCables(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _ := setup(t)
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Haus"})
+	for _, e := range []EntityInput{{Kind: "switch", Name: "Switch", Slug: "switch"}, {Kind: "device", Name: "Drucker", Slug: "drucker"}} {
+		if _, err := s.UpsertEntity(ctx, owner, p.Slug, e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bad := []Floorplan{
+		{Cables: []FloorCable{{ID: "c1", Points: [][3]float64{{0, 0, 0}}}}},
+		{Cables: []FloorCable{{ID: "c1", Kind: "fiber", Points: [][3]float64{{0, 0, 0}, {1, 1, 0}}}}},
+		{Cables: []FloorCable{{ID: "c1", Points: [][3]float64{{0, 0, 0}, {1, 1, 200000}}}}},
+	}
+	for i, fp := range bad {
+		if _, err := s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: "floorplan", Title: "X", Floorplan: &fp}); invalidKey(err) != "validation.floorplan" {
+			t.Errorf("bad %d: %v", i, err)
+		}
+	}
+	fp := Floorplan{Cables: []FloorCable{{ID: "c1", Label: "Patch 4", From: "drucker", To: "switch", Points: [][3]float64{{100, 100, 300}, {2000, 100, 2400}, {2000, 100, 3200}}}}}
+	res, err := s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: "floorplan", Title: "EG", Floorplan: &fp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved Floorplan
+	_ = json.Unmarshal(res.Document.Content, &saved)
+	if saved.Cables[0].Kind != "network" || saved.Cables[0].Points[2][2] != 3200 {
+		t.Fatalf("saved: %+v", saved.Cables)
+	}
+	d, _ := s.Entity(ctx, owner, p.Slug, "drucker")
+	found := false
+	for _, e := range d.Edges {
+		if e.Rel == "wired_to" && e.ToSlug == "switch" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no wired_to edge: %+v", d.Edges)
+	}
+}

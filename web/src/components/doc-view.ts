@@ -105,7 +105,13 @@ export class PhxDocView extends SignalWatcher(LitElement) {
   /** Loads the page again in place (after its access changed); open dialogs stay. */
   async reload() {
     const doc = await api<Doc>("GET", `/projects/${this.project}/documents/${this.docSlug}${this.lang ? `?lang=${this.lang}` : ""}`).catch(() => undefined);
-    if (doc) this.doc = doc;
+    if (doc) {
+      // A draft may have been opened, published or discarded meanwhile.
+      this.draft = (doc.type === "markdown" || doc.type === "floorplan") && ["editor", "owner"].includes(doc.role ?? currentProject.get()?.role ?? "")
+        ? await api<DraftInfo>("GET", `/projects/${this.project}/documents/${doc.id}/draft`).catch(() => undefined)
+        : undefined;
+      this.doc = doc;
+    }
     docsVersion.set(docsVersion.get() + 1);
   }
 

@@ -10,6 +10,7 @@ const plan = normalizePlan({
   ],
   rooms: [{ id: "r1", name: "Kitchen", entity: "kitchen", color: "green", points: [[0, 0], [5000, 0], [5000, 4000], [0, 4000]] }],
   devices: [{ id: "d1", entity: "rack1", x: 1000, y: 2000 }, { id: "d2", entity: "printer", x: 4000, y: 3000 }],
+  cables: [{ id: "c1", kind: "network", label: "Patch 4", from: "printer", to: "rack1", points: [[4000, 3000, 300], [1000, 3000, 2400], [1000, 2000, 2400]] }],
 });
 
 describe("3D model", () => {
@@ -57,6 +58,7 @@ describe("3D model", () => {
     expect(s.boxes.find((b) => b.kind === "device")?.slug).toBe("printer");
     expect(s.slabs[0]).toMatchObject({ slug: "kitchen", color: "green", y: 0 });
     expect(s.labels.map((l) => l.text)).toEqual(["Kitchen", "Rack", "Printer"]);
+    expect(s.cables).toEqual([{ kind: "network", slug: "rack1", name: "Patch 4", points: [[4, 0.3, 3], [1, 2.4, 3], [1, 2.4, 2]] }]);
     expect(s.min[0]).toBeCloseTo(0);
     expect(s.max[1]).toBeCloseTo(3); // the 3 m wall
   });
