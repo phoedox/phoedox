@@ -23,6 +23,7 @@ import "./data-model";
 import "./graph-view";
 import "./project-files";
 import "./suggestions";
+import "./monitoring";
 import "./project-settings";
 import "./create-dialog";
 import type { PhxCreateDialog } from "./create-dialog";
@@ -129,6 +130,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "e/:entity", render: ({ entity }) => html`<phx-entity-view .project=${this.slug} .entity=${entity!}></phx-entity-view>` },
     { path: "decisions", render: () => this.gated("decisions", html`<phx-decisions .project=${this.slug}></phx-decisions>`) },
     { path: "suggestions", render: () => html`<phx-suggestions .project=${this.slug}></phx-suggestions>` },
+    { path: "monitoring", render: () => html`<phx-monitoring .project=${this.slug}></phx-monitoring>` },
     { path: "settings", render: () => html`<phx-project-settings .project=${this.slug}></phx-project-settings>` },
   ], { fallback: { render: () => this.overview() } });
 
@@ -265,6 +267,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     if (here.endsWith("/files")) return t("nav.files");
     if (here.endsWith("/new-entity")) return t("entity.new");
     if (here.endsWith("/suggestions")) return t("nav.suggestions");
+    if (here.endsWith("/monitoring")) return t("monitoring.title");
     if (here.endsWith("/settings")) return t("nav.settings");
     return t("project.overview");
   }
@@ -398,7 +401,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
             </div>` : ""}
           </div>
           <a href="/p/${this.slug}/trash" class=${here.endsWith("/trash") ? "on" : ""}>${icon("Trash2", 15)} ${t("nav.trash")}</a>` : ""}
-          ${docOnly ? "" : html`<a href="/p/${this.slug}/suggestions" class=${here.endsWith("/suggestions") ? "on" : ""}>${icon("Bot", 15)} ${t("nav.suggestions")}</a>
+          ${docOnly ? "" : html`<a href="/p/${this.slug}/monitoring" class=${here.endsWith("/monitoring") ? "on" : ""}>${icon("Activity", 15)} ${t("monitoring.title")}</a>
+          <a href="/p/${this.slug}/suggestions" class=${here.endsWith("/suggestions") ? "on" : ""}>${icon("Bot", 15)} ${t("nav.suggestions")}</a>
           <a href="/p/${this.slug}/settings" class=${here.endsWith("/settings") ? "on" : ""}>${icon("Settings", 15)} ${t("nav.settings")}</a>`}
         </div>
         <phx-create-dialog .project=${this.slug}></phx-create-dialog>

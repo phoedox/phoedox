@@ -14,6 +14,8 @@ export interface MonitorCheck {
   name: string;
   intervalSec: number;
   enabled: boolean;
+  /** Shown on the public status page. */
+  public: boolean;
   lastStatus: "unknown" | "ok" | "fail";
   lastRun: string | null;
   lastChange: string | null;

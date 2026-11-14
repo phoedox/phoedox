@@ -121,6 +121,25 @@ func New(d Deps) http.Handler {
 			}
 			d.Publish.Serve(w, r, p, "/pub/"+p.Slug)
 		}
+		// Public status page of a project (opt-in, random address).
+		statusPage := func(w http.ResponseWriter, r *http.Request) {
+			token := chi.URLParam(r, "token")
+			base := "/status/" + token
+			if rest := strings.TrimPrefix(r.URL.Path, base); rest != "" && rest != "/" {
+				if !d.Publish.Asset(w, r, rest) {
+					http.NotFound(w, r)
+				}
+				return
+			}
+			page, _, err := d.Core.StatusByToken(r.Context(), token, time.Now())
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			d.Publish.StatusPage(w, r, page, base)
+		}
+		r.Get("/status/{token}", statusPage)
+		r.Get("/status/{token}/*", statusPage)
 		r.Get("/pub/{slug}", servePub)
 		r.Handle("/pub/{slug}/*", http.HandlerFunc(servePub))
 	}

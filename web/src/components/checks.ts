@@ -10,7 +10,7 @@ import { toast } from "./toasts";
 
 /** Monitoring checks of a project: state, interval, switch, run now. */
 export class PhxChecks extends LitElement {
-  static properties = { project: {}, checks: { state: true }, loaded: { state: true } };
+  static properties = { project: {}, publicToggle: { type: Boolean, attribute: "public-toggle" }, checks: { state: true }, loaded: { state: true } };
   static styles = [base, css`
     :host { display: block; }
     table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
@@ -25,6 +25,8 @@ export class PhxChecks extends LitElement {
     .detail { color: var(--bad); font-size: 12.5px; }
   `];
   project = "";
+  /** Show the "on the status page" switch (monitoring page). */
+  publicToggle = false;
   checks: MonitorCheck[] = [];
   loaded = false;
 
@@ -47,8 +49,8 @@ export class PhxChecks extends LitElement {
     }
   }
 
-  private patch(c: MonitorCheck, change: Partial<{ intervalSec: number; enabled: boolean }>) {
-    return this.call(() => api("PATCH", `/projects/${this.project}/checks/${c.id}`, { intervalSec: c.intervalSec, enabled: c.enabled, entity: c.entitySlug, ...change }));
+  private patch(c: MonitorCheck, change: Partial<{ intervalSec: number; enabled: boolean; public: boolean }>) {
+    return this.call(() => api("PATCH", `/projects/${this.project}/checks/${c.id}`, { intervalSec: c.intervalSec, enabled: c.enabled, public: c.public, entity: c.entitySlug, ...change }));
   }
 
   render() {
@@ -68,6 +70,8 @@ export class PhxChecks extends LitElement {
               ${checkIntervals.map((s) => html`<option value=${s} ?selected=${s === c.intervalSec}>${intervalLabel(s)}</option>`)}</select>` : intervalLabel(c.intervalSec)}</td>
           <td class="nw">${c.lastRun ? html`${formatDate(c.lastRun)}<br /><span class="muted">${c.lastMs} ms</span>` : "–"}</td>
           <td class="nw">${canEdit ? html`
+            ${this.publicToggle ? html`<label style="display:inline-flex;gap:4px;align-items:center;font-size:13px;margin-right:6px"><input type="checkbox" style="width:auto" .checked=${c.public}
+              @change=${(e: Event) => this.patch(c, { public: (e.target as HTMLInputElement).checked })}> ${t("check.public")}</label>` : ""}
             <button class="ghost" @click=${() => this.call(() => api("POST", `/projects/${this.project}/checks/${c.id}/run`))}>${t("check.run_now")}</button>
             <button class="ghost" @click=${() => this.patch(c, { enabled: !c.enabled })}>${c.enabled ? t("check.pause") : t("check.resume")}</button>
             <button class="ghost" aria-label=${t("check.remove")} title=${t("check.remove")} @click=${() => this.call(() => api("DELETE", `/projects/${this.project}/checks/${c.id}`))}>${icon("Trash2", 14)}</button>` : ""}</td>

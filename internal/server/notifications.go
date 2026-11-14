@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	"github.com/phoedox/phoedox/internal/core"
-	"github.com/phoedox/phoedox/internal/store"
 )
 
 func (a *api) listNotifications(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +30,7 @@ func (a *api) notificationSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) saveNotificationSettings(w http.ResponseWriter, r *http.Request) {
-	var in store.NotificationSettings
+	var in core.NotificationSettingsInput
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)
 		return

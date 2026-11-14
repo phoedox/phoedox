@@ -67,14 +67,14 @@ func TestNotifications(t *testing.T) {
 	}
 
 	// validation
-	if _, err := s.SaveNotificationSettings(ctx, reader, store.NotificationSettings{Email: "weekly"}); invalidKey(err) != "validation.notify_email" {
+	if _, err := s.SaveNotificationSettings(ctx, reader, NotificationSettingsInput{NotificationSettings: store.NotificationSettings{Email: "weekly"}}); invalidKey(err) != "validation.notify_email" {
 		t.Fatalf("mode: %v", err)
 	}
-	if _, err := s.SaveNotificationSettings(ctx, reader, store.NotificationSettings{Email: "daily", NtfyURL: "https://ntfy.sh/"}); invalidKey(err) != "validation.notify_ntfy" {
+	if _, err := s.SaveNotificationSettings(ctx, reader, NotificationSettingsInput{NotificationSettings: store.NotificationSettings{Email: "daily", NtfyURL: "https://ntfy.sh/"}}); invalidKey(err) != "validation.notify_ntfy" {
 		t.Fatalf("ntfy without topic: %v", err)
 	}
 	// daily digest + ntfy + web push; comment replies muted
-	v, err := s.SaveNotificationSettings(ctx, reader, store.NotificationSettings{Email: "daily", NtfyURL: srv.URL + "/haus", Muted: []string{"comment.reply", "bogus"}})
+	v, err := s.SaveNotificationSettings(ctx, reader, NotificationSettingsInput{NotificationSettings: store.NotificationSettings{Email: "daily", NtfyURL: srv.URL + "/haus", Muted: []string{"comment.reply", "bogus"}}})
 	if err != nil || v.Email != "daily" || len(v.Muted) != 1 || v.PushKey == "" {
 		t.Fatalf("settings: %v %+v", err, v)
 	}

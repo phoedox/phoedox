@@ -34,10 +34,10 @@
   </form>
 </div>
 {{else}}
-<div class="wrap">
-  <aside aria-label="{{index .T "pages"}}">
+<div class="wrap{{if .Plain}} plain{{end}}">
+  {{if not .Plain}}<aside aria-label="{{index .T "pages"}}">
     {{range .Nav}}<div class="lbl" {{if .Depth}}style="margin-left:{{.Depth}}0px"{{end}}>{{.Name}}</div>{{range .Links}}<a href="{{.URL}}" {{if .Current}}aria-current="page"{{end}}>{{.Title}}</a>{{end}}{{end}}
-  </aside>
+  </aside>{{end}}
   <main>
     <article>
       {{if .Doc}}<h1>{{.Doc.Title}}</h1><div class="meta"><span>{{index .T "updated"}}: {{.Doc.UpdatedAt.Format "02.01.2006"}}</span></div>{{end}}

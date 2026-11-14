@@ -32,12 +32,16 @@ const (
 
 // NotificationSettings are a person's channels.
 type NotificationSettings struct {
-	UserID     string   `json:"-"`
-	TenantID   string   `json:"-"`
-	Email      string   `json:"email"`
-	NtfyURL    string   `json:"ntfyUrl"`
-	Muted      []string `json:"muted"`
-	LastDigest Time     `json:"-"`
+	UserID   string `json:"-"`
+	TenantID string `json:"-"`
+	Email    string `json:"email"`
+	NtfyURL  string `json:"ntfyUrl"`
+	// Matrix: homeserver, room and the sealed access token (never sent to clients).
+	MatrixHomeserver string   `json:"matrixHomeserver"`
+	MatrixRoom       string   `json:"matrixRoom"`
+	MatrixToken      string   `json:"-"`
+	Muted            []string `json:"muted"`
+	LastDigest       Time     `json:"-"`
 }
 
 // PushSubscription is a browser that receives web push messages.
@@ -152,8 +156,8 @@ func (d *DB) PruneNotifications(ctx context.Context, before Time) (int64, error)
 func (d *DB) GetNotificationSettings(ctx context.Context, userID string) (NotificationSettings, error) {
 	s := NotificationSettings{UserID: userID, Email: MailInstant, Muted: []string{}}
 	var muted string
-	err := d.QueryRow(ctx, `SELECT tenant_id, email, ntfy_url, muted, last_digest FROM notification_settings WHERE user_id = ?`, userID).
-		Scan(&s.TenantID, &s.Email, &s.NtfyURL, &muted, &s.LastDigest)
+	err := d.QueryRow(ctx, `SELECT tenant_id, email, ntfy_url, muted, last_digest, matrix_homeserver, matrix_room, matrix_token FROM notification_settings WHERE user_id = ?`, userID).
+		Scan(&s.TenantID, &s.Email, &s.NtfyURL, &muted, &s.LastDigest, &s.MatrixHomeserver, &s.MatrixRoom, &s.MatrixToken)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, nil
 	}
@@ -165,9 +169,10 @@ func (d *DB) GetNotificationSettings(ctx context.Context, userID string) (Notifi
 
 // SaveNotificationSettings stores a person's settings.
 func (d *DB) SaveNotificationSettings(ctx context.Context, s NotificationSettings) error {
-	_, err := d.Exec(ctx, `INSERT INTO notification_settings (user_id, tenant_id, email, ntfy_url, muted, updated_at) VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT (user_id) DO UPDATE SET email = excluded.email, ntfy_url = excluded.ntfy_url, muted = excluded.muted, updated_at = excluded.updated_at`,
-		s.UserID, TenantOf(ctx), s.Email, s.NtfyURL, strings.Join(s.Muted, ","), Now())
+	_, err := d.Exec(ctx, `INSERT INTO notification_settings (user_id, tenant_id, email, ntfy_url, muted, matrix_homeserver, matrix_room, matrix_token, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (user_id) DO UPDATE SET email = excluded.email, ntfy_url = excluded.ntfy_url, muted = excluded.muted,
+		matrix_homeserver = excluded.matrix_homeserver, matrix_room = excluded.matrix_room, matrix_token = excluded.matrix_token, updated_at = excluded.updated_at`,
+		s.UserID, TenantOf(ctx), s.Email, s.NtfyURL, strings.Join(s.Muted, ","), s.MatrixHomeserver, s.MatrixRoom, s.MatrixToken, Now())
 	return err
 }
 

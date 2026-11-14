@@ -40,6 +40,9 @@ export class PhxNotificationSettings extends LitElement {
     try {
       this.s = await api<NotificationSettings>("PUT", "/me/notification-settings", {
         email: f.get("email"), ntfyUrl: String(f.get("ntfy") ?? "").trim(),
+        matrixHomeserver: String(f.get("mhs") ?? "").trim(), matrixRoom: String(f.get("mroom") ?? "").trim(),
+        // The token is write-only: empty keeps the stored one, the remove button sends "".
+        ...(String(f.get("mtoken") ?? "").trim() ? { matrixToken: String(f.get("mtoken")).trim() } : {}),
         muted: this.s!.kinds.filter((k) => !f.getAll("kind").includes(k)),
       });
       toast(t("notif.saved"));
@@ -47,6 +50,15 @@ export class PhxNotificationSettings extends LitElement {
       this.error = err instanceof ApiError ? err.text : t("error.unknown");
     }
   }
+
+  private removeMatrix = async () => {
+    try {
+      this.s = await api<NotificationSettings>("PUT", "/me/notification-settings", { ...this.s, matrixHomeserver: "", matrixRoom: "", matrixToken: "" });
+      toast(t("notif.saved"));
+    } catch (err) {
+      this.error = err instanceof ApiError ? err.text : t("error.unknown");
+    }
+  };
 
   private async togglePush() {
     this.busy = true;
@@ -95,6 +107,14 @@ export class PhxNotificationSettings extends LitElement {
         <label class="field">${t("notif.ntfy")}
           <input name="ntfy" type="url" inputmode="url" placeholder="https://ntfy.sh/mein-thema" .value=${s.ntfyUrl} />
           <span class="muted" style="font-size:12.5px">${t("notif.ntfy_hint")}</span></label>
+        <fieldset>
+          <legend>Matrix</legend>
+          <p class="muted" style="margin:0">${t("notif.matrix_hint")}</p>
+          <label class="field">${t("notif.matrix_homeserver")}<input name="mhs" type="url" inputmode="url" placeholder="https://matrix.org" .value=${s.matrixHomeserver ?? ""} /></label>
+          <label class="field">${t("notif.matrix_room")}<input name="mroom" placeholder="!abcdef:matrix.org" .value=${s.matrixRoom ?? ""} /></label>
+          <label class="field">${t("notif.matrix_token")}<input name="mtoken" type="password" autocomplete="off" placeholder=${s.matrixConnected ? t("notif.matrix_token_kept") : ""} /></label>
+          ${s.matrixConnected ? html`<div><button type="button" class="ghost" @click=${this.removeMatrix}>${t("notif.matrix_remove")}</button></div>` : ""}
+        </fieldset>
         ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
         <div class="row"><button type="submit">${t("profile.save")}</button>
           <button type="button" class="ghost" @click=${this.test}>${icon("Send", 14)} ${t("notif.test")}</button></div>

@@ -24,6 +24,8 @@ type Check struct {
 	Name        string `json:"name"`
 	IntervalSec int    `json:"intervalSec"`
 	Enabled     bool   `json:"enabled"`
+	// Public: shown on the public status page.
+	Public      bool   `json:"public"`
 	LastStatus  string `json:"lastStatus"`
 	LastRun     Time   `json:"lastRun"`
 	LastChange  Time   `json:"lastChange"`
@@ -35,12 +37,12 @@ type Check struct {
 	CreatedAt   Time   `json:"createdAt"`
 }
 
-const checkCols = `id, tenant_id, project_id, document_id, block_index, entity_id, name, interval_sec, enabled, last_status, last_run, last_change, last_ms, last_message, last_detail, fail_count, created_by, created_at`
+const checkCols = `id, tenant_id, project_id, document_id, block_index, entity_id, name, interval_sec, enabled, public, last_status, last_run, last_change, last_ms, last_message, last_detail, fail_count, created_by, created_at`
 
 func scanCheck(r interface{ Scan(...any) error }) (Check, error) {
 	var c Check
 	var entity sql.NullString
-	err := r.Scan(&c.ID, &c.TenantID, &c.ProjectID, &c.DocumentID, &c.BlockIndex, &entity, &c.Name, &c.IntervalSec, &c.Enabled,
+	err := r.Scan(&c.ID, &c.TenantID, &c.ProjectID, &c.DocumentID, &c.BlockIndex, &entity, &c.Name, &c.IntervalSec, &c.Enabled, &c.Public,
 		&c.LastStatus, &c.LastRun, &c.LastChange, &c.LastMs, &c.LastMessage, &c.LastDetail, &c.FailCount, &c.CreatedBy, &c.CreatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return c, ErrNotFound
@@ -71,17 +73,17 @@ func (d *DB) CreateCheck(ctx context.Context, c Check) (Check, error) {
 	if c.LastStatus == "" {
 		c.LastStatus = CheckUnknown
 	}
-	_, err := d.Exec(ctx, `INSERT INTO checks (id, tenant_id, project_id, document_id, block_index, entity_id, name, interval_sec, enabled, last_status, created_by, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		c.ID, TenantOf(ctx), c.ProjectID, c.DocumentID, c.BlockIndex, nullable(c.EntityID), c.Name, c.IntervalSec, c.Enabled, c.LastStatus, c.CreatedBy, c.CreatedAt)
+	_, err := d.Exec(ctx, `INSERT INTO checks (id, tenant_id, project_id, document_id, block_index, entity_id, name, interval_sec, enabled, public, last_status, created_by, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		c.ID, TenantOf(ctx), c.ProjectID, c.DocumentID, c.BlockIndex, nullable(c.EntityID), c.Name, c.IntervalSec, c.Enabled, c.Public, c.LastStatus, c.CreatedBy, c.CreatedAt)
 	c.TenantID = TenantOf(ctx)
 	return c, err
 }
 
 // UpdateCheckSettings changes name, interval, entry and switch of a check.
 func (d *DB) UpdateCheckSettings(ctx context.Context, c Check) error {
-	res, err := d.Exec(ctx, `UPDATE checks SET name = ?, interval_sec = ?, entity_id = ?, enabled = ? WHERE id = ? AND project_id = ?`,
-		c.Name, c.IntervalSec, nullable(c.EntityID), c.Enabled, c.ID, c.ProjectID)
+	res, err := d.Exec(ctx, `UPDATE checks SET name = ?, interval_sec = ?, entity_id = ?, enabled = ?, public = ? WHERE id = ? AND project_id = ?`,
+		c.Name, c.IntervalSec, nullable(c.EntityID), c.Enabled, c.Public, c.ID, c.ProjectID)
 	return affected(res, err)
 }
 

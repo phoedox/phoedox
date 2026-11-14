@@ -16,6 +16,9 @@ export interface AppNotification {
 export interface NotificationSettings {
   email: "instant" | "daily" | "off";
   ntfyUrl: string;
+  matrixHomeserver?: string;
+  matrixRoom?: string;
+  matrixConnected?: boolean;
   muted: string[];
   kinds: string[];
   pushKey?: string;

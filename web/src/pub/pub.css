@@ -82,3 +82,24 @@ footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 30
 .floorplan .room.c-pink { fill: var(--tb-pink); }
 .floorplan text { fill: var(--fg); font-family: inherit; }
 .floorplan .dev { fill: var(--accent); stroke: var(--surface); stroke-width: 2; vector-effect: non-scaling-stroke; }
+
+/* Status pages */
+.wrap.plain { grid-template-columns: minmax(0, 1fr); }
+.status-head { display: flex; gap: 10px; align-items: center; padding: 14px 16px; border-radius: 10px; font-weight: 600; margin: 8px 0 24px; background: var(--surface2); }
+.status-head .dot, .checks .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--muted); }
+.st-operational .dot, .dot.ok { background: var(--good); }
+.st-degraded .dot, .dot.unknown { background: var(--signal); }
+.st-outage .dot, .dot.fail { background: var(--bad); }
+.checks { list-style: none; padding: 0; margin: 0 0 28px; border: 1px solid var(--line); border-radius: 10px; }
+.checks li { display: flex; gap: 10px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); }
+.checks li:first-child { border-top: 0; }
+.checks .name { flex: 1; }
+.checks .up { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.incident { border-left: 3px solid var(--line); padding: 2px 0 2px 14px; margin: 0 0 22px; }
+.incident.open { border-left-color: var(--bad); }
+.incident h3 { margin: 0 0 4px; font-size: 17px; }
+.incident .when { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.incident ol { list-style: none; padding: 0; margin: 0; }
+.incident li { margin: 0 0 8px; font-size: 14.5px; }
+.incident li b { margin-right: 6px; }
+.incident li time { color: var(--muted); font-size: 12.5px; margin-left: 6px; }

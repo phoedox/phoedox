@@ -1,12 +1,15 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"html"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -141,6 +144,11 @@ func (s *Service) pushOut(ctx context.Context, u store.User, set store.Notificat
 			slog.Warn("ntfy failed", "user", u.ID, "err", err)
 		}
 	}
+	if set.MatrixHomeserver != "" && set.MatrixRoom != "" && set.MatrixToken != "" {
+		if err := s.sendMatrix(ctx, set, head, excerpt(n.Body, 400), link); err != nil {
+			slog.Warn("matrix failed", "user", u.ID, "err", err)
+		}
+	}
 	subs, err := s.DB.PushSubscriptions(ctx, u.ID)
 	if err != nil || len(subs) == 0 {
 		return
@@ -231,10 +239,12 @@ func (s *Service) MarkNotificationsRead(ctx context.Context, a Actor, ids []stri
 // NotificationSettingsView adds what the browser needs for web push.
 type NotificationSettingsView struct {
 	store.NotificationSettings
-	Kinds         []string `json:"kinds"`
-	PushKey       string   `json:"pushKey,omitempty"`
-	Subscriptions []string `json:"subscriptions"`
-	MailEnabled   bool     `json:"mailEnabled"`
+	// MatrixConnected: an access token is stored (it is never shown).
+	MatrixConnected bool     `json:"matrixConnected"`
+	Kinds           []string `json:"kinds"`
+	PushKey         string   `json:"pushKey,omitempty"`
+	Subscriptions   []string `json:"subscriptions"`
+	MailEnabled     bool     `json:"mailEnabled"`
 }
 
 // NotificationSettings returns the actor's channels.
@@ -244,7 +254,7 @@ func (s *Service) NotificationSettings(ctx context.Context, a Actor) (Notificati
 		return NotificationSettingsView{}, err
 	}
 	v := NotificationSettingsView{NotificationSettings: set, Kinds: NotificationKinds, Subscriptions: []string{},
-		MailEnabled: s.Mail != nil && s.Mail.Enabled()}
+		MailEnabled: s.Mail != nil && s.Mail.Enabled(), MatrixConnected: set.MatrixToken != ""}
 	if pub, _, err := s.vapidKeys(ctx); err == nil {
 		v.PushKey = pub
 	}
@@ -255,8 +265,39 @@ func (s *Service) NotificationSettings(ctx context.Context, a Actor) (Notificati
 	return v, nil
 }
 
+// NotificationSettingsInput changes the channels. The Matrix access token is
+// write-only: nil keeps the stored one, "" removes it.
+type NotificationSettingsInput struct {
+	store.NotificationSettings
+	MatrixAccessToken *string `json:"matrixToken,omitempty"`
+}
+
 // SaveNotificationSettings changes the actor's channels.
-func (s *Service) SaveNotificationSettings(ctx context.Context, a Actor, in store.NotificationSettings) (NotificationSettingsView, error) {
+func (s *Service) SaveNotificationSettings(ctx context.Context, a Actor, input NotificationSettingsInput) (NotificationSettingsView, error) {
+	in := input.NotificationSettings
+	cur, err := s.DB.GetNotificationSettings(ctx, a.User.ID)
+	if err != nil {
+		return NotificationSettingsView{}, err
+	}
+	in.MatrixToken = cur.MatrixToken
+	in.MatrixHomeserver, in.MatrixRoom = strings.TrimRight(strings.TrimSpace(in.MatrixHomeserver), "/"), strings.TrimSpace(in.MatrixRoom)
+	if input.MatrixAccessToken != nil {
+		in.MatrixToken = ""
+		if t := strings.TrimSpace(*input.MatrixAccessToken); t != "" {
+			if s.Box == nil {
+				return NotificationSettingsView{}, invalid("validation.notify_matrix_key", nil, "Matrix needs the master key to store the token")
+			}
+			if in.MatrixToken, err = s.Box.Seal([]byte(t), matrixContext(a.User.ID)); err != nil {
+				return NotificationSettingsView{}, err
+			}
+		}
+	}
+	if in.MatrixHomeserver != "" || in.MatrixRoom != "" {
+		u, err := url.Parse(in.MatrixHomeserver)
+		if err != nil || u.Scheme != "https" || u.Host == "" || !matrixRoomRe.MatchString(in.MatrixRoom) {
+			return NotificationSettingsView{}, invalid("validation.notify_matrix", nil, "Matrix needs an https homeserver and a room id like !abc:example.org")
+		}
+	}
 	if !slices.Contains([]string{store.MailInstant, store.MailDaily, store.MailOff}, in.Email) {
 		return NotificationSettingsView{}, invalid("validation.notify_email", nil, "unknown mail mode %q", in.Email)
 	}
@@ -354,4 +395,49 @@ func (s *Service) sendDigest(ctx context.Context, userID string, now time.Time) 
 		return
 	}
 	_ = s.DB.MarkDigestSent(ctx, userID, ids, store.Time{Time: now})
+}
+
+var matrixRoomRe = regexp.MustCompile(`^![A-Za-z0-9._=\-/+]+:[A-Za-z0-9.\-]+(:\d+)?$`)
+
+func matrixContext(userID string) string { return "notify.matrix:" + userID }
+
+// sendMatrix posts a message into the person's Matrix room with their own
+// access token (sealed at rest).
+func (s *Service) sendMatrix(ctx context.Context, set store.NotificationSettings, head, body, link string) error {
+	if s.Box == nil {
+		return errors.New("no master key")
+	}
+	token, err := s.Box.Open(set.MatrixToken, matrixContext(set.UserID))
+	if err != nil {
+		return err
+	}
+	text := head
+	if body != "" {
+		text += "\n" + body
+	}
+	htmlBody := "<b>" + html.EscapeString(head) + "</b>"
+	if body != "" {
+		htmlBody += "<br>" + html.EscapeString(body)
+	}
+	if s.PublicURL != "" {
+		text += "\n" + link
+		htmlBody += `<br><a href="` + html.EscapeString(link) + `">` + html.EscapeString(link) + "</a>"
+	}
+	msg, _ := json.Marshal(map[string]string{"msgtype": "m.notice", "body": text, "format": "org.matrix.custom.html", "formatted_body": htmlBody})
+	endpoint := set.MatrixHomeserver + "/_matrix/client/v3/rooms/" + url.PathEscape(set.MatrixRoom) + "/send/m.room.message/" + newID()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, bytes.NewReader(msg))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+string(token))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := s.RequestPolicy.Client().Do(req)
+	if err != nil {
+		return err
+	}
+	res.Body.Close()
+	if res.StatusCode >= 300 {
+		return errors.New(res.Status)
+	}
+	return nil
 }

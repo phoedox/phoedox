@@ -35,6 +35,8 @@ type CheckInput struct {
 	Name        string `json:"name"`
 	IntervalSec int    `json:"intervalSec"`
 	Enabled     *bool  `json:"enabled,omitempty"`
+	// Public: shown on the public status page.
+	Public *bool `json:"public,omitempty"`
 }
 
 // CheckView is a check with the page and entry it belongs to.
@@ -112,7 +114,7 @@ func (s *Service) CreateCheck(ctx context.Context, a Actor, ref string, in Check
 		}
 	}
 	c := store.Check{ID: newID(), ProjectID: p.ID, DocumentID: doc.ID, BlockIndex: in.Block, EntityID: entityID, Name: in.Name,
-		IntervalSec: in.IntervalSec, Enabled: in.Enabled == nil || *in.Enabled, CreatedBy: a.User.ID, CreatedAt: store.Now()}
+		IntervalSec: in.IntervalSec, Enabled: in.Enabled == nil || *in.Enabled, Public: in.Public != nil && *in.Public, CreatedBy: a.User.ID, CreatedAt: store.Now()}
 	if c, err = s.DB.CreateCheck(ctx, c); err != nil {
 		return CheckView{}, err
 	}
@@ -143,13 +145,16 @@ func (s *Service) UpdateCheck(ctx context.Context, a Actor, ref, id string, in C
 		c.Name = in.Name
 	}
 	c.IntervalSec = in.IntervalSec
+	if in.Public != nil {
+		c.Public = *in.Public
+	}
 	if in.Enabled != nil {
 		c.Enabled = *in.Enabled
 	}
 	if err := s.DB.UpdateCheckSettings(ctx, c); err != nil {
 		return CheckView{}, err
 	}
-	s.event(ctx, a, "check.update", c.ID, map[string]any{"interval": c.IntervalSec, "enabled": c.Enabled})
+	s.event(ctx, a, "check.update", c.ID, map[string]any{"interval": c.IntervalSec, "enabled": c.Enabled, "public": c.Public})
 	return s.checkView(ctx, c), nil
 }
 
@@ -377,6 +382,7 @@ func (s *Service) checkChanged(ctx context.Context, c store.Check, prev string) 
 	if prev == store.CheckUnknown && c.LastStatus == store.CheckOK {
 		return
 	}
+	s.checkIncident(ctx, a, c)
 	s.event(ctx, a, kind, c.ID, payload)
 	s.mailCheck(ctx, u, c)
 }

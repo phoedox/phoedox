@@ -47,6 +47,7 @@ func actorOf(r *http.Request) core.Actor { return r.Context().Value(ctxKey{}).(c
 func (a *api) routes(r chi.Router) {
 	r.Post("/auth/login", a.login)
 	r.Post("/auth/logout", a.logout)
+	r.Get("/status/{token}", a.publicStatus)
 	r.Get("/instance", func(w http.ResponseWriter, req *http.Request) {
 		info := map[string]any{"version": Version, "domain": a.cfg.Domain, "passwordReset": a.resetAvailable()}
 		// On an organization's own app domain the app shows its name.
@@ -240,6 +241,13 @@ func (a *api) routes(r chi.Router) {
 			r.Patch("/checks/{id}", a.updateCheck)
 			r.Delete("/checks/{id}", a.deleteCheck)
 			r.Post("/checks/{id}/run", a.runCheck)
+			r.Get("/incidents", a.listIncidents)
+			r.Post("/incidents", a.createIncident)
+			r.Patch("/incidents/{id}", a.updateIncident)
+			r.Delete("/incidents/{id}", a.deleteIncident)
+			r.Post("/incidents/{id}/updates", a.addIncidentUpdate)
+			r.Get("/status-page", a.projectStatusPage)
+			r.Put("/status-page", a.setProjectStatusPage)
 			r.Get("/env", a.listEnv)
 			r.Put("/env/{name}", a.setEnv)
 			r.Delete("/env/{name}", a.deleteEnv)

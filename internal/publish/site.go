@@ -139,6 +139,8 @@ type page struct {
 	Status       int
 	Login        bool
 	LoginError   bool
+	// Plain: no page menu (status pages).
+	Plain bool
 }
 
 type navGroup struct {
@@ -243,6 +245,8 @@ func (s *Site) Serve(w http.ResponseWriter, r *http.Request, p store.Publication
 		s.llms(w, r, p, base, site)
 	case len(parts) == 2 && strings.HasSuffix(parts[1], ".md"):
 		s.markdown(w, r, site, parts[0], strings.TrimSuffix(parts[1], ".md"))
+	case rel == "/status":
+		s.pubStatus(w, r, p, base, site, t)
 	case rel == "/search":
 		s.search(w, r, p, base, site, t)
 	case parts[0] == "_files" && len(parts) >= 2:
