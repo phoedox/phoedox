@@ -82,9 +82,21 @@ type ToolDef struct {
 	Control bool `json:"control,omitempty"`
 	// TimeoutSec limits one call (1–60 s, default: the runtime timeout).
 	TimeoutSec int `json:"timeoutSec,omitempty"`
+	// Target names the entry a control tool acts on: owners can share that
+	// device and allow AI control for it (ADR-0050).
+	Target *ToolTarget `json:"target,omitempty"`
+}
+
+// ToolTarget points from a tool argument to an entry: without Attr the
+// argument is the slug of an entry of a kind the plugin contributes, with
+// Attr it matches that attribute of any entry.
+type ToolTarget struct {
+	Arg  string `json:"arg"`
+	Attr string `json:"attr,omitempty"`
 }
 
 var (
+	argRe     = regexp.MustCompile(`^[a-z_][a-z0-9_]*$`)
 	idRe      = regexp.MustCompile(`^[a-z0-9]+(\.[a-z0-9-]+)+$`)
 	semverRe  = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
 	permRe    = regexp.MustCompile(`^(graph|docs|assets|events|ai|ha):(read|write|use|emit|control)(:[a-z0-9_,]+)?$|^net:fetch:[a-z0-9.-]+$|^secrets:[a-z0-9_]+$`)
@@ -141,6 +153,9 @@ func (m Manifest) Validate() error {
 		}
 		if t.TimeoutSec < 0 || t.TimeoutSec > 60 {
 			return fmt.Errorf("manifest: tool %s: timeoutSec must be between 1 and 60", t.Name)
+		}
+		if t.Target != nil && (!argRe.MatchString(t.Target.Arg) || (t.Target.Attr != "" && !argRe.MatchString(t.Target.Attr)) || !t.Control) {
+			return fmt.Errorf("manifest: tool %s: target needs control and arg/attr of lowercase letters, digits and _", t.Name)
 		}
 	}
 	for _, e := range m.Contributes.Events {

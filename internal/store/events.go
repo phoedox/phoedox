@@ -226,6 +226,7 @@ type EventFilter struct {
 	ProjectID string
 	Actor     string // prefix, e.g. "mcp:" or "user:<id>"
 	Kind      string // prefix, e.g. "document."
+	Subject   string // exact
 	Since     Time
 	Before    int64
 	Limit     int
@@ -246,6 +247,10 @@ func (d *DB) Events(ctx context.Context, f EventFilter) ([]Event, error) {
 	if f.Kind != "" {
 		q += ` AND kind LIKE ? ESCAPE '\'`
 		args = append(args, likePrefix(f.Kind))
+	}
+	if f.Subject != "" {
+		q += ` AND subject = ?`
+		args = append(args, f.Subject)
 	}
 	if !f.Since.IsZero() {
 		q += ` AND created_at >= ?`

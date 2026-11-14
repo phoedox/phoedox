@@ -70,6 +70,11 @@ func (s *Service) AuditLog(ctx context.Context, a Actor, ref string, q AuditQuer
 	if err != nil {
 		return nil, err
 	}
+	return s.describeEvents(ctx, events), nil
+}
+
+// describeEvents names the person or agent behind each event.
+func (s *Service) describeEvents(ctx context.Context, events []store.Event) []AuditEvent {
 	names := map[string]string{}
 	name := func(id string) string {
 		if n, ok := names[id]; ok {
@@ -115,7 +120,7 @@ func (s *Service) AuditLog(ctx context.Context, a Actor, ref string, q AuditQuer
 		}
 		out[i] = ae
 	}
-	return out, nil
+	return out
 }
 
 // ParseAuditQuery reads the query parameters of the audit API.

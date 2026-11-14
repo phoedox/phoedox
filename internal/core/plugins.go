@@ -660,16 +660,24 @@ func (s *Service) PluginTool(ctx context.Context, a Actor, ref, pluginID, tool s
 	if len(args) == 0 {
 		args = json.RawMessage("{}")
 	}
-	if def.Control {
-		// Acting on the physical world needs edit rights; AI clients only
-		// ever propose it, a person confirms in the suggestions.
-		if _, err := s.project(ctx, a, ref, store.RoleEditor); err != nil {
+	if !def.Control {
+		return s.runPluginTool(ctx, a, p, ap, def, args)
+	}
+	target, hasTarget := s.controlTarget(ctx, p, &ap, def, args)
+	// Acting on the physical world needs edit rights or a grant for the
+	// device (ADR-0050).
+	if _, err := s.project(ctx, a, ref, store.RoleEditor); err != nil {
+		if a.Via == "mcp" || !hasTarget || !s.hasGrant(ctx, target.ID, a.User.ID) {
 			return nil, err
 		}
-		if a.Via == "mcp" {
-			if p.AIWriteMode == AIOff || p.AIWriteMode == AIRead {
-				return nil, ErrForbidden
-			}
+	}
+	if a.Via == "mcp" {
+		if p.AIWriteMode == AIOff || p.AIWriteMode == AIRead {
+			return nil, ErrForbidden
+		}
+		// AI clients only propose, unless an owner allowed AI control of
+		// this very device; a person confirms in the suggestions.
+		if !hasTarget || !s.aiMayControl(ctx, target.ID) {
 			summary := fmt.Sprintf("%s: %s %s", ap.pkg.Manifest.Name, tool, compactJSON(args, 160))
 			b, _ := json.Marshal(opPayload{Project: p.ID, Plugin: pluginID, Tool: tool, Args: args})
 			sug, err := s.DB.CreateSuggestion(ctx, store.Suggestion{ID: newID(), ProjectID: p.ID, Actor: a.String(), Op: "plugin.call", Summary: summary, Payload: b})
@@ -681,17 +689,33 @@ func (s *Service) PluginTool(ctx context.Context, a Actor, ref, pluginID, tool s
 				"note": "This tool acts on real devices. A person must confirm it in Phoedox (Suggestions) before it runs."})
 		}
 	}
-	pa := a
-	pa.Plugin = pluginID
-	out, err := s.Plugins.Runtime.CallWithin(ctx, ap.pkg, logKey(ctx, pluginID), "tool", map[string]any{"name": tool, "args": args, "project": p.Slug}, s.pluginEnv(pa, p, ap),
-		time.Duration(def.TimeoutSec)*time.Second)
-	if def.Control {
-		s.event(ctx, a, "plugin.control", pluginID, map[string]any{"tool": tool, "args": args, "ok": err == nil})
+	var tgt *store.Entity
+	if hasTarget {
+		tgt = &target
 	}
+	return s.runControl(ctx, a, p, ap, def, args, tgt)
+}
+
+// runPluginTool calls a tool of a plugin for the actor.
+func (s *Service) runPluginTool(ctx context.Context, a Actor, p store.Project, ap activePlugin, def plugins.ToolDef, args json.RawMessage) (json.RawMessage, error) {
+	pa := a
+	pa.Plugin = ap.row.ID
+	out, err := s.Plugins.Runtime.CallWithin(ctx, ap.pkg, logKey(ctx, ap.row.ID), "tool", map[string]any{"name": def.Name, "args": args, "project": p.Slug}, s.pluginEnv(pa, p, ap),
+		time.Duration(def.TimeoutSec)*time.Second)
 	if err != nil {
-		return nil, invalid("validation.plugin_failed", map[string]any{"plugin": pluginID}, "%v", err)
+		return nil, invalid("validation.plugin_failed", map[string]any{"plugin": ap.row.ID}, "%v", err)
 	}
 	return out, nil
+}
+
+// runControl runs a control tool and records it, also on the device.
+func (s *Service) runControl(ctx context.Context, a Actor, p store.Project, ap activePlugin, def plugins.ToolDef, args json.RawMessage, target *store.Entity) (json.RawMessage, error) {
+	out, err := s.runPluginTool(ctx, a, p, ap, def, args)
+	s.event(ctx, a, "plugin.control", ap.row.ID, map[string]any{"tool": def.Name, "args": args, "ok": err == nil})
+	if target != nil {
+		s.event(ctx, a, "device.control", target.ID, map[string]any{"plugin": ap.row.ID, "tool": def.Name, "args": args, "ok": err == nil})
+	}
+	return out, err
 }
 
 // compactJSON shortens arguments for a one-line summary.

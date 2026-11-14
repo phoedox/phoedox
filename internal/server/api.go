@@ -97,6 +97,8 @@ func (a *api) routes(r chi.Router) {
 		r.Get("/me/notifications", a.listNotifications)
 		r.Get("/me/tasks", a.myTasks)
 		r.Get("/me/skills", a.mySkills)
+		r.Get("/me/devices", a.sharedDevices)
+		r.Post("/me/devices/{grant}/control", a.controlShared)
 		r.Post("/me/notifications/read", a.readNotifications)
 		// Account changes need the full rights of the user (no narrowed token).
 		r.Group(func(r chi.Router) {
@@ -336,6 +338,12 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/entities/{e}", a.getEntity)
 			r.Delete("/entities/{e}", a.deleteEntity)
 			r.Get("/entities/{e}/traverse", a.traverse)
+			r.Get("/entities/{e}/device", a.device)
+			r.Put("/entities/{e}/device", a.setDevice)
+			r.Get("/entities/{e}/device/log", a.deviceLog)
+			r.Post("/entities/{e}/device/control", a.controlDevice)
+			r.Post("/entities/{e}/device/grants", a.grantControl)
+			r.Delete("/entities/{e}/device/grants/{id}", a.revokeControl)
 			r.Get("/entities/{e}/meta", a.entityMeta)
 			r.Put("/entities/{e}/meta", a.setEntityMeta)
 			r.Post("/entities/{e}/reviewed", a.entityReviewed)

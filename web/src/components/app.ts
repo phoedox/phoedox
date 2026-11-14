@@ -21,6 +21,7 @@ import "./security";
 import "./notification-bell";
 import "./notification-settings";
 import "./my-tasks";
+import "./shared-devices";
 import "./consent";
 import "./palette";
 import type { PhxPalette } from "./palette";
@@ -73,6 +74,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/settings/profile", render: () => html`<phx-profile></phx-profile>` },
     { path: "/oauth/authorize", render: () => html`<phx-consent></phx-consent>` },
     { path: "/tasks", render: () => html`<phx-my-tasks></phx-my-tasks>` },
+    { path: "/devices", render: () => html`<phx-shared-devices></phx-shared-devices>` },
     { path: "/history", render: () => html`<phx-recent-history></phx-recent-history>` },
     { path: "/secrets/new", render: () => html`<phx-secret-new></phx-secret-new>` },
     { path: "/secret/:id", render: ({ id }) => html`<phx-secret-open .id=${id!}></phx-secret-open>` },
