@@ -502,6 +502,18 @@ func (s *Site) links(r *http.Request, base string, site []core.PubProject, pp co
 			}
 			return ""
 		},
+		Include: func(ref string) string {
+			_, d, err := s.Core.PubDocument(r.Context(), site, pp.Project.Slug, ref, r.URL.Query().Get("lang"))
+			if err != nil || d.Type != store.DocMarkdown {
+				return ""
+			}
+			c := map[string]any{}
+			_ = json.Unmarshal(d.Content, &c)
+			md, _ := c["markdown"].(string)
+			inner := s.links(r, base, site, pp)
+			inner.Include = nil // one level only
+			return `<div class="include">` + Markdown(withoutTitle(md, d.Title), inner) + `</div>`
+		},
 		Board: func(ref string) string {
 			for _, d := range pp.Docs {
 				if d.Type == store.DocBoard && (d.Slug == ref || d.ID == ref) {

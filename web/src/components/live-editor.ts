@@ -475,6 +475,26 @@ export class PhxLiveEditor extends LitElement {
         return undefined;
       }
     }
+    if (kind === "include") {
+      const pages = ((await api<Doc[]>("GET", `/projects/${this.project}/documents?type=markdown`).catch(() => [])) ?? []).filter((d) => d.id !== this.doc?.id);
+      if (!pages.length) {
+        toast(t("block.include_none"), "error");
+        return undefined;
+      }
+      const v = await this.askForm({ title: t("slash.include"), hint: t("block.include_hint"), fields: [
+        { name: "page", label: t("block.include_pick"), type: "select", value: current || pages[0].slug, options: pages.map((d) => [d.slug, d.title] as [string, string]) }] });
+      return v?.page || undefined;
+    }
+    if (kind === "query") {
+      const saved = (await api<{ slug: string; name: string }[]>("GET", `/projects/${this.project}/queries`).catch(() => [])) ?? [];
+      if (!saved.length) {
+        toast(t("block.query_none"), "error");
+        return undefined;
+      }
+      const v = await this.askForm({ title: t("slash.query"), hint: t("block.query_hint"), fields: [
+        { name: "q", label: t("block.query_pick"), type: "select", value: current || saved[0].slug, options: saved.map((q) => [q.slug, q.name] as [string, string]) }] });
+      return v?.q || undefined;
+    }
     if (kind === "mermaid") {
       const v = await this.askForm({ title: t("slash.mermaid"), hint: t("block.mermaid_hint"),
         fields: [{ name: "v", label: t("block.mermaid_source"), type: "textarea", value: current || "flowchart LR\n  Internet --> Router --> Switch\n  Switch --> NAS" }] });

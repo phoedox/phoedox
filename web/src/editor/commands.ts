@@ -45,6 +45,8 @@ export const SLASH_ITEMS: SlashItem[] = [
   { id: "dbmodel", group: "blocks", icon: "Database", words: "datenbank database schema sql er tabelle table model modell", run: "fence:dbmodel" },
   { id: "status", group: "blocks", icon: "Activity", words: "status dashboard kacheln tiles monitoring überwachung zustand", run: "fence:status" },
   { id: "entity", group: "blocks", icon: "Box", words: "eintrag entry entity karte card komponente component gerät device", run: "fence:entity" },
+  { id: "include", group: "blocks", icon: "Copy", words: "include einbinden baustein block wiederverwenden reuse snippet textbaustein", run: "fence:include" },
+  { id: "query", group: "blocks", icon: "Table", words: "query abfrage tabelle table liste list einträge entries", run: "fence:query" },
   { id: "embed", group: "embed", icon: "SquarePlay", words: "embed youtube vimeo loom github video einbetten", run: "fence:embed" },
   { id: "iframe", group: "embed", icon: "Frame", words: "iframe webseite seite page", run: "fence:iframe" },
   { id: "file", group: "embed", icon: "Paperclip", words: "file datei anhang upload bild image", run: "file" },

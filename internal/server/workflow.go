@@ -127,3 +127,47 @@ func (a *api) locations(w http.ResponseWriter, r *http.Request) {
 	res, err := a.core.Locations(r.Context(), actorOf(r), chi.URLParam(r, "p"))
 	respond(w, res, err)
 }
+
+func (a *api) runQuery(w http.ResponseWriter, r *http.Request) {
+	var in core.GraphQuery
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	res, err := a.core.RunQuery(r.Context(), actorOf(r), chi.URLParam(r, "p"), in)
+	respond(w, res, err)
+}
+
+func (a *api) listQueries(w http.ResponseWriter, r *http.Request) {
+	res, err := a.core.SavedQueries(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, res, err)
+}
+
+func (a *api) saveQuery(w http.ResponseWriter, r *http.Request) {
+	var in core.SaveQueryInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	res, err := a.core.SaveQuery(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "q"), in)
+	respond(w, res, err)
+}
+
+func (a *api) deleteQuery(w http.ResponseWriter, r *http.Request) {
+	respond(w, map[string]bool{"ok": true}, a.core.DeleteQuery(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "q")))
+}
+
+func (a *api) runSavedQuery(w http.ResponseWriter, r *http.Request) {
+	res, err := a.core.RunSavedQuery(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "q"))
+	respond(w, res, err)
+}
+
+func (a *api) bulkEntities(w http.ResponseWriter, r *http.Request) {
+	var in core.BulkInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	res, err := a.core.Bulk(r.Context(), actorOf(r), chi.URLParam(r, "p"), in)
+	respond(w, res, err)
+}

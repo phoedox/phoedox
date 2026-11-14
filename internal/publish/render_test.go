@@ -45,3 +45,14 @@ func TestMarkdown(t *testing.T) {
 		}
 	}
 }
+
+func TestIncludeAndQueryBlocks(t *testing.T) {
+	links := Links{Include: func(ref string) string { return `<div class="include">` + ref + `</div>` }}
+	out := Markdown("A\n\n```include\nsafety\n```\n\n```query\ndebian\n```\n\nB", links)
+	if !strings.Contains(out, `<div class="include">safety</div>`) || strings.Contains(out, "debian") {
+		t.Fatalf("blocks: %s", out)
+	}
+	if out := Markdown("```include\nsafety\n```", Links{}); strings.Contains(out, "safety") {
+		t.Fatalf("include without a resolver: %s", out)
+	}
+}

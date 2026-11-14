@@ -27,6 +27,8 @@ type Links struct {
 	File string
 	// Board renders an embedded board (```board) or returns "".
 	Board func(ref string) string
+	// Include renders an included page (```include) or returns "".
+	Include func(ref string) string
 }
 
 var (
@@ -159,6 +161,12 @@ func (r fenceRenderer) render(w util.BufWriter, src []byte, n ast.Node, entering
 		if r.links.Board != nil {
 			_, _ = w.WriteString(r.links.Board(text))
 		}
+	case "include":
+		if r.links.Include != nil {
+			_, _ = w.WriteString(r.links.Include(text))
+		}
+	case "query":
+		// Live queries need the app; published pages leave them out.
 	default:
 		cls := ""
 		if lang != "" {

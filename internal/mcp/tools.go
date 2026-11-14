@@ -114,6 +114,16 @@ type maintenanceSaveIn struct {
 	core.MaintenanceInput
 }
 
+type runQueryIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Query   string `json:"query" jsonschema:"slug or id of a saved query (see list_saved_queries)"`
+}
+
+type queryEntitiesIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	core.GraphQuery
+}
+
 type projectOnlyIn struct {
 	Project string `json:"project" jsonschema:"project slug"`
 }
@@ -613,6 +623,15 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "save_maintenance_plan", "Create or change a maintenance plan for an entry: every N days/weeks/months/years Phoedox puts a card on the given board, leadDays before it is due. Only in projects where AI writes directly.", func(ctx context.Context, a core.Actor, in maintenanceSaveIn) (any, error) {
 		return svc.SaveMaintenancePlan(ctx, a, in.Project, in.ID, in.MaintenanceInput)
+	})
+	tool(s, "list_saved_queries", "Saved queries of a project (name, slug and definition: kind, field and relation conditions).", func(ctx context.Context, a core.Actor, in projectOnlyIn) (any, error) {
+		return svc.SavedQueries(ctx, a, in.Project)
+	})
+	tool(s, "run_saved_query", "Run a saved query and get the matching entries with their fields.", func(ctx context.Context, a core.Actor, in runQueryIn) (any, error) {
+		return svc.RunSavedQuery(ctx, a, in.Project, in.Query)
+	})
+	tool(s, "query_entities", "Find entries of one kind by field conditions (op: eq, ne, contains, empty, set, gt, lt) and relation conditions (rel, in, to, kind, missing), e.g. servers without a located_in edge.", func(ctx context.Context, a core.Actor, in queryEntitiesIn) (any, error) {
+		return svc.RunQuery(ctx, a, in.Project, in.GraphQuery)
 	})
 	tool(s, "list_locations", "The location hierarchy of a project: sites → buildings → floors → rooms, with how many entries are located in each.", func(ctx context.Context, a core.Actor, in projectOnlyIn) (any, error) {
 		return svc.Locations(ctx, a, in.Project)

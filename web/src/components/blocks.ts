@@ -5,6 +5,7 @@ import { LitElement, css, html, type PropertyValues } from "lit";
 import { api, type Doc } from "../api";
 import { locale, t } from "../i18n";
 import { icon } from "../icon";
+import { attrLabel } from "../model";
 import { base } from "./shared";
 
 /** Formula: KaTeX as MathML (no fonts or styles needed). */
@@ -232,6 +233,8 @@ customElements.get("phx-board-embed") || customElements.define("phx-board-embed"
 
 /** Styles for callouts and colors inside rendered pages. */
 export const blockStyles = `
+  phx-include { display: block; border-left: 3px solid var(--line); padding-left: 14px; margin: 1em 0; }
+  phx-include .include-src { font-size: 12.5px; margin: .3em 0 0; }
   .callout { display: flex; gap: 10px; padding: 10px 14px; border-radius: 10px; margin: .8em 0; background: var(--tb-gray); }
   .callout .ci { flex: none; padding-top: 2px; color: var(--tc-gray); }
   .callout .cc { min-width: 0; flex: 1; } .callout .cc > :first-child { margin-top: 0; } .callout .cc > :last-child { margin-bottom: 0; }
@@ -393,3 +396,96 @@ export class PhxEntityCard extends LitElement {
   }
 }
 customElements.get("phx-entity-card") || customElements.define("phx-entity-card", PhxEntityCard);
+
+/** ```include: the content of another page, shown in place (reusable blocks).
+ * Rendered in the light DOM so the page's text styles apply; includes inside
+ * an included page show as links only, so pages cannot include each other
+ * endlessly. */
+export class PhxInclude extends HTMLElement {
+  private loaded = "";
+  connectedCallback() {
+    void this.render();
+  }
+
+  private async render() {
+    const project = this.dataset.project ?? "";
+    const slug = (this.dataset.page ?? "").trim();
+    const key = `${project}/${slug}`;
+    if (!project || !slug || key === this.loaded) return;
+    this.loaded = key;
+    const link = (title: string) => {
+      const a = document.createElement("a");
+      a.href = `/p/${project}/d/${encodeURIComponent(slug)}`;
+      a.textContent = title;
+      return a;
+    };
+    if (this.dataset.nested) {
+      this.replaceChildren(link(slug));
+      return;
+    }
+    try {
+      const d = await api<Doc>("GET", `/projects/${project}/documents/${encodeURIComponent(slug)}`);
+      if (d.type !== "markdown") throw new Error("not a page");
+      const { renderMarkdown, withoutTitle } = await import("../md");
+      const body = renderMarkdown(withoutTitle(d.content?.markdown ?? "", d.title), project, d.id).replace(/<phx-include /g, '<phx-include data-nested="1" ');
+      const box = document.createElement("div");
+      box.className = "include-body";
+      box.innerHTML = body;
+      const src = document.createElement("p");
+      src.className = "include-src muted";
+      src.append(t("block.include_from") + " ", link(d.title));
+      this.replaceChildren(box, src);
+    } catch {
+      const p = document.createElement("p");
+      p.className = "muted";
+      p.textContent = t("block.include_missing", { page: slug });
+      this.replaceChildren(p);
+    }
+  }
+}
+customElements.get("phx-include") || customElements.define("phx-include", PhxInclude);
+
+interface QueryResult { kind: string; columns: string[]; rows: { slug: string; name: string; attrs: Record<string, unknown> }[]; total: number }
+
+/** ```query: the result of a saved query as a live table. */
+export class PhxQueryBlock extends LitElement {
+  static properties = { query: { attribute: "data-query" }, project: { attribute: "data-project" }, r: { state: true }, missing: { state: true } };
+  static styles = [base, css`
+    :host { display: block; margin: 1em 0; }
+    .wrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
+    table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+    th, td { border-bottom: 1px solid var(--line); padding: 4px 10px; text-align: left; white-space: nowrap; }
+    th { background: var(--surface); }
+    .foot { font-size: 12.5px; margin-top: 4px; }
+  `];
+  query = "";
+  project = "";
+  r?: QueryResult;
+  missing = false;
+  private loaded = "";
+
+  async willUpdate() {
+    const q = this.query.trim();
+    if (!this.project || !q || q === this.loaded) return;
+    this.loaded = q;
+    try {
+      this.r = await api<QueryResult>("GET", `/projects/${this.project}/queries/${encodeURIComponent(q)}/run`);
+    } catch {
+      this.missing = true;
+    }
+  }
+
+  render() {
+    if (this.missing) return html`<p class="muted">${t("block.query_missing", { query: this.query })}</p>`;
+    const r = this.r;
+    if (!r) return html`<p class="muted">${t("app.loading")}</p>`;
+    const cols = r.columns.slice(0, 8);
+    const cell = (v: unknown) => (v === undefined || v === null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
+    return html`<div class="wrap"><table>
+      <thead><tr><th>${t("entity.name")}</th>${cols.map((c) => html`<th>${attrLabel({ name: c, type: "text" })}</th>`)}</tr></thead>
+      <tbody>${r.rows.slice(0, 200).map((x) => html`<tr><td><a href="/p/${this.project}/e/${x.slug}">${x.name}</a></td>${cols.map((c) => html`<td>${cell(x.attrs[c])}</td>`)}</tr>`)}</tbody>
+    </table></div>
+    <p class="foot muted">${icon("Table", 12)} ${t("block.query_count", { n: r.total })} · <a href="/p/${this.project}/table?query=${encodeURIComponent(this.query.trim())}">${t("block.query_open")}</a></p>`;
+  }
+}
+customElements.get("phx-query-block") || customElements.define("phx-query-block", PhxQueryBlock);
