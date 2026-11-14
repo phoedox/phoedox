@@ -54,6 +54,8 @@ type Kind struct {
 	Attrs       []Attr     `json:"attrs"`
 	Relations   []Relation `json:"relations,omitempty"`
 	Count       int        `json:"count"`
+	// Rules are the project's documentation rules for this kind (ADR-0043).
+	Rules *KindRules `json:"rules,omitempty"`
 }
 
 // Model is the data model of a project: core kinds with project extensions
@@ -200,6 +202,16 @@ func (s *Service) model(ctx context.Context, projectID string) (Model, error) {
 	for _, pk := range s.pluginKinds(ctx, projectID) {
 		if _, taken := m.Find(pk.ID); !taken {
 			m.Kinds = append(m.Kinds, pk)
+		}
+	}
+	if rules, err := s.DB.KindRules(ctx, projectID); err == nil {
+		for i := range m.Kinds {
+			if raw, ok := rules[m.Kinds[i].ID]; ok {
+				var r KindRules
+				if json.Unmarshal(raw, &r) == nil && !r.empty() {
+					m.Kinds[i].Rules = &r
+				}
+			}
 		}
 	}
 	return m, nil

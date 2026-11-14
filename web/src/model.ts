@@ -8,7 +8,10 @@ export interface Relation { rel: string; to: string[]; project?: boolean }
 export interface Kind {
   id: string; name?: string; description?: string; group: string; icon: string; source: "core" | "project" | `plugin:${string}`;
   attrs: Attr[]; relations?: Relation[]; count: number;
+  /** Documentation rules of the project for this kind (ADR-0043). */
+  rules?: KindRules;
 }
+export interface KindRules { location?: boolean; page?: boolean; owner?: boolean; fields?: string[]; reviewDays?: number }
 export interface Model { kinds: Kind[]; generic: string[]; unknown?: Record<string, number> }
 export interface KindInput { name?: string; description?: string; icon?: string; attrs?: Attr[]; relations?: Relation[] }
 

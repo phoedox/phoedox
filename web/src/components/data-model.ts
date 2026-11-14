@@ -1,3 +1,4 @@
+import "./kind-rules";
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html, svg } from "lit";
 import { repeat } from "lit/directives/repeat.js";
@@ -369,6 +370,8 @@ export class PhxDataModel extends SignalWatcher(LitElement) {
           <button class="ghost" ?disabled=${this.busy}>${icon("Plus", 13)} ${t("model.add_attr")}</button>
         </form>` : ""}
       </div>
+
+      <phx-kind-rules .project=${this.project} .kind=${k} @changed=${() => loadModel(this.project, true).then((m) => (this.model = m))}></phx-kind-rules>
 
       <div><div class="lbl" style="padding:0 0 4px">${t("model.relations")}</div>
         <div class="rels">${rels.map(([rel, other, outgoing, project]) => html`<div class="r">

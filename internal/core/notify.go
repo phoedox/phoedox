@@ -28,7 +28,7 @@ import (
 // app only.
 
 // NotificationKinds are the kinds people can mute.
-var NotificationKinds = []string{"comment.mention", "comment.reply", "check.fail", "check.recover", "task.assigned", "project.summary", "draft.review", "draft.changes_requested", "draft.approved", "page.review_due", "page.required_reading"}
+var NotificationKinds = []string{"comment.mention", "comment.reply", "check.fail", "check.recover", "task.assigned", "project.summary", "draft.review", "draft.changes_requested", "draft.approved", "page.review_due", "page.required_reading", "entity.owner", "entity.review_due"}
 
 // Note is one notification before it is stored and sent.
 type Note struct {

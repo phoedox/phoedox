@@ -92,3 +92,38 @@ func (a *api) saveMaintenance(w http.ResponseWriter, r *http.Request) {
 func (a *api) deleteMaintenance(w http.ResponseWriter, r *http.Request) {
 	respond(w, map[string]bool{"ok": true}, a.core.DeleteMaintenancePlan(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id")))
 }
+
+func (a *api) entityMeta(w http.ResponseWriter, r *http.Request) {
+	res, err := a.core.EntityMeta(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "e"))
+	respond(w, res, err)
+}
+
+func (a *api) setEntityMeta(w http.ResponseWriter, r *http.Request) {
+	var in core.EntityMetaInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	res, err := a.core.SetEntityMeta(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "e"), in)
+	respond(w, res, err)
+}
+
+func (a *api) entityReviewed(w http.ResponseWriter, r *http.Request) {
+	res, err := a.core.MarkEntityReviewed(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "e"))
+	respond(w, res, err)
+}
+
+func (a *api) setKindRules(w http.ResponseWriter, r *http.Request) {
+	var in core.KindRules
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	res, err := a.core.SetKindRules(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "k"), in)
+	respond(w, res, err)
+}
+
+func (a *api) locations(w http.ResponseWriter, r *http.Request) {
+	res, err := a.core.Locations(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, res, err)
+}

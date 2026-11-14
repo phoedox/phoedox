@@ -30,7 +30,7 @@ type GapReport struct {
 }
 
 // Kinds of findings, in the order they are shown.
-var gapKinds = []string{"failing_check", "review_due", "broken_mention", "unplaced_device", "undocumented_entry", "incomplete_entry", "empty_page", "stale_page"}
+var gapKinds = []string{"failing_check", "rule_violation", "review_due", "broken_mention", "unplaced_device", "undocumented_entry", "incomplete_entry", "empty_page", "stale_page"}
 
 // placeless kinds need no location.
 var placeless = map[string]bool{"room": true, "floor": true, "building": true, "site": true, "person": true, "service": true, "network": true, "vlan": true, "software": true, "contract": true}
@@ -53,50 +53,25 @@ func (s *Service) DocumentationGaps(ctx context.Context, a Actor, ref string, st
 	if err != nil {
 		return r, err
 	}
-	edges, err := s.DB.EdgesOfProject(ctx, p.ID)
+	st, err := s.docState(ctx, p)
 	if err != nil {
 		return r, err
 	}
-	mentioned, err := s.DB.MentionedEntities(ctx, p.ID)
-	if err != nil {
-		return r, err
-	}
-	m, _ := s.model(ctx, p.ID)
-	kinds := map[string]Kind{}
-	for _, k := range m.Kinds {
-		kinds[k.ID] = k
-	}
-	placed := map[string]bool{}
-	connected := map[string]bool{}
-	for _, e := range edges {
-		connected[e.From], connected[e.To] = true, true
-		if e.Rel == "located_in" || e.Rel == "mounted_in" || e.Rel == "part_of" || e.Rel == "runs_on" {
-			placed[e.From] = true
-		}
-	}
-	// Devices drawn on a floor plan have a location too.
-	onPlan := map[string]bool{}
-	if plans, err := s.DB.ListDocuments(ctx, p.ID, store.DocFilter{Type: store.DocFloorplan}); err == nil {
-		for _, d := range plans {
-			full, err := s.DB.GetDocument(ctx, p.ID, d.ID)
-			if err != nil {
-				continue
-			}
-			var fp Floorplan
-			if json.Unmarshal(full.Content, &fp) == nil {
-				for _, dev := range fp.Devices {
-					onPlan[dev.Entity] = true
-				}
-			}
-		}
-	}
+	kinds, mentioned, connected := st.kinds, st.mentioned, st.connected
+	now := time.Now()
 	slugs := map[string]bool{}
 	for _, e := range ents {
 		slugs[e.Slug] = true
 		if !mentioned[e.ID] && !connected[e.ID] {
 			add(Gap{Kind: "undocumented_entry", Subject: e.Slug, Title: e.Name, Detail: map[string]any{"kind": e.Kind}})
 		}
-		if !placeless[e.Kind] && !placed[e.ID] && !onPlan[e.Slug] {
+		if v := st.violations(e, now); len(v.Rules) > 0 {
+			add(Gap{Kind: "rule_violation", Subject: e.Slug, Title: e.Name, Detail: map[string]any{"kind": e.Kind, "rules": v.Rules, "missing": v.Missing}})
+		}
+		if due, ok := st.reviewDue(e); ok && !due.After(now) {
+			add(Gap{Kind: "review_due", Subject: e.Slug, Title: e.Name, Detail: map[string]any{"due": due.Format(time.DateOnly), "entity": true}})
+		}
+		if !placeless[e.Kind] && !st.isPlaced(e) {
 			add(Gap{Kind: "unplaced_device", Subject: e.Slug, Title: e.Name, Detail: map[string]any{"kind": e.Kind}})
 		}
 		attrs := map[string]any{}

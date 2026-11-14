@@ -103,6 +103,7 @@ func main() {
 					a.Core.SendSummaries(ctx, time.Now())
 					a.Core.RunMaintenance(ctx, time.Now())
 					a.Core.RemindReviews(ctx, time.Now())
+					a.Core.RemindEntityReviews(ctx, time.Now())
 					a.Core.PurgeSecretLinks(ctx, time.Now())
 				}
 			}

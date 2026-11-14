@@ -11,6 +11,7 @@ import { unsafeStatic, html as shtml } from "lit/static-html.js";
 import { base } from "./shared";
 import "./attachments";
 import "./maintenance";
+import "./entity-meta";
 import "./diagnosis";
 import "./software-tree";
 import "./agent-actions";
@@ -293,6 +294,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
             : html`<button class="danger" @click=${() => (this.confirming = true)}>${icon("Trash2", 14)} ${t("doc.delete")}</button>`}
         </div>` : ""}
       </header>
+      <phx-entity-meta .project=${this.project} .entity=${e.slug} .kind=${k} ?canEdit=${edit}></phx-entity-meta>
       ${(pluginViews.get()[e.kind] ?? []).map((tag) => html`<section class="plugin card" style="margin-bottom:12px">${shtml`<${unsafeStatic(tag)} entity=${e.slug}></${unsafeStatic(tag)}>`}</section>`)}
       ${e.kind === "rack" ? html`<phx-rack-view .project=${this.project} .rack=${e} .edges=${edges} .model=${this.model} ?canEdit=${edit} @changed=${() => this.load()}></phx-rack-view>` : ""}
       ${["container", "stack", "server", "vm", "lxc"].includes(e.kind) ? html`<phx-agent-actions .project=${this.project} .entity=${e.slug}></phx-agent-actions>` : ""}

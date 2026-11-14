@@ -114,6 +114,10 @@ type maintenanceSaveIn struct {
 	core.MaintenanceInput
 }
 
+type projectOnlyIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+}
+
 type gapsIn struct {
 	Project   string `json:"project" jsonschema:"project slug"`
 	StaleDays int    `json:"staleDays,omitempty" jsonschema:"pages unchanged for this many days count as stale (default 365)"`
@@ -609,6 +613,9 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "save_maintenance_plan", "Create or change a maintenance plan for an entry: every N days/weeks/months/years Phoedox puts a card on the given board, leadDays before it is due. Only in projects where AI writes directly.", func(ctx context.Context, a core.Actor, in maintenanceSaveIn) (any, error) {
 		return svc.SaveMaintenancePlan(ctx, a, in.Project, in.ID, in.MaintenanceInput)
+	})
+	tool(s, "list_locations", "The location hierarchy of a project: sites → buildings → floors → rooms, with how many entries are located in each.", func(ctx context.Context, a core.Actor, in projectOnlyIn) (any, error) {
+		return svc.Locations(ctx, a, in.Project)
 	})
 	tool(s, "find_documentation_gaps", "Find missing or outdated documentation in a project: failing checks, mentions of entries that do not exist, devices without a location, entries no page mentions, entries with most attributes empty, empty pages and pages unchanged for a long time.", func(ctx context.Context, a core.Actor, in gapsIn) (any, error) {
 		return svc.DocumentationGaps(ctx, a, in.Project, in.StaleDays)

@@ -9,8 +9,14 @@
       {"name": "ip", "type": "ip"}, {"name": "mac", "type": "text"}],
       "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}, {"rel": "wired_to", "to": ["switch", "router", "lan_port"]}, {"rel": "uplink", "to": ["router", "repeater", "access_point"]}]},
 
+    {"id": "site", "group": "building", "icon": "MapPin", "attrs": [
+      {"name": "address", "type": "text"}, {"name": "lat", "type": "number"}, {"name": "lng", "type": "number"}]},
+    {"id": "building", "group": "building", "icon": "Building2", "attrs": [
+      {"name": "address", "type": "text"}, {"name": "year_built", "type": "number"}],
+      "relations": [{"rel": "part_of", "to": ["site"]}]},
     {"id": "floor", "group": "building", "icon": "Layers", "attrs": [
-      {"name": "level", "type": "number", "required": true}, {"name": "ceiling_height", "type": "number", "unit": "m"}]},
+      {"name": "level", "type": "number", "required": true}, {"name": "ceiling_height", "type": "number", "unit": "m"}],
+      "relations": [{"rel": "part_of", "to": ["building"]}]},
     {"id": "room", "group": "building", "icon": "DoorOpen", "attrs": [
       {"name": "area", "type": "number", "unit": "m²"}],
       "relations": [{"rel": "part_of", "to": ["floor"]}]},
