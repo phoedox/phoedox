@@ -103,8 +103,22 @@ export class PhxBoard extends LitElement {
     return ["editor", "owner"].includes(this.doc.role ?? currentProject.get()?.role ?? "");
   }
 
+  /** Hidden tabs give their stream back (browsers allow few connections per host). */
+  private onVisibility = () => {
+    if (!this.doc) return;
+    if (document.visibilityState === "hidden") {
+      this.events?.close();
+      this.events = undefined;
+    } else if (!this.events) {
+      this.listen();
+      void this.load(); // catch up on what happened meanwhile
+    }
+  };
+
   connectedCallback() {
     super.connectedCallback();
+    document.addEventListener("visibilitychange", this.onVisibility);
+    if (this.doc && this.loadedFor === this.doc.id && !this.events) this.listen();
     this.timer = window.setInterval(() => {
       if (document.visibilityState === "visible" && !this.dragging && !this.open) void this.load();
     }, REFRESH);
@@ -113,6 +127,7 @@ export class PhxBoard extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.clearInterval(this.timer);
+    document.removeEventListener("visibilitychange", this.onVisibility);
     this.events?.close();
     this.events = undefined;
   }

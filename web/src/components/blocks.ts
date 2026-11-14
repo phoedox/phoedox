@@ -206,6 +206,11 @@ export class PhxBoardEmbed extends LitElement {
     if (!this.project || !this.board || key === this.loaded) return;
     this.loaded = key;
     await import("./board");
+    await this.load();
+  }
+
+  /** Loads the board (again when someone changed its columns). */
+  private async load() {
     try {
       const d = await api<Doc>("GET", `/projects/${this.project}/documents/${encodeURIComponent(this.board.trim())}`);
       this.doc = d.type === "board" ? d : undefined;
@@ -219,7 +224,7 @@ export class PhxBoardEmbed extends LitElement {
     if (this.missing) return html`<p class="muted">${icon("SquareKanban", 14)} ${t("block.board_missing", { board: this.board })}</p>`;
     if (!this.doc) return html`<p class="muted">${t("app.loading")}</p>`;
     return html`<div class="head">${icon("SquareKanban", 15)} <a href="/p/${this.project}/d/${this.doc.slug}">${this.doc.title}</a></div>
-      <phx-board .project=${this.project} .doc=${this.doc}></phx-board>`;
+      <phx-board .project=${this.project} .doc=${this.doc} @changed=${() => this.load()}></phx-board>`;
   }
 }
 customElements.get("phx-board-embed") || customElements.define("phx-board-embed", PhxBoardEmbed);
