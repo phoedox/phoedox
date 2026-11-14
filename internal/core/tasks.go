@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"regexp"
 	"slices"
 	"strings"
@@ -304,6 +305,7 @@ func (s *Service) CreateTask(ctx context.Context, a Actor, ref, boardRef string,
 		return t, err
 	}
 	s.event(ctx, a, "task.create", t.ID, map[string]any{"board": doc.ID, "title": t.Title, "column": t.Column})
+	s.taskChanged(ctx, a, p, doc, t, "task.create")
 	s.notifyAssignee(ctx, a, p, doc, t)
 	return s.DB.GetTask(ctx, p.ID, t.ID)
 }
@@ -318,7 +320,7 @@ func (s *Service) UpdateTask(ctx context.Context, a Actor, ref, id string, patch
 	if err != nil {
 		return t, err
 	}
-	boardRef := t.BoardID
+	boardRef, oldBoard := t.BoardID, t.BoardID
 	if patch.Board != nil {
 		boardRef = *patch.Board
 	}
@@ -390,6 +392,11 @@ func (s *Service) UpdateTask(ctx context.Context, a Actor, ref, id string, patch
 		return t, err
 	}
 	s.event(ctx, a, "task.update", t.ID, map[string]any{"board": t.BoardID, "column": t.Column, "patch": patch})
+	s.taskChanged(ctx, a, p, doc, t, "task.update")
+	if oldBoard != doc.ID {
+		s.relinkBoard(ctx, p, oldBoard)
+		s.boardChanged(a, oldBoard, t.ID, "task.delete")
+	}
 	if t.AssigneeID != "" && t.AssigneeID != oldAssignee {
 		s.notifyAssignee(ctx, a, p, doc, t)
 	}
@@ -413,6 +420,9 @@ func (s *Service) DeleteTask(ctx context.Context, a Actor, ref, id string) error
 		return err
 	}
 	s.event(ctx, a, "task.delete", id, map[string]any{"board": t.BoardID, "title": t.Title})
+	s.unindex(ctx, id)
+	s.relinkBoard(ctx, p, t.BoardID)
+	s.boardChanged(a, t.BoardID, id, "task.delete")
 	return nil
 }
 
@@ -428,4 +438,88 @@ func (s *Service) notifyAssignee(ctx context.Context, a Actor, p store.Project, 
 	}
 	s.notify(ctx, u, Note{Kind: "task.assigned", ProjectID: p.ID, Project: p.Name, Subject: t.ID, Title: t.Title, Body: excerpt(t.Description, 400),
 		Link: "/p/" + p.Slug + "/d/" + board.Slug + "?task=" + t.ID, Actor: a.User.Name})
+}
+
+// taskChanged keeps search, mentions and open boards up to date.
+func (s *Service) taskChanged(ctx context.Context, a Actor, p store.Project, board store.Document, t store.Task, kind string) {
+	s.indexTask(ctx, board, t)
+	s.relinkBoard(ctx, p, board.ID)
+	s.boardChanged(a, board.ID, t.ID, kind)
+}
+
+// indexTask puts a card into the search index; Subtype holds the board id
+// so search can check that the board is visible.
+func (s *Service) indexTask(ctx context.Context, board store.Document, t store.Task) {
+	body := plainMarkdown(t.Description)
+	if t.AssigneeText != "" {
+		body += "\n" + t.AssigneeText
+	}
+	if len(t.Labels) > 0 {
+		body += "\n" + strings.Join(t.Labels, " ")
+	}
+	if err := s.DB.IndexPut(ctx, store.IndexEntry{RefID: t.ID, Kind: "task", ProjectID: t.ProjectID, Slug: board.Slug,
+		Subtype: board.ID, Title: t.Title, Body: body}); err != nil {
+		slog.Warn("search index update failed", "task", t.ID, "err", err)
+	}
+}
+
+// relinkBoard recomputes which entries a board mentions: its description
+// and the titles and descriptions of its cards.
+func (s *Service) relinkBoard(ctx context.Context, p store.Project, boardID string) {
+	doc, err := s.DB.GetDocument(ctx, p.ID, boardID)
+	if err != nil {
+		return
+	}
+	s.linkMentions(ctx, p, doc.ID, boardOf(doc).Description)
+}
+
+// MyTask is an open task of the actor with its project.
+type MyTask struct {
+	store.Task
+	ProjectSlug string `json:"projectSlug"`
+	ProjectName string `json:"projectName"`
+}
+
+// MyTasks lists the open tasks assigned to the actor in all visible
+// projects, due ones first.
+func (s *Service) MyTasks(ctx context.Context, a Actor) ([]MyTask, error) {
+	ps, err := s.Projects(ctx, a)
+	if err != nil {
+		return nil, err
+	}
+	out := []MyTask{}
+	for _, p := range ps {
+		tasks, err := s.DB.ListTasks(ctx, p.ID, store.TaskFilter{AssigneeID: a.User.ID, Open: true})
+		if err != nil {
+			return nil, err
+		}
+		if len(tasks) == 0 {
+			continue
+		}
+		see, err := s.docFilter(ctx, a, p)
+		if err != nil {
+			return nil, err
+		}
+		restricted, err := s.DB.RestrictedDocs(ctx, []string{p.ID})
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range tasks {
+			if p.Role == store.RoleOwner || see(t.BoardID, restricted[t.BoardID]) {
+				out = append(out, MyTask{Task: t, ProjectSlug: p.Slug, ProjectName: p.Name})
+			}
+		}
+	}
+	slices.SortStableFunc(out, func(x, y MyTask) int {
+		switch {
+		case x.Due != "" && y.Due == "":
+			return -1
+		case x.Due == "" && y.Due != "":
+			return 1
+		case x.Due != y.Due:
+			return strings.Compare(x.Due, y.Due)
+		}
+		return y.Priority - x.Priority
+	})
+	return out, nil
 }

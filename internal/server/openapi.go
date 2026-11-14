@@ -226,6 +226,8 @@ var apiDocs = map[string]op{
 	"PATCH /projects/{p}/comments/{id}":                      {Tag: "comments", Summary: "Edit a comment (author) or mark a thread done or open.", In: core.CommentPatch{}, Out: store.Comment{}},
 	"DELETE /projects/{p}/comments/{id}":                     {Tag: "comments", Summary: "Delete a comment (author or owner); the first one takes its thread."},
 	"GET /projects/{p}/comments/open":                        {Tag: "comments", Summary: "Number of open threads per page id."},
+	"GET /me/tasks":                                          {Tag: "tasks", Summary: "Open tasks assigned to the signed-in person in all projects, due ones first.", Out: []core.MyTask{}},
+	"GET /projects/{p}/boards/{d}/events":                    {Tag: "tasks", Summary: "Server-sent events (change) when cards or columns of a board change."},
 	"GET /me/notifications":                                  {Tag: "notifications", Summary: "Newest notifications of the signed-in person (?unread=1, ?limit=).", Out: core.NotificationList{}},
 	"POST /me/notifications/read":                            {Tag: "notifications", Summary: "Mark notifications as read ({ids}; none = all)."},
 	"GET /me/notification-settings":                          {Tag: "notifications", Summary: "Mail mode, ntfy address, muted kinds and web push key.", Out: core.NotificationSettingsView{}},

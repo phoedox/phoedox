@@ -147,6 +147,7 @@ export class PhxPalette extends SignalWatcher(LitElement) {
       }
     }
     items.push({ id: "a-projects", label: t("nav.projects"), icon: "FolderOpen", href: "/" });
+    items.push({ id: "a-mytasks", label: t("mytasks.title"), icon: "ListChecks", href: "/tasks" });
     items.push({ id: "a-profile", label: t("nav.profile"), icon: "UserRound", href: "/settings/profile" });
     items.push({ id: "a-security", label: t("nav.security"), icon: "ShieldCheck", href: "/settings/security" });
     items.push({ id: "a-tokens", label: t("nav.tokens"), icon: "KeyRound", href: "/settings/tokens" });
@@ -165,8 +166,9 @@ export class PhxPalette extends SignalWatcher(LitElement) {
       .map((p) => ({ id: `p-${p.id}`, label: t("palette.go_project", { project: p.name }), icon: "FolderOpen", href: `/p/${p.slug}` }));
     const results: Item[] = this.hits.map((h) => ({
       id: `h-${h.id}`, label: h.title,
-      icon: h.type === "entity" ? "Box" : h.type === "file" ? fileIcon(h.kind) : docIcon[h.kind] ?? "FileText",
-      href: h.type === "file" ? `/p/${h.projectSlug}/files?open=${h.id}` : `/p/${h.projectSlug}/${h.type === "entity" ? "e" : "d"}/${h.slug}`,
+      icon: h.type === "entity" ? "Box" : h.type === "file" ? fileIcon(h.kind) : h.type === "task" ? "SquareCheckBig" : docIcon[h.kind] ?? "FileText",
+      href: h.type === "file" ? `/p/${h.projectSlug}/files?open=${h.id}` : h.type === "task" ? `/p/${h.projectSlug}/d/${h.slug}?task=${h.id}`
+        : `/p/${h.projectSlug}/${h.type === "entity" ? "e" : "d"}/${h.slug}`,
       // A match in a translation opens the page in that language.
       run: h.locale ? () => { rememberLocale(h.projectSlug, h.locale!); if (h.projectId === here) contentLocale.set(h.locale!); navigate(`/p/${h.projectSlug}/d/${h.slug}`); } : undefined,
       sub: h.snippet ? html`${marked(h.snippet)}` : undefined,

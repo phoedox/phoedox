@@ -58,15 +58,28 @@ func (d *DB) IndexCount(ctx context.Context) (int, error) {
 	return n, err
 }
 
-// TranslationsUnindexed tells whether translations exist but none is in
-// the index (instances updated from before translations were searchable).
-func (d *DB) TranslationsUnindexed(ctx context.Context) (bool, error) {
-	var t, i int
-	if err := d.QueryRow(ctx, `SELECT count(*) FROM document_translations`).Scan(&t); err != nil || t == 0 {
-		return false, err
+// IndexIncomplete tells whether translations or tasks exist but none of
+// them is in the index (instances updated from before they were searchable).
+func (d *DB) IndexIncomplete(ctx context.Context) (bool, error) {
+	for _, q := range [][2]string{
+		{`SELECT count(*) FROM document_translations`, `SELECT count(*) FROM search_index WHERE kind = 'document' AND ref_id LIKE '%~%'`},
+		{`SELECT count(*) FROM tasks`, `SELECT count(*) FROM search_index WHERE kind = 'task'`},
+	} {
+		var have, indexed int
+		if err := d.QueryRow(ctx, q[0]).Scan(&have); err != nil {
+			return false, err
+		}
+		if have == 0 {
+			continue
+		}
+		if err := d.QueryRow(ctx, q[1]).Scan(&indexed); err != nil {
+			return false, err
+		}
+		if indexed == 0 {
+			return true, nil
+		}
 	}
-	err := d.QueryRow(ctx, `SELECT count(*) FROM search_index WHERE kind = 'document' AND ref_id LIKE '%~%'`).Scan(&i)
-	return i == 0, err
+	return false, nil
 }
 
 // Hit is a search result.

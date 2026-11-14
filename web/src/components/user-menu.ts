@@ -111,6 +111,7 @@ export class PhxUserMenu extends SignalWatcher(LitElement) {
       </button>
       <div id="menu" role="menu" aria-label=${t("nav.user_menu")} @keydown=${this.onMenuKey}>
         <div class="head" role="presentation"><b>${u.name}</b><span>${u.email}</span></div>
+        ${item("/tasks", "ListChecks", t("mytasks.title"))}
         ${item("/settings/profile", "UserRound", t("nav.profile"))}
         ${item("/settings/security", "ShieldCheck", t("nav.security"))}
         ${item("/settings/tokens", "KeyRound", t("nav.tokens"))}

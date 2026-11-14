@@ -121,6 +121,12 @@ func (s *Service) Reindex(ctx context.Context) (int, error) {
 	}
 	for _, d := range docs {
 		s.indexDocument(ctx, d)
+		if d.Type == store.DocBoard {
+			tasks, _ := s.DB.ListTasks(ctx, d.ProjectID, store.TaskFilter{BoardID: d.ID})
+			for _, t := range tasks {
+				s.indexTask(ctx, d, t)
+			}
+		}
 	}
 	for _, e := range ents {
 		s.indexEntity(ctx, e)
@@ -139,7 +145,7 @@ func (s *Service) EnsureSearchIndex(ctx context.Context) error {
 		return err
 	}
 	if n > 0 {
-		if missing, err := s.DB.TranslationsUnindexed(ctx); err != nil || !missing {
+		if missing, err := s.DB.IndexIncomplete(ctx); err != nil || !missing {
 			return err
 		}
 	}

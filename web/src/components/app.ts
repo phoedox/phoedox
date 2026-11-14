@@ -16,6 +16,7 @@ import "./publications";
 import "./security";
 import "./notification-bell";
 import "./notification-settings";
+import "./my-tasks";
 import "./consent";
 import "./palette";
 import type { PhxPalette } from "./palette";
@@ -66,6 +67,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/reset/:token", render: ({ token }) => html`<phx-set-password .token=${token!}></phx-set-password>` },
     { path: "/settings/profile", render: () => html`<phx-profile></phx-profile>` },
     { path: "/oauth/authorize", render: () => html`<phx-consent></phx-consent>` },
+    { path: "/tasks", render: () => html`<phx-my-tasks></phx-my-tasks>` },
     { path: "/settings/notifications", render: () => html`<phx-notification-settings></phx-notification-settings>` },
     { path: "/settings/security", render: () => html`<phx-security></phx-security>` },
     { path: "/settings/tokens", render: () => html`<phx-tokens></phx-tokens>` },

@@ -303,6 +303,28 @@ func (s *Service) Search(ctx context.Context, a Actor, query, ref string, limit 
 	out := hits[:0]
 	for _, h := range hits {
 		p := byID[h.ProjectID]
+		if h.Type == "task" {
+			// Kind holds the board: the card is visible with its board.
+			board, err := s.DB.GetDocument(ctx, p.ID, h.Kind)
+			if err != nil {
+				continue
+			}
+			h.Kind = "task"
+			if p.Role != store.RoleOwner {
+				see, ok := docRules[p.ID]
+				if !ok {
+					if see, err = s.docFilter(ctx, a, p); err != nil {
+						return nil, err
+					}
+					docRules[p.ID] = see
+				}
+				if !see(board.ID, board.Restricted) {
+					continue
+				}
+			}
+			out = append(out, h)
+			continue
+		}
 		if p.Role == store.RoleOwner {
 			out = append(out, h)
 			continue

@@ -83,6 +83,7 @@ func (a *api) routes(r chi.Router) {
 		r.Use(a.requireActor)
 		r.Get("/me", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, actorOf(r).User) })
 		r.Get("/me/notifications", a.listNotifications)
+		r.Get("/me/tasks", a.myTasks)
 		r.Post("/me/notifications/read", a.readNotifications)
 		// Account changes need the full rights of the user (no narrowed token).
 		r.Group(func(r chi.Router) {
@@ -243,6 +244,7 @@ func (a *api) routes(r chi.Router) {
 			r.Put("/image", a.setProjectImage)
 			r.Delete("/image", a.deleteProjectImage)
 			r.Get("/tasks", a.listTasks)
+			r.Get("/boards/{d}/events", a.boardEvents)
 			r.Post("/boards/{d}/tasks", a.createTask)
 			r.Patch("/tasks/{id}", a.updateTask)
 			r.Delete("/tasks/{id}", a.deleteTask)

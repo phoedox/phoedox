@@ -1464,4 +1464,7 @@ export const en: Record<keyof typeof de, string> = {
   "validation.notify_email": "Unknown email setting.",
   "validation.notify_ntfy": "The ntfy address needs a topic, e.g. https://ntfy.sh/my-topic.",
   "validation.push_subscription": "The browser's push subscription is invalid.",
+  "mytasks.title": "My tasks",
+  "mytasks.hint": "Open cards assigned to you – from all projects, due ones first.",
+  "mytasks.empty": "No open tasks are assigned to you right now.",
 };

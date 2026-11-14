@@ -125,6 +125,7 @@ type Service struct {
 	schedLast map[string]time.Time
 	checkMu   sync.Mutex
 	vapidMu   sync.Mutex
+	boards    boardFeed
 
 	// SyncNotify sends ntfy and web push before notify returns (tests).
 	SyncNotify bool

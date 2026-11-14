@@ -20,6 +20,7 @@ func sameJSON(a, b []byte) bool {
 // contentChanged tells live editors to reload after a change made outside
 // the live editor.
 func (s *Service) contentChanged(ctx context.Context, a Actor, docID string) {
+	s.boardChanged(a, docID, "", "board.update") // no-op unless someone watches it as a board
 	if s.OnContentChange != nil {
 		s.OnContentChange(ctx, docID, a.User.Name)
 	}

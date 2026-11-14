@@ -10,7 +10,8 @@ import { base } from "./shared";
 import { userAvatar } from "../pictures";
 import { toast } from "./toasts";
 
-const REFRESH = 15000;
+/** Fallback poll; changes normally arrive at once through the event stream. */
+const REFRESH = 60000;
 
 /** Position between two neighbours (cards are ordered by a number). */
 function between(before?: number, after?: number): number {
@@ -88,6 +89,10 @@ export class PhxBoard extends LitElement {
   adding = "";
   private timer?: number;
   private loadedFor = "";
+  private events?: EventSource;
+  private reloadPending = false;
+  /** Card to open once loaded (?task=<id> in the address, e.g. from a notification). */
+  private wanted = new URLSearchParams(location.search).get("task") ?? "";
 
   private get board(): Board {
     const b = (this.doc.content ?? {}) as Board;
@@ -108,12 +113,44 @@ export class PhxBoard extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.clearInterval(this.timer);
+    this.events?.close();
+    this.events = undefined;
+  }
+
+  /** Reloads when someone else changes the board (cards or columns). */
+  private listen() {
+    this.events?.close();
+    if (typeof EventSource === "undefined") return;
+    const es = new EventSource(`/api/v1/projects/${this.project}/boards/${this.doc.id}/events`);
+    es.addEventListener("change", (e) => {
+      let kind = "";
+      try {
+        kind = JSON.parse((e as MessageEvent).data).kind;
+      } catch {
+        /* ignore */
+      }
+      if (kind === "board.update") this.dispatchEvent(new CustomEvent("changed"));
+      else this.reloadSoon();
+    });
+    this.events = es;
+  }
+
+  /** Several changes in a row cause one reload; never while dragging. */
+  private reloadSoon() {
+    if (this.reloadPending) return;
+    this.reloadPending = true;
+    setTimeout(() => {
+      this.reloadPending = false;
+      if (this.dragging) this.reloadSoon();
+      else void this.load();
+    }, 250);
   }
 
   willUpdate() {
     if (this.doc && this.loadedFor !== this.doc.id) {
       this.loadedFor = this.doc.id;
       void this.load();
+      this.listen();
       api<Member[]>("GET", `/projects/${this.project}/members`).then((m) => (this.members = m ?? []), () => {});
     }
   }
@@ -121,6 +158,11 @@ export class PhxBoard extends LitElement {
   private async load() {
     try {
       this.tasks = await api<Task[]>("GET", `/projects/${this.project}/tasks?board=${this.doc.id}`);
+      if (this.wanted) {
+        const card = this.tasks?.find((x) => x.id === this.wanted);
+        this.wanted = "";
+        if (card) this.show(card);
+      }
     } catch (e) {
       if (!this.tasks) this.tasks = [];
       toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");

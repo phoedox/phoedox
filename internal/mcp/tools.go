@@ -563,6 +563,9 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "run_request", "Run a request block (```request) of a page and check its expectations. Only reading requests (GET, HEAD, OPTIONS); secrets are masked.", func(ctx context.Context, a core.Actor, in runRequestIn) (any, error) {
 		return svc.RunRequest(ctx, a, in.Project, in.Document, in.Index)
 	})
+	tool(s, "my_tasks", "Open tasks assigned to the token owner in all visible projects, due ones first (with project and board).", func(ctx context.Context, a core.Actor, _ struct{}) (any, error) {
+		return svc.MyTasks(ctx, a)
+	})
 	tool(s, "list_comments", "Comment threads of a page with replies; open threads first. anchor quotes the block a thread is about.", func(ctx context.Context, a core.Actor, in docRef) (any, error) {
 		return svc.Comments(ctx, a, in.Project, in.Document)
 	})

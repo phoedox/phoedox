@@ -472,6 +472,12 @@ func (s *Service) DeleteDocument(ctx context.Context, a Actor, ref, docRef strin
 
 // linkMentions stores which entities a document mentions (@slug or @project/slug).
 func (s *Service) linkMentions(ctx context.Context, p store.Project, docID, text string) {
+	// Boards also mention what their cards mention.
+	if tasks, err := s.DB.ListTasks(ctx, p.ID, store.TaskFilter{BoardID: docID}); err == nil {
+		for _, t := range tasks {
+			text += "\n" + t.Title + "\n" + t.Description
+		}
+	}
 	var slugs []string
 	for _, m := range graph.ParseMentions(text) {
 		if m.Project == "" || m.Project == p.Slug {

@@ -1462,4 +1462,7 @@ export const de = {
   "validation.notify_email": "Unbekannte Einstellung für E-Mails.",
   "validation.notify_ntfy": "Die ntfy-Adresse braucht ein Thema, z. B. https://ntfy.sh/mein-thema.",
   "validation.push_subscription": "Die Push-Anmeldung des Browsers ist ungültig.",
+  "mytasks.title": "Meine Aufgaben",
+  "mytasks.hint": "Offene Karten, die dir zugewiesen sind – aus allen Projekten, fällige zuerst.",
+  "mytasks.empty": "Dir sind gerade keine offenen Aufgaben zugewiesen.",
 } as const;
