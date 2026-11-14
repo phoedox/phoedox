@@ -178,3 +178,5 @@ website:
   domains: []
   impressum: ""
   datenschutz: ""
+  # E-mail address behind "Request an offer" and "Contact"; hidden while empty.
+  contact: ""

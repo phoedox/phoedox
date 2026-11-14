@@ -11,6 +11,9 @@ data:
   impressum.md: |
     {{- . | nindent 4 }}
   {{- end }}
+  {{- with .Values.website.contact }}
+  contact.txt: {{ . | quote }}
+  {{- end }}
   {{- with .Values.website.datenschutz }}
   datenschutz.md: |
     {{- . | nindent 4 }}

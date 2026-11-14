@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="[[lang]]">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>[[title]]</title>
+<meta name="description" content="[[description]]">
+<link rel="alternate" hreflang="en" href="https://phoedox.com/">
+<link rel="alternate" hreflang="de" href="https://phoedox.com/de/">
+<link rel="alternate" hreflang="x-default" href="https://phoedox.com/">
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/website/site.css">
+</head>
+<body>
+<a class="skip" href="#main">[[skip]]</a>
+<header class="top band"><div class="in">
+  <a class="logo" href="[[home.href]]" aria-label="[[home]]"><img src="/logo.svg" alt="" width="34" height="34">Phoedox</a>
+  <nav class="main" aria-label="[[nav.label]]">
+    <a href="#areas">[[nav.areas]]</a><a href="#ai">[[nav.ai]]</a><a href="#privacy">[[nav.privacy]]</a><a href="https://store.phoedox.com/">[[nav.plugins]]</a><a href="#pricing">[[nav.pricing]]</a>
+  </nav>
+  <div class="hdr-r">
+    <span class="langs" role="group" aria-label="[[nav.lang]]"><a href="/?lang=en" hreflang="en" lang="en" [[cur:en]]>EN</a><a href="/de/?lang=de" hreflang="de" lang="de" [[cur:de]]>DE</a></span>
+    <a class="btn txt" href="https://docs.phoedox.com">[[nav.docs]]</a>
+    <a class="btn sec" href="https://app.phoedox.com/login"><i data-ic="LogIn"></i>[[nav.login]]</a>
+  </div>
+</div></header>
+
+<main id="main">
+<section class="hero band grid-bg"><div class="in">
+  <div class="hero-t">
+    <span class="lbl">[[hero.label]]</span>
+    <h1>[[hero.title]]</h1>
+    <p class="lead">[[hero.lead]]</p>
+    <div class="cta">
+      <a class="btn pri lg" href="https://app.phoedox.com/signup">[[hero.start]] <i data-ic="ArrowRight"></i></a>
+      <a class="btn sec lg" href="#pricing"><i data-ic="Server"></i>[[hero.selfhost]]</a>
+    </div>
+    <p class="note">[[hero.note]]</p>
+  </div>
+  <div class="net">
+    <div class="net-q" role="group" aria-label="[[net.questions]]" id="netQ"></div>
+    <div class="net-g" role="img" aria-label="[[net.label]]"><svg id="netSvg" viewBox="0 0 640 360" aria-hidden="true"></svg></div>
+    <div class="net-a" aria-live="polite"><p id="netA"></p><span class="trace">[[net.reads]] <span id="netT"></span></span></div>
+  </div>
+</div></section>
+
+<section class="sec band" id="areas"><div class="in">
+  <span class="lbl">[[areas.label]]</span>
+  <div class="sh"><h2>[[areas.title]]</h2><p>[[areas.lead]]</p></div>
+  <div class="cards3">
+    <div class="card"><span class="k">01 · [[areas.1.k]]</span><b>[[areas.1.t]]</b><span>[[areas.1.d]]</span></div>
+    <div class="card"><span class="k">02 · [[areas.2.k]]</span><b>[[areas.2.t]]</b><span>[[areas.2.d]]</span></div>
+    <div class="card"><span class="k">03 · [[areas.3.k]]</span><b>[[areas.3.t]]</b><span>[[areas.3.d]]</span></div>
+    <div class="card"><span class="k">04 · [[areas.4.k]]</span><b>[[areas.4.t]]</b><span>[[areas.4.d]]</span></div>
+    <div class="card"><span class="k">05 · [[areas.5.k]]</span><b>[[areas.5.t]]</b><span>[[areas.5.d]]</span></div>
+    <div class="card dash"><span class="k">06 · [[areas.6.k]]</span><b>[[areas.6.t]]</b><span>[[areas.6.d]]</span></div>
+  </div>
+</div></section>
+
+<section class="sec band tight"><div class="in">
+  <span class="lbl">[[feat.label]]</span>
+  <div class="three">
+    <div class="feat">
+      <div class="demo">
+        <div class="req"><span class="verb">GET</span><span>{{api}}/v2/health</span></div>
+        <pre class="res">200 OK · 31 ms
+{ "status": "ok", "db": "ok" }</pre>
+        <div class="chips"><span class="chip ok">● status == 200</span><span class="chip ok">● $.db == "ok"</span></div>
+      </div>
+      <h3>[[feat.1.t]]</h3><p>[[feat.1.d]]</p>
+    </div>
+    <div class="feat">
+      <div class="demo list">
+        <span><b class="mono">ADR-0014</b> [[feat.2.adr1]] <span class="good">[[feat.2.accepted]]</span></span>
+        <span class="muted"><b class="mono">ADR-0009</b> [[feat.2.adr2]]</span>
+        <span>[[feat.2.onb]]</span>
+        <span>[[feat.2.skill]]</span>
+      </div>
+      <h3>[[feat.2.t]]</h3><p>[[feat.2.d]]</p>
+    </div>
+    <div class="feat">
+      <div class="demo bp">
+        <svg viewBox="0 0 300 130" role="img" aria-label="[[feat.3.alt]]">
+          <g fill="none" stroke="currentColor" stroke-width="2" class="walls"><rect x="10" y="10" width="150" height="70"/><rect x="160" y="10" width="130" height="70"/><rect x="10" y="80" width="110" height="40"/><rect x="120" y="80" width="170" height="40"/></g>
+          <g class="rooms"><text x="20" y="28">[[feat.3.r1]]</text><text x="170" y="28">[[feat.3.r2]]</text><text x="20" y="98">[[feat.3.r3]]</text><text x="130" y="98">[[feat.3.r4]]</text></g>
+          <rect x="250" y="88" width="26" height="26" class="hot"/><circle cx="110" cy="55" r="5" class="hot"/><circle cx="230" cy="55" r="5" class="dev"/>
+        </svg>
+        <span class="cap">[[feat.3.cap]]</span>
+      </div>
+      <h3>[[feat.3.t]]</h3><p>[[feat.3.d]]</p>
+    </div>
+  </div>
+</div></section>
+
+<section class="band dark grid-bg" id="ai"><div class="in split">
+  <div class="col">
+    <span class="lbl">[[ai.label]]</span>
+    <h2>[[ai.title]]</h2>
+    <p class="lead">[[ai.lead]]</p>
+    <ol class="steps"><li><span class="n">1</span><span>[[ai.1]]</span></li><li><span class="n">2</span><span>[[ai.2]]</span></li><li><span class="n">3</span><span>[[ai.3]]</span></li></ol>
+  </div>
+  <div class="col">
+    <div class="code-wrap"><button class="copy" type="button" data-copy="mcpcfg" data-done="[[copied]]"><i data-ic="Copy"></i><span>[[copy]]</span></button>
+<pre class="code" id="mcpcfg">{
+  <span class="k">"mcpServers"</span>: {
+    <span class="k">"phoedox"</span>: { "url": "https://app.phoedox.com/mcp" }
+  }
+}</pre></div>
+<pre class="code"><span class="c">[[ai.q]]</span>
+get_entity("kunde-mueller")   <span class="c">[[ai.r1]]</span>
+traverse(srv-mueller-01, 2)   <span class="c">[[ai.r2]]</span>
+get_skill("update-ablauf")    <span class="c">[[ai.r3]]</span>
+<span class="c">[[ai.sum]]</span></pre>
+    <div class="chips"><span class="pill">[[ai.c1]]</span><span class="pill">[[ai.c2]]</span><span class="pill">[[ai.c3]]</span><span class="pill">[[ai.c4]]</span></div>
+  </div>
+</div></section>
+
+<section class="sec band" id="privacy"><div class="in">
+  <span class="lbl">[[priv.label]]</span>
+  <div class="sh"><h2>[[priv.title]]</h2><p>[[priv.lead]]</p></div>
+  <div class="cards3 trust">
+    <div class="card"><i data-ic="Server"></i><b>[[priv.1.t]]</b><span>[[priv.1.d]]</span></div>
+    <div class="card"><i data-ic="MapPin"></i><b>[[priv.2.t]]</b><span>[[priv.2.d]]</span></div>
+    <div class="card"><i data-ic="Lock"></i><b>[[priv.3.t]]</b><span>[[priv.3.d]]</span></div>
+    <div class="card"><i data-ic="Bot"></i><b>[[priv.4.t]]</b><span>[[priv.4.d]]</span></div>
+    <div class="card"><i data-ic="History"></i><b>[[priv.5.t]]</b><span>[[priv.5.d]]</span></div>
+    <div class="card"><i data-ic="Download"></i><b>[[priv.6.t]]</b><span>[[priv.6.d]]</span></div>
+  </div>
+  <p class="site-note"><i data-ic="ShieldCheck"></i>[[priv.site]]</p>
+</div></section>
+
+<section class="sec band" id="publish"><div class="in">
+  <span class="lbl">[[pub.label]]</span>
+  <div class="sh"><h2>[[pub.title]]</h2><p>[[pub.lead]]</p></div>
+  <div class="pubflow">
+    <div class="col"><span class="k">[[pub.projects]]</span><span class="proj">[[pub.p1]]</span><span class="proj">[[pub.p2]]</span><span class="proj">[[pub.p3]]</span></div>
+    <i data-ic="ArrowRight" class="arrow"></i>
+    <div class="pubbox"><b>[[pub.name]]</b><span>[[pub.meta]]</span></div>
+    <i data-ic="ArrowRight" class="arrow"></i>
+    <div class="browser"><div class="bar"><i data-ic="Lock"></i><b>docs.example.com</b></div><div class="page"><b>[[pub.page]]</b><span style="width:90%"></span><span style="width:70%"></span><span style="width:80%"></span></div></div>
+  </div>
+</div></section>
+
+<section class="sec band" id="plugins"><div class="in split">
+  <div class="col">
+    <span class="lbl">[[plug.label]]</span>
+    <h2>[[plug.title]]</h2>
+    <p class="muted">[[plug.lead]]</p>
+    <a class="more" href="https://store.phoedox.com/">[[plug.discover]] <i data-ic="ArrowRight"></i></a>
+  </div>
+  <div class="col tbl">
+    <table>
+      <thead><tr><th>[[plug.col.pos]]</th><th>[[plug.col.name]]</th><th>[[plug.col.area]]</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">01</td><td>GitHub · GitLab</td><td>[[plug.a1]]</td></tr>
+        <tr><td class="mono">02</td><td>Microsoft 365 · Google Workspace</td><td>[[plug.a2]]</td></tr>
+        <tr><td class="mono">03</td><td>[[plug.n3]]</td><td>[[plug.a3]]</td></tr>
+        <tr><td class="mono">04</td><td>Home Assistant · Proxmox · UniFi</td><td>[[plug.a4]]</td></tr>
+        <tr><td class="mono">…</td><td>[[plug.more]]</td><td></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div></section>
+
+<section class="sec band" id="pricing"><div class="in">
+  <span class="lbl">[[price.label]]</span>
+  <h2 class="h2">[[price.title]]</h2>
+  <div class="host">
+    <div class="hcard">
+      <span class="k">[[price.self.k]]</span>
+      <h3>[[price.self.t]]</h3>
+      <div class="price">[[price.self.p]] <small>[[price.self.s]]</small></div>
+      <div class="code-wrap"><button class="copy light" type="button" data-copy="dock" data-done="[[copied]]"><i data-ic="Copy"></i><span>[[copy]]</span></button>
+<pre class="code" id="dock">docker run -d -p 8080:8080 \
+  -v phoedox-data:/data \
+  ghcr.io/phoedox/phoedox</pre></div>
+      <ul><li><i data-ic="Check"></i>[[price.self.1]]</li><li><i data-ic="Check"></i>[[price.self.2]]</li><li><i data-ic="Check"></i>[[price.self.3]]</li><li><i data-ic="Check"></i>[[price.self.4]]</li></ul>
+    </div>
+    <div class="hcard dark grid-bg">
+      <span class="k">[[price.cloud.k]] · [[price.cloud.s]]</span>
+      <h3>[[price.cloud.t]]</h3>
+      <div class="tier"><div><b>[[price.nc.t]]</b><span>[[price.nc.d]]</span></div><span class="price">[[price.nc.p]]</span></div>
+      <div class="tier"><div><b>[[price.c.t]]</b><span>[[price.c.d]]</span></div><span class="price">[[price.c.p]]</span></div>
+      <p class="ai-note"><i data-ic="Sparkles"></i>[[price.ai]]</p>
+      <div class="cta"><a class="btn pri" href="https://app.phoedox.com/signup">[[price.signup]]</a><a class="btn ghost" href="/kontakt" data-legal>[[price.ask]]</a></div>
+    </div>
+  </div>
+</div></section>
+
+<section class="final band"><div class="in">
+  <div class="fl"><img src="/logo.svg" alt="" width="110" height="110"><h2>[[final.title]]</h2></div>
+  <a class="btn pri lg" href="https://app.phoedox.com/signup">[[hero.start]] <i data-ic="ArrowRight"></i></a>
+</div></section>
+</main>
+
+<footer class="band"><div class="in">
+  <div><a class="logo" href="[[home.href]]"><img src="/logo.svg" alt="" width="30" height="30">Phoedox</a><p>[[foot.tag]]</p></div>
+  <div><h4>[[foot.product]]</h4><a href="#areas">[[nav.areas]]</a><a href="#privacy">[[nav.privacy]]</a><a href="#pricing">[[nav.pricing]]</a><a href="https://app.phoedox.com/login">[[nav.login]]</a></div>
+  <div><h4>[[foot.res]]</h4><a href="https://docs.phoedox.com">[[foot.docs]]</a><a href="https://store.phoedox.com/">[[foot.store]]</a><a href="https://github.com/phoedox/phoedox-sdk">[[foot.sdk]]</a></div>
+  <div><h4>[[foot.legal]]</h4><a href="/impressum" data-legal>[[foot.imprint]]</a><a href="/datenschutz" data-legal>[[foot.privacy]]</a><a href="/kontakt" data-legal>[[foot.contact]]</a></div>
+</div></footer>
+
+<script type="application/json" id="net-data">[[@net]]</script>
+<script type="module" src="/website/main.ts"></script>
+</body>
+</html>
