@@ -280,7 +280,7 @@ func (s *Service) softwareTree(ctx context.Context, a Actor, projectID, host str
 			continue
 		}
 		slug := graph.Slugify(r.Hostname + "-stack-" + c.Project)
-		attrs := map[string]any{}
+		attrs := map[string]any{"project": c.Project}
 		if c.ComposeDir != "" {
 			attrs["compose_path"] = c.ComposeDir
 		}
@@ -309,9 +309,11 @@ func (s *Service) softwareTree(ctx context.Context, a Actor, projectID, host str
 			continue
 		}
 		cs := graph.Slugify(r.Hostname + "-" + c.Name)
-		attrs := map[string]any{"image": c.Image, "state": c.State, "ports": c.Ports}
+		attrs := map[string]any{"image": c.Image, "state": c.State, "ports": c.Ports, "docker_name": c.Name}
 		if c.Service != "" {
 			attrs["service"] = c.Service
+			attrs["compose_project"] = c.Project
+			attrs["compose_dir"] = c.ComposeDir
 		}
 		if v := imageTag(c.Image); v != "" {
 			attrs["version"] = v

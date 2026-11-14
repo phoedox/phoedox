@@ -60,6 +60,8 @@ func (a *api) routes(r chi.Router) {
 	// Agents (ADR-0033): their own token, not a user session.
 	r.Post("/agent/enroll", a.agentEnroll)
 	r.Post("/agent/report", a.agentReport)
+	r.Get("/agent/jobs", a.agentJobs)
+	r.Post("/agent/jobs/{id}/result", a.agentJobResult)
 	r.Get("/shared/{token}/files/{id}", a.sharedFile)
 	r.Get("/shared/{token}/files/{id}/{name}", a.sharedFile)
 	r.Get("/auth/oidc/start", a.oidcStart)
@@ -93,6 +95,9 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/images/user/{id}", a.userImage)
 			r.Post("/me/password", a.changePassword)
 			r.Get("/me/security", a.security)
+			r.Get("/me/signing-keys", a.signingKeys)
+			r.Post("/me/signing-keys", a.addSigningKey)
+			r.Delete("/me/signing-keys/{id}", a.deleteSigningKey)
 			r.Post("/me/totp", a.totpSetup)
 			r.Post("/me/totp/confirm", a.totpConfirm)
 			r.Post("/me/totp/disable", a.totpDisable)
@@ -240,6 +245,9 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/entities/{e}/traverse", a.traverse)
 			r.Get("/entities/{e}/diagnose", a.diagnose)
 			r.Get("/entities/{e}/tree", a.softwareTree)
+			r.Get("/entities/{e}/agent-actions", a.entityAgentActions)
+			r.Post("/entities/{e}/agent-jobs", a.createAgentJob)
+			r.Post("/agent-jobs/{id}/sign", a.signAgentJob)
 			r.Post("/edges", a.link)
 			r.Post("/edges/remove", a.unlink)
 			r.Get("/suggestions", a.listSuggestions)
@@ -479,6 +487,74 @@ func (a *api) agentEnroll(w http.ResponseWriter, r *http.Request) {
 	}
 	e, err := a.core.EnrollAgent(r.Context(), in.Code, in.Hostname)
 	respondStatus(w, http.StatusCreated, e, err)
+}
+
+func (a *api) agentJobs(w http.ResponseWriter, r *http.Request) {
+	wait, _ := strconv.Atoi(r.URL.Query().Get("wait"))
+	jobs, err := a.core.AgentJobs(r.Context(), strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), time.Duration(wait)*time.Second)
+	respond(w, map[string]any{"jobs": jobs}, err)
+}
+
+func (a *api) agentJobResult(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		OK     bool   `json:"ok"`
+		Output string `json:"output"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&in); err != nil {
+		writeErr(w, &core.InvalidError{Key: "validation.json", Msg: "invalid JSON: " + err.Error()})
+		return
+	}
+	err := a.core.AgentJobResult(r.Context(), strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), chi.URLParam(r, "id"), in.OK, in.Output)
+	respond(w, map[string]bool{"ok": true}, err)
+}
+
+func (a *api) signingKeys(w http.ResponseWriter, r *http.Request) {
+	keys, err := a.core.SigningKeys(r.Context(), actorOf(r))
+	respond(w, keys, err)
+}
+
+func (a *api) addSigningKey(w http.ResponseWriter, r *http.Request) {
+	var in core.SigningKeyInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	k, err := a.core.AddSigningKey(r.Context(), actorOf(r), in)
+	respondStatus(w, http.StatusCreated, k, err)
+}
+
+func (a *api) deleteSigningKey(w http.ResponseWriter, r *http.Request) {
+	respond(w, map[string]bool{"ok": true}, a.core.DeleteSigningKey(r.Context(), actorOf(r), chi.URLParam(r, "id")))
+}
+
+func (a *api) entityAgentActions(w http.ResponseWriter, r *http.Request) {
+	out, err := a.core.EntityAgentActions(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "e"))
+	respond(w, out, err)
+}
+
+func (a *api) createAgentJob(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Action string `json:"action"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	j, err := a.core.CreateAgentJob(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "e"), in.Action)
+	respondStatus(w, http.StatusCreated, j, err)
+}
+
+func (a *api) signAgentJob(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		KeyID     string `json:"keyId"`
+		Signature string `json:"signature"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	j, err := a.core.SignAgentJob(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), in.KeyID, in.Signature)
+	respond(w, j, err)
 }
 
 func (a *api) agentReport(w http.ResponseWriter, r *http.Request) {

@@ -11,6 +11,7 @@ import { base } from "./shared";
 import "./attachments";
 import "./diagnosis";
 import "./software-tree";
+import "./agent-actions";
 import { toast } from "./toasts";
 
 type Detail = { entity: Entity; edges: Edge[]; documents: Doc[] };
@@ -274,6 +275,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
         </div>` : ""}
       </header>
       ${(pluginViews.get()[e.kind] ?? []).map((tag) => html`<section class="plugin card" style="margin-bottom:12px">${shtml`<${unsafeStatic(tag)} entity=${e.slug}></${unsafeStatic(tag)}>`}</section>`)}
+      ${["container", "stack", "server", "vm", "lxc"].includes(e.kind) ? html`<phx-agent-actions .project=${this.project} .entity=${e.slug}></phx-agent-actions>` : ""}
       ${e.kind === "room" || e.kind === "floor" || edges.some((x) => x.from === e.id && ["uplink", "wired_to", "runs_on"].includes(x.rel))
         ? html`<phx-diagnosis .project=${this.project} .entity=${e.slug}></phx-diagnosis>` : ""}
       <div class="cols">

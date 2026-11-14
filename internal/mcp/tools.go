@@ -249,6 +249,12 @@ type unlinkIn struct {
 	To      string `json:"to"`
 }
 
+type agentActionIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Entity  string `json:"entity" jsonschema:"entity slug"`
+	Action  string `json:"action" jsonschema:"one of the actions list_agent_actions returns"`
+}
+
 type entityRefIn struct {
 	Project string `json:"project" jsonschema:"project slug"`
 	Entity  string `json:"entity" jsonschema:"entity slug or id (a device, server or room)"`
@@ -497,6 +503,12 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "software_tree", "What runs on a server, VM or LXC as a tree: installed software, VMs, stacks and containers with versions and states.", func(ctx context.Context, a core.Actor, in entityRefIn) (any, error) {
 		return svc.SoftwareTree(ctx, a, in.Project, in.Entity)
+	})
+	tool(s, "prepare_agent_action", "Prepare an agent action for an entry (e.g. container.restart, stack.redeploy, system.update). It does NOT run: a person must sign it in Phoedox with their own key, and the host must allow it. Use list_agent_actions first.", func(ctx context.Context, a core.Actor, in agentActionIn) (any, error) {
+		return svc.CreateAgentJob(ctx, a, in.Project, in.Entity, in.Action)
+	})
+	tool(s, "list_agent_actions", "Agent actions available for an entry (container, stack, server, VM, LXC) and its recent jobs with results.", func(ctx context.Context, a core.Actor, in entityRefIn) (any, error) {
+		return svc.EntityAgentActions(ctx, a, in.Project, in.Entity)
 	})
 	tool(s, "diagnose", "Check the network path of a device (or of every device in a room) towards the internet along uplink, wired_to and runs_on, with a status per station from agent reports and state attributes. Use it first when someone says something does not work.", func(ctx context.Context, a core.Actor, in entityRefIn) (any, error) {
 		return svc.Diagnose(ctx, a, in.Project, in.Entity)

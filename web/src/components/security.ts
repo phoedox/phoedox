@@ -7,6 +7,7 @@ import { currentUser } from "../state";
 import { cancelled, creationOptions, credentialJSON, passkeysSupported } from "../webauthn";
 import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
+import "./signing-keys";
 import { toast } from "./toasts";
 
 interface Passkey { id: string; name: string; createdAt: string; lastUsedAt: string | null }
@@ -229,7 +230,8 @@ export class PhxSecurity extends SignalWatcher(LitElement) {
       <h1>${t("security.title")}</h1>
       ${settingsNav("security")}
       ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
-      ${s ? html`${this.totpSection(s)}${this.passkeySection(s)}` : html`<p class="muted">${t("app.loading")}</p>`}
+      ${s ? html`${this.totpSection(s)}${this.passkeySection(s)}
+        <section><h2>${t("signing.title")}</h2><phx-signing-keys></phx-signing-keys></section>` : html`<p class="muted">${t("app.loading")}</p>`}
     </div>`;
   }
 }

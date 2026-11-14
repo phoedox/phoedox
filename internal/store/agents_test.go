@@ -50,6 +50,36 @@ func TestAgents(t *testing.T) {
 			if _, err := db.AgentByToken(ctx, "t1"); !errors.Is(err, ErrNotFound) {
 				t.Fatalf("revoked: %v", err)
 			}
+			// Jobs: unsigned -> approved -> sent -> done, delivered once.
+			if err := db.AddSigningKey(ctx, SigningKey{ID: "k1", UserID: u.ID, Name: "L", PublicKey: "pk", CreatedAt: Now()}); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.CreateAgentJob(ctx, AgentJob{ID: "j1", ProjectID: p.ID, AgentID: "a1", EntitySlug: "pve", Action: "system.update", Payload: "{}",
+				Status: "unsigned", CreatedBy: u.ID, CreatedAt: Now(), ExpiresAt: Time{Time: time.Now().Add(time.Hour)}}); err != nil {
+				t.Fatal(err)
+			}
+			if got, _ := db.TakeAgentJobs(ctx, "a1", Now()); len(got) != 0 {
+				t.Fatal("unsigned jobs are not delivered")
+			}
+			if err := db.ApproveAgentJob(ctx, "j1", "k1", "sig"); err != nil {
+				t.Fatal(err)
+			}
+			if got, err := db.TakeAgentJobs(ctx, "a1", Now()); err != nil || len(got) != 1 || got[0].Signature != "sig" {
+				t.Fatalf("take: %v %+v", err, got)
+			}
+			if got, _ := db.TakeAgentJobs(ctx, "a1", Now()); len(got) != 0 {
+				t.Fatal("delivered once")
+			}
+			if err := db.FinishAgentJob(ctx, "a1", "j1", true, "ok", Now()); err != nil {
+				t.Fatal(err)
+			}
+			if jobs, err := db.EntityJobs(ctx, p.ID, "pve", 5); err != nil || len(jobs) != 1 || !jobs[0].OK || jobs[0].Status != "done" || jobs[0].FinishedAt.IsZero() {
+				t.Fatalf("jobs: %v %+v", err, jobs)
+			}
+			if keys, _ := db.SigningKeys(ctx, u.ID); len(keys) != 1 || db.DeleteSigningKey(ctx, u.ID, "k1") != nil {
+				t.Fatal("keys")
+			}
+
 			list, err := db.ProjectAgents(ctx, p.ID)
 			if err != nil || len(list) != 1 || list[0].RevokedAt.IsZero() {
 				t.Fatalf("list: %v %+v", err, list)
