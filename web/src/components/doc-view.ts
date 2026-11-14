@@ -10,6 +10,7 @@ import { renderMarkdown, withoutTitle } from "../md";
 import { contentLocale, currentProject, docsVersion, favorites, navigate, setWideReading, wideReading } from "../state";
 import "./request-block";
 import "./board";
+import "./floorplan";
 import { blockStyles } from "./blocks";
 import { base } from "./shared";
 import "./attachments";
@@ -245,6 +246,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     const c = d.content ?? {};
     if (d.type === "board") return html`${c.description ? html`<div class="prose">${unsafeHTML(renderMarkdown(c.description, this.project, d.id))}</div>` : ""}
       <phx-board .project=${this.project} .doc=${d} @changed=${() => this.reload()}></phx-board>`;
+    if (d.type === "floorplan") return html`${c.description ? html`<div class="prose">${unsafeHTML(renderMarkdown(c.description, this.project, d.id))}</div>` : ""}
+      <phx-floorplan .project=${this.project} .doc=${d} ?canEdit=${["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "")} @changed=${() => this.reload()}></phx-floorplan>`;
     if (d.type === "markdown") return html`<div class="prose">${unsafeHTML(renderMarkdown(withoutTitle(c.markdown ?? "", d.title), this.project, d.id))}</div>`;
     if (d.type === "link") return html`<p><a class="btn" href=${c.url} target="_blank" rel="noopener external">${icon("ExternalLink", 15)} ${t("doc.open_link")}</a></p>
       <p class="mono muted">${c.url}</p>${c.description ? html`<div class="prose">${unsafeHTML(renderMarkdown(c.description, this.project))}</div>` : ""}`;
@@ -282,7 +285,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     const canEdit = ["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "");
     const wide = wideReading.get();
     // Boards need the room of the whole page.
-    return html`<article class=${wide || d.type === "board" ? "enter wide" : "enter"} @click=${this.onClick}>
+    return html`<article class=${wide || d.type === "board" || d.type === "floorplan" ? "enter wide" : "enter"} @click=${this.onClick}>
       <header>
         <div>
           <h1>${d.title}</h1>
@@ -297,7 +300,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         </div>
         <div class="row">
           ${this.favoriteButtons(d)}
-          ${d.type === "board" ? "" : html`<button class="ghost icon" aria-pressed=${wide ? "true" : "false"} title=${t(wide ? "doc.narrow" : "doc.wide")} aria-label=${t(wide ? "doc.narrow" : "doc.wide")}
+          ${d.type === "board" || d.type === "floorplan" ? "" : html`<button class="ghost icon" aria-pressed=${wide ? "true" : "false"} title=${t(wide ? "doc.narrow" : "doc.wide")} aria-label=${t(wide ? "doc.narrow" : "doc.wide")}
             @click=${() => setWideReading(!wide)}>${icon(wide ? "Minimize2" : "Maximize2", 15)}</button>`}
           <a class="btn ghost" href="/p/${this.project}/d/${d.slug}/history">${icon("History", 14)} ${t("doc.history")}</a>
           ${canEdit ? html`<button class="ghost" @click=${() => this.renderRoot.querySelector<PhxDocShare>("phx-doc-share")!.open()}>${icon("Share2", 14)} ${t("share.button")}</button>

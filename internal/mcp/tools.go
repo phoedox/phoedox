@@ -45,6 +45,14 @@ type updateTaskIn struct {
 	core.TaskPatch
 }
 
+type saveFloorplanIn struct {
+	Project   string         `json:"project" jsonschema:"project slug"`
+	Document  string         `json:"document,omitempty" jsonschema:"slug of an existing floor plan to replace; empty creates a new one"`
+	Title     string         `json:"title,omitempty" jsonschema:"title of a new floor plan, e.g. Ground floor"`
+	Category  string         `json:"category,omitempty"`
+	Floorplan core.Floorplan `json:"floorplan" jsonschema:"the whole plan in millimetres: width, height, rooms (id, name, entity slug of a room entry, points [[x,y],…] clockwise, color gray|red|orange|yellow|green|blue|purple|pink), devices (id, entity slug, x, y), floor (slug of a floor entry). Saving links devices located_in the room they stand in."`
+}
+
 type createBoardIn struct {
 	Project     string             `json:"project" jsonschema:"project slug"`
 	Title       string             `json:"title"`
@@ -368,6 +376,12 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "list_tasks", "List tasks (cards on boards) of a project, optionally of one board, column or assignee. Boards are documents of type board; their columns are in the board's content.", func(ctx context.Context, a core.Actor, in listTasksIn) (any, error) {
 		return svc.Tasks(ctx, a, in.Project, in.Board, in.Column, in.Assignee, in.Open)
+	})
+	tool(s, "save_floorplan", "Create or replace a floor plan (document type floorplan). Read it first with get_document when replacing, and create the room and device entries before referencing them.", func(ctx context.Context, a core.Actor, in saveFloorplanIn) (any, error) {
+		if in.Document != "" {
+			return svc.UpdateDocument(ctx, a, in.Project, in.Document, core.DocumentPatch{Floorplan: &in.Floorplan})
+		}
+		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocFloorplan, Title: in.Title, Category: in.Category, Floorplan: &in.Floorplan})
 	})
 	tool(s, "create_board", "Create a task board (a document of type board with columns).", func(ctx context.Context, a core.Actor, in createBoardIn) (any, error) {
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocBoard, Title: in.Title, Category: in.Category, Board: &core.Board{Description: in.Description, Columns: in.Columns}})

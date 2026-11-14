@@ -9,10 +9,11 @@ import (
 
 // Document types in the core.
 const (
-	DocMarkdown = "markdown"
-	DocADR      = "adr"
-	DocLink     = "link"
-	DocBoard    = "board" // a task board (ADR-0030); its cards are tasks
+	DocMarkdown  = "markdown"
+	DocADR       = "adr"
+	DocLink      = "link"
+	DocBoard     = "board"     // a task board (ADR-0030); its cards are tasks
+	DocFloorplan = "floorplan" // rooms as polygons and devices as points (ADR-0034)
 )
 
 // Document is a page of any document type.

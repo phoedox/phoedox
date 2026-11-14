@@ -40,6 +40,9 @@ export class PhxCreateDialog extends LitElement {
     .pv.link { align-items: center; justify-content: center; gap: 8px; color: var(--accent); }
     .pv.link i { width: 60%; }
     .pv.board { flex-direction: row; gap: 5px; }
+    .pv.plan svg { width: 100%; height: 100%; }
+    .pv.plan path { fill: var(--surface2); stroke: var(--muted); stroke-width: 1.2; stroke-linejoin: round; }
+    .pv.plan circle { fill: var(--accent); }
     .pv.board > span { flex: 1; display: flex; flex-direction: column; gap: 4px; background: var(--surface2); border-radius: 4px; padding: 4px; }
     .pv.board i.h { width: 70%; height: 6px; }
     .pv.board b { display: block; height: 12px; border-radius: 3px; background: var(--surface); border: 1px solid var(--line); }
@@ -120,6 +123,8 @@ export class PhxCreateDialog extends LitElement {
           html`<span class="pv"><i class="h"></i><span class="chips"><b></b><b class="ok"></b></span><span class="sec">${t("adr.context")}</span><i class="s"></i><span class="sec">${t("adr.decision")}</span><i></i></span>`, () => this.create("adr"))}
         ${this.choice("SquareKanban", t("doc.type.board"), t("create.board_desc"),
           html`<span class="pv board"><span><i class="h"></i><b></b><b></b><b></b></span><span><i class="h"></i><b></b><b></b></span><span><i class="h"></i><b class="ok"></b></span></span>`, () => this.create("board"))}
+        ${this.choice("LandPlot", t("doc.type.floorplan"), t("create.floorplan_desc"),
+          html`<span class="pv plan"><svg viewBox="0 0 60 40" aria-hidden="true"><path d="M2 2h34v22H2zM36 2h22v36H20V24h16" /><circle cx="12" cy="12" r="3"/><circle cx="46" cy="28" r="3"/></svg></span>`, () => this.create("floorplan"))}
         ${this.choice("Link", t("doc.type.link"), t("create.link_desc"),
           html`<span class="pv link">${icon("ExternalLink", 22)}<i></i></span>`, () => this.create("link"))}
       </div>

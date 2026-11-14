@@ -73,3 +73,12 @@ footer { text-align: center; color: var(--muted); font-size: 12.5px; padding: 30
   .top { flex-wrap: wrap; } .top form { margin-left: 0; width: 100%; } .top input[type=search] { width: 100%; }
   main { padding: 20px 16px 60px; }
 }
+/* Floor plans (ADR-0034) */
+.floorplan { margin: 1em 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 8px; }
+.floorplan svg { display: block; width: 100%; height: auto; }
+.floorplan .room { stroke: var(--fg); stroke-width: .25%; stroke-linejoin: round; fill: var(--tb-gray); vector-effect: non-scaling-stroke; }
+.floorplan .room.c-red { fill: var(--tb-red); } .floorplan .room.c-orange { fill: var(--tb-orange); } .floorplan .room.c-yellow { fill: var(--tb-yellow); }
+.floorplan .room.c-green { fill: var(--tb-green); } .floorplan .room.c-blue { fill: var(--tb-blue); } .floorplan .room.c-purple { fill: var(--tb-purple); }
+.floorplan .room.c-pink { fill: var(--tb-pink); }
+.floorplan text { fill: var(--fg); font-family: inherit; }
+.floorplan .dev { fill: var(--accent); stroke: var(--surface); stroke-width: 2; vector-effect: non-scaling-stroke; }

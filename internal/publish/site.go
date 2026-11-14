@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -385,6 +386,9 @@ func (s *Site) doc(w http.ResponseWriter, r *http.Request, p store.Publication, 
 	case store.DocBoard:
 		body.WriteString(Markdown(str("description"), links))
 		body.WriteString(s.board(r, pp, d, t))
+	case store.DocFloorplan:
+		body.WriteString(Markdown(str("description"), links))
+		body.WriteString(floorplanSVG(d, links.File))
 	}
 	pg := &page{T: t, Base: base, Pub: p, Site: site, Project: &pp, Doc: &d, Title: d.Title + " – " + p.Title, Body: template.HTML(body.String()),
 		Nav: nav(base, pp, d.Slug, t, lang), Canonical: s.absolute(r, base+"/"+pp.Project.Slug+"/"+d.Slug), Lang: pp.Project.MainLocale}
@@ -454,6 +458,43 @@ func (s *Site) links(r *http.Request, base string, site []core.PubProject, pp co
 }
 
 // board renders a board read-only.
+// floorplanSVG draws a plan as static SVG: background, rooms with names and
+// devices as dots.
+func floorplanSVG(d store.Document, files string) string {
+	var fp core.Floorplan
+	if json.Unmarshal(d.Content, &fp) != nil || fp.Width <= 0 || fp.Height <= 0 {
+		return ""
+	}
+	esc := template.HTMLEscapeString
+	num := func(v float64) string { return strconv.FormatFloat(v, 'f', 0, 64) }
+	var out strings.Builder
+	fmt.Fprintf(&out, `<figure class="floorplan"><svg viewBox="0 0 %s %s" role="img" aria-label="%s">`, num(fp.Width), num(fp.Height), esc(d.Title))
+	if fp.Image != "" && fp.ImageWidth > 0 {
+		fmt.Fprintf(&out, `<image href="%s%s" x="0" y="0" width="%s" opacity=".55"/>`, esc(files), esc(url.PathEscape(fp.Image)), num(fp.ImageWidth))
+	}
+	font := max(fp.Width, fp.Height) / 60
+	for _, r := range fp.Rooms {
+		pts := make([]string, len(r.Points))
+		cx, cy := 0.0, 0.0
+		for i, p := range r.Points {
+			pts[i] = num(p[0]) + "," + num(p[1])
+			cx += p[0] / float64(len(r.Points))
+			cy += p[1] / float64(len(r.Points))
+		}
+		color := r.Color
+		if color == "" {
+			color = "gray"
+		}
+		fmt.Fprintf(&out, `<polygon class="room c-%s" points="%s"/>`, esc(color), strings.Join(pts, " "))
+		fmt.Fprintf(&out, `<text x="%s" y="%s" font-size="%s" text-anchor="middle">%s</text>`, num(cx), num(cy), num(font), esc(r.Name))
+	}
+	for _, dv := range fp.Devices {
+		fmt.Fprintf(&out, `<circle class="dev" cx="%s" cy="%s" r="%s"><title>%s</title></circle>`, num(dv.X), num(dv.Y), num(font/2), esc(dv.Entity))
+	}
+	out.WriteString(`</svg></figure>`)
+	return out.String()
+}
+
 func (s *Site) board(r *http.Request, pp core.PubProject, d store.Document, t texts) string {
 	var b struct {
 		Columns []core.BoardColumn `json:"columns"`

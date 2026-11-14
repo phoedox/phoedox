@@ -217,7 +217,7 @@ func applyDraftPatch(d *store.Draft, patch DraftPatch) error {
 		d.Category = strings.TrimSpace(*patch.Category)
 	}
 	if patch.Markdown != nil {
-		if _, _, err := content(store.DocMarkdown, *patch.Markdown, nil, nil); err != nil {
+		if _, _, err := content(store.DocMarkdown, *patch.Markdown, nil, nil, nil, nil); err != nil {
 			return err
 		}
 		d.Markdown = strings.TrimRight(*patch.Markdown, "\n") + "\n"

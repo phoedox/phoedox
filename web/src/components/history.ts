@@ -14,6 +14,8 @@ function textOf(type: Doc["type"], v: VersionInfo): string[] {
   const c = v.content ?? {};
   const lines = [`${t("history.title_label")}: ${v.title}`, ""];
   if (type === "markdown") lines.push(...String(c.markdown ?? "").split("\n"));
+  if (type === "floorplan") lines.push(...String(c.description ?? "").split("\n"), "", ...(c.rooms ?? []).map((r: any) => `▢ ${r.name}${r.entity ? ` (@${r.entity})` : ""}`),
+    ...(c.devices ?? []).map((d: any) => `• @${d.entity} ${Math.round(d.x)},${Math.round(d.y)}`));
   if (type === "board") lines.push(...String(c.description ?? "").split("\n"), "", ...(c.columns ?? []).map((col: any) => `- ${col.name}${col.done ? " ✓" : ""}`));
   if (type === "link") lines.push(`URL: ${c.url ?? ""}`, "", ...String(c.description ?? "").split("\n"));
   if (type === "adr") {

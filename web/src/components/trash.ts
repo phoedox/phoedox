@@ -9,7 +9,7 @@ import { toast } from "./toasts";
 
 interface TrashItem { id: string; kind: "document" | "entity" | "file"; type: string; slug: string; title: string; deletedAt: string }
 
-const typeIcon: Record<string, string> = { markdown: "FileText", adr: "Scale", link: "ExternalLink" };
+const typeIcon: Record<string, string> = { markdown: "FileText", adr: "Scale", link: "ExternalLink", board: "SquareKanban", floorplan: "LandPlot" };
 
 /** Deleted documents and entries of a project. */
 export class PhxTrash extends LitElement {

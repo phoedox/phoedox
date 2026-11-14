@@ -25,7 +25,7 @@ import "./project-settings";
 import "./create-dialog";
 import type { PhxCreateDialog } from "./create-dialog";
 
-const typeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scale", link: "ExternalLink", board: "SquareKanban" };
+const typeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scale", link: "ExternalLink", board: "SquareKanban", floorplan: "LandPlot" };
 
 /** Project layout: sidebar with documents by category + nested routes. */
 export class PhxProject extends SignalWatcher(LitElement) {

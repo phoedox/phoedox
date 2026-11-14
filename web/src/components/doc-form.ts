@@ -58,6 +58,7 @@ export class PhxDocForm extends LitElement {
     const body: Record<string, unknown> = { title: s("title"), category: s("category") };
     if (this.type === "markdown") body.markdown = "";
     if (this.type === "link") body.link = { url: s("url"), description: s("description") };
+    if (this.type === "floorplan") body.floorplan = { ...(this.doc?.content ?? {}), description: s("description") };
     if (this.type === "board") {
       body.board = this.doc
         ? { ...(this.doc.content ?? {}), description: s("description") }
@@ -120,8 +121,8 @@ export class PhxDocForm extends LitElement {
         <label class="field">${t("doc.category")}<input name="category" .value=${d?.category ?? (new URLSearchParams(location.search).get("category") ?? (this.type === "adr" ? "Entscheidungen" : ""))} /></label>
       </div>
 
-      ${this.type === "board" ? html`
-        <label class="field">${t("board.description")}<textarea name="description" .value=${c.description ?? ""}></textarea></label>` : ""}
+      ${this.type === "board" || this.type === "floorplan" ? html`
+        <label class="field">${t(this.type === "board" ? "board.description" : "plan.description")}<textarea name="description" .value=${c.description ?? ""}></textarea></label>` : ""}
       ${this.type === "link" ? html`
         <label class="field">${t("link.url")}<input name="url" type="url" .value=${c.url ?? ""} required placeholder="https://" /></label>
         <label class="field">${t("link.description")}<textarea name="description" .value=${c.description ?? ""}></textarea></label>` : ""}
