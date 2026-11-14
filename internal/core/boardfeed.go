@@ -16,16 +16,19 @@ type BoardChange struct {
 	Actor string `json:"actor,omitempty"`
 }
 
-// boardFeed fans out changes to everyone watching a board in this process.
-type boardFeed struct {
+// feed fans out changes to everyone watching a key (a board, a project)
+// in this process.
+type feed[T any] struct {
 	mu   sync.Mutex
-	subs map[string]map[chan BoardChange]struct{}
+	subs map[string]map[chan T]struct{}
 }
 
-func (f *boardFeed) publish(c BoardChange) {
+type boardFeed = feed[BoardChange]
+
+func (f *feed[T]) publishTo(key string, c T) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	for ch := range f.subs[c.Board] {
+	for ch := range f.subs[key] {
 		select {
 		case ch <- c:
 		default: // a slow client misses a change; it reloads on the next one
@@ -33,25 +36,52 @@ func (f *boardFeed) publish(c BoardChange) {
 	}
 }
 
-func (f *boardFeed) subscribe(board string) (chan BoardChange, func()) {
-	ch := make(chan BoardChange, 8)
+func (f *feed[T]) subscribe(key string) (chan T, func()) {
+	ch := make(chan T, 16)
 	f.mu.Lock()
 	if f.subs == nil {
-		f.subs = map[string]map[chan BoardChange]struct{}{}
+		f.subs = map[string]map[chan T]struct{}{}
 	}
-	if f.subs[board] == nil {
-		f.subs[board] = map[chan BoardChange]struct{}{}
+	if f.subs[key] == nil {
+		f.subs[key] = map[chan T]struct{}{}
 	}
-	f.subs[board][ch] = struct{}{}
+	f.subs[key][ch] = struct{}{}
 	f.mu.Unlock()
 	return ch, func() {
 		f.mu.Lock()
-		delete(f.subs[board], ch)
-		if len(f.subs[board]) == 0 {
-			delete(f.subs, board)
+		delete(f.subs[key], ch)
+		if len(f.subs[key]) == 0 {
+			delete(f.subs, key)
 		}
 		f.mu.Unlock()
 	}
+}
+
+// ProjectChange tells open pages of a project that something changed
+// (a page, decision, entry, file …), so lists reload. It carries ids and
+// kinds only, no titles or content; clients fetch through the API, which
+// checks access again.
+type ProjectChange struct {
+	Kind    string `json:"kind"`    // event kind, e.g. document.create
+	Subject string `json:"subject"` // id of the changed object
+	Actor   string `json:"actor"`   // user id of who changed it ("" for system)
+}
+
+// WatchProject subscribes to changes of a project the actor can read.
+func (s *Service) WatchProject(ctx context.Context, a Actor, ref string) (<-chan ProjectChange, func(), error) {
+	p, err := s.project(ctx, a, ref, store.RoleReader)
+	if err != nil {
+		return nil, nil, err
+	}
+	ch, stop := s.projects.subscribe(p.ID)
+	return ch, stop, nil
+}
+
+func (s *Service) projectChanged(a Actor, project, kind, subject string) {
+	if project == "" {
+		return
+	}
+	s.projects.publishTo(project, ProjectChange{Kind: kind, Subject: subject, Actor: a.User.ID})
 }
 
 // WatchBoard subscribes to changes of a board the actor can read. Call the
@@ -66,5 +96,5 @@ func (s *Service) WatchBoard(ctx context.Context, a Actor, ref, boardRef string)
 }
 
 func (s *Service) boardChanged(a Actor, board, task, kind string) {
-	s.boards.publish(BoardChange{Board: board, Task: task, Kind: kind, Actor: a.User.Name})
+	s.boards.publishTo(board, BoardChange{Board: board, Task: task, Kind: kind, Actor: a.User.Name})
 }

@@ -1,4 +1,5 @@
 import { LitElement, css, html } from "lit";
+import { onProjectChange } from "../project-live";
 import { ApiError, api } from "../api";
 import { parseCSV, toCSV } from "../csv";
 import { hasKey, t } from "../i18n";
@@ -51,8 +52,19 @@ export class PhxEntityTable extends LitElement {
   importRows?: string[][];
   busy = false;
 
+  private unlive?: () => void;
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.unlive?.();
+  }
+
   async connectedCallback() {
     super.connectedCallback();
+    // Entries added or changed by others show up; not while cells are selected.
+    this.unlive = onProjectChange(/^(entity\.|edge\.|kind\.)/, () => {
+      if (!this.selected.size && !this.busy) void this.run();
+    }, 800);
     this.model = await loadModel(this.project, true);
     this.saved = (await api<Saved[]>("GET", `/projects/${this.project}/queries`).catch(() => [])) ?? [];
     const params = new URLSearchParams(location.search);

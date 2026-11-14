@@ -2225,4 +2225,5 @@ export const de = {
   "embed.load": "Laden",
   "embed.open": "Auf der Seite öffnen",
   "embed.always": "{provider} in diesem Browser immer laden",
+  "live.page_deleted": "Diese Seite wurde gerade gelöscht.",
 } as const;

@@ -1,4 +1,5 @@
 import { SignalWatcher } from "@lit-labs/signals";
+import { onProjectChange } from "../project-live";
 import { LitElement, css, html, unsafeCSS } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { ApiError, adrRef, api, type Decision, type Doc, type DraftInfo } from "../api";
@@ -117,6 +118,28 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       this.doc = doc;
     }
     docsVersion.set(docsVersion.get() + 1);
+  }
+
+  private unlive?: () => void;
+
+  connectedCallback() {
+    super.connectedCallback();
+    // Someone else published, restored or deleted this page: show it at once.
+    this.unlive = onProjectChange(/^document\.(update|draft_publish|restore_version|translation|archive|delete|restrict)$/, (cs) => {
+      const mine = cs.filter((c) => c.subject === this.doc?.id);
+      if (!mine.length) return;
+      if (mine.some((c) => c.kind === "document.delete")) {
+        toast(t("live.page_deleted"));
+        navigate(`/p/${this.project}`);
+        return;
+      }
+      void this.reload();
+    });
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.unlive?.();
   }
 
   async willUpdate() {

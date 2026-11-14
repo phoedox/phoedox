@@ -143,6 +143,7 @@ type Service struct {
 	checkMu   sync.Mutex
 	vapidMu   sync.Mutex
 	boards    boardFeed
+	projects  feed[ProjectChange]
 	releases  releaseCache
 
 	// SyncNotify sends ntfy and web push before notify returns (tests).
@@ -282,7 +283,9 @@ func (s *Service) eventProject(ctx context.Context, subject string, payload any)
 }
 
 func (s *Service) event(ctx context.Context, a Actor, kind, subject string, payload any) {
-	_ = s.DB.AddProjectEvent(ctx, a.String(), kind, subject, s.eventProject(ctx, subject, payload), payload)
+	project := s.eventProject(ctx, subject, payload)
+	_ = s.DB.AddProjectEvent(ctx, a.String(), kind, subject, project, payload)
+	s.projectChanged(a, project, kind, subject)
 	s.emitWebhooks(ctx, a, kind, subject, payload)
 	s.emitPluginEvents(ctx, a, kind, subject, payload)
 }

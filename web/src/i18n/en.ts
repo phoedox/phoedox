@@ -2227,4 +2227,5 @@ export const en: Record<keyof typeof de, string> = {
   "embed.load": "Load",
   "embed.open": "Open on the site",
   "embed.always": "Always load {provider} in this browser",
+  "live.page_deleted": "This page was just deleted.",
 };

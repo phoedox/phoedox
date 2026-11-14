@@ -326,6 +326,7 @@ func (a *api) routes(r chi.Router) {
 			r.Delete("/image", a.deleteProjectImage)
 			r.Get("/tasks", a.listTasks)
 			r.Get("/boards/{d}/events", a.boardEvents)
+			r.Get("/live", a.projectLive)
 			r.Post("/boards/{d}/tasks", a.createTask)
 			r.Patch("/tasks/{id}", a.updateTask)
 			r.Delete("/tasks/{id}", a.deleteTask)

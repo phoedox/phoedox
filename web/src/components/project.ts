@@ -1,4 +1,5 @@
 import { Routes } from "@lit-labs/router";
+import { LIST_KINDS, onProjectChange, stopWatching, watchProject } from "../project-live";
 import { loadProjectPlugins } from "../plugin-host";
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
@@ -159,6 +160,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     if (this.slug && (this.slug !== this.loadedFor || v !== this.loadedVersion)) {
       this.loadedFor = this.slug;
       this.loadedVersion = v;
+      watchProject(this.slug);
       try {
         const p = await api<Project>("GET", `/projects/${this.slug}`);
         currentProject.set(p);
@@ -180,8 +182,12 @@ export class PhxProject extends SignalWatcher(LitElement) {
     }
   }
 
+  private unlive?: () => void;
+
   connectedCallback() {
     super.connectedCallback();
+    // New, renamed or deleted pages and decisions of others appear at once.
+    this.unlive = onProjectChange(LIST_KINDS, () => docsVersion.set(docsVersion.get() + 1));
     addEventListener("popstate", this.onNavigate);
     addEventListener("keydown", this.onKey);
     addEventListener("click", this.closeNew);
@@ -189,6 +195,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.unlive?.();
+    stopWatching();
     removeEventListener("popstate", this.onNavigate);
     removeEventListener("keydown", this.onKey);
     removeEventListener("click", this.closeNew);

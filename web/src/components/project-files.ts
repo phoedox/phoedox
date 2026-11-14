@@ -1,4 +1,5 @@
 import { SignalWatcher } from "@lit-labs/signals";
+import { onProjectChange } from "../project-live";
 import { LitElement, css, html } from "lit";
 import { api } from "../api";
 import { fileIcon, formatSize, previewURL, type FileInfo, type Storage } from "../files";
@@ -52,6 +53,18 @@ export class PhxProjectFiles extends SignalWatcher(LitElement) {
   storage?: Storage;
   query = "";
   private loaded = "";
+
+  private unlive?: () => void;
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.unlive = onProjectChange(/^file\./, () => void this.load());
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.unlive?.();
+  }
 
   async willUpdate() {
     if (this.loaded === this.project) return;

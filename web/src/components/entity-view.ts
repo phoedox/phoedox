@@ -1,4 +1,5 @@
 import { SignalWatcher } from "@lit-labs/signals";
+import { onProjectChange } from "../project-live";
 import { recordView } from "../recent";
 import { LitElement, css, html, svg } from "lit";
 import { ApiError, api, type Doc, type Edge, type Entity } from "../api";
@@ -80,6 +81,18 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
 
   private get canEdit() {
     return ["editor", "owner"].includes(currentProject.get()?.role ?? "");
+  }
+
+  private unlive?: () => void;
+
+  connectedCallback() {
+    super.connectedCallback();
+    this.unlive = onProjectChange(/^(entity\.|edge\.|file\.)/, () => void this.load());
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.unlive?.();
   }
 
   async willUpdate() {
