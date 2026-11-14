@@ -4,10 +4,12 @@ import { MARK_END, MARK_START, api, type Hit, type Project } from "../api";
 import { t } from "../i18n";
 import { fileIcon } from "../files";
 import { icon } from "../icon";
-import { contentLocale, currentProject, currentUser, navigate } from "../state";
+import { contentLocale, currentProject, currentUser, focusMode, navigate, setFocusMode } from "../state";
 import { languageName, rememberLocale } from "../languages";
 import { pluginCommands } from "../plugin-host";
 import { base } from "./shared";
+import { onShortcut } from "../shortcuts";
+import { recentHref, recentIcon, type RecentItem } from "../recent";
 
 interface Item {
   id: string;
@@ -42,7 +44,7 @@ export function marked(snippet: string): TemplateResult[] {
  * search. Opened by keyboard many times a day, so it has no animation.
  */
 export class PhxPalette extends SignalWatcher(LitElement) {
-  static properties = { query: { state: true }, hits: { state: true }, active: { state: true }, loading: { state: true }, projects: { state: true } };
+  static properties = { query: { state: true }, hits: { state: true }, active: { state: true }, loading: { state: true }, projects: { state: true }, recent: { state: true } };
   static styles = [base, css`
     dialog { width: min(640px, calc(100vw - 32px)); max-height: min(70vh, 640px); margin: 12vh auto auto; padding: 0;
       border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--fg); box-shadow: 0 24px 60px rgb(0 0 0 / .25); overflow: hidden; }
@@ -71,22 +73,19 @@ export class PhxPalette extends SignalWatcher(LitElement) {
   private seq = 0;
   private timer?: number;
 
+  private off?: () => void;
+  recent: RecentItem[] = [];
+
   connectedCallback() {
     super.connectedCallback();
-    addEventListener("keydown", this.onGlobalKey);
+    // The combination is the person's own (Mod+K by default).
+    this.off = onShortcut("palette", () => this.toggle());
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    removeEventListener("keydown", this.onGlobalKey);
+    this.off?.();
   }
-
-  private onGlobalKey = (e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === "k") {
-      e.preventDefault();
-      this.toggle();
-    }
-  };
 
   private get dialog() {
     return this.renderRoot.querySelector("dialog")!;
@@ -100,7 +99,10 @@ export class PhxPalette extends SignalWatcher(LitElement) {
     this.active = 0;
     this.dialog.showModal();
     this.renderRoot.querySelector("input")?.focus();
-    this.projects = (await api<Project[]>("GET", "/projects").catch(() => [])) ?? [];
+    [this.projects, this.recent] = await Promise.all([
+      api<Project[]>("GET", "/projects").catch(() => []).then((x) => x ?? []),
+      api<RecentItem[]>("GET", "/me/recent?limit=8").catch(() => []).then((x) => x ?? []),
+    ]);
   }
 
   toggle() {
@@ -148,6 +150,8 @@ export class PhxPalette extends SignalWatcher(LitElement) {
     }
     items.push({ id: "a-projects", label: t("nav.projects"), icon: "FolderOpen", href: "/" });
     items.push({ id: "a-mytasks", label: t("mytasks.title"), icon: "ListChecks", href: "/tasks" });
+    items.push({ id: "a-history", label: t("history_page.title"), icon: "History", href: "/history" });
+    items.push({ id: "a-focus", label: t(focusMode.get() ? "focus.leave" : "focus.enter"), icon: focusMode.get() ? "Minimize2" : "Maximize2", href: "", run: () => setFocusMode(!focusMode.get()) });
     items.push({ id: "a-profile", label: t("nav.profile"), icon: "UserRound", href: "/settings/profile" });
     items.push({ id: "a-security", label: t("nav.security"), icon: "ShieldCheck", href: "/settings/security" });
     items.push({ id: "a-tokens", label: t("nav.tokens"), icon: "KeyRound", href: "/settings/tokens" });
@@ -175,6 +179,11 @@ export class PhxPalette extends SignalWatcher(LitElement) {
       chip: [h.projectId === here ? "" : h.projectName, h.locale ? languageName(h.locale) : ""].filter(Boolean).join(" · ") || undefined,
     }));
     const out: [string, Item[]][] = [];
+    // Without a query: what was opened last comes first.
+    if (!q && this.recent.length) {
+      out.push([t("palette.recent"), this.recent.map((r) => ({ id: `r-${r.id}`, label: r.title, icon: recentIcon(r), href: recentHref(r),
+        chip: r.projectSlug === currentProject.get()?.slug ? undefined : r.projectName }))]);
+    }
     if (results.length) out.push([t("palette.results"), results]);
     if (actions.length) out.push([t("palette.actions"), q ? actions.slice(0, 4) : actions]);
     if (projects.length) out.push([t("palette.projects"), q ? projects.slice(0, 4) : projects.slice(0, 6)]);

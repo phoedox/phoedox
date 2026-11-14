@@ -45,6 +45,10 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: va
   /* Height of the sticky app bar; sticky elements below it use this. */
   --header-h: 53px;
 }
+/* Focus mode hides the top bar. */
+:root.focus {
+  --header-h: 0px;
+}
 
 /* Project colour override (set by applyProjectColor). */
 [data-pc] { --accent: var(--pl); --accent-soft: color-mix(in srgb, var(--pl) 14%, var(--surface)); }

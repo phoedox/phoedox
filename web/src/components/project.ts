@@ -6,7 +6,7 @@ import { api, hasFeature, type Doc, type ProjectFeature, type DraftInfo, type Fa
 import { applyProjectColor } from "../color";
 import { t } from "../i18n";
 import { icon } from "../icon";
-import { contentLocale, currentProject, docsVersion, favorites } from "../state";
+import { contentLocale, currentProject, docsVersion, favorites, focusMode } from "../state";
 import { preferredLocale } from "../languages";
 import { base } from "./shared";
 import "./import-view";
@@ -35,6 +35,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
   static properties = { slug: {}, root: {}, docs: { state: true }, drafts: { state: true }, collapsed: { state: true }, newOpen: { state: true }, error: { state: true }, menuOpen: { state: true }, dropTarget: { state: true } };
   static styles = [base, css`
     :host { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: calc(100vh - var(--header-h)); }
+    :host([focus]) { grid-template-columns: minmax(0, 1fr); }
+    :host([focus]) aside, :host([focus]) .mbar { display: none; }
     /* The sidebar stays in place; only its page tree scrolls, the actions stay visible. */
     aside { border-right: 1px solid var(--line); display: flex; flex-direction: column; background: var(--bg);
       position: sticky; top: var(--header-h); height: calc(100dvh - var(--header-h)); }
@@ -364,6 +366,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
   }
 
   render() {
+    this.toggleAttribute("focus", focusMode.get());
     if (this.error) return html`<main><p class="error">${this.error}</p></main>`;
     const decisions = this.docs.filter((d) => d.type === "adr").length;
     const proj = currentProject.get();

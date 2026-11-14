@@ -7,12 +7,16 @@ import { appOrg, currentProject, navigate } from "../state";
 import { base } from "./shared";
 import { projectBadge } from "../pictures";
 import "./project-transfer";
+import { recentHref, recentIcon, type RecentItem } from "../recent";
 
 interface Template { id: string; name: string; description: string; icon: string }
 
 export class PhxProjects extends SignalWatcher(LitElement) {
-  static properties = { projects: { state: true }, orgs: { state: true }, templates: { state: true }, error: { state: true } };
+  static properties = { recent: { state: true }, projects: { state: true }, orgs: { state: true }, templates: { state: true }, error: { state: true } };
   static styles = [base, css`
+    .recent { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-bottom: 8px; }
+    .recent a { display: flex; gap: 10px; align-items: center; padding: 8px 12px; text-decoration: none; color: var(--fg); min-width: 0; }
+    .recent a span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     :host { display: block; max-width: 980px; margin: 0 auto; padding: 28px 16px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin: 18px 0 28px; }
     a.p { text-decoration: none; color: var(--fg); display: flex; gap: 12px; align-items: flex-start;
@@ -34,6 +38,7 @@ export class PhxProjects extends SignalWatcher(LitElement) {
     h2.org a { color: inherit; text-decoration: none; }
   `];
   projects: Project[] = [];
+  recent: RecentItem[] = [];
   orgs: Org[] = [];
   templates: Template[] = [];
   error = "";
@@ -45,6 +50,7 @@ export class PhxProjects extends SignalWatcher(LitElement) {
       api<Project[]>("GET", "/projects").catch(() => []).then((x) => x ?? []),
       api<Org[]>("GET", "/orgs").catch(() => []).then((x) => x ?? []),
     ]);
+    this.recent = (await api<RecentItem[]>("GET", "/me/recent?limit=6").catch(() => [])) ?? [];
     this.templates = (await api<Template[]>("GET", `/templates?lang=${locale()}`).catch(() => [])) ?? [];
   }
 
@@ -92,6 +98,8 @@ export class PhxProjects extends SignalWatcher(LitElement) {
   render() {
     return html`<div class="enter">
       <h1>${t("projects.title")}</h1>
+      ${this.recent.length ? html`<h2 class="org">${icon("History", 15)} <a href="/history">${t("history_page.title")}</a></h2>
+        <div class="recent">${this.recent.map((r) => html`<a class="card" href=${recentHref(r)}>${icon(recentIcon(r), 15)}<span><b>${r.title}</b><br><span class="muted" style="font-size:12.5px">${r.projectName}</span></span></a>`)}</div>` : ""}
       ${this.projects.length === 0 ? html`<p class="muted">${t("projects.empty")}</p>` : ""}
       ${this.orgFirst().main.map((g) => this.group(g))}
       ${this.orgFirst().rest.length ? html`<details style="margin-top:18px"><summary style="cursor:pointer;font-weight:600">${t("projects.other")}</summary>

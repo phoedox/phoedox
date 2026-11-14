@@ -4,12 +4,13 @@ import { icon } from "../icon";
 import { currentUser } from "../state";
 
 /** Tabs above the personal settings and admin pages. */
-export function settingsNav(active: "profile" | "notifications" | "security" | "tokens" | "publications" | "users" | "instance" | "backups" | "plugins" | "audit") {
+export function settingsNav(active: "profile" | "notifications" | "shortcuts" | "security" | "tokens" | "publications" | "users" | "instance" | "backups" | "plugins" | "audit") {
   const tab = (id: typeof active, href: string, ico: string, label: string) =>
     html`<a href=${href} aria-current=${active === id ? "page" : "false"}>${icon(ico, 15)} ${label}</a>`;
   return html`<nav class="tabs" aria-label=${t("nav.user_menu")}>
     ${tab("profile", "/settings/profile", "UserRound", t("nav.profile"))}
     ${tab("notifications", "/settings/notifications", "Bell", t("notif.title"))}
+    ${tab("shortcuts", "/settings/shortcuts", "Keyboard", t("shortcut.title"))}
     ${tab("security", "/settings/security", "ShieldCheck", t("nav.security"))}
     ${tab("tokens", "/settings/tokens", "KeyRound", t("nav.tokens"))}
     ${tab("publications", "/settings/publications", "Globe", t("pub.title_page"))}

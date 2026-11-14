@@ -4,7 +4,10 @@ import { LitElement, css, html } from "lit";
 import { ApiError, api, type User } from "../api";
 import { t } from "../i18n";
 import { icon } from "../icon";
-import { appOrg, currentProject, currentUser, isPublicPath, loginURL, navigate, signedIn } from "../state";
+import { comboFor, comboLabel, installShortcuts, onShortcut } from "../shortcuts";
+import "./recent-history";
+import "./shortcut-settings";
+import { appOrg, currentProject, currentUser, focusMode, setFocusMode, setWideReading, wideReading, isPublicPath, loginURL, navigate, signedIn } from "../state";
 import "./audit-log";
 import "./project-switcher";
 import "./lang-switcher";
@@ -51,6 +54,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     kbd { font: 11px var(--font-mono); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; color: var(--muted); }
     .crumb { min-width: 0; } .crumb .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     /* Phones: icons only in the bar, the labels stay as accessible names. */
+    .unfocus { position: fixed; top: 10px; right: 12px; z-index: 20; padding: 5px 10px; font-size: 13px; background: var(--surface); }
     @media (max-width: 700px) {
       header { gap: 10px; padding: 0 12px; }
       .brand .word, nav .lbl { display: none; }
@@ -68,6 +72,8 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/settings/profile", render: () => html`<phx-profile></phx-profile>` },
     { path: "/oauth/authorize", render: () => html`<phx-consent></phx-consent>` },
     { path: "/tasks", render: () => html`<phx-my-tasks></phx-my-tasks>` },
+    { path: "/history", render: () => html`<phx-recent-history></phx-recent-history>` },
+    { path: "/settings/shortcuts", render: () => html`<phx-shortcut-settings></phx-shortcut-settings>` },
     { path: "/settings/notifications", render: () => html`<phx-notification-settings></phx-notification-settings>` },
     { path: "/settings/security", render: () => html`<phx-security></phx-security>` },
     { path: "/settings/tokens", render: () => html`<phx-tokens></phx-tokens>` },
@@ -98,6 +104,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     }).catch(() => {});
     try {
       signedIn(await api<User>("GET", "/me"));
+      void installShortcuts();
     } catch (e) {
       if (e instanceof ApiError && e.status === 401 && !isPublicPath(location.pathname)) navigate(loginURL());
     }
@@ -114,20 +121,51 @@ export class PhxApp extends SignalWatcher(LitElement) {
     navigate("/login");
   }
 
+  private offs: (() => void)[] = [];
+
+  firstUpdated() {
+    this.offs = [
+      onShortcut("focus", () => setFocusMode(!focusMode.get())),
+      onShortcut("history", () => navigate("/history")),
+      onShortcut("tasks", () => navigate("/tasks")),
+      onShortcut("projects", () => navigate("/")),
+      onShortcut("wide", () => setWideReading(!wideReading.get())),
+      onShortcut("newPage", () => {
+        const p = currentProject.get();
+        if (p && (p.role === "editor" || p.role === "owner") && location.pathname.startsWith(`/p/${p.slug}`)) navigate(`/p/${p.slug}/new/markdown`);
+      }),
+    ];
+    // Esc leaves focus mode when nothing else uses it.
+    addEventListener("keydown", this.onEsc);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this.offs.forEach((f) => f());
+    removeEventListener("keydown", this.onEsc);
+  }
+
+  private onEsc = (e: KeyboardEvent) => {
+    if (e.key === "Escape" && focusMode.get() && !e.defaultPrevented && !document.querySelector("dialog[open]")) setFocusMode(false);
+  };
+
   render() {
     if (!this.ready) return html`<p class="muted" style="padding:24px">${t("app.loading")}</p>`;
     const user = currentUser.get();
     const shared = location.pathname.startsWith("/s/");
     return html`
-      ${user && !shared
+      ${user && !shared && focusMode.get()
+        ? html`<button class="ghost unfocus" @click=${() => setFocusMode(false)} title=${t("focus.leave_hint", { key: comboLabel(comboFor("focus")) })}>${icon("Minimize2", 14)} ${t("focus.leave")}</button>`
+        : ""}
+      ${user && !shared && !focusMode.get()
         ? html`<header>
             <a class="brand" href="/"><img src="/logo.svg" alt="" /><span class="word">${appOrg.get()?.name ?? "Phoedox"}</span></a>
             <phx-project-switcher .path=${location.pathname}></phx-project-switcher>
             <phx-lang-switcher .path=${location.pathname}></phx-lang-switcher>
             <nav>
               <a href="/" aria-label=${t("nav.projects")}>${icon("FolderOpen", 15)} <span class="lbl">${t("nav.projects")}</span></a>
-              <button class="ghost search" @click=${this.openPalette} aria-label=${t("palette.button")} aria-keyshortcuts="Control+K Meta+K">
-                ${icon("Search", 15)}<span class="lbl">${t("palette.button")}</span><kbd class="lbl">${navigator.platform.startsWith("Mac") ? "⌘K" : t("palette.ctrl")}</kbd></button>
+              <button class="ghost search" @click=${this.openPalette} aria-label=${t("palette.button")} >
+                ${icon("Search", 15)}<span class="lbl">${t("palette.button")}</span>${comboFor("palette") ? html`<kbd class="lbl">${comboLabel(comboFor("palette"))}</kbd>` : ""}</button>
               <phx-notification-bell></phx-notification-bell>
               <phx-user-menu @logout=${this.logout}></phx-user-menu>
             </nav>

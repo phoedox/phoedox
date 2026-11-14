@@ -11,6 +11,7 @@ import { contentLocale, currentProject, docsVersion, favorites, navigate, setWid
 import "./request-block";
 import "./board";
 import "./floorplan";
+import { recordView } from "../recent";
 import { blockStyles } from "./blocks";
 import { base } from "./shared";
 import "./attachments";
@@ -133,6 +134,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         }
         if (this.loaded !== key) return; // a newer load started meanwhile
         this.doc = doc;
+        recordView(this.project, "document", doc.id);
       } catch (e) {
         if (this.loaded !== key) return;
         this.error = e instanceof ApiError ? e.text : t("error.unknown");

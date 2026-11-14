@@ -1,4 +1,5 @@
 import { SignalWatcher } from "@lit-labs/signals";
+import { recordView } from "../recent";
 import { LitElement, css, html, svg } from "lit";
 import { ApiError, api, type Doc, type Edge, type Entity } from "../api";
 import { t, formatDate } from "../i18n";
@@ -95,6 +96,8 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
       if (this.canEdit) void this.loadTargets();
       d.edges ??= [];
       d.documents ??= [];
+      // Reloads after edits are not new visits.
+      if (this.d?.entity?.id !== d.entity?.id) recordView(this.project, "entity", d.entity?.id ?? this.entity);
       this.d = d;
       this.model = m;
       this.error = "";

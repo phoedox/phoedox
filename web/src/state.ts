@@ -62,3 +62,23 @@ export function loginURL(): string {
 export function isPublicPath(path: string) {
   return path === "/login" || path === "/forgot" || /^\/(invite|reset)\/[^/]+$/.test(path) || /^\/s\/phxs_[^/]+(\/[^/]+)?$/.test(path);
 }
+
+/** Focus mode: no top bar and no sidebar, for reading and writing (per device). */
+function readFocus(): boolean {
+  try {
+    return localStorage.getItem("phx.focus") === "1";
+  } catch {
+    return false;
+  }
+}
+export const focusMode = signal(readFocus());
+export function setFocusMode(on: boolean) {
+  focusMode.set(on);
+  document.documentElement.classList.toggle("focus", on);
+  try {
+    localStorage.setItem("phx.focus", on ? "1" : "0");
+  } catch {
+    // private windows: only for this page
+  }
+}
+document.documentElement.classList.toggle("focus", focusMode.get());
