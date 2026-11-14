@@ -90,6 +90,15 @@ type runRequestIn struct {
 	Index    int    `json:"index" jsonschema:"0-based number of the request block in the page"`
 }
 
+type addCommentIn struct {
+	Project  string   `json:"project" jsonschema:"project slug"`
+	Document string   `json:"document" jsonschema:"page slug"`
+	Body     string   `json:"body" jsonschema:"the comment (plain text)"`
+	Anchor   string   `json:"anchor,omitempty" jsonschema:"quote of the block the comment is about"`
+	Parent   string   `json:"parent,omitempty" jsonschema:"id of the thread to answer"`
+	Mentions []string `json:"mentions,omitempty" jsonschema:"e-mails of people to notify"`
+}
+
 type listChecksIn struct {
 	Project  string `json:"project" jsonschema:"project slug"`
 	Document string `json:"document,omitempty" jsonschema:"only checks of this page (slug)"`
@@ -486,6 +495,12 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "run_request", "Run a request block (```request) of a page and check its expectations. Only reading requests (GET, HEAD, OPTIONS); secrets are masked.", func(ctx context.Context, a core.Actor, in runRequestIn) (any, error) {
 		return svc.RunRequest(ctx, a, in.Project, in.Document, in.Index)
+	})
+	tool(s, "list_comments", "Comment threads of a page with replies; open threads first. anchor quotes the block a thread is about.", func(ctx context.Context, a core.Actor, in docRef) (any, error) {
+		return svc.Comments(ctx, a, in.Project, in.Document)
+	})
+	tool(s, "add_comment", "Comment on a page, on one block of it (anchor = a short quote of the block's text) or answer a thread (parent = comment id). Mentioned people (e-mails of people who can read the page) get a mail.", func(ctx context.Context, a core.Actor, in addCommentIn) (any, error) {
+		return svc.AddComment(ctx, a, in.Project, in.Document, core.CommentInput{Body: in.Body, Anchor: in.Anchor, Parent: in.Parent, Mentions: in.Mentions})
 	})
 	tool(s, "list_checks", "Monitoring checks of a project (request blocks that run on a schedule) with their last state: ok, fail or unknown.", func(ctx context.Context, a core.Actor, in listChecksIn) (any, error) {
 		return svc.Checks(ctx, a, in.Project, in.Document)

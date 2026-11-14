@@ -15,6 +15,9 @@ import { blockStyles } from "./blocks";
 import { base } from "./shared";
 import "./attachments";
 import "./doc-share";
+import "./comments";
+import type { PhxComments } from "./comments";
+import { anchorOf, blockFor, type CommentThread } from "../comments";
 import type { PhxDocShare } from "./doc-share";
 import { toast } from "./toasts";
 
@@ -65,6 +68,17 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     .diff .add { background: color-mix(in srgb, var(--good) 14%, transparent); } .diff .add::before { content: "+"; color: var(--good); }
     .diff .del { background: color-mix(in srgb, var(--bad) 12%, transparent); } .diff .del::before { content: "−"; color: var(--bad); }
     .diff .fold { color: var(--muted); font-family: var(--font-body); font-size: 12.5px; padding: 4px 12px; background: var(--surface2); }
+    /* Comments on blocks: a bar marks commented blocks, buttons appear in the gutter next to the hovered block. */
+    article { position: relative; }
+    .prose > .commented { position: relative; }
+    .prose > .commented::before { content: ""; position: absolute; left: -14px; top: 3px; bottom: 3px; width: 3px; border-radius: 2px; background: var(--accent); }
+    .prose > phx-request-block.commented { box-shadow: -14px 0 0 -11px var(--accent); }
+    .prose > .flash { background: var(--accent-soft); border-radius: 6px; transition: background var(--dur) var(--ease-out); }
+    .cbtns { position: absolute; left: -44px; display: grid; gap: 4px; opacity: 0; pointer-events: none; transition: opacity var(--dur-fast) ease; }
+    .cbtns.on { opacity: 1; pointer-events: auto; }
+    .cbtns button { padding: 4px 6px; font-size: 12px; gap: 3px; }
+    @media (max-width: 1100px) { .cbtns { left: auto; right: -6px; grid-auto-flow: column; transform: translateY(-100%); } }
+    @media (prefers-reduced-motion: reduce) { .prose > .flash { transition: none; } }
   `];
   project = "";
   docSlug = "";
@@ -83,6 +97,9 @@ export class PhxDocView extends SignalWatcher(LitElement) {
   error = "";
   confirming = false;
   private loaded = "";
+  /** Open comment threads, to mark the blocks they are about. */
+  private threads: CommentThread[] = [];
+  private hovered?: HTMLElement;
 
   /** Loads the page again in place (after its access changed); open dialogs stay. */
   async reload() {
@@ -118,6 +135,85 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         this.error = e instanceof ApiError ? e.text : t("error.unknown");
       }
     }
+  }
+
+  /** Top-level blocks of the rendered text (paragraphs, headings, lists, code, request blocks …). */
+  private blocks(): HTMLElement[] {
+    return [...this.renderRoot.querySelectorAll<HTMLElement>(".prose > *")].filter((b) => (b.textContent ?? "").trim() !== "");
+  }
+
+  /** Threads per block index. */
+  private threadsByBlock(blocks: HTMLElement[]): Map<number, CommentThread[]> {
+    const texts = blocks.map((b) => b.textContent ?? "");
+    const by = new Map<number, CommentThread[]>();
+    for (const th of this.threads) {
+      if (th.resolvedAt || !th.anchor) continue;
+      const i = blockFor(th.anchor, texts);
+      if (i >= 0) by.set(i, [...(by.get(i) ?? []), th]);
+    }
+    return by;
+  }
+
+  private markBlocks() {
+    const blocks = this.blocks();
+    const by = this.threadsByBlock(blocks);
+    blocks.forEach((b, i) => b.classList.toggle("commented", by.has(i)));
+    const c = this.renderRoot.querySelector<PhxComments>("phx-comments");
+    if (c) c.blockTexts = blocks.map((b) => b.textContent ?? "");
+  }
+
+  updated() {
+    this.markBlocks();
+  }
+
+  private onComments(e: CustomEvent<CommentThread[]>) {
+    this.threads = e.detail;
+    this.markBlocks();
+  }
+
+  /** Shows the gutter buttons next to the block under the pointer. */
+  private onHover(e: MouseEvent) {
+    const block = (e.target as HTMLElement).closest<HTMLElement>(".prose > *");
+    const btns = this.renderRoot.querySelector<HTMLElement>(".cbtns");
+    if (!btns || !block || (block.textContent ?? "").trim() === "") return;
+    if (block === this.hovered) return;
+    this.hovered = block;
+    const article = this.renderRoot.querySelector("article")!;
+    btns.style.top = `${block.getBoundingClientRect().top - article.getBoundingClientRect().top}px`;
+    const blocks = this.blocks();
+    const list = this.threadsByBlock(blocks).get(blocks.indexOf(block)) ?? [];
+    const count = btns.querySelector<HTMLButtonElement>(".count")!;
+    count.style.display = list.length ? "" : "none";
+    count.querySelector("span")!.textContent = String(list.length);
+    count.dataset.thread = list[0]?.id ?? "";
+    btns.classList.add("on");
+  }
+
+  private hideGutter(e: MouseEvent) {
+    const to = e.relatedTarget as HTMLElement | null;
+    if (to && (to.closest(".cbtns") || to.closest(".prose"))) return;
+    this.hovered = undefined;
+    this.renderRoot.querySelector(".cbtns")?.classList.remove("on");
+  }
+
+  private commentBlock() {
+    if (!this.hovered) return;
+    this.renderRoot.querySelector<PhxComments>("phx-comments")?.startOnBlock(anchorOf(this.hovered.textContent ?? ""));
+  }
+
+  private showThread(e: Event) {
+    const id = (e.currentTarget as HTMLElement).dataset.thread;
+    if (id) this.renderRoot.querySelector<PhxComments>("phx-comments")?.reveal(id);
+  }
+
+  /** Scrolls to the block a thread quotes and highlights it. */
+  private showBlock(e: CustomEvent<string>) {
+    const blocks = this.blocks();
+    const b = blocks[blockFor(e.detail, blocks.map((x) => x.textContent ?? ""))];
+    if (!b) return;
+    b.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    b.classList.add("flash");
+    setTimeout(() => b.classList.remove("flash"), 1600);
   }
 
   private async deleteDoc() {
@@ -285,7 +381,12 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     const canEdit = ["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "");
     const wide = wideReading.get();
     // Boards need the room of the whole page.
-    return html`<article class=${wide || d.type === "board" || d.type === "floorplan" ? "enter wide" : "enter"} @click=${this.onClick}>
+    return html`<article class=${wide || d.type === "board" || d.type === "floorplan" ? "enter wide" : "enter"} @click=${this.onClick}
+      @mouseover=${this.onHover} @mouseout=${this.hideGutter} @comments-changed=${this.onComments} @show-block=${this.showBlock}>
+      ${d.type === "link" ? "" : html`<div class="cbtns" role="group" aria-label=${t("comment.block")}>
+        <button class="ghost" title=${t("comment.on_block")} aria-label=${t("comment.on_block")} @click=${this.commentBlock}>${icon("MessageSquarePlus", 15)}</button>
+        <button class="ghost count" style="display:none" title=${t("comment.show_threads")} @click=${this.showThread}>${icon("MessageSquare", 13)}<span></span></button>
+      </div>`}
       <header>
         <div>
           <h1>${d.title}</h1>
@@ -317,6 +418,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       ${this.draftNotice(d)}
       ${this.body(d)}
       ${canEdit ? html`<phx-doc-share .project=${currentProject.get()} .doc=${d} @changed=${() => this.reload()}></phx-doc-share>` : ""}
+      ${d.type !== "link" ? html`<phx-comments .project=${this.project} .document=${d.id}></phx-comments>` : ""}
       ${d.type !== "link" ? html`<phx-attachments style="margin-top:28px" .project=${this.project} .document=${d.id} .editable=${canEdit}></phx-attachments>` : ""}
       ${this.zoomDialog()}
     </article>`;

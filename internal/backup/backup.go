@@ -37,7 +37,7 @@ var Tables = []string{
 	"auth_challenges", "oauth_clients", "oauth_grants", "oauth_codes", "oauth_tokens", "user_identities",
 	"doc_updates", "project_env", "instance_settings", "project_kinds",
 	"files", "file_versions", "jobs", "share_links", "webhooks", "webhook_deliveries",
-	"plugins", "project_plugins", "plugin_kv", "drafts", "document_translations", "tasks", "images", "publications", "agent_enrollments", "agents", "signing_keys", "agent_jobs", "publication_releases", "checks",
+	"plugins", "project_plugins", "plugin_kv", "drafts", "document_translations", "tasks", "images", "publications", "agent_enrollments", "agents", "signing_keys", "agent_jobs", "publication_releases", "checks", "comments",
 }
 
 // Skipped are tables that are not backed up.
@@ -186,10 +186,19 @@ func allHashes(ctx context.Context, db *store.DB, withFiles bool) ([]string, err
 	return out, rows.Err()
 }
 
+// selfOrder sorts tables that reference their own rows so parents are
+// restored before children (boards after their page, replies after the
+// comment they answer).
+var selfOrder = map[string]string{"documents": "created_at, id", "comments": "created_at, id"}
+
 // dumpTable writes one JSON object per row; bytes become {"$b64": …},
 // times RFC 3339 strings, JSON columns stay JSON.
 func dumpTable(ctx context.Context, db *store.DB, table string, w io.Writer) (int, error) {
-	rows, err := db.Query(ctx, `SELECT * FROM `+table)
+	query := `SELECT * FROM ` + table
+	if order, ok := selfOrder[table]; ok {
+		query += ` ORDER BY ` + order
+	}
+	rows, err := db.Query(ctx, query)
 	if err != nil {
 		return 0, err
 	}

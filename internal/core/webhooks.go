@@ -40,6 +40,7 @@ var webhookEvents = map[string]string{
 	"file.upload": "file.uploaded", "file.version": "file.updated", "file.delete": "file.deleted",
 	"suggestion.create": "suggestion.created", "suggestion.accept": "suggestion.accepted", "suggestion.reject": "suggestion.rejected",
 	"check.fail": "check.failed", "check.recover": "check.recovered",
+	"comment.create": "comment.created", "comment.resolve": "comment.resolved", "comment.delete": "comment.deleted",
 }
 
 // WebhookEventTypes lists the event types a webhook can subscribe to.
