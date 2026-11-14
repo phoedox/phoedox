@@ -99,6 +99,15 @@ func (s *Service) decisionLinks(ctx context.Context, p store.Project, adr *ADR, 
 type Link struct {
 	URL         string `json:"url"`
 	Description string `json:"description,omitempty"`
+	// Archive is a copy of the linked document kept by Phoedox.
+	Archive *LinkArchive `json:"archive,omitempty"`
+}
+
+// LinkArchive is the stored copy of a link's target.
+type LinkArchive struct {
+	File string     `json:"file"` // project file id
+	At   store.Time `json:"at"`
+	Mime string     `json:"mime"`
 }
 
 var adrStatus = map[string]bool{"proposed": true, "accepted": true, "rejected": true, "deprecated": true, "superseded": true}
@@ -403,6 +412,10 @@ func (s *Service) patched(ctx context.Context, p store.Project, cur store.Docume
 		link = &Link{}
 		_ = json.Unmarshal(cur.Content, link)
 		if patch.Link != nil {
+			// The archived copy stays as long as the address does.
+			if patch.Link.Archive == nil && link.Archive != nil && patch.Link.URL == link.URL {
+				patch.Link.Archive = link.Archive
+			}
 			link = patch.Link
 		}
 	}

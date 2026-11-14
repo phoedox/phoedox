@@ -1,4 +1,4 @@
-Subject: {{if eq .Kind "comment.mention"}}{{.Actor}} hat dich erwähnt{{else if eq .Kind "comment.reply"}}Neue Antwort von {{.Actor}}{{else if eq .Kind "check.fail"}}Überwachung schlägt fehl{{else if eq .Kind "check.recover"}}Überwachung wieder in Ordnung{{else if eq .Kind "task.assigned"}}{{.Actor}} hat dir eine Aufgabe zugewiesen{{else}}Testnachricht von Phoedox{{end}}: {{.Title}}
+Subject: {{if eq .Kind "comment.mention"}}{{.Actor}} hat dich erwähnt{{else if eq .Kind "comment.reply"}}Neue Antwort von {{.Actor}}{{else if eq .Kind "check.fail"}}Überwachung schlägt fehl{{else if eq .Kind "check.recover"}}Überwachung wieder in Ordnung{{else if eq .Kind "task.assigned"}}{{.Actor}} hat dir eine Aufgabe zugewiesen{{else if eq .Kind "project.summary"}}Wochenrückblick{{else}}Testnachricht von Phoedox{{end}}: {{.Title}}
 
 Hallo {{.Name}},
 

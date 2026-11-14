@@ -21,6 +21,7 @@ import type { PhxComments } from "./comments";
 import { anchorOf, blockFor, type CommentThread } from "../comments";
 import type { PhxDocShare } from "./doc-share";
 import { toast } from "./toasts";
+import { fileURL } from "../files";
 
 export const prose = `
   .prose { line-height: 1.65; }
@@ -35,7 +36,7 @@ export const prose = `
 `;
 
 export class PhxDocView extends SignalWatcher(LitElement) {
-  static properties = { project: {}, docSlug: {}, zoom: { state: true }, doc: { state: true }, draft: { state: true }, showDiff: { state: true }, lang: { state: true }, mainDiff: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true } };
+  static properties = { project: {}, docSlug: {}, zoom: { state: true }, doc: { state: true }, draft: { state: true }, showDiff: { state: true }, lang: { state: true }, mainDiff: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true }, archiving: { state: true } };
   static styles = [base, unsafeCSS(prose), css`
     /* Centred reading column; "full width" lifts the limit. */
     article { max-width: var(--reading-width, 820px); margin-inline: auto; }
@@ -86,6 +87,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
   doc?: Doc;
   /** The open draft, shown to editors (ADR-0027). */
   draft?: DraftInfo;
+  archiving = false;
   showDiff = false;
   /** Image shown large (click on a picture in the page). */
   zoom?: { src: string; alt: string };
@@ -253,6 +255,20 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     }
   }
 
+  /** Keeps a copy of the link's target (a manual, a data sheet) as a project file. */
+  private async archive(d: Doc) {
+    this.archiving = true;
+    try {
+      await api("POST", `/projects/${this.project}/documents/${d.slug}/archive`);
+      toast(t("link.archived"), "ok");
+      await this.reload();
+    } catch (e) {
+      toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
+    } finally {
+      this.archiving = false;
+    }
+  }
+
   private async toggleFavorite(personal: boolean, on: boolean) {
     try {
       await api(on ? "PUT" : "DELETE", `/projects/${this.project}/favorites/${this.doc!.id}?scope=${personal ? "me" : "project"}`);
@@ -357,7 +373,10 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       <phx-floorplan .project=${this.project} .doc=${d} .draft=${this.draft} ?canEdit=${["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "")} @changed=${() => this.reload()}></phx-floorplan>`;
     if (d.type === "markdown") return html`<div class="prose">${unsafeHTML(renderMarkdown(withoutTitle(c.markdown ?? "", d.title), this.project, d.id))}</div>`;
     if (d.type === "link") return html`<p><a class="btn" href=${c.url} target="_blank" rel="noopener external">${icon("ExternalLink", 15)} ${t("doc.open_link")}</a></p>
-      <p class="mono muted">${c.url}</p>${c.description ? html`<div class="prose">${unsafeHTML(renderMarkdown(c.description, this.project))}</div>` : ""}`;
+      <p class="mono muted">${c.url}</p>
+      <p class="row">${c.archive ? html`<a class="btn ghost" href=${fileURL({ id: c.archive.file, name: d.title })} target="_blank">${icon("Archive", 15)} ${t("link.archived_copy", { date: formatDate(c.archive.at) })}</a>` : ""}
+        ${["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "") ? html`<button class="ghost" ?disabled=${this.archiving} @click=${() => this.archive(d)}>${icon("Download", 15)} ${c.archive ? t("link.archive_again") : t("link.archive")}</button>` : ""}</p>
+      ${c.description ? html`<div class="prose">${unsafeHTML(renderMarkdown(c.description, this.project))}</div>` : ""}`;
     const part = (key: "adr.context" | "adr.decision" | "adr.consequences" | "adr.alternatives", md: string) =>
       md ? html`<section><h2>${t(key)}</h2><div class="prose">${unsafeHTML(renderMarkdown(md, this.project))}</div></section>` : "";
     return html`

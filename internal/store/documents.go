@@ -302,3 +302,22 @@ func prefixCols(prefix, cols string) string {
 	}
 	return strings.Join(parts, ", ")
 }
+
+// MentionedEntities lists the entries that live pages of a project mention.
+func (d *DB) MentionedEntities(ctx context.Context, projectID string) (map[string]bool, error) {
+	rows, err := d.Query(ctx, `SELECT DISTINCT l.entity_id FROM document_links l JOIN documents d ON d.id = l.document_id
+		WHERE d.project_id = ? AND d.deleted_at IS NULL`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out[id] = true
+	}
+	return out, rows.Err()
+}

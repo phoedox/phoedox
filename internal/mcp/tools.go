@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -100,6 +101,21 @@ type addCommentIn struct {
 	Anchor   string   `json:"anchor,omitempty" jsonschema:"quote of the block the comment is about"`
 	Parent   string   `json:"parent,omitempty" jsonschema:"id of the thread to answer"`
 	Mentions []string `json:"mentions,omitempty" jsonschema:"e-mails of people to notify"`
+}
+
+type gapsIn struct {
+	Project   string `json:"project" jsonschema:"project slug"`
+	StaleDays int    `json:"staleDays,omitempty" jsonschema:"pages unchanged for this many days count as stale (default 365)"`
+}
+
+type changesIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Days    int    `json:"days,omitempty" jsonschema:"look back this many days (default 7, at most 90)"`
+}
+
+type archiveIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Document string `json:"document" jsonschema:"slug of a link page"`
 }
 
 type listChecksIn struct {
@@ -576,6 +592,18 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "add_comment", "Comment on a page, on one block of it (anchor = a short quote of the block's text) or answer a thread (parent = comment id). Mentioned people (e-mails of people who can read the page) get a mail.", func(ctx context.Context, a core.Actor, in addCommentIn) (any, error) {
 		return svc.AddComment(ctx, a, in.Project, in.Document, core.CommentInput{Body: in.Body, Anchor: in.Anchor, Parent: in.Parent, Mentions: in.Mentions})
+	})
+	tool(s, "find_documentation_gaps", "Find missing or outdated documentation in a project: failing checks, mentions of entries that do not exist, devices without a location, entries no page mentions, entries with most attributes empty, empty pages and pages unchanged for a long time.", func(ctx context.Context, a core.Actor, in gapsIn) (any, error) {
+		return svc.DocumentationGaps(ctx, a, in.Project, in.StaleDays)
+	})
+	tool(s, "change_summary", "What changed in a project recently: pages created, edited or deleted (with authors), entries added, changed or removed, tasks done and comments.", func(ctx context.Context, a core.Actor, in changesIn) (any, error) {
+		if in.Days <= 0 || in.Days > 90 {
+			in.Days = 7
+		}
+		return svc.Changes(ctx, a, in.Project, time.Now().AddDate(0, 0, -in.Days))
+	})
+	tool(s, "archive_link", "Keep a copy of the document a link page points to (a manual, a data sheet) as a project file, in case the original goes offline.", func(ctx context.Context, a core.Actor, in archiveIn) (any, error) {
+		return svc.ArchiveLink(ctx, a, in.Project, in.Document)
 	})
 	tool(s, "list_checks", "Monitoring checks of a project (request blocks that run on a schedule) with their last state: ok, fail or unknown.", func(ctx context.Context, a core.Actor, in listChecksIn) (any, error) {
 		return svc.Checks(ctx, a, in.Project, in.Document)

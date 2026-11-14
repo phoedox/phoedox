@@ -1,4 +1,4 @@
-Subject: {{if eq .Kind "comment.mention"}}{{.Actor}} mentioned you{{else if eq .Kind "comment.reply"}}New reply from {{.Actor}}{{else if eq .Kind "check.fail"}}Check failing{{else if eq .Kind "check.recover"}}Check back to normal{{else if eq .Kind "task.assigned"}}{{.Actor}} assigned a task to you{{else}}Test message from Phoedox{{end}}: {{.Title}}
+Subject: {{if eq .Kind "comment.mention"}}{{.Actor}} mentioned you{{else if eq .Kind "comment.reply"}}New reply from {{.Actor}}{{else if eq .Kind "check.fail"}}Check failing{{else if eq .Kind "check.recover"}}Check back to normal{{else if eq .Kind "task.assigned"}}{{.Actor}} assigned a task to you{{else if eq .Kind "project.summary"}}Weekly summary{{else}}Test message from Phoedox{{end}}: {{.Title}}
 
 Hello {{.Name}},
 
