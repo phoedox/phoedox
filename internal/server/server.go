@@ -46,8 +46,6 @@ type Deps struct {
 	Backups *backup.Manager
 	// Publish serves publications (/pub/<slug> and own domains); nil disables them.
 	Publish *publish.Site
-	// Website serves the product website on its domains; nil disables it.
-	Website *publish.Website
 }
 
 // New returns the root handler.
@@ -64,9 +62,6 @@ func New(d Deps) http.Handler {
 		if d.Config.MetricsToken != "" {
 			r.Handle("/metrics", d.Metrics.Handler(d.Config.MetricsToken))
 		}
-	}
-	if d.Website != nil {
-		r.Use(d.Website.Middleware)
 	}
 	if d.Publish != nil {
 		// Own domains of publications come before tenant lookup by host.

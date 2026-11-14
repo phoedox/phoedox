@@ -22,6 +22,7 @@ den Nutzer fragen. `docs/decisions.md` ist nur noch ein Verweis (ADR-0026). Der 
 - `internal/agenthub` – noch Gerüst, siehe Paket-Doku
 - `db/migrations/{postgres,sqlite}` – goose-Migrationen, **beide Dialekte immer gemeinsam ändern**
 - `web/` – Lit + Vite + Bun; `web/dist` wird per `go:embed` eingebunden
+- `website/` – Produkt-Webseite phoedox.com als eigener Dienst (ADR-0054): Vorlage + i18n (de/en), Server `cmd/phoedox-website` (`internal/website`), Image `phoedox-website`, Chart `deploy/helm/phoedox-website`
 
 ## Befehle
 

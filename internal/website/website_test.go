@@ -1,4 +1,4 @@
-package publish
+package website
 
 import (
 	"net/http"
@@ -12,11 +12,11 @@ import (
 func websiteFor(t *testing.T) (*Website, http.Handler) {
 	t.Helper()
 	dir := t.TempDir()
-	s := &Website{Domains: []string{"phoedox.com"}, Dir: dir, Web: fstest.MapFS{
-		"website/index.html":    {Data: []byte("english")},
-		"website/de/index.html": {Data: []byte("deutsch")},
+	s := &Website{Dir: dir, Web: fstest.MapFS{
+		"index.html":    {Data: []byte("english")},
+		"de/index.html": {Data: []byte("deutsch")},
 	}}
-	return s, s.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("app")) }))
+	return s, s
 }
 
 func get(h http.Handler, url string, hdr map[string]string) *httptest.ResponseRecorder {
@@ -48,13 +48,8 @@ func TestWebsiteLanguages(t *testing.T) {
 	if w := get(h, "/de/", nil); w.Body.String() != "deutsch" {
 		t.Fatalf("/de/ serves German, got %q", w.Body.String())
 	}
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	r.Host = "app.phoedox.com"
-	rec := httptest.NewRecorder()
-	_, h2 := websiteFor(t)
-	h2.ServeHTTP(rec, r)
-	if rec.Body.String() != "app" {
-		t.Fatal("other hosts must reach the app")
+	if w := get(h, "/healthz", nil); w.Body.String() != "ok" {
+		t.Fatal("healthz")
 	}
 }
 

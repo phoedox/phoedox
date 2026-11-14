@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Phönix mit großen Augen und wehendem Federschopf, der ein Buch liest">
+<defs>
+<mask id="n1-body">
+<rect x="-60" y="-60" width="632" height="632" fill="#ffffff"></rect>
+<g fill="#000000" stroke="#000000" stroke-width="26" stroke-linejoin="round">
+<path d="M 256 318 C 222 300 176 298 132 308 L 132 404 C 176 394 222 396 256 414 Z"></path>
+<path d="M 256 318 C 290 300 336 298 380 308 L 380 404 C 336 394 290 396 256 414 Z"></path>
+</g>
+<circle cx="214" cy="198" r="27" fill="#000000"></circle>
+<circle cx="298" cy="198" r="27" fill="#000000"></circle>
+<path d="M 245 236 Q 256 232 267 236 L 256 252 Z" fill="#000000" stroke="#000000" stroke-width="8" stroke-linejoin="round"></path>
+</mask>
+<mask id="n1-book">
+<rect x="-60" y="-60" width="632" height="632" fill="#ffffff"></rect>
+<g fill="#000000" stroke="#000000" stroke-width="24" stroke-linejoin="round">
+<path d="M 178 254 C 140 262 106 292 98 334 C 114 324 126 324 134 328 C 112 344 106 366 114 388 C 126 374 138 370 150 374 C 140 388 140 400 146 412 C 160 396 170 380 172 360 C 176 330 186 300 196 272 Z"></path>
+<path d="M 334 254 C 372 262 406 292 414 334 C 398 324 386 324 378 328 C 400 344 406 366 398 388 C 386 374 374 370 362 374 C 372 388 372 400 366 412 C 352 396 342 380 340 360 C 336 330 326 300 316 272 Z"></path>
+</g>
+<g fill="none" stroke="#000000" stroke-linecap="round">
+<path d="M 256 316 L 256 416" stroke-width="9"></path>
+<path d="M 186 334 C 206 328 224 330 240 338" stroke-width="7"></path>
+<path d="M 184 356 C 204 350 224 352 240 360" stroke-width="7"></path>
+<path d="M 186 378 C 206 372 224 374 240 382" stroke-width="7"></path>
+<path d="M 326 334 C 306 328 288 330 272 338" stroke-width="7"></path>
+<path d="M 328 356 C 308 350 288 352 272 360" stroke-width="7"></path>
+<path d="M 326 378 C 306 372 288 374 272 382" stroke-width="7"></path>
+</g>
+</mask>
+<mask id="n1-shine">
+<rect x="-60" y="-60" width="632" height="632" fill="#ffffff"></rect>
+<circle cx="222" cy="203" r="5" fill="#000000"></circle>
+<circle cx="306" cy="203" r="5" fill="#000000"></circle>
+</mask>
+</defs>
+<g fill="#F26A1B">
+<g mask="url(#n1-body)">
+<path d="M 208 116 C 188 100 180 78 190 56 C 196 76 212 88 232 98 Z"></path>
+<path d="M 228 100 C 222 66 234 34 262 14 C 256 40 266 58 278 70 C 290 82 290 96 284 104 Z"></path>
+<path d="M 258 98 C 262 78 276 66 292 62 C 284 74 284 88 280 98 Z"></path>
+<path d="M 270 102 C 284 76 306 64 334 64 C 322 74 316 86 316 100 C 316 112 308 120 298 124 Z"></path>
+<circle cx="256" cy="200" r="108"></circle>
+<ellipse cx="256" cy="320" rx="90" ry="92"></ellipse>
+<path d="M 218 396 C 186 424 178 462 198 496 C 200 470 214 452 236 440 Z"></path>
+<path d="M 240 410 C 238 448 252 480 280 504 C 272 476 274 450 284 430 Z"></path>
+<path d="M 292 398 C 330 418 352 448 350 488 C 336 462 316 450 290 444 Z"></path>
+</g>
+<g mask="url(#n1-book)">
+<path d="M 256 318 C 222 300 176 298 132 308 L 132 404 C 176 394 222 396 256 414 Z"></path>
+<path d="M 256 318 C 290 300 336 298 380 308 L 380 404 C 336 394 290 396 256 414 Z"></path>
+</g>
+<path d="M 178 254 C 140 262 106 292 98 334 C 114 324 126 324 134 328 C 112 344 106 366 114 388 C 126 374 138 370 150 374 C 140 388 140 400 146 412 C 160 396 170 380 172 360 C 176 330 186 300 196 272 Z"></path>
+<path d="M 334 254 C 372 262 406 292 414 334 C 398 324 386 324 378 328 C 400 344 406 366 398 388 C 386 374 374 370 362 374 C 372 388 372 400 366 412 C 352 396 342 380 340 360 C 336 330 326 300 316 272 Z"></path>
+<g mask="url(#n1-shine)">
+<circle cx="216" cy="209" r="15"></circle>
+<circle cx="300" cy="209" r="15"></circle>
+</g>
+</g>
+</svg>

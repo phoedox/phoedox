@@ -1,0 +1,5 @@
+The Phoedox website is starting for: {{ join ", " .Values.domains }}
+{{- if not .Values.impressum }}
+
+Note: no legal notice (impressum) is set; its link stays hidden. A public website in Germany needs one.
+{{- end }}

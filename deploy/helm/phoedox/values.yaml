@@ -29,7 +29,8 @@ ingress:
   # Traefik only: send http:// permanently to https://.
   httpsRedirect: true
   # Traefik only: more hosts that redirect permanently to the domain, keeping
-  # the path – e.g. the bare domain until a website runs there:
+  # the path – e.g. the bare domain while no website runs there (the product
+  # website is its own chart, deploy/helm/phoedox-website):
   #   redirectFrom: [phoedox.com, www.phoedox.com]
   # Each host needs a DNS record to this server; its certificate is issued too.
   redirectFrom: []
@@ -171,12 +172,3 @@ publications:
 # record in its settings; add the domain here so it gets a certificate.
 appDomains: []
 
-# Product website (phoedox.com): served by the app on these domains instead of
-# the app itself. Remove them from ingress.redirectFrom when you set them here.
-# Legal pages are Markdown; the links are hidden while a text is empty.
-website:
-  domains: []
-  impressum: ""
-  datenschutz: ""
-  # E-mail address behind "Request an offer" and "Contact"; hidden while empty.
-  contact: ""

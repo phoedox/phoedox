@@ -1,25 +1,27 @@
-package publish
+// Package website serves the product website (phoedox.com, ADR-0054) as its
+// own service: the static pages from website/dist in two languages, legal
+// pages and the contact address from files of the operator.
+package website
 
 import (
 	"html/template"
 	"io/fs"
 	"mime"
-	"net"
 	"net/http"
 	"os"
 	"path"
 	"path/filepath"
-	"slices"
 	"strings"
+
+	"github.com/phoedox/phoedox/internal/publish"
 )
 
-// Website serves the product website (web/website) on its own domains;
-// legal pages come from Markdown files of the operator (impressum.md,
-// datenschutz.md in Dir) and are missing until those exist.
+// Website serves the built pages (Web) for every host. Legal pages and the
+// contact address come from files of the operator in Dir (impressum.md,
+// datenschutz.md, contact.txt) and are missing until those exist.
 type Website struct {
-	Domains []string
-	Dir     string
-	Web     fs.FS
+	Dir string
+	Web fs.FS
 }
 
 var legalPage = template.Must(template.New("legal").Parse(`<!doctype html><html lang="de"><head><meta charset="utf-8">
@@ -28,19 +30,17 @@ var legalPage = template.Must(template.New("legal").Parse(`<!doctype html><html 
 a{color:#b84a0c}@media (prefers-color-scheme:dark){body{color:#eee7e1;background:#14110f}a{color:#f26a1b}}</style></head>
 <body><p><a href="/">← Phoedox</a></p>{{.Body}}</body></html>`))
 
-// Middleware serves the website for its domains and passes other hosts on.
-func (s *Website) Middleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		host := strings.ToLower(r.Host)
-		if h, _, err := net.SplitHostPort(host); err == nil {
-			host = h
-		}
-		if len(s.Domains) == 0 || !slices.Contains(s.Domains, host) || r.URL.Path == "/healthz" || r.URL.Path == "/readyz" {
-			next.ServeHTTP(w, r)
-			return
-		}
-		s.serve(w, r)
-	})
+// ServeHTTP serves the website; /healthz answers for the probes.
+func (s *Website) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/healthz" {
+		_, _ = w.Write([]byte("ok"))
+		return
+	}
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.serve(w, r)
 }
 
 func (s *Website) serve(w http.ResponseWriter, r *http.Request) {
@@ -57,10 +57,10 @@ func (s *Website) serve(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "/de/", http.StatusFound)
 			return
 		}
-		s.file(w, r, "website/index.html", "no-cache")
+		s.file(w, r, "index.html", "no-cache")
 	case p == "/de":
 		s.pickLang(w, r)
-		s.file(w, r, "website/de/index.html", "no-cache")
+		s.file(w, r, "de/index.html", "no-cache")
 	case p == "/robots.txt":
 		h.Set("Content-Type", "text/plain; charset=utf-8")
 		_, _ = w.Write([]byte("User-agent: *\nAllow: /\n"))
@@ -72,7 +72,7 @@ func (s *Website) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		title := map[string]string{"/impressum": "Impressum", "/datenschutz": "Datenschutz"}[p]
 		h.Set("Content-Type", "text/html; charset=utf-8")
-		_ = legalPage.Execute(w, map[string]any{"Title": title, "Body": template.HTML(Markdown(string(b), Links{}))})
+		_ = legalPage.Execute(w, map[string]any{"Title": title, "Body": template.HTML(publish.Markdown(string(b), publish.Links{}))})
 	case p == "/kontakt":
 		// The operator's contact address (contact.txt), e.g. for offers.
 		b, err := os.ReadFile(filepath.Join(s.Dir, "contact.txt"))

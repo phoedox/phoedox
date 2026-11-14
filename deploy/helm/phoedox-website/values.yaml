@@ -1,0 +1,35 @@
+image:
+  repository: ghcr.io/phoedox/phoedox-website
+  # Default: the chart's appVersion ("main" = latest build of the main branch).
+  tag: ""
+  pullPolicy: ""
+
+# While the repository is private: the same ghcr.io pull secret as the app,
+# e.g. installed into the app's namespace: imagePullSecrets: [{ name: ghcr }]
+imagePullSecrets: []
+
+# Hosts that serve the website, e.g. [phoedox.com, www.phoedox.com]. Each
+# needs a DNS record to this server and gets its own certificate. Remove them
+# from the app's ingress.redirectFrom before installing this chart.
+domains: []
+
+ingress:
+  enabled: true
+  className: traefik
+  # Traefik only: send http:// permanently to https://.
+  httpsRedirect: true
+  tls:
+    enabled: true
+    # The app chart creates the ClusterIssuer "letsencrypt".
+    clusterIssuer: letsencrypt
+
+# Operator texts (Markdown). Never generated; their links stay hidden while
+# a text is empty.
+impressum: ""
+datenschutz: ""
+# E-mail address behind "Request an offer" and "Contact"; hidden while empty.
+contact: ""
+
+resources:
+  requests: { cpu: 10m, memory: 16Mi }
+  limits: { memory: 64Mi }

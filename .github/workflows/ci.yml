@@ -31,12 +31,22 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun test
       - run: bun run build
+  website:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: website } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun test
+      - run: bun run build
   helm:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
       - run: helm lint deploy/helm/phoedox
+      - run: helm lint deploy/helm/phoedox-website --set 'domains={example.org}'
       - name: Render all variants and validate against the Kubernetes schemas
         run: |
           curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
@@ -49,3 +59,6 @@ jobs:
             echo "== helm template $v"
             helm template t deploy/helm/phoedox $v | ./kubeconform -strict -ignore-missing-schemas -summary
           done
+          helm template w deploy/helm/phoedox-website --set 'domains={example.org,www.example.org}' --set impressum=x --set contact=a@b.c | ./kubeconform -strict -ignore-missing-schemas -summary
+          # Leftover website values must stop the app chart with a clear message.
+          ! helm template t deploy/helm/phoedox --set 'website.domains={example.org}' 2>/dev/null

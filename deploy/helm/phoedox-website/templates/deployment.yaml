@@ -1,0 +1,68 @@
+{{- $fn := include "website.fullname" . }}
+{{- $tag := .Values.image.tag | default .Chart.AppVersion }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $fn }}
+  labels: {{- include "website.labels" . | nindent 4 }}
+data:
+  {{- with .Values.impressum }}
+  impressum.md: |
+    {{- . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.datenschutz }}
+  datenschutz.md: |
+    {{- . | nindent 4 }}
+  {{- end }}
+  {{- with .Values.contact }}
+  contact.txt: {{ . | quote }}
+  {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fn }}
+  labels: {{- include "website.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "website.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "website.selector" . | nindent 8 }}
+      annotations:
+        # Restart when the operator texts change.
+        checksum/texts: {{ printf "%s%s%s" .Values.impressum .Values.datenschutz .Values.contact | sha256sum | trunc 16 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext: { runAsNonRoot: true, runAsUser: 65532, seccompProfile: { type: RuntimeDefault } }
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      containers:
+        - name: website
+          image: "{{ .Values.image.repository }}:{{ $tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default (ternary "Always" "IfNotPresent" (has $tag (list "main" "latest"))) }}
+          ports: [{ name: http, containerPort: 8080 }]
+          env:
+            - { name: WEBSITE_LISTEN, value: ":8080" }
+            - { name: WEBSITE_DIR, value: /etc/phoedox-website }
+          volumeMounts: [{ name: texts, mountPath: /etc/phoedox-website, readOnly: true }]
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          readinessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 10 }
+          livenessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 30 }
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: texts
+          configMap: { name: {{ $fn }} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fn }}
+  labels: {{- include "website.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "website.selector" . | nindent 4 }}
+  ports: [{ name: http, port: 80, targetPort: http }]

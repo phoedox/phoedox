@@ -1,3 +1,6 @@
+{{- with .Values.website }}{{- if .domains }}
+{{- fail "website.domains is no longer supported: the product website is its own chart now (deploy/helm/phoedox-website, ADR-0054). Remove website: from your values and install that chart for these domains." }}
+{{- end }}{{- end }}
 {{- $fn := include "phoedox.fullname" . -}}
 apiVersion: apps/v1
 kind: Deployment
@@ -118,10 +121,6 @@ spec:
             - name: PHOEDOX_METRICS_TOKEN
               valueFrom: { secretKeyRef: { name: {{ $fn }}-metrics, key: token } }
             {{- end }}
-            {{- with .Values.website.domains }}
-            - { name: PHOEDOX_WEBSITE_DOMAINS, value: {{ join "," . | quote }} }
-            - { name: PHOEDOX_WEBSITE_DIR, value: /etc/phoedox/website }
-            {{- end }}
             {{- range $k, $v := .Values.env }}
             - { name: {{ $k }}, value: {{ $v | quote }} }
             {{- end }}
@@ -129,9 +128,6 @@ spec:
             - { name: data, mountPath: /data }
             # PDF and OCR tools write temporary files.
             - { name: tmp, mountPath: /tmp }
-            {{- if .Values.website.domains }}
-            - { name: website, mountPath: /etc/phoedox/website, readOnly: true }
-            {{- end }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -155,10 +151,6 @@ spec:
             claimName: {{ default (printf "%s-data" $fn) .Values.persistence.existingClaim }}
         - name: tmp
           emptyDir: { sizeLimit: 2Gi }
-        {{- if .Values.website.domains }}
-        - name: website
-          configMap: { name: {{ printf "%s-website" $fn }} }
-        {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

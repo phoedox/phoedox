@@ -37,6 +37,9 @@ func main() {
 		log.Warn("no users yet – create the first admin with: phx admin create-user --admin --email you@example.org --name 'Your Name'")
 	}
 
+	if a.Config.LegacyWebsite {
+		log.Warn("PHOEDOX_WEBSITE_DOMAINS is set but ignored: the product website is its own service now (deploy/helm/phoedox-website, ADR-0054); remove website.domains from the Helm values")
+	}
 	a.Core.Plugins.Version = server.Version
 	hub := realtime.NewHub(a.DB)
 	a.Core.OnContentChange = hub.Reset
@@ -61,7 +64,6 @@ func main() {
 		Auth:    a.Auth,
 		MCP:     mcp.Handler(a.Core, a.Auth, server.Version, server.BaseURL(a.Config)),
 		Web:     web.Dist(),
-		Website: &publish.Website{Domains: a.Config.WebsiteDomains, Dir: a.Config.WebsiteDir, Web: web.Dist()},
 		Publish: &publish.Site{Core: a.Core, Web: web.Dist(), Version: server.Version, AppURL: a.Core.PublicURL},
 	})
 	srv := &http.Server{Addr: a.Config.Listen, Handler: handler, ReadHeaderTimeout: 10 * time.Second}

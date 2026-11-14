@@ -192,7 +192,7 @@ system-upgrade-controller from Rancher).
 | `metrics.enabled: true` | `/metrics` for Prometheus, token in the secret `phoedox-metrics`; `metrics.serviceMonitor` for the Prometheus Operator |
 | `oidc.enabled: true` | Sign-in via SSO (Authentik, Keycloak, Entra ID …) including groups |
 | `s3.enabled: true` | Files in the bucket instead of on the volume |
-| `ingress.redirectFrom: [example.org]` | Additional hosts redirect permanently to `domain` (with certificate), e.g. the bare domain, as long as no website runs there |
+| `ingress.redirectFrom: [example.org]` | Additional hosts redirect permanently to `domain` (with certificate), e.g. the bare domain, as long as no website runs there (the product website has its own chart, see below) |
 | `ingress.httpsRedirect` (default `true`) | Permanently redirect `http://` to `https://` |
 
 ## Limits
@@ -215,3 +215,19 @@ For your own domain such as `docs.phoedox.com`:
    ```
 
 3. In Phoedox, enter the same domain for the publication.
+
+## Product website (phoedox.com)
+
+The marketing website is its own service, separate from the app (ADR-0054): image
+`ghcr.io/phoedox/phoedox-website`, chart `deploy/helm/phoedox-website`. Self-hosted instances do not need it.
+
+```bash
+helm upgrade --install phoedox-website deploy/helm/phoedox-website -n phoedox \
+  --set 'domains={phoedox.com,www.phoedox.com}' --set 'imagePullSecrets[0].name=ghcr' \
+  --set-file impressum=impressum.md --set-file datenschutz=datenschutz.md --set contact=hello@example.org
+```
+
+- The hosts must not be in the app's `ingress.redirectFrom` at the same time.
+- Legal texts and the contact address come from you; while one is empty, its link is hidden.
+- English at `/`, German at `/de/`; visitors with a German browser are sent to `/de/`.
+- The app chart refuses the old setting `website.domains` with a message pointing here.
