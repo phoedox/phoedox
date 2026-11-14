@@ -1,45 +1,45 @@
-# Entscheidungen
+# Decisions
 
-**Seit 13.11.2026 werden alle Produkt- und Technik-Entscheidungen in Phoedox selbst geführt:**
-<https://app.phoedox.com/p/phoedox/decisions> (Projekt `phoedox`, Kategorie „Entscheidungen“).
-Öffentlich lesbar werden sie mit der Veröffentlichung unter `docs.phoedox.com`.
+**Since 13 Nov 2026, all product and technical decisions are kept in Phoedox itself:**
+<https://app.phoedox.com/p/phoedox/decisions> (project `phoedox`, category "Entscheidungen" (decisions)).
+They become publicly readable once they are published under `docs.phoedox.com`.
 
-Diese Datei wird nicht mehr gepflegt. Ihr letzter Stand liegt im Git-Verlauf (Commit vor dieser
-Änderung); begründet in ADR-0026.
+This file is no longer maintained. Its last state is in the Git history (the commit before this
+change); the reasons are in ADR-0026.
 
-Neue Entscheidungen anlegen: in der Oberfläche oder per MCP mit `create_decision`
-(bei Ersatz einer älteren `supersedes` setzen); lesen mit `list_decisions` und `get_document`.
+Creating new decisions: in the interface or via MCP with `create_decision`
+(set `supersedes` when replacing an older one); read them with `list_decisions` and `get_document`.
 
-## Übertragene Entscheidungen
+## Transferred decisions
 
-| Nr. | Titel | früherer Abschnitt hier |
+| No. | Title | former section here |
 |---|---|---|
-| ADR-0001 | Wissensnetz als Kern | Produkt, Doku-Typen |
-| ADR-0002 | Technik-Stack | Technik |
-| ADR-0003 | Plugins und Store: Grundsätze | Plugins & Store |
-| ADR-0004 | Agent für Server, VMs und LXC | Agent, Runde 5 (Agent-Protokoll) |
-| ADR-0005 | Home Assistant anbinden | Home Assistant |
-| ADR-0006 | Veröffentlichungen und eigene Domains | Veröffentlichungen & Domains, Runde 5 (Veröffentlichungen) |
-| ADR-0007 | Architektur: Abfragen, Echtzeit, Rechte, Jobs, Verteilung | Runde 5 |
-| ADR-0008 | Betrieb: Image, Proxy, Cookies | Betrieb (erste Version) |
-| ADR-0009 | Nummern und Ersetzen bei Entscheidungen | Entscheidungen (ADRs) |
-| ADR-0010 | Konten, Einladungen und Passwörter | Konten |
-| ADR-0011 | Zwei-Faktor und Passkeys | Zwei-Faktor & Passkeys |
-| ADR-0012 | SSO und OAuth für MCP | SSO & OAuth für MCP |
-| ADR-0013 | Suche in der Datenbank | Suche |
-| ADR-0014 | Verlauf, Papierkorb und Favoriten | Verlauf, Papierkorb, Favoriten |
-| ADR-0015 | Live-Bearbeitung mit Yjs und Lexical | Live-Bearbeitung |
-| ADR-0016 | Request-Blöcke und Projekt-Umgebung | Request-Blöcke & Umgebung |
-| ADR-0017 | KI-Zugriff fein steuern | KI-Zugriff |
-| ADR-0018 | Datenmodell und Wissensnetz | Datenmodell & Wissensnetz |
-| ADR-0019 | Dateien: Speicher, Uploads, Vorschauen | Dateien |
-| ADR-0020 | Organisationen, Gruppen und Freigaben | Organisationen & Freigaben |
-| ADR-0021 | Mandanten mit Row-Level-Security | Mandanten (gehostet) |
-| ADR-0022 | Kubernetes auf einem Server mit k3s | Betrieb: Kubernetes |
-| ADR-0023 | Betrieb: Jobs, Backups, Metriken, API, Webhooks | Betrieb: Jobs, Backups, … |
-| ADR-0024 | Plugin-Laufzeit, Pakete und Store | Plugins: Laufzeit, Pakete, Store |
-| ADR-0025 | Domains von phoedox.com | Domains von phoedox.com |
-| ADR-0026 | Phoedox als führende Quelle für Entscheidungen | – |
+| ADR-0001 | Knowledge graph as the core | Product, doc types |
+| ADR-0002 | Tech stack | Technology |
+| ADR-0003 | Plugins and store: principles | Plugins & store |
+| ADR-0004 | Agent for servers, VMs and LXC | Agent, round 5 (agent protocol) |
+| ADR-0005 | Connecting Home Assistant | Home Assistant |
+| ADR-0006 | Publications and custom domains | Publications & domains, round 5 (publications) |
+| ADR-0007 | Architecture: queries, real time, permissions, jobs, distribution | Round 5 |
+| ADR-0008 | Operations: image, proxy, cookies | Operations (first version) |
+| ADR-0009 | Numbers and superseding for decisions | Decisions (ADRs) |
+| ADR-0010 | Accounts, invitations and passwords | Accounts |
+| ADR-0011 | Two-factor and passkeys | Two-factor & passkeys |
+| ADR-0012 | SSO and OAuth for MCP | SSO & OAuth for MCP |
+| ADR-0013 | Search in the database | Search |
+| ADR-0014 | History, trash and favorites | History, trash, favorites |
+| ADR-0015 | Live editing with Yjs and Lexical | Live editing |
+| ADR-0016 | Request blocks and project environment | Request blocks & environment |
+| ADR-0017 | Fine-grained control of AI access | AI access |
+| ADR-0018 | Data model and knowledge graph | Data model & knowledge graph |
+| ADR-0019 | Files: storage, uploads, previews | Files |
+| ADR-0020 | Organizations, groups and sharing | Organizations & sharing |
+| ADR-0021 | Tenants with Row-Level Security | Tenants (hosted) |
+| ADR-0022 | Kubernetes on one server with k3s | Operations: Kubernetes |
+| ADR-0023 | Operations: jobs, backups, metrics, API, webhooks | Operations: jobs, backups, … |
+| ADR-0024 | Plugin runtime, packages and store | Plugins: runtime, packages, store |
+| ADR-0025 | Domains of phoedox.com | Domains of phoedox.com |
+| ADR-0026 | Phoedox as the leading source for decisions | – |
 
-Phasen, Feature-Listen der Runden 4 und 5 und der Stand der Umsetzung stehen auf der Seite
-„Fahrplan und Stand“ im selben Projekt.
+Phases, the feature lists of rounds 4 and 5 and the implementation status are on the page
+"Fahrplan und Stand" (roadmap and status) in the same project.

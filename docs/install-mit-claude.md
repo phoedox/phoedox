@@ -1,87 +1,87 @@
-# Phoedox installieren – Ablauf für Claude (Tabby MCP)
+# Installing Phoedox – procedure for Claude (Tabby MCP)
 
-Diese Datei ist eine Arbeitsanweisung für Claude. Gib sie deinem lokalen Claude mit dem Satz
-**„Installiere Phoedox nach dieser Anleitung über Tabby auf meinem Server.“**
+This file is a work instruction for Claude. Give it to your local Claude with the sentence
+**"Install Phoedox on my server via Tabby following this guide."**
 
 ---
 
-## An Claude: Rahmen
+## To Claude: framework
 
-Du richtest Phoedox auf einem einzelnen vServer ein: k3s (Kubernetes), cert-manager,
-CloudNativePG (Postgres) und das Phoedox-Helm-Chart. Du arbeitest über das **Tabby-MCP** in einer
-Terminal-Sitzung, die per SSH mit dem Server verbunden ist.
+You set up Phoedox on a single vServer: k3s (Kubernetes), cert-manager,
+CloudNativePG (Postgres) and the Phoedox Helm chart. You work through the **Tabby MCP** in a
+terminal session that is connected to the server via SSH.
 
-Regeln:
+Rules:
 
-1. **Einen Schritt nach dem anderen.** Nach jedem Befehl die Ausgabe lesen und die angegebene
-   Prüfung machen. Geht eine Prüfung schief, nicht weitermachen, sondern den Abschnitt
-   „Wenn etwas schiefgeht“ nutzen und dem Nutzer berichten.
-2. **Jeder Schritt ist wiederholbar.** Erst prüfen, ob er schon erledigt ist („Schon erledigt?“),
-   dann nur ausführen, was fehlt. So kann die Anleitung nach einem Abbruch einfach neu starten.
-3. **Lange Befehle** (Installation, `helm install`, Warten auf Pods) brauchen Minuten: die
-   Terminal-Ausgabe in Abständen erneut lesen, bis der Prompt zurück ist. Nichts doppelt starten.
-4. **Geheimnisse nie in den Chat.** GitHub-Token tippt der Nutzer selbst im Terminal ein
-   (`read -s`). Den Master-Key zeigst du nur im Terminal an und bittest den Nutzer, ihn von dort
-   in seinen Passwortmanager zu kopieren – du gibst ihn nicht wieder und speicherst ihn nirgends.
-5. **Nichts löschen**, was du nicht selbst in diesem Ablauf angelegt hast. Kein `helm uninstall`,
-   kein Löschen von Namespaces, PVCs oder Secrets ohne ausdrückliche Zustimmung.
-6. Vor Schritt 1 die Werte unten beim Nutzer erfragen und am Ende alles zusammenfassen.
+1. **One step at a time.** After each command, read the output and do the stated
+   check. If a check fails, do not continue. Instead, use the section
+   "If something goes wrong" and report to the user.
+2. **Every step can be repeated.** First check whether it is already done ("Already done?"),
+   then run only what is missing. This way the guide can simply start again after an interruption.
+3. **Long commands** (installation, `helm install`, waiting for pods) take minutes: read the
+   terminal output again at intervals until the prompt is back. Do not start anything twice.
+4. **Never put secrets in the chat.** The user types GitHub tokens into the terminal themselves
+   (`read -s`). You show the master key only in the terminal and ask the user to copy it from there
+   into their password manager – you do not repeat it and do not store it anywhere.
+5. **Do not delete anything** that you did not create yourself in this procedure. No `helm uninstall`,
+   no deleting namespaces, PVCs or secrets without explicit consent.
+6. Before step 1, ask the user for the values below, and summarize everything at the end.
 
-### Vorher vom Nutzer erfragen
+### Ask the user beforehand
 
-| Wert | Beispiel | Pflicht |
+| Value | Example | Required |
 |---|---|---|
-| `DOMAIN` – Adresse von Phoedox | `docs.example.org` | ja |
-| `EMAIL` – für Let's Encrypt und den ersten Admin | `du@example.org` | ja |
-| `NAME` – Name des ersten Admins | `Jan Beispiel` | ja |
-| `GH_USER` – GitHub-Benutzername (nur falls Repo/Image privat) | `jan` | bedingt |
-| Ist schon eine Tabby-Sitzung per SSH zum Server offen? Als root oder mit sudo? | | ja |
-| Backups nach S3? (Endpoint, Bucket – Schlüssel tippt der Nutzer selbst) | Hetzner Object Storage | optional |
+| `DOMAIN` – address of Phoedox | `docs.example.org` | yes |
+| `EMAIL` – for Let's Encrypt and the first admin | `du@example.org` | yes |
+| `NAME` – name of the first admin | `Jan Beispiel` | yes |
+| `GH_USER` – GitHub user name (only if repo/image is private) | `jan` | conditional |
+| Is a Tabby session to the server already open via SSH? As root or with sudo? | | yes |
+| Backups to S3? (endpoint, bucket – the user types the keys themselves) | Hetzner Object Storage | optional |
 
-Server-Mindestgröße: 2 vCPU, 4 GB RAM, 40 GB SSD; Debian 12/13 oder Ubuntu 22.04/24.04.
+Minimum server size: 2 vCPU, 4 GB RAM, 40 GB SSD; Debian 12/13 or Ubuntu 22.04/24.04.
 
 ---
 
-## Schritt 0 – Verbindung und Grundlagen prüfen
+## Step 0 – Check the connection and basics
 
 ```bash
 id -u; . /etc/os-release; echo "$PRETTY_NAME"; nproc; free -g | awk '/Mem/{print $2" GB RAM"}'; df -h / | tail -1
 ```
 
-- `id -u` ist `0` → als root, sonst allen folgenden Befehlen `sudo` voranstellen (`sudo -i` einmal
-  ausführen ist am einfachsten, dann gilt der Rest unverändert).
-- Weniger als 4 GB RAM oder kein Debian/Ubuntu → dem Nutzer melden und fragen, ob trotzdem.
+- `id -u` is `0` → running as root; otherwise prefix all following commands with `sudo` (running `sudo -i`
+  once is easiest; then the rest applies unchanged).
+- Less than 4 GB RAM or not Debian/Ubuntu → tell the user and ask whether to continue anyway.
 
-Variablen für die Sitzung setzen (Werte des Nutzers einsetzen):
+Set variables for the session (insert the user's values):
 
 ```bash
 export DOMAIN=docs.example.org EMAIL=du@example.org
 ```
 
-## Schritt 1 – DNS prüfen
+## Step 1 – Check DNS
 
 ```bash
 echo "Server: $(curl -4 -s https://ifconfig.me)"; echo "DNS:    $(getent ahostsv4 $DOMAIN | awk 'NR==1{print $1}')"
 ```
 
-Prüfung: beide Adressen gleich. Sonst den Nutzer bitten, einen **A-Eintrag** (und ggf. AAAA) für
-`$DOMAIN` auf die Server-IP zu setzen, und warten (erneut prüfen). Ohne korrekten DNS-Eintrag
-scheitert später das Zertifikat.
+Check: both addresses are the same. Otherwise, ask the user to point an **A record** (and AAAA if needed) for
+`$DOMAIN` to the server IP, and wait (check again). Without a correct DNS record,
+the certificate fails later.
 
-## Schritt 2 – System aktualisieren, Firewall
+## Step 2 – Update the system, firewall
 
 ```bash
 apt-get update && DEBIAN_FRONTEND=noninteractive apt-get -y upgrade && apt-get -y install curl git ufw ca-certificates
 ```
 
-Firewall – **erst SSH erlauben, dann einschalten**, sonst sperrt sich die Sitzung aus:
+Firewall – **allow SSH first, then enable it**, otherwise the session locks itself out:
 
 ```bash
 ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp
 ```
 
-Die internen k3s-Netze (Pods, Services) zulassen, sonst blockiert ufw den Verkehr im Cluster
-(Empfehlung der k3s-Doku; von außen wird dadurch nichts erreichbar):
+Allow the internal k3s networks (pods, services), otherwise ufw blocks traffic in the cluster
+(recommended by the k3s docs; this does not make anything reachable from outside):
 
 ```bash
 ufw allow from 10.42.0.0/16 to any && ufw allow from 10.43.0.0/16 to any
@@ -91,18 +91,18 @@ ufw allow from 10.42.0.0/16 to any && ufw allow from 10.43.0.0/16 to any
 ufw --force enable && ufw status
 ```
 
-Prüfung: Status `active`, Regeln für 22, 80, 443. Läuft SSH auf einem anderen Port
-(`ss -tlnp | grep sshd`), diesen statt 22 freigeben. Die Kubernetes-API (6443) bleibt zu.
+Check: status `active`, rules for 22, 80, 443. If SSH runs on a different port
+(`ss -tlnp | grep sshd`), allow that port instead of 22. The Kubernetes API (6443) stays closed.
 
-## Schritt 3 – k3s
+## Step 3 – k3s
 
-Schon erledigt?
+Already done?
 
 ```bash
 command -v k3s && k3s --version
 ```
 
-Falls nicht vorhanden:
+If not present:
 
 ```bash
 curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - --write-kubeconfig-mode 600 --secrets-encryption
@@ -112,13 +112,13 @@ curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - --write-kubeco
 grep -q KUBECONFIG ~/.bashrc || echo 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml' >> ~/.bashrc; export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 ```
 
-Prüfung (kann 30–60 s dauern, bis `Ready`):
+Check (it can take 30–60 s until `Ready`):
 
 ```bash
 kubectl get nodes
 ```
 
-## Schritt 4 – Helm
+## Step 4 – Helm
 
 ```bash
 command -v helm || curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
@@ -128,19 +128,19 @@ command -v helm || curl -fsSL https://raw.githubusercontent.com/helm/helm/main/s
 helm version --short
 ```
 
-## Schritt 5 – cert-manager und CloudNativePG
+## Step 5 – cert-manager and CloudNativePG
 
 ```bash
 helm repo add jetstack https://charts.jetstack.io; helm repo add cnpg https://cloudnative-pg.github.io/charts; helm repo update
 ```
 
-Schon installiert?
+Already installed?
 
 ```bash
 helm list -A | grep -E 'cert-manager|cnpg'
 ```
 
-Fehlendes installieren:
+Install what is missing:
 
 ```bash
 helm install cert-manager jetstack/cert-manager -n cert-manager --create-namespace --set crds.enabled=true --wait
@@ -150,24 +150,24 @@ helm install cert-manager jetstack/cert-manager -n cert-manager --create-namespa
 helm install cnpg cnpg/cloudnative-pg -n cnpg-system --create-namespace --wait
 ```
 
-Prüfung: alle Pods `Running`.
+Check: all pods `Running`.
 
 ```bash
 kubectl get pods -n cert-manager; kubectl get pods -n cnpg-system
 ```
 
-## Schritt 6 – Zugriff auf Repo und Image klären
+## Step 6 – Clarify access to repo and image
 
 ```bash
 for u in https://github.com/phoedox/phoedox https://ghcr.io/v2/phoedox/phoedox/tags/list; do echo "$u $(curl -s -o /dev/null -w '%{http_code}' $u)"; done
 ```
 
-- Repo `200` → öffentlich. `404` → privat: Der Nutzer braucht einen GitHub-Token (classic) mit
-  `repo` und `read:packages`.
-- ghcr `401` heißt **nicht** automatisch privat (ghcr will auch für öffentliche Images oft ein
-  anonymes Token). Sicher ist: Repo privat ⇒ Image privat ⇒ Pull-Secret nötig.
+- Repo `200` → public. `404` → private: the user needs a GitHub token (classic) with
+  `repo` and `read:packages`.
+- ghcr `401` does **not** automatically mean private (ghcr often wants an anonymous token
+  even for public images). What is certain: repo private ⇒ image private ⇒ pull secret needed.
 
-Falls privat: den Nutzer bitten, den Token **selbst im Terminal** einzugeben:
+If private: ask the user to enter the token **themselves in the terminal**:
 
 ```bash
 read -rsp "GitHub-Token: " GH_TOKEN; echo
@@ -177,38 +177,38 @@ read -rsp "GitHub-Token: " GH_TOKEN; echo
 export GH_USER=github-name
 ```
 
-## Schritt 7 – Repo holen
+## Step 7 – Get the repo
 
 ```bash
 cd /root && { [ -d phoedox ] && git -C phoedox pull --ff-only; } || git clone https://github.com/phoedox/phoedox.git
 ```
 
-Bei privatem Repo stattdessen (der Token bleibt nur in der Shell-Variable):
+For a private repo, use this instead (the token stays only in the shell variable):
 
 ```bash
 cd /root && { [ -d phoedox ] && git -C phoedox pull --ff-only; } || git clone "https://$GH_USER:$GH_TOKEN@github.com/phoedox/phoedox.git" && git -C phoedox remote set-url origin https://github.com/phoedox/phoedox.git
 ```
 
-Prüfung:
+Check:
 
 ```bash
 ls /root/phoedox/deploy/helm/phoedox/Chart.yaml
 ```
 
-## Schritt 8 – Namespace, Pull-Secret, Werte
+## Step 8 – Namespace, pull secret, values
 
 ```bash
 kubectl get namespace phoedox || kubectl create namespace phoedox
 ```
 
-Nur bei privatem Image (überschreibt ein vorhandenes Secret gleichen Namens):
+Only for a private image (overwrites an existing secret with the same name):
 
 ```bash
 kubectl -n phoedox create secret docker-registry ghcr --docker-server=ghcr.io --docker-username="$GH_USER" --docker-password="$GH_TOKEN" --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-Werte-Datei schreiben (bei öffentlichem Image die beiden `imagePullSecrets`-Zeilen weglassen).
-Gibt es `/root/phoedox.yaml` schon, erst zeigen und den Nutzer fragen, bevor du sie ersetzt.
+Write the values file (for a public image, leave out the two `imagePullSecrets` lines).
+If `/root/phoedox.yaml` already exists, show it first and ask the user before you replace it.
 
 ```bash
 cat > /root/phoedox.yaml <<EOF
@@ -227,7 +227,7 @@ EOF
 cat /root/phoedox.yaml
 ```
 
-Optional S3-Backups: Endpoint und Bucket vom Nutzer, Schlüssel tippt er selbst:
+Optional S3 backups: endpoint and bucket from the user; the user types the keys themselves:
 
 ```bash
 read -rsp "S3 Access Key: " S3_AK; echo; read -rsp "S3 Secret Key: " S3_SK; echo
@@ -237,7 +237,7 @@ read -rsp "S3 Access Key: " S3_AK; echo; read -rsp "S3 Secret Key: " S3_SK; echo
 kubectl -n phoedox create secret generic phoedox-files-s3 --from-literal=access-key="$S3_AK" --from-literal=secret-key="$S3_SK" --dry-run=client -o yaml | kubectl apply -f -
 ```
 
-Dann an `/root/phoedox.yaml` anhängen (Endpoint ohne `https://`):
+Then append to `/root/phoedox.yaml` (endpoint without `https://`):
 
 ```bash
 cat >> /root/phoedox.yaml <<EOF
@@ -250,123 +250,123 @@ backups:
 EOF
 ```
 
-## Schritt 9 – Phoedox installieren
+## Step 9 – Install Phoedox
 
 ```bash
 helm status phoedox -n phoedox >/dev/null 2>&1 && echo "schon installiert" || echo "neu"
 ```
 
-Neu:
+New (`neu`):
 
 ```bash
 helm install phoedox /root/phoedox/deploy/helm/phoedox -n phoedox -f /root/phoedox.yaml
 ```
 
-Schon installiert (Werte geändert oder Update):
+Already installed (`schon installiert`; values changed or update):
 
 ```bash
 helm upgrade phoedox /root/phoedox/deploy/helm/phoedox -n phoedox -f /root/phoedox.yaml
 ```
 
-Warten, bis Datenbank und Phoedox laufen (erste Installation: 2–5 Minuten, Postgres-Image wird
-geladen). Wiederholt prüfen, nicht mit `-w` hängen bleiben:
+Wait until the database and Phoedox are running (first installation: 2–5 minutes, the Postgres image is
+being pulled). Check repeatedly; do not get stuck with `-w`:
 
 ```bash
 kubectl -n phoedox get pods,cluster,certificate
 ```
 
-Prüfung: Pod `phoedox-…` `1/1 Running`, Cluster `Cluster in healthy state`, Certificate
-`READY True`. Dann von außen:
+Check: pod `phoedox-…` `1/1 Running`, cluster `Cluster in healthy state`, certificate
+`READY True`. Then from outside:
 
 ```bash
 curl -s https://$DOMAIN/healthz; echo; curl -s https://$DOMAIN/readyz; echo
 ```
 
-Erwartet: `{"status":"ok",…}` zweimal.
+Expected: `{"status":"ok",…}` twice.
 
-## Schritt 10 – Ersten Admin anlegen
+## Step 10 – Create the first admin
 
 ```bash
 kubectl -n phoedox exec -it deploy/phoedox -- phx admin create-user --admin --email "$EMAIL" --name "Name des Nutzers"
 ```
 
-Der Befehl fragt im Terminal nach einem Passwort (mindestens 10 Zeichen) – der Nutzer tippt es
-selbst ein, nicht du. Danach soll der Nutzer sich unter `https://$DOMAIN` anmelden und bestätigen.
+The command asks for a password in the terminal (at least 10 characters) – the user types it
+themselves, not you. Afterwards, the user should sign in at `https://$DOMAIN` and confirm.
 
-## Schritt 11 – Master-Key sichern
+## Step 11 – Back up the master key
 
-Der Master-Key verschlüsselt Geheimnisse, Webhook-Secrets und 2FA. Ohne ihn sind diese Daten in
-Backups wertlos. **Nur im Terminal anzeigen**, der Nutzer kopiert ihn in seinen Passwortmanager:
+The master key encrypts secrets, webhook secrets and 2FA. Without it, this data is worthless
+in backups. **Show it only in the terminal**; the user copies it into their password manager:
 
 ```bash
 kubectl -n phoedox get secret phoedox-master-key -o jsonpath='{.data.master-key}' | base64 -d; echo
 ```
 
-Danach den Nutzer fragen, ob er ihn gesichert hat, und mit `clear` die Anzeige leeren. Den Wert
-nicht in den Chat übernehmen.
+Then ask the user whether they have saved it, and clear the display with `clear`. Do not
+copy the value into the chat.
 
-Zum Schluss die Token-Variablen aus der Shell entfernen:
+Finally, remove the token variables from the shell:
 
 ```bash
 unset GH_TOKEN S3_AK S3_SK; history -c
 ```
 
-## Schritt 12 – Abschluss
+## Step 12 – Wrap-up
 
-Dem Nutzer zusammenfassen:
+Summarize for the user:
 
-- Adresse `https://$DOMAIN`, Admin angelegt, Zertifikat gültig.
-- Backups: täglich, lokal auf dem Daten-Volume **oder** in S3 (je nach Schritt 8). Lokal liegt auf
-  derselben Platte – S3 empfehlen, falls nicht gemacht.
-- Master-Key gesichert (vom Nutzer bestätigt).
-- Nächster Schritt: In Phoedox unter **Einstellungen → API-Tokens & MCP** einen Token mit
-  Schreibrecht anlegen und zusammen mit der URL an die Claude-Sitzung geben, die die Doku
-  übertragen soll.
+- Address `https://$DOMAIN`, admin created, certificate valid.
+- Backups: daily, locally on the data volume **or** in S3 (depending on step 8). Local is on
+  the same disk – recommend S3 if it was not set up.
+- Master key saved (confirmed by the user).
+- Next step: in Phoedox, under **Settings → API tokens & MCP**, create a token with
+  write permission and give it, together with the URL, to the Claude session that is to
+  transfer the documentation.
 
 ---
 
-## Updates später
+## Updates later
 
 ```bash
 cd /root/phoedox && git pull --ff-only && helm upgrade phoedox ./deploy/helm/phoedox -n phoedox -f /root/phoedox.yaml && kubectl -n phoedox rollout restart deploy/phoedox
 ```
 
-Das Chart lädt bewegliche Tags (`main`, `latest`) bei jedem Neustart neu (`pullPolicy` Always), daher
-genügt der Neustart, sobald das neue Image gebaut ist (GitHub Actions „docker“ grün).
+The chart pulls moving tags (`main`, `latest`) again on every restart (`pullPolicy` Always), so
+a restart is enough as soon as the new image is built (GitHub Actions "docker" green).
 
-Ein Update macht noch kein automatisches Backup – vorher in der Oberfläche unter
-**Einstellungen → Backups** sichern oder:
+An update does not make an automatic backup yet – back up first in the interface under
+**Settings → Backups** or:
 
 ```bash
 kubectl -n phoedox exec deploy/phoedox -- phx admin backup
 ```
 
-## Domain wechseln
+## Changing the domain
 
-Beispiel: Die Instanz lief unter `phoedox.com` und soll nach `app.phoedox.com`; `phoedox.com` (und
-`www.`) leiten so lange dorthin weiter. Vorher dem Nutzer sagen: Passkeys müssen danach neu
-registriert werden, alle müssen sich neu anmelden; Passwort, TOTP, Daten und Tokens bleiben.
+Example: the instance ran under `phoedox.com` and should move to `app.phoedox.com`; `phoedox.com` (and
+`www.`) redirect there for the time being. Tell the user beforehand: passkeys must be registered
+again afterwards, and everyone must sign in again; password, TOTP, data and tokens stay.
 
-1. DNS: A-Eintrag (und AAAA) für die neue Domain auf den Server; mit Schritt 1 prüfen. Für die
-   weiterleitenden Hosts müssen die Einträge ebenfalls auf den Server zeigen.
-2. Backup (siehe „Updates später“).
-3. Repo aktualisieren (die Weiterleitung braucht das Chart ab Commit „chart: redirect hosts“):
+1. DNS: A record (and AAAA) for the new domain to the server; check with step 1. The records
+   for the redirecting hosts must also point to the server.
+2. Backup (see "Updates later").
+3. Update the repo (the redirect needs the chart from commit "chart: redirect hosts" on):
 
 ```bash
 cd /root/phoedox && git pull --ff-only
 ```
 
-4. In `/root/phoedox.yaml` `domain:` ändern und die Weiterleitung ergänzen – erst zeigen, dann
-   ändern:
+4. In `/root/phoedox.yaml`, change `domain:` and add the redirect – show first, then
+   change:
 
 ```bash
 sed -i 's/^domain: .*/domain: app.phoedox.com/' /root/phoedox.yaml && grep -q redirectFrom /root/phoedox.yaml || printf 'ingress:\n  redirectFrom: [phoedox.com, www.phoedox.com]\n' >> /root/phoedox.yaml; cat /root/phoedox.yaml
 ```
 
-   Gibt es in der Datei schon einen `ingress:`-Block, `redirectFrom` dort einfügen statt einen
-   zweiten anzuhängen. `www.` nur aufnehmen, wenn es dafür einen DNS-Eintrag gibt.
+   If the file already has an `ingress:` block, insert `redirectFrom` there instead of appending
+   a second one. Only include `www.` if there is a DNS record for it.
 
-5. Ausrollen und prüfen:
+5. Roll out and check:
 
 ```bash
 helm upgrade phoedox /root/phoedox/deploy/helm/phoedox -n phoedox -f /root/phoedox.yaml && kubectl -n phoedox rollout restart deploy/phoedox
@@ -380,20 +380,20 @@ kubectl -n phoedox get ingress,certificate
 curl -sI https://phoedox.com/projects | grep -i location; curl -s https://app.phoedox.com/readyz; echo
 ```
 
-Erwartet: Zertifikate `READY True` (ein bis zwei Minuten), `location: https://app.phoedox.com/projects`
-und `ready`. Danach meldet sich der Nutzer unter der neuen Adresse an; MCP-Clients und Skripte
-brauchen die neue URL.
+Expected: certificates `READY True` (one to two minutes), `location: https://app.phoedox.com/projects`
+and `ready`. Afterwards, the user signs in at the new address; MCP clients and scripts
+need the new URL.
 
-## Wenn etwas schiefgeht
+## If something goes wrong
 
-| Zeichen | Ursache und Lösung |
+| Sign | Cause and solution |
 |---|---|
-| Pod `ImagePullBackOff` | Image privat und Pull-Secret fehlt oder Token ohne `read:packages` → Schritt 6/8. Details: `kubectl -n phoedox describe pod -l app.kubernetes.io/name=phoedox` |
-| Pod `CrashLoopBackOff` | Logs lesen: `kubectl -n phoedox logs deploy/phoedox --tail=50`. Wartet er auf die Datenbank, ist der Postgres-Cluster noch nicht bereit (`kubectl -n phoedox get cluster`). |
-| Certificate bleibt `False` | DNS zeigt nicht auf den Server oder Port 80 ist zu. `kubectl -n phoedox describe certificate`, `kubectl get challenges -A`. Nach Korrektur einige Minuten warten. |
-| `curl https://…` Zertifikatsfehler | Zertifikat noch nicht ausgestellt (siehe oben); Traefik nutzt bis dahin ein Selbstsigniertes. |
-| `phx admin create-user` meldet „exists“ | Nutzer gibt es schon – Anmeldung versuchen, sonst `phx admin` ohne Argumente für Hilfe (z. B. Passwort zurücksetzen). |
-| Speicher knapp (`kubectl top node`, OOMKilled) | Server zu klein oder ClamAV aktiv – Nutzer fragen, ob größerer Server oder ClamAV aus. |
+| Pod `ImagePullBackOff` | Image is private and the pull secret is missing, or the token lacks `read:packages` → step 6/8. Details: `kubectl -n phoedox describe pod -l app.kubernetes.io/name=phoedox` |
+| Pod `CrashLoopBackOff` | Read the logs: `kubectl -n phoedox logs deploy/phoedox --tail=50`. If it is waiting for the database, the Postgres cluster is not ready yet (`kubectl -n phoedox get cluster`). |
+| Certificate stays `False` | DNS does not point to the server, or port 80 is closed. `kubectl -n phoedox describe certificate`, `kubectl get challenges -A`. After fixing it, wait a few minutes. |
+| `curl https://…` certificate error | Certificate not issued yet (see above); until then, Traefik uses a self-signed one. |
+| `phx admin create-user` reports "exists" | The user already exists – try to sign in; otherwise run `phx admin` without arguments for help (e.g. resetting the password). |
+| Memory short (`kubectl top node`, OOMKilled) | Server too small or ClamAV enabled – ask the user whether to use a larger server or turn ClamAV off. |
 
-Bei allem anderen: Ausgabe zusammenfassen, keine Zerstörung versuchen, Nutzer fragen. Weitere
-Optionen (SSO, Mail, Virenscan, Metriken) stehen in `docs/kubernetes.md`.
+For everything else: summarize the output, do not attempt anything destructive, ask the user. More
+options (SSO, mail, virus scan, metrics) are in `docs/kubernetes.md`.

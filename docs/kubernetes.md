@@ -1,45 +1,45 @@
-# Phoedox auf einem vServer mit k3s
+# Phoedox on a vServer with k3s
 
-Diese Anleitung richtet Phoedox auf **einem** Server als Single-Node-Kubernetes ein.
-Soll Claude die Installation über ein Terminal-MCP (z. B. Tabby) erledigen: [install-mit-claude.md](install-mit-claude.md).
+This guide sets up Phoedox on **one** server as single-node Kubernetes.
+If Claude should do the installation through a terminal MCP (e.g. Tabby): [install-mit-claude.md](install-mit-claude.md).
 
-## Warum k3s
+## Why k3s
 
 | | k3s | MicroK8s | k0s | Talos | kubeadm |
 |---|---|---|---|---|---|
-| Installation | ein Befehl, ein Binary | Snap | ein Binary | eigenes Betriebssystem | viele Schritte |
-| Speicherbedarf (Leerlauf) | ca. 0,5 GB | ca. 0,8 GB | ca. 0,5 GB | ca. 0,5 GB | > 1 GB |
-| Ingress dabei | Traefik | Add-on | nein | nein | nein |
-| Storage dabei | local-path | Add-on | nein | nein | nein |
-| Load-Balancer dabei | ServiceLB (Ports 80/443 am Host) | Add-on | nein | nein | nein |
-| Updates | Installer erneut oder system-upgrade-controller | Snap-Kanal | `k0s` | API | manuell |
+| Installation | one command, one binary | Snap | one binary | its own operating system | many steps |
+| Memory use (idle) | approx. 0.5 GB | approx. 0.8 GB | approx. 0.5 GB | approx. 0.5 GB | > 1 GB |
+| Ingress included | Traefik | add-on | no | no | no |
+| Storage included | local-path | add-on | no | no | no |
+| Load balancer included | ServiceLB (ports 80/443 on the host) | add-on | no | no | no |
+| Updates | run the installer again or system-upgrade-controller | Snap channel | `k0s` | API | manual |
 
-**Empfehlung: k3s.** Es ist für genau diesen Fall gebaut (wenige Ressourcen, ein Knoten), bringt
-Ingress, Storage und Load-Balancer mit, ist CNCF-zertifiziert und läuft auf jedem üblichen
-vServer-Image (Debian/Ubuntu). Talos ist sicherer, braucht aber ein eigenes OS-Image, das viele
-vServer-Anbieter nicht anbieten. Der Weg zu mehreren Knoten bleibt offen (k3s-Agenten dazunehmen).
+**Recommendation: k3s.** It is built for exactly this case (few resources, one node). It includes
+ingress, storage and a load balancer, is CNCF-certified and runs on every common
+vServer image (Debian/Ubuntu). Talos is more secure, but needs its own OS image, which many
+vServer providers do not offer. The path to several nodes stays open (add k3s agents).
 
-Dazu:
+In addition:
 
-- **CloudNativePG** betreibt Postgres im Cluster: Datenbank, Nutzer (ohne Superuser-Rechte, damit
-  Row-Level-Security greift) und auf Wunsch fortlaufende Sicherung nach S3.
-- **cert-manager** holt Zertifikate von Let's Encrypt.
-- **Phoedox** kommt als Helm-Chart aus diesem Repository (`deploy/helm/phoedox`).
+- **CloudNativePG** runs Postgres in the cluster: database, user (without superuser rights, so that
+  Row-Level Security applies) and, if wanted, continuous backup to S3.
+- **cert-manager** gets certificates from Let's Encrypt.
+- **Phoedox** comes as a Helm chart from this repository (`deploy/helm/phoedox`).
 
-## Größe des Servers
+## Server size
 
-| Ausstattung | genügt für |
+| Resources | enough for |
 |---|---|
-| 2 vCPU, 4 GB RAM, 40 GB SSD | Phoedox + Postgres, kleines Team |
-| 4 vCPU, 8 GB RAM | zusätzlich ClamAV (ca. 1,5 GB) und OCR großer PDFs |
+| 2 vCPU, 4 GB RAM, 40 GB SSD | Phoedox + Postgres, small team |
+| 4 vCPU, 8 GB RAM | additionally ClamAV (approx. 1.5 GB) and OCR of large PDFs |
 
-## 1. Server vorbereiten
+## 1. Prepare the server
 
 ```bash
 apt-get update && apt-get -y upgrade
 ```
 
-Firewall: nur 22 (SSH), 80 und 443 öffnen. Die Kubernetes-API (6443) nicht öffentlich freigeben.
+Firewall: open only 22 (SSH), 80 and 443. Do not expose the Kubernetes API (6443) publicly.
 
 ```bash
 ufw allow 22/tcp
@@ -53,7 +53,7 @@ ufw allow 80/tcp
 ufw allow 443/tcp
 ```
 
-Interne k3s-Netze zulassen (Pods und Services, laut k3s-Doku nötig mit ufw):
+Allow the internal k3s networks (pods and services; according to the k3s docs, this is needed with ufw):
 
 ```bash
 ufw allow from 10.42.0.0/16 to any
@@ -67,13 +67,13 @@ ufw allow from 10.43.0.0/16 to any
 ufw enable
 ```
 
-## 2. k3s installieren
+## 2. Install k3s
 
 ```bash
 curl -sfL https://get.k3s.io | INSTALL_K3S_CHANNEL=stable sh -s - --write-kubeconfig-mode 600 --secrets-encryption
 ```
 
-`--secrets-encryption` verschlüsselt Kubernetes-Secrets (Master-Key, Passwörter) auf der Platte.
+`--secrets-encryption` encrypts Kubernetes secrets (master key, passwords) on disk.
 
 ```bash
 export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
@@ -83,7 +83,7 @@ export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 kubectl get nodes
 ```
 
-Helm installieren (siehe helm.sh), dann die beiden Operatoren:
+Install Helm (see helm.sh), then the two operators:
 
 ```bash
 helm repo add jetstack https://charts.jetstack.io
@@ -103,12 +103,12 @@ helm install cnpg cnpg/cloudnative-pg -n cnpg-system --create-namespace
 
 ## 3. DNS
 
-Einen A-Eintrag (und AAAA) für die Domain, z. B. `docs.example.org`, auf die IP des Servers setzen.
-Let's Encrypt prüft die Domain über Port 80.
+Point an A record (and AAAA) for the domain, e.g. `docs.example.org`, to the IP of the server.
+Let's Encrypt checks the domain over port 80.
 
-## 4. Phoedox installieren
+## 4. Install Phoedox
 
-Eine Datei `phoedox.yaml` mit den eigenen Werten anlegen (alle Optionen: `deploy/helm/phoedox/values.yaml`):
+Create a file `phoedox.yaml` with your own values (all options: `deploy/helm/phoedox/values.yaml`):
 
 ```yaml
 domain: docs.example.org
@@ -130,7 +130,7 @@ mail:
 kubectl create namespace phoedox
 ```
 
-Solange das Repository privat ist, ein Pull-Secret für ghcr.io (Token mit `read:packages`):
+As long as the repository is private, create a pull secret for ghcr.io (token with `read:packages`):
 
 ```bash
 kubectl -n phoedox create secret docker-registry ghcr --docker-server=ghcr.io --docker-username=DEIN_GITHUB_NAME --docker-password=DEIN_TOKEN
@@ -144,32 +144,32 @@ helm install phoedox ./deploy/helm/phoedox -n phoedox -f phoedox.yaml
 kubectl -n phoedox get pods -w
 ```
 
-Ersten Admin anlegen:
+Create the first admin:
 
 ```bash
 kubectl -n phoedox exec -it deploy/phoedox -- phx admin create-user --admin --email du@example.org --name "Dein Name"
 ```
 
-## 5. Sichern – drei Dinge
+## 5. Back up – three things
 
-1. **Master-Key** (verschlüsselt Geheimnisse, Webhook-Secrets, 2FA) einmal sicher ablegen:
+1. Store the **master key** (encrypts secrets, webhook secrets, 2FA) safely once:
 
    ```bash
    kubectl -n phoedox get secret phoedox-master-key -o jsonpath='{.data.master-key}' | base64 -d; echo
    ```
 
-2. **Phoedox-Backups** (Datenbank + Dateien in einem portablen Format, auch für einen Umzug):
-   standardmäßig täglich auf das Daten-Volume – das liegt auf derselben Platte. Besser in einen
-   S3-Bucket (z. B. Hetzner Object Storage): `s3.enabled: true` und `backups.target: s3`.
-   Herunterladen und wiederherstellen geht auch unter **Einstellungen → Backups**.
-3. **Postgres fortlaufend** (Point-in-Time-Recovery) mit CloudNativePG: `database.cnpg.backup.enabled: true`
-   und ein Secret mit `ACCESS_KEY_ID` und `ACCESS_SECRET_KEY` für den Bucket.
+2. **Phoedox backups** (database + files in a portable format, also for a move):
+   by default daily to the data volume – which is on the same disk. Better to an
+   S3 bucket (e.g. Hetzner Object Storage): `s3.enabled: true` and `backups.target: s3`.
+   You can also download and restore under **Settings → Backups**.
+3. **Postgres continuously** (point-in-time recovery) with CloudNativePG: `database.cnpg.backup.enabled: true`
+   and a secret with `ACCESS_KEY_ID` and `ACCESS_SECRET_KEY` for the bucket.
 
-Daten-Volume, Datenbank und Master-Key bleiben bei `helm uninstall` erhalten (`helm.sh/resource-policy: keep`).
+The data volume, database and master key are kept on `helm uninstall` (`helm.sh/resource-policy: keep`).
 
-## Aktualisieren
+## Updating
 
-Phoedox (neues Image ziehen, Datenbank-Migrationen laufen beim Start):
+Phoedox (pull the new image; database migrations run on start):
 
 ```bash
 helm upgrade phoedox ./deploy/helm/phoedox -n phoedox -f phoedox.yaml
@@ -179,39 +179,39 @@ helm upgrade phoedox ./deploy/helm/phoedox -n phoedox -f phoedox.yaml
 kubectl -n phoedox rollout restart deploy/phoedox
 ```
 
-k3s selbst: den Installationsbefehl aus Schritt 2 erneut ausführen (oder den
-system-upgrade-controller von Rancher einsetzen).
+k3s itself: run the installation command from step 2 again (or use the
+system-upgrade-controller from Rancher).
 
-## Optionen
+## Options
 
-| Wert | Wirkung |
+| Value | Effect |
 |---|---|
-| `image.variant: full` (Standard) | PDF-Vorschauen, durchsuchbare PDFs, OCR; `""` für das minimale Image |
-| `database.type: sqlite` | ohne Postgres – reicht für kleine Instanzen, Backups bleiben portabel |
-| `clamav.enabled: true` | Virenscan aller Uploads (eigener Pod, ca. 1,5 GB RAM) |
-| `metrics.enabled: true` | `/metrics` für Prometheus, Token im Secret `phoedox-metrics`; `metrics.serviceMonitor` für den Prometheus-Operator |
-| `oidc.enabled: true` | Anmeldung per SSO (Authentik, Keycloak, Entra ID …) inklusive Gruppen |
-| `s3.enabled: true` | Dateien im Bucket statt auf dem Volume |
-| `ingress.redirectFrom: [example.org]` | Weitere Hosts leiten dauerhaft auf `domain` weiter (mit Zertifikat), z. B. die nackte Domain, solange dort keine Webseite läuft |
-| `ingress.httpsRedirect` (Standard `true`) | `http://` dauerhaft auf `https://` umleiten |
+| `image.variant: full` (default) | PDF previews, searchable PDFs, OCR; `""` for the minimal image |
+| `database.type: sqlite` | without Postgres – enough for small instances; backups stay portable |
+| `clamav.enabled: true` | Virus scan of all uploads (own pod, approx. 1.5 GB RAM) |
+| `metrics.enabled: true` | `/metrics` for Prometheus, token in the secret `phoedox-metrics`; `metrics.serviceMonitor` for the Prometheus Operator |
+| `oidc.enabled: true` | Sign-in via SSO (Authentik, Keycloak, Entra ID …) including groups |
+| `s3.enabled: true` | Files in the bucket instead of on the volume |
+| `ingress.redirectFrom: [example.org]` | Additional hosts redirect permanently to `domain` (with certificate), e.g. the bare domain, as long as no website runs there |
+| `ingress.httpsRedirect` (default `true`) | Permanently redirect `http://` to `https://` |
 
-## Grenzen
+## Limits
 
-- Eine Phoedox-Instanz (`replicas: 1`): Die Live-Bearbeitung hält ihre Räume im Speicher. Für
-  mehrere Instanzen kommt später die Verteilung über Postgres LISTEN/NOTIFY.
-- `local-path` liegt auf der Platte des Knotens – deshalb Backups nach S3.
+- One Phoedox instance (`replicas: 1`): live editing keeps its rooms in memory. For
+  several instances, distribution via Postgres LISTEN/NOTIFY will come later.
+- `local-path` is on the node's disk – that is why backups go to S3.
 
-## Veröffentlichungen unter eigener Domain
+## Publications under your own domain
 
-Veröffentlichungen (Einstellungen → Veröffentlichungen) sind unter `https://<app-domain>/pub/<kurzname>/`
-erreichbar. Für eine eigene Domain wie `docs.phoedox.com`:
+Publications (Settings → Publications) are reachable under `https://<app-domain>/pub/<short-name>/`.
+For your own domain such as `docs.phoedox.com`:
 
-1. DNS-Eintrag (A/AAAA oder CNAME) auf den Server setzen.
-2. Im Chart ergänzen und `helm upgrade` ausführen – die Domain bekommt eine Ingress-Regel und ein Zertifikat:
+1. Point a DNS record (A/AAAA or CNAME) to the server.
+2. Add this to the chart and run `helm upgrade` – the domain gets an ingress rule and a certificate:
 
    ```yaml
    publications:
      domains: [docs.phoedox.com]
    ```
 
-3. In Phoedox bei der Veröffentlichung dieselbe Domain eintragen.
+3. In Phoedox, enter the same domain for the publication.

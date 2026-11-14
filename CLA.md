@@ -1,35 +1,35 @@
 # Phoedox Contributor License Agreement (CLA)
 
-> **Entwurf.** Dieser Text ist noch nicht rechtlich geprüft und wird vor der Öffnung des Projekts überarbeitet.
-> Änderungen gelten nur für künftige Beiträge.
+> **Draft.** This text has not been legally reviewed yet and will be revised before the project is opened.
+> Changes apply only to future contributions.
 
-Dieses Agreement gilt für Beiträge („Beiträge“) zu den Repositories der Organisation `phoedox` auf GitHub,
-die unter der GNU Affero General Public License v3.0 stehen. „Projektbetreiber“ ist der Inhaber der Organisation
-`phoedox` (Kontakt: admin@coph.dev).
+This Agreement applies to contributions ("Contributions") to the repositories of the `phoedox` organization on GitHub
+that are licensed under the GNU Affero General Public License v3.0. "Project Operator" is the owner of the
+`phoedox` organization (contact: admin@coph.dev).
 
-## 1. Einräumung von Nutzungsrechten
+## 1. Grant of rights of use
 
-Du räumst dem Projektbetreiber an deinen Beiträgen ein einfaches, zeitlich, räumlich und inhaltlich
-unbeschränktes, unwiderrufliches, gebührenfreies und übertragbares Nutzungsrecht ein, einschließlich des Rechts,
-die Beiträge zu vervielfältigen, zu verbreiten, öffentlich zugänglich zu machen, zu bearbeiten und **unter
-anderen Lizenzen als der AGPL-3.0 weiterzulizenzieren** (z. B. als kommerzielle Lizenz). Dein Urheberrecht bleibt bei dir.
+You grant the Project Operator a non-exclusive, irrevocable, royalty-free and transferable right to use your Contributions,
+unlimited in time, territory and content, including the right
+to reproduce, distribute, make publicly available and modify the Contributions, and **to sublicense them
+under licenses other than the AGPL-3.0** (e.g. as a commercial license). You keep your copyright.
 
-## 2. Patente
+## 2. Patents
 
-Soweit deine Beiträge Patente berühren, die dir gehören, räumst du dem Projektbetreiber und allen Empfängern
-der Software eine gebührenfreie, unwiderrufliche Lizenz zur Nutzung dieser Patente im Zusammenhang mit den Beiträgen ein.
+To the extent that your Contributions involve patents that you own, you grant the Project Operator and all recipients
+of the software a royalty-free, irrevocable license to use these patents in connection with the Contributions.
 
-## 3. Zusicherungen
+## 3. Representations
 
-Du versicherst, dass
-- du berechtigt bist, diese Rechte einzuräumen (bei Beiträgen im Rahmen eines Arbeitsverhältnisses mit Zustimmung deines Arbeitgebers),
-- jeder Beitrag deine eigene Schöpfung ist oder du fremde Teile mit ihrer Herkunft und Lizenz kenntlich machst.
+You represent that
+- you are entitled to grant these rights (for Contributions made as part of an employment relationship, with your employer's consent),
+- each Contribution is your own creation, or you identify third-party parts together with their origin and license.
 
-## 4. Open Source bleibt
+## 4. Open source stays
 
-Der Projektbetreiber verpflichtet sich, Beiträge, die in eine veröffentlichte Version eingeflossen sind,
-auch weiterhin unter einer von der Open Source Initiative anerkannten Lizenz verfügbar zu halten.
+The Project Operator undertakes to continue to keep Contributions that have been included in a published version
+available under a license approved by the Open Source Initiative.
 
-## 5. Zustimmung
+## 5. Consent
 
-Du stimmst zu, indem du im Pull Request den vom CLA-Bot genannten Satz kommentierst.
+You consent by commenting the sentence given by the CLA bot in the pull request.
