@@ -1330,4 +1330,7 @@ export const en: Record<keyof typeof de, string> = {
   "rack.empty": "No devices yet. Connect devices with “mounted in” this rack.",
   "rack.unplaced_hint": "{count} device(s) without a position – enter the lowest height unit.",
   "validation.rack_unit": "Height units are whole numbers from 1 to 60 ({field}).",
+  "slash.mermaid": "Diagram (Mermaid)",
+  "block.mermaid_hint": "Flowcharts, sequence, state or Gantt diagrams as text, see mermaid.js.org.",
+  "block.mermaid_source": "Mermaid source",
 };

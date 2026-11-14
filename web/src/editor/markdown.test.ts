@@ -63,6 +63,7 @@ describe("building blocks round trip (ADR-0031)", () => {
     "```embed\nhttps://youtu.be/dQw4w9WgXcQ\n```",
     "```iframe\nhttps://example.org/status\n```",
     "```board\numbau\n```",
+    "```mermaid\nflowchart LR\n  A --> B\n```",
     "| a | b |\n|---|---|\n| [rot]{color=red} | $x$ |",
   ];
   for (const md of cases) {

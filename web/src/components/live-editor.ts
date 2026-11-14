@@ -480,6 +480,11 @@ export class PhxLiveEditor extends LitElement {
         return undefined;
       }
     }
+    if (kind === "mermaid") {
+      const v = await this.askForm({ title: t("slash.mermaid"), hint: t("block.mermaid_hint"),
+        fields: [{ name: "v", label: t("block.mermaid_source"), type: "textarea", value: current || "flowchart LR\n  Internet --> Router --> Switch\n  Switch --> NAS" }] });
+      return v?.v.trim() || undefined;
+    }
     const label = kind === "math" ? t("block.tex") : kind === "iframe" ? t("block.url_iframe") : t("block.url_embed");
     const v = await this.askForm({ title: t(`slash.${kind}` as any), hint: kind === "iframe" ? t("block.iframe_hint") : kind === "embed" ? t("block.embed_hint") : t("block.math_hint"),
       fields: [{ name: "v", label, type: kind === "math" ? "textarea" : "url", value: current }] });

@@ -114,6 +114,7 @@ const marked = new Marked({
       const value = text.trim();
       if (kind === "math") return `<phx-math data-tex="${escape(value)}" data-display="1"><pre>${escape(value)}</pre></phx-math>`;
       if (kind === "embed" || kind === "iframe") return `<phx-embed data-url="${escape(value)}" data-kind="${kind}"><a href="${escape(value)}">${escape(value)}</a></phx-embed>`;
+      if (kind === "mermaid") return `<phx-mermaid><pre>${escape(value)}</pre></phx-mermaid>`;
       if (kind === "board") return `<phx-board-embed data-board="${escape(value)}" data-project="${escape(context.project)}"></phx-board-embed>`;
       if (kind !== "request" && kind !== "http") return false;
       const i = requestIndex++;
@@ -132,7 +133,7 @@ export function markdownHTML(md: string, project: string, doc = ""): string {
 /** Renders Markdown to sanitised HTML. */
 export function renderMarkdown(md: string, project: string, doc = ""): string {
   const html = markdownHTML(md, project, doc);
-  return DOMPurify.sanitize(html, { ADD_ATTR: ["target"], ADD_TAGS: ["phx-request-block", "phx-math", "phx-embed", "phx-time", "phx-board-embed"] });
+  return DOMPurify.sanitize(html, { ADD_ATTR: ["target"], ADD_TAGS: ["phx-request-block", "phx-math", "phx-embed", "phx-time", "phx-board-embed", "phx-mermaid"] });
 }
 
 /** Drops a leading "# Heading" that only repeats the page title. */

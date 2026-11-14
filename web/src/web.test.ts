@@ -72,6 +72,7 @@ describe("page building blocks (ADR-0031)", () => {
       "Formel $a^2+b^2$ aber $5 und $10 bleiben.",
       'Am <time datetime="2026-12-24" data-kind="countdown">24.12.2026</time>.',
       "", "```math", "\\int_0^1 x\\,dx", "```", "", "```embed", "https://youtu.be/dQw4w9WgXcQ", "```", "", "```board", "umbau", "```",
+      "", "```mermaid", "flowchart LR", "  A --> B", "```",
     ].join("\n"), "haus");
     expect(out).toContain('class="callout cb-orange" data-kind="warning"');
     expect(out).toContain("<strong>fett</strong>");
@@ -86,5 +87,6 @@ describe("page building blocks (ADR-0031)", () => {
     expect(out).toContain('data-display="1"');
     expect(out).toContain('<phx-embed data-url="https://youtu.be/dQw4w9WgXcQ" data-kind="embed">');
     expect(out).toContain('<phx-board-embed data-board="umbau" data-project="haus">');
+    expect(out).toContain("<phx-mermaid><pre>flowchart LR\n  A --&gt; B</pre></phx-mermaid>");
   });
 });

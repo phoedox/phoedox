@@ -149,6 +149,9 @@ export class FenceNode extends DecoratorNode<null> {
       el = document.createElement("phx-math");
       el.dataset.tex = src;
       el.dataset.display = "1";
+    } else if (this.__kind === "mermaid") {
+      el = document.createElement("phx-mermaid");
+      el.dataset.src = src;
     } else if (this.__kind === "board") {
       el = document.createElement("phx-board-embed");
       el.dataset.board = src;
@@ -188,7 +191,7 @@ export const $isFenceNode = (n: LexicalNode | null | undefined): n is FenceNode 
 export const FENCE: MultilineElementTransformer = {
   dependencies: [FenceNode],
   type: "multiline-element",
-  regExpStart: /^```(math|embed|iframe|board)\s*$/,
+  regExpStart: /^```(math|embed|iframe|board|mermaid)\s*$/,
   regExpEnd: /^```\s*$/,
   replace(rootNode, _children, startMatch, _endMatch, linesInBetween, isImport) {
     const node = $createFenceNode(startMatch[1] as FenceKind, (linesInBetween ?? []).join("\n").trim());

@@ -17,6 +17,7 @@ func TestMarkdown(t *testing.T) {
 		"```embed", "https://youtu.be/dQw4w9WgXcQ", "```", "",
 		"```board", "umbau", "```", "",
 		"```sh", "echo <b>", "```", "",
+		"```mermaid", "flowchart LR", "  A --> B", "```",
 		"<script>alert(1)</script><img src=x onerror=alert(1)>",
 		`Am <time datetime="2026-12-24" data-kind="countdown">24.12.</time>.`,
 	}, "\n")
@@ -32,7 +33,7 @@ func TestMarkdown(t *testing.T) {
 		`<span class="tc-red">rot</span>`, "<u>unter</u>", `<phx-math data-tex="a_1^2">`, "$5 und $10",
 		"<code>[x]{color=red}</code>", `href="/pub/docs/haus/plan"`, `src="/pub/docs/_files/ABC123/foto.png"`,
 		"<table>", `data-display="1"`, `<phx-embed data-url="https://youtu.be/dQw4w9WgXcQ" data-kind="embed">`,
-		`<div class="board">umbau</div>`, "echo &lt;b&gt;", `<time datetime="2026-12-24" data-kind="countdown">`,
+		`<div class="board">umbau</div>`, "echo &lt;b&gt;", "<phx-mermaid><pre>flowchart LR", `<time datetime="2026-12-24" data-kind="countdown">`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in\n%s", want, out)

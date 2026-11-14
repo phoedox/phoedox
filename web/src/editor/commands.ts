@@ -41,6 +41,7 @@ export const SLASH_ITEMS: SlashItem[] = [
   { id: "math", group: "blocks", icon: "Sigma", words: "math formel latex katex gleichung", run: "fence:math" },
   { id: "imath", group: "blocks", icon: "Sigma", words: "inline formel latex math", run: "imath" },
   { id: "board", group: "blocks", icon: "SquareKanban", words: "board kanban aufgaben tasks", run: "fence:board" },
+  { id: "mermaid", group: "blocks", icon: "Workflow", words: "mermaid diagramm diagram flowchart ablauf sequenz sequence", run: "fence:mermaid" },
   { id: "embed", group: "embed", icon: "SquarePlay", words: "embed youtube vimeo loom github video einbetten", run: "fence:embed" },
   { id: "iframe", group: "embed", icon: "Frame", words: "iframe webseite seite page", run: "fence:iframe" },
   { id: "file", group: "embed", icon: "Paperclip", words: "file datei anhang upload bild image", run: "file" },

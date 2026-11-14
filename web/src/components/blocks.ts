@@ -39,6 +39,45 @@ export class PhxMath extends HTMLElement {
 }
 customElements.get("phx-math") || customElements.define("phx-math", PhxMath);
 
+let mermaidSeq = 0;
+
+/** ```mermaid: diagrams, rendered strictly (no scripts, no clicks) and loaded on demand. */
+export class PhxMermaid extends HTMLElement {
+  private done = "";
+  connectedCallback() {
+    void this.render();
+  }
+
+  static get observedAttributes() {
+    return ["data-src"];
+  }
+
+  attributeChangedCallback() {
+    if (this.isConnected) void this.render();
+  }
+
+  private async render() {
+    // The source lives in the <pre> fallback: sanitizers drop attributes that
+    // contain "-->", which is every Mermaid arrow.
+    const src = this.dataset.src ?? this.querySelector("pre")?.textContent ?? "";
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light" || document.documentElement.dataset.theme === "dark";
+    const key = src + dark;
+    if (this.done === key) return;
+    this.done = key;
+    const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
+    try {
+      const mermaid = (await import("mermaid")).default;
+      mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: dark ? "dark" : "neutral", fontFamily: "inherit" });
+      const { svg } = await mermaid.render(`phx-mermaid-${++mermaidSeq}`, src);
+      root.innerHTML = `<style>:host{display:block;margin:.8em 0;overflow-x:auto}svg{max-width:100%;height:auto}</style>${svg}`;
+    } catch (e) {
+      const msg = (e instanceof Error ? e.message : String(e)).replace(/</g, "&lt;");
+      root.innerHTML = `<style>:host{display:block}pre{white-space:pre-wrap;font-size:12px;color:var(--bad)}</style><pre>${msg}</pre><pre>${src.replace(/</g, "&lt;")}</pre>`;
+    }
+  }
+}
+customElements.get("phx-mermaid") || customElements.define("phx-mermaid", PhxMermaid);
+
 /** Turns a link into an embeddable player URL for known providers. */
 export function embedFor(raw: string): { src?: string; kind: "video" | "card" | "frame"; title: string } {
   let u: URL;

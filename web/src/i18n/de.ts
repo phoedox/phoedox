@@ -1328,4 +1328,7 @@ export const de = {
   "rack.empty": "Noch keine Geräte. Verbinde Geräte mit „montiert in“ diesem Schrank.",
   "rack.unplaced_hint": "{count} Gerät(e) ohne Position – trage die unterste Höheneinheit ein.",
   "validation.rack_unit": "Höheneinheiten sind ganze Zahlen von 1 bis 60 ({field}).",
+  "slash.mermaid": "Diagramm (Mermaid)",
+  "block.mermaid_hint": "Ablauf-, Sequenz-, Zustands- oder Gantt-Diagramme als Text, siehe mermaid.js.org.",
+  "block.mermaid_source": "Mermaid-Quelltext",
 } as const;
