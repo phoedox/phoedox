@@ -297,7 +297,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
       <phx-entity-meta .project=${this.project} .entity=${e.slug} .kind=${k} ?canEdit=${edit}></phx-entity-meta>
       ${(pluginViews.get()[e.kind] ?? []).map((tag) => html`<section class="plugin card" style="margin-bottom:12px">${shtml`<${unsafeStatic(tag)} entity=${e.slug}></${unsafeStatic(tag)}>`}</section>`)}
       ${e.kind === "rack" ? html`<phx-rack-view .project=${this.project} .rack=${e} .edges=${edges} .model=${this.model} ?canEdit=${edit} @changed=${() => this.load()}></phx-rack-view>` : ""}
-      ${["container", "stack", "server", "vm", "lxc"].includes(e.kind) ? html`<phx-agent-actions .project=${this.project} .entity=${e.slug}></phx-agent-actions>` : ""}
+      ${["container", "stack", "server", "vm", "lxc"].includes(e.kind) || e.attrs?.mac ? html`<phx-agent-actions .project=${this.project} .entity=${e.slug}></phx-agent-actions>` : ""}
       ${e.kind === "room" || e.kind === "floor" || edges.some((x) => x.from === e.id && ["uplink", "wired_to", "runs_on"].includes(x.rel))
         ? html`<phx-diagnosis .project=${this.project} .entity=${e.slug}></phx-diagnosis>` : ""}
       <div class="cols">

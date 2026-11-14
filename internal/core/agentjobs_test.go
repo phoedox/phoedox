@@ -34,7 +34,7 @@ func TestAgentJobs(t *testing.T) {
 	if acts, _ := s.EntityAgentActions(ctx, owner, p.Slug, "docker-01-stack-cloud"); len(acts.Actions) != 1 || acts.Actions[0].Action != "stack.redeploy" {
 		t.Fatalf("stack actions: %+v", acts)
 	}
-	if acts, _ := s.EntityAgentActions(ctx, owner, p.Slug, "docker-01"); len(acts.Actions) != 1 || acts.Actions[0].Action != "system.update" {
+	if acts, _ := s.EntityAgentActions(ctx, owner, p.Slug, "docker-01"); len(acts.Actions) != 3 || acts.Actions[0].Action != "system.update" || acts.Actions[2].Action != "terminal" {
 		t.Fatalf("host actions: %+v", acts)
 	}
 

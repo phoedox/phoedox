@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -80,10 +81,16 @@ func (s *Service) DeleteSigningKey(ctx context.Context, a Actor, id string) erro
 	return nil
 }
 
+var macRe = regexp.MustCompile(`^[0-9A-Fa-f]{2}([:-]?[0-9A-Fa-f]{2}){5}$`)
+
 // AgentAction is something an agent can do for an entry.
 type AgentAction struct {
 	Action string   `json:"action"`
 	Args   []string `json:"args,omitempty"`
+	// Agent runs the action when it is not the entry's own agent (Wake-on-LAN
+	// is sent by another agent in the network).
+	Agent    string `json:"agent,omitempty"`
+	Hostname string `json:"hostname,omitempty"`
 }
 
 // EntityActions is what the entry page offers.
@@ -124,7 +131,16 @@ func (s *Service) EntityAgentActions(ctx context.Context, a Actor, ref, slug str
 		return out, err
 	}
 	i := slices.IndexFunc(agents, func(ag store.Agent) bool { return host != "" && ag.EntitySlug == host && ag.RevokedAt.IsZero() })
+	// Wake-on-LAN: another agent of the project sends the magic packet.
+	if mac := str("mac"); macRe.MatchString(mac) {
+		if w := slices.IndexFunc(agents, func(ag store.Agent) bool { return ag.RevokedAt.IsZero() && ag.EntitySlug != e.Slug }); w >= 0 {
+			out.Actions = append(out.Actions, AgentAction{Action: "wol", Args: []string{mac}, Agent: agents[w].ID, Hostname: agents[w].Hostname})
+		}
+	}
 	if i < 0 {
+		if out.Jobs, err = s.DB.EntityJobs(ctx, p.ID, e.Slug, 10); err != nil {
+			return out, err
+		}
 		return out, nil
 	}
 	out.AgentID, out.Hostname = agents[i].ID, agents[i].Hostname
@@ -145,6 +161,7 @@ func (s *Service) EntityAgentActions(ctx context.Context, a Actor, ref, slug str
 		if up, ok := s.agentUpdateAction(ctx, agents[i]); ok {
 			out.Actions = append(out.Actions, up)
 		}
+		terminalActions(&out, e.Kind)
 	}
 	if out.Jobs, err = s.DB.EntityJobs(ctx, p.ID, e.Slug, 10); err != nil {
 		return out, err
@@ -171,9 +188,20 @@ func (s *Service) CreateAgentJob(ctx context.Context, a Actor, ref, slug, action
 		return store.AgentJob{}, invalid("validation.agent_action", map[string]any{"action": action}, "action %q is not available for this entry", action)
 	}
 	now := time.Now().UTC().Truncate(time.Second)
-	job := Job{ID: newID(), Agent: acts.AgentID, Action: action, Args: acts.Actions[i].Args, Expires: now.Add(jobTTL)}
+	act := acts.Actions[i]
+	agent := acts.AgentID
+	if act.Agent != "" {
+		agent = act.Agent
+	}
+	if action == "terminal" && p.Role != store.RoleOwner {
+		return store.AgentJob{}, ErrForbidden // a shell on the host: owners only
+	}
+	job := Job{ID: newID(), Agent: agent, Action: action, Args: act.Args, Expires: now.Add(jobTTL)}
+	if action == "terminal" {
+		job.Args = []string{job.ID} // the session id is the job id
+	}
 	payload, _ := json.Marshal(job)
-	j := store.AgentJob{ID: job.ID, ProjectID: p.ID, AgentID: acts.AgentID, EntitySlug: slug, Action: action, Payload: string(payload),
+	j := store.AgentJob{ID: job.ID, ProjectID: p.ID, AgentID: agent, EntitySlug: slug, Action: action, Payload: string(payload),
 		Status: "unsigned", CreatedBy: a.User.ID, CreatedAt: store.Time{Time: now}, ExpiresAt: store.Time{Time: job.Expires}}
 	if err := s.DB.CreateAgentJob(ctx, j); err != nil {
 		return j, err
