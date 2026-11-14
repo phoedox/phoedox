@@ -5,7 +5,7 @@ import { icon } from "../icon";
 import { findKind, loadModel, type Model } from "../model";
 import { base } from "./shared";
 
-interface Node { slug: string; name: string; kind: string; version?: string; state?: string; via?: string; children?: Node[] }
+interface Node { slug: string; name: string; kind: string; version?: string; state?: string; via?: string; update?: boolean; children?: Node[] }
 
 const DOWN = ["exited", "stopped", "dead", "offline"];
 
@@ -23,6 +23,7 @@ export class PhxSoftwareTree extends LitElement {
     .row .ico { color: var(--muted); flex: none; }
     .ver { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
     .st { font-size: 12px; color: var(--good); } .st.down { color: var(--bad); }
+    .upd { font-size: 12px; color: var(--accent); display: inline-flex; gap: 3px; align-items: center; }
     details > summary { list-style: none; cursor: pointer; } details > summary::-webkit-details-marker { display: none; }
     details > summary .chev { transition: transform 150ms var(--ease-out); }
     details[open] > summary .chev { transform: rotate(90deg); }
@@ -50,7 +51,8 @@ export class PhxSoftwareTree extends LitElement {
     const k = findKind(this.model, n.kind);
     return html`<span class="row">${icon(k?.icon ?? "Box", 14)}<a href="/p/${this.project}/e/${n.slug}">${n.name}</a>
       ${n.version ? html`<span class="ver">${n.version}</span>` : ""}
-      ${n.state ? html`<span class="st ${DOWN.includes(n.state) ? "down" : ""}">${n.state}</span>` : ""}</span>`;
+      ${n.state ? html`<span class="st ${DOWN.includes(n.state) ? "down" : ""}">${n.state}</span>` : ""}
+      ${n.update ? html`<span class="upd" title=${t("tree.update_hint")}>${icon("CircleArrowUp", 12)} ${t("tree.update")}</span>` : ""}</span>`;
   }
 
   private node(n: Node): unknown {

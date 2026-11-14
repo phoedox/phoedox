@@ -11,7 +11,7 @@ interface Action { action: string; args?: string[] }
 interface Job { id: string; action: string; payload: string; status: string; ok: boolean; output?: string; createdAt: string; finishedAt: string }
 interface Actions { agentId?: string; hostname?: string; actions: Action[]; jobs: Job[] }
 
-const ICONS: Record<string, string> = { "container.restart": "RefreshCw", "container.update": "Download", "stack.redeploy": "Rocket", "system.update": "Download" };
+const ICONS: Record<string, string> = { "container.restart": "RefreshCw", "container.update": "Download", "stack.redeploy": "Rocket", "system.update": "Download", "agent.update": "CircleArrowUp" };
 
 /** Agent actions of an entry: signed in this browser, run by the agent (ADR-0036). */
 export class PhxAgentActions extends LitElement {
@@ -93,7 +93,7 @@ export class PhxAgentActions extends LitElement {
     return html`<div class="box">
       <div class="head"><h2>${t("agentjob.title")}</h2><span class="hint">${icon("Server", 12)} ${a.hostname}</span></div>
       ${canRun ? html`<div class="acts">${a.actions.map((x) => html`<button class="ghost" ?disabled=${!!this.busy} @click=${() => this.run(x)}>
-        ${icon(ICONS[x.action] ?? "Play", 14)} ${t(`agentjob.${x.action}` as any)}</button>`)}</div>
+        ${icon(ICONS[x.action] ?? "Play", 14)} ${t(`agentjob.${x.action}` as any)}${x.action === "agent.update" ? ` (${x.args?.[0]?.split("/")[5] ?? ""})` : ""}</button>`)}</div>
         <p class="hint">${t("agentjob.hint")} <a href="/settings/security">${t("agentjob.keys")}</a></p>` : ""}
       ${a.jobs.length ? html`<table>${a.jobs.map((j) => html`<tr>
         <td>${t(`agentjob.${j.action}` as any)}</td><td>${formatDate(j.createdAt)}</td><td>${this.status(j)}</td>

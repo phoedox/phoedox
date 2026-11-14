@@ -142,6 +142,9 @@ func (s *Service) EntityAgentActions(ctx context.Context, a Actor, ref, slug str
 		}
 	case "server", "vm", "lxc":
 		out.Actions = append(out.Actions, AgentAction{Action: "system.update"})
+		if up, ok := s.agentUpdateAction(ctx, agents[i]); ok {
+			out.Actions = append(out.Actions, up)
+		}
 	}
 	if out.Jobs, err = s.DB.EntityJobs(ctx, p.ID, e.Slug, 10); err != nil {
 		return out, err

@@ -3,6 +3,8 @@ package requests
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"io"
@@ -27,6 +29,8 @@ type Policy struct {
 	// AllowPrivate allows private networks and loopback (home IT). Hosted
 	// instances turn it off.
 	AllowPrivate bool
+	// RootCAs replaces the system roots (tests, instances with their own CA).
+	RootCAs *x509.CertPool
 }
 
 // ErrBlocked is returned for addresses the policy forbids.
@@ -57,6 +61,9 @@ func (p Policy) Client() *http.Client {
 	}}
 	tr := &http.Transport{DialContext: dialer.DialContext, Proxy: nil, TLSHandshakeTimeout: 5 * time.Second,
 		ResponseHeaderTimeout: Timeout, MaxIdleConns: 10, IdleConnTimeout: 30 * time.Second}
+	if p.RootCAs != nil {
+		tr.TLSClientConfig = &tls.Config{RootCAs: p.RootCAs, MinVersion: tls.VersionTLS12}
+	}
 	return &http.Client{Transport: tr, Timeout: Timeout, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) >= MaxRedirects {
 			return errors.New("too many redirects")

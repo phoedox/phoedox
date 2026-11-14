@@ -62,6 +62,7 @@ func (a *api) routes(r chi.Router) {
 	r.Post("/agent/report", a.agentReport)
 	r.Get("/agent/jobs", a.agentJobs)
 	r.Post("/agent/jobs/{id}/result", a.agentJobResult)
+	r.Get("/agent/releases/{tag}/{asset}", a.agentRelease)
 	r.Get("/shared/{token}/files/{id}", a.sharedFile)
 	r.Get("/shared/{token}/files/{id}/{name}", a.sharedFile)
 	r.Get("/auth/oidc/start", a.oidcStart)
@@ -586,6 +587,17 @@ func (a *api) signAgentJob(w http.ResponseWriter, r *http.Request) {
 	}
 	j, err := a.core.SignAgentJob(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), in.KeyID, in.Signature)
 	respond(w, j, err)
+}
+
+// agentRelease serves an agent binary for self-updates (agent token).
+func (a *api) agentRelease(w http.ResponseWriter, r *http.Request) {
+	file, err := a.core.AgentRelease(r.Context(), strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), chi.URLParam(r, "tag"), chi.URLParam(r, "asset"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/octet-stream")
+	http.ServeFile(w, r, file)
 }
 
 func (a *api) agentReport(w http.ResponseWriter, r *http.Request) {

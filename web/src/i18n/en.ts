@@ -1467,4 +1467,7 @@ export const en: Record<keyof typeof de, string> = {
   "mytasks.title": "My tasks",
   "mytasks.hint": "Open cards assigned to you – from all projects, due ones first.",
   "mytasks.empty": "No open tasks are assigned to you right now.",
+  "agentjob.agent.update": "Update the agent",
+  "tree.update": "Update available",
+  "tree.update_hint": "The registry has a newer image for this tag. “Update container” pulls it.",
 };

@@ -1465,4 +1465,7 @@ export const de = {
   "mytasks.title": "Meine Aufgaben",
   "mytasks.hint": "Offene Karten, die dir zugewiesen sind – aus allen Projekten, fällige zuerst.",
   "mytasks.empty": "Dir sind gerade keine offenen Aufgaben zugewiesen.",
+  "agentjob.agent.update": "Agent aktualisieren",
+  "tree.update": "Update verfügbar",
+  "tree.update_hint": "Die Registry hat für dieses Tag ein neueres Image. „Container aktualisieren“ holt es.",
 } as const;

@@ -96,6 +96,9 @@ type Report struct {
 	Docker    []Container       `json:"containers,omitempty"`
 	Packages  []Package         `json:"packages,omitempty"`
 	DockerVer string            `json:"dockerVersion,omitempty"`
+	OSID      string            `json:"osId,omitempty"`
+	OSVersion string            `json:"osVersion,omitempty"`
+	PkgFormat string            `json:"packageFormat,omitempty"`
 	Version   string            `json:"agentVersion,omitempty"`
 	TakenAt   time.Time         `json:"takenAt,omitzero"`
 }
@@ -106,6 +109,7 @@ type Container struct {
 	Image      string `json:"image"`
 	State      string `json:"state"`
 	Ports      string `json:"ports,omitempty"`
+	Digest     string `json:"digest,omitempty"` // registry digest of the image
 	Project    string `json:"project,omitempty"`
 	Service    string `json:"service,omitempty"`
 	ComposeDir string `json:"composeDir,omitempty"`
@@ -317,6 +321,17 @@ func (s *Service) softwareTree(ctx context.Context, a Actor, projectID, host str
 		}
 		if v := imageTag(c.Image); v != "" {
 			attrs["version"] = v
+		}
+		if c.Digest != "" {
+			attrs["image_digest"] = c.Digest
+			// After a pull the badge goes away without waiting for the next check.
+			if e, err := s.DB.GetEntity(ctx, projectID, cs); err == nil {
+				var old map[string]any
+				_ = json.Unmarshal(e.Attrs, &old)
+				if l, ok := old["image_latest"].(string); ok && l != "" {
+					attrs["image_update"] = l != c.Digest
+				}
+			}
 		}
 		if _, err := s.agentUpsert(ctx, a, projectID, "container", cs, c.Name, attrs); err != nil {
 			continue

@@ -19,12 +19,14 @@ const maxTreeNodes = 500
 
 // TreeNode is one entry of the tree.
 type TreeNode struct {
-	Slug     string     `json:"slug"`
-	Name     string     `json:"name"`
-	Kind     string     `json:"kind"`
-	Version  string     `json:"version,omitempty"`
-	State    string     `json:"state,omitempty"`
-	Via      string     `json:"via,omitempty"`
+	Slug    string `json:"slug"`
+	Name    string `json:"name"`
+	Kind    string `json:"kind"`
+	Version string `json:"version,omitempty"`
+	State   string `json:"state,omitempty"`
+	Via     string `json:"via,omitempty"`
+	// Update: the registry has a newer image for this container's tag.
+	Update   bool       `json:"update,omitempty"`
 	Children []TreeNode `json:"children,omitempty"`
 }
 
@@ -109,5 +111,6 @@ func nodeOf(e store.Entity, via string) TreeNode {
 	if state == "" {
 		state = str("status")
 	}
-	return TreeNode{Slug: e.Slug, Name: e.Name, Kind: e.Kind, Version: str("version"), State: state, Via: via}
+	update, _ := attrs["image_update"].(bool)
+	return TreeNode{Slug: e.Slug, Name: e.Name, Kind: e.Kind, Version: str("version"), State: state, Via: via, Update: update}
 }

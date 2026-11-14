@@ -277,3 +277,21 @@ func (d *DB) MergeEntities(ctx context.Context, keep, remove string) error {
 		return nil
 	})
 }
+
+// TenantEntitiesOfKind lists the entities of one kind in the current tenant.
+func (d *DB) TenantEntitiesOfKind(ctx context.Context, kind string) ([]Entity, error) {
+	rows, err := d.Query(ctx, `SELECT `+entityCols+` FROM entities WHERE tenant_id = ? AND kind = ? AND deleted_at IS NULL`, TenantOf(ctx), kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Entity{}
+	for rows.Next() {
+		e, err := scanEntity(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}

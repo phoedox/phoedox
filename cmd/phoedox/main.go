@@ -115,6 +115,7 @@ func main() {
 			a.Core.RemindDrafts(sys, time.Now())
 			_, _ = a.DB.PruneJobs(sys, store.Time{Time: time.Now().Add(-7 * 24 * time.Hour)})
 			_, _ = a.DB.PruneNotifications(sys, store.Time{Time: time.Now().Add(-90 * 24 * time.Hour)})
+			a.Core.CheckImageUpdates(sys, time.Now())
 			select {
 			case <-ctx.Done():
 				return

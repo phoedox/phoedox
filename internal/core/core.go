@@ -107,9 +107,13 @@ type Service struct {
 	DefaultLocale string
 	// Blobs stores file contents; TempDir holds uploads while they are
 	// hashed; MaxUpload limits one file (bytes).
-	Blobs     blob.Store
-	TempDir   string
-	MaxUpload int64
+	Blobs   blob.Store
+	TempDir string
+	// AgentReleases is the base URL of agent releases (…/download/<tag>/<asset>);
+	// AgentReleaseDir caches downloaded binaries.
+	AgentReleases   string
+	AgentReleaseDir string
+	MaxUpload       int64
 	// Jobs runs background work (previews, text extraction); nil runs it inline.
 	Jobs *jobs.Queue
 	// Preview makes preview images and extracts text (external tools optional).
@@ -126,6 +130,7 @@ type Service struct {
 	checkMu   sync.Mutex
 	vapidMu   sync.Mutex
 	boards    boardFeed
+	releases  releaseCache
 
 	// SyncNotify sends ntfy and web push before notify returns (tests).
 	SyncNotify bool

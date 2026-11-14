@@ -114,6 +114,8 @@ func Open(ctx context.Context) (*App, error) {
 		svc.Blobs = s3
 	}
 	svc.TempDir = filepath.Join(cfg.DataDir, "tmp")
+	svc.AgentReleases = cfg.AgentReleases
+	svc.AgentReleaseDir = filepath.Join(cfg.DataDir, "agent-releases")
 	// Uploads, plugin packages and file processing write here; S3 setups have no local files dir.
 	if err := os.MkdirAll(svc.TempDir, 0o700); err != nil {
 		db.Close()

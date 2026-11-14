@@ -257,6 +257,7 @@ var apiDocs = map[string]op{
 	"GET /projects/{p}/entities/{e}/tree":                    {Tag: "graph", Summary: "Software tree of a host: software, VMs, stacks and containers that are installed on, run on or are part of it.", Out: core.TreeNode{}},
 	"GET /projects/{p}/entities/{e}/diagnose":                {Tag: "graph", Summary: "Network path of a device or of the devices in a room, with a status per station.", Out: core.Diagnosis{}},
 	"GET /agent/jobs":                                        {Tag: "agents", Summary: "Approved, signed jobs for the agent; waits up to ?wait= seconds (max 25)."},
+	"GET /agent/releases/{tag}/{asset}":                      {Tag: "agents", Summary: "An agent binary for self-updates (agent token), verified against the release's SHA256SUMS."},
 	"POST /agent/jobs/{id}/result":                           {Tag: "agents", Summary: "The agent reports how a job went."},
 	"GET /me/signing-keys":                                   {Tag: "agents", Summary: "Your public keys for signing agent jobs.", Out: []store.SigningKey{}},
 	"POST /me/signing-keys":                                  {Tag: "agents", Summary: "Register a public key created in the browser (the private key never leaves it).", In: core.SigningKeyInput{}, Out: store.SigningKey{}},

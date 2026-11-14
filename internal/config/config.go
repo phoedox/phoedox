@@ -88,6 +88,9 @@ type Config struct {
 	// StoreURL is the plugin store (PHOEDOX_STORE_URL, default
 	// https://store.phoedox.com; "off" disables it).
 	StoreURL string
+	// AgentReleases is where agent binaries for self-updates come from
+	// (PHOEDOX_AGENT_RELEASES, default the GitHub releases of phoedox-agent).
+	AgentReleases string
 	// PluginKeys are extra trusted signing keys "id:base64,…"
 	// (PHOEDOX_PLUGIN_KEYS), added to the built-in store keys.
 	PluginKeys string
@@ -215,6 +218,7 @@ func FromEnv() (Config, error) {
 	c.Workers = wk
 	c.Plugins = getenv("PHOEDOX_PLUGINS", "true") == "true"
 	c.StoreURL = getenv("PHOEDOX_STORE_URL", "https://store.phoedox.com")
+	c.AgentReleases = strings.TrimRight(getenv("PHOEDOX_AGENT_RELEASES", "https://github.com/phoedox/phoedox-agent/releases"), "/")
 	if c.StoreURL == "off" {
 		c.StoreURL = ""
 	}
