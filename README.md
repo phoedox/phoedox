@@ -6,7 +6,7 @@ Documentation that knows how everything fits together. Phoedox connects texts, f
 server racks and Home Assistant into a knowledge graph – controllable through the web app,
 the Flutter app and any AI via MCP.
 
-> Status: early – documents, decisions, knowledge graph, web app and MCP work; floor plans, 3D, plugins and Home Assistant will follow. Decisions are kept in Phoedox itself (project `phoedox`, see [`docs/decisions.md`](docs/decisions.md)).
+> Status: early – documents, decisions, knowledge graph, task boards, floor plans (live editing, DXF/IFC/RoomPlan import), plugins, agents, web app and MCP work; 3D views and more integrations will follow. Decisions are kept in Phoedox itself (project `phoedox`, see [`docs/decisions.md`](docs/decisions.md)).
 
 ## Installation
 

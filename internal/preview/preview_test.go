@@ -115,3 +115,17 @@ func TestPDFAndOCR(t *testing.T) {
 		t.Fatalf("ocr: %v %q", err, ocr)
 	}
 }
+
+func TestPDFPage(t *testing.T) {
+	tools := Detect(false, "")
+	if !tools.Available()["pdf"] {
+		t.Skip("poppler not installed")
+	}
+	png, err := tools.PDFPage(context.Background(), write(t, "plan.pdf", SamplePDF("Grundriss")), 1200)
+	if err != nil || len(png) < 8 || string(png[1:4]) != "PNG" {
+		t.Fatalf("page: %v %d", err, len(png))
+	}
+	if _, err := (Tools{}).PDFPage(context.Background(), "x.pdf", 100); err != ErrUnsupported {
+		t.Fatalf("without poppler: %v", err)
+	}
+}

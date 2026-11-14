@@ -46,13 +46,27 @@ type DraftInfo struct {
 // DraftPatch changes a draft.
 type DraftPatch struct {
 	Markdown *string `json:"markdown,omitempty"`
-	Title    *string `json:"title,omitempty"`
-	Category *string `json:"category,omitempty"`
+	// Floorplan replaces the plan of a floor plan draft (live editing).
+	Floorplan *Floorplan `json:"floorplan,omitempty"`
+	Title     *string    `json:"title,omitempty"`
+	Category  *string    `json:"category,omitempty"`
 }
 
-// errDraftOnly: drafts exist only for Markdown pages.
+// errDraftOnly: drafts exist only for Markdown pages and floor plans.
 func errDraftOnly() error {
-	return invalid("validation.draft_markdown", nil, "only Markdown pages have drafts")
+	return invalid("validation.draft_markdown", nil, "only Markdown pages and floor plans have drafts")
+}
+
+// hasDrafts tells which document types are edited in drafts. A floor plan
+// draft keeps the plan as JSON where Markdown drafts keep their text.
+func hasDrafts(typ string) bool { return typ == store.DocMarkdown || typ == store.DocFloorplan }
+
+// draftBody is what a new draft starts from.
+func draftBody(doc store.Document) string {
+	if doc.Type == store.DocFloorplan {
+		return string(doc.Content)
+	}
+	return markdownOf(doc)
 }
 
 func (s *Service) participants(ctx context.Context, actors []string) []Participant {
@@ -150,14 +164,14 @@ func (s *Service) StartDraft(ctx context.Context, a Actor, ref, docRef string) (
 	if err != nil {
 		return DraftInfo{}, err
 	}
-	if doc.Type != store.DocMarkdown {
+	if !hasDrafts(doc.Type) {
 		return DraftInfo{}, errDraftOnly()
 	}
 	d, err := s.DB.GetDraft(ctx, doc.ID)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		now := store.Now()
-		d = store.Draft{DocumentID: doc.ID, BaseVersion: doc.Version, Title: doc.Title, Category: doc.Category, Markdown: markdownOf(doc),
+		d = store.Draft{DocumentID: doc.ID, BaseVersion: doc.Version, Title: doc.Title, Category: doc.Category, Markdown: draftBody(doc),
 			StartedBy: a.String(), StartedAt: now, UpdatedBy: a.String(), UpdatedAt: now}
 		d.AddParticipant(a.String())
 		if err := s.DB.SaveDraft(ctx, d); err != nil {
@@ -183,8 +197,11 @@ func (s *Service) SaveDraft(ctx context.Context, a Actor, ref, docRef string, pa
 	if err != nil {
 		return DraftInfo{}, err
 	}
-	if doc.Type != store.DocMarkdown {
+	if !hasDrafts(doc.Type) {
 		return DraftInfo{}, errDraftOnly()
+	}
+	if err := s.planFiles(ctx, p, patch.Floorplan); err != nil {
+		return DraftInfo{}, err
 	}
 	d, err := s.DB.GetDraft(ctx, doc.ID)
 	if errors.Is(err, store.ErrNotFound) {
@@ -194,7 +211,7 @@ func (s *Service) SaveDraft(ctx context.Context, a Actor, ref, docRef string, pa
 	if err != nil {
 		return DraftInfo{}, err
 	}
-	if err := applyDraftPatch(&d, patch); err != nil {
+	if err := applyDraftPatch(&d, doc.Type, patch); err != nil {
 		return DraftInfo{}, err
 	}
 	d.AddParticipant(a.String())
@@ -205,7 +222,7 @@ func (s *Service) SaveDraft(ctx context.Context, a Actor, ref, docRef string, pa
 	return s.draftInfo(ctx, a, p, doc, d), nil
 }
 
-func applyDraftPatch(d *store.Draft, patch DraftPatch) error {
+func applyDraftPatch(d *store.Draft, typ string, patch DraftPatch) error {
 	if patch.Title != nil {
 		t := strings.TrimSpace(*patch.Title)
 		if t == "" {
@@ -215,6 +232,16 @@ func applyDraftPatch(d *store.Draft, patch DraftPatch) error {
 	}
 	if patch.Category != nil {
 		d.Category = strings.TrimSpace(*patch.Category)
+	}
+	if typ == store.DocFloorplan {
+		if patch.Floorplan != nil {
+			c, _, err := floorplanContent(patch.Floorplan)
+			if err != nil {
+				return err
+			}
+			d.Markdown = string(c)
+		}
+		return nil
 	}
 	if patch.Markdown != nil {
 		if _, _, err := content(store.DocMarkdown, *patch.Markdown, nil, nil, nil, nil); err != nil {
@@ -229,7 +256,7 @@ func applyDraftPatch(d *store.Draft, patch DraftPatch) error {
 // suggestion, restored version) into an open draft. It reports whether a
 // draft was open. Live editors reload the draft.
 func (s *Service) draftWrite(ctx context.Context, a Actor, p store.Project, cur store.Document, patch DocumentPatch) (DocResult, bool, error) {
-	if cur.Type != store.DocMarkdown || (patch.Markdown == nil && patch.Title == nil && patch.Category == nil) {
+	if !hasDrafts(cur.Type) || (patch.Markdown == nil && patch.Floorplan == nil && patch.Title == nil && patch.Category == nil) {
 		return DocResult{}, false, nil
 	}
 	d, err := s.DB.GetDraft(ctx, cur.ID)
@@ -239,7 +266,10 @@ func (s *Service) draftWrite(ctx context.Context, a Actor, p store.Project, cur 
 	if err != nil {
 		return DocResult{}, true, err
 	}
-	if err := applyDraftPatch(&d, DraftPatch{Markdown: patch.Markdown, Title: patch.Title, Category: patch.Category}); err != nil {
+	if err := s.planFiles(ctx, p, patch.Floorplan); err != nil {
+		return DocResult{}, true, err
+	}
+	if err := applyDraftPatch(&d, cur.Type, DraftPatch{Markdown: patch.Markdown, Floorplan: patch.Floorplan, Title: patch.Title, Category: patch.Category}); err != nil {
 		return DocResult{}, true, err
 	}
 	d.AddParticipant(a.String())
@@ -277,9 +307,20 @@ func (s *Service) PublishDraft(ctx context.Context, a Actor, ref, docRef string)
 		return DocResult{}, ErrForbidden
 	}
 	res := DocResult{Applied: true, Document: &doc}
-	changed := d.Markdown != markdownOf(doc) || d.Title != doc.Title || d.Category != doc.Category
+	pub := DocumentPatch{Markdown: &d.Markdown, Title: &d.Title, Category: &d.Category}
+	changed := d.Title != doc.Title || d.Category != doc.Category
+	if doc.Type == store.DocFloorplan {
+		var fp Floorplan
+		if err := json.Unmarshal([]byte(d.Markdown), &fp); err != nil {
+			return DocResult{}, err
+		}
+		pub.Markdown, pub.Floorplan = nil, &fp
+		changed = changed || !sameJSON([]byte(d.Markdown), doc.Content)
+	} else {
+		changed = changed || d.Markdown != markdownOf(doc)
+	}
 	if changed {
-		res, err = s.publishPatch(ctx, a, p, doc, DocumentPatch{Markdown: &d.Markdown, Title: &d.Title, Category: &d.Category})
+		res, err = s.publishPatch(context.WithValue(ctx, publishingKey{}, doc.ID), a, p, doc, pub)
 		if err != nil {
 			return res, err
 		}

@@ -128,7 +128,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         }
         this.draft = undefined;
         this.showDiff = false;
-        if (doc.type === "markdown" && ["editor", "owner"].includes(doc.role ?? currentProject.get()?.role ?? "")) {
+        if ((doc.type === "markdown" || doc.type === "floorplan") && ["editor", "owner"].includes(doc.role ?? currentProject.get()?.role ?? "")) {
           this.draft = await api<DraftInfo>("GET", `/projects/${this.project}/documents/${doc.id}/draft`).catch(() => undefined);
         }
         if (this.loaded !== key) return; // a newer load started meanwhile
@@ -321,8 +321,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
 
   private draftNotice(d: Doc) {
     const dr = this.draft;
-    // Drafts belong to the main language.
-    if (!dr || d.translation) return "";
+    // Drafts belong to the main language; floor plans show their own note.
+    if (!dr || d.translation || d.type === "floorplan") return "";
     const names = dr.participants.map((p) => p.name).join(", ");
     let hunks: Hunk[] = [];
     if (this.showDiff) {
@@ -346,7 +346,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     if (d.type === "board") return html`${c.description ? html`<div class="prose">${unsafeHTML(renderMarkdown(c.description, this.project, d.id))}</div>` : ""}
       <phx-board .project=${this.project} .doc=${d} @changed=${() => this.reload()}></phx-board>`;
     if (d.type === "floorplan") return html`${c.description ? html`<div class="prose">${unsafeHTML(renderMarkdown(c.description, this.project, d.id))}</div>` : ""}
-      <phx-floorplan .project=${this.project} .doc=${d} ?canEdit=${["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "")} @changed=${() => this.reload()}></phx-floorplan>`;
+      <phx-floorplan .project=${this.project} .doc=${d} .draft=${this.draft} ?canEdit=${["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "")} @changed=${() => this.reload()}></phx-floorplan>`;
     if (d.type === "markdown") return html`<div class="prose">${unsafeHTML(renderMarkdown(withoutTitle(c.markdown ?? "", d.title), this.project, d.id))}</div>`;
     if (d.type === "link") return html`<p><a class="btn" href=${c.url} target="_blank" rel="noopener external">${icon("ExternalLink", 15)} ${t("doc.open_link")}</a></p>
       <p class="mono muted">${c.url}</p>${c.description ? html`<div class="prose">${unsafeHTML(renderMarkdown(c.description, this.project))}</div>` : ""}`;
@@ -409,7 +409,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
           <a class="btn ghost" href="/p/${this.project}/d/${d.slug}/history">${icon("History", 14)} ${t("doc.history")}</a>
           ${canEdit ? html`<button class="ghost" @click=${() => this.renderRoot.querySelector<PhxDocShare>("phx-doc-share")!.open()}>${icon("Share2", 14)} ${t("share.button")}</button>
           ${this.translateButton(d)}
-          ${this.draft ? "" : html`<a class="btn ghost" href="/p/${this.project}/d/${d.slug}/edit">${icon("Pencil", 14)} ${t("doc.edit")}</a>`}
+          ${this.draft && d.type !== "floorplan" ? "" : html`<a class="btn ghost" href="/p/${this.project}/d/${d.slug}/edit">${icon("Pencil", 14)} ${t("doc.edit")}</a>`}
           ${this.confirming
             ? html`<span class="muted">${t("doc.delete_confirm")}</span><button class="danger" @click=${this.deleteDoc}>${t("doc.delete")}</button><button class="ghost" @click=${() => (this.confirming = false)}>${t("doc.cancel")}</button>`
             : html`<button class="danger" @click=${() => (this.confirming = true)}>${icon("Trash2", 14)} ${t("doc.delete")}</button>`}` : ""}

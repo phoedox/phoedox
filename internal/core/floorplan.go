@@ -1,9 +1,13 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"math"
+	"os"
+	"path"
 	"regexp"
 	"slices"
 	"strings"
@@ -30,6 +34,38 @@ type Floorplan struct {
 	Height  float64       `json:"height"`
 	Rooms   []FloorRoom   `json:"rooms"`
 	Devices []FloorDevice `json:"devices"`
+	// Walls, their openings (doors, windows) and photos placed on the plan
+	// (stage 2). Older plans have none.
+	Walls    []FloorWall    `json:"walls,omitempty"`
+	Openings []FloorOpening `json:"openings,omitempty"`
+	Photos   []FloorPhoto   `json:"photos,omitempty"`
+}
+
+// FloorWall is a straight wall from A to B (centre line).
+type FloorWall struct {
+	ID        string     `json:"id"`
+	A         [2]float64 `json:"a"`
+	B         [2]float64 `json:"b"`
+	Thickness float64    `json:"thickness"`        // mm
+	Height    float64    `json:"height,omitempty"` // mm, 0 = plan default
+}
+
+// FloorOpening is a door or window in a wall.
+type FloorOpening struct {
+	ID     string  `json:"id"`
+	Wall   string  `json:"wall"`
+	Kind   string  `json:"kind"`   // door or window
+	Offset float64 `json:"offset"` // mm from the wall's start to the opening's centre
+	Width  float64 `json:"width"`  // mm
+}
+
+// FloorPhoto places a project image on the plan.
+type FloorPhoto struct {
+	ID      string  `json:"id"`
+	File    string  `json:"file"`
+	X       float64 `json:"x"`
+	Y       float64 `json:"y"`
+	Caption string  `json:"caption,omitempty"`
 }
 
 // FloorRoom is a room polygon.
@@ -59,6 +95,9 @@ const (
 	maxPlanRooms  = 500
 	maxPlanDevs   = 2000
 	maxRoomPoints = 200
+	maxPlanWalls  = 5000
+	maxPlanOpen   = 2000
+	maxPlanPhotos = 500
 )
 
 func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
@@ -82,7 +121,7 @@ func floorplanContent(fp *Floorplan) (store.JSON, string, error) {
 	if !finite(fp.ImageWidth) || fp.ImageWidth < 0 || fp.ImageWidth > maxPlanSize {
 		return nil, "", bad("imageWidth")
 	}
-	if len(fp.Rooms) > maxPlanRooms || len(fp.Devices) > maxPlanDevs {
+	if len(fp.Rooms) > maxPlanRooms || len(fp.Devices) > maxPlanDevs || len(fp.Walls) > maxPlanWalls || len(fp.Openings) > maxPlanOpen || len(fp.Photos) > maxPlanPhotos {
 		return nil, "", bad("count")
 	}
 	if fp.Rooms == nil {
@@ -119,6 +158,37 @@ func floorplanContent(fp *Floorplan) (store.JSON, string, error) {
 		}
 		ids[d.ID] = true
 		refs = append(refs, d.Entity)
+	}
+	walls := map[string]float64{} // id → length
+	for i := range fp.Walls {
+		w := &fp.Walls[i]
+		if w.Thickness == 0 {
+			w.Thickness = 120
+		}
+		length := math.Hypot(w.B[0]-w.A[0], w.B[1]-w.A[1])
+		if !planIDRe.MatchString(w.ID) || ids[w.ID] || !inside(w.A[0], w.A[1]) || !inside(w.B[0], w.B[1]) || !(length > 0) ||
+			!finite(w.Thickness) || w.Thickness < 10 || w.Thickness > 2000 || !finite(w.Height) || w.Height < 0 || w.Height > 100_000 {
+			return nil, "", bad("wall")
+		}
+		ids[w.ID] = true
+		walls[w.ID] = length
+	}
+	for i := range fp.Openings {
+		o := &fp.Openings[i]
+		length, ok := walls[o.Wall]
+		if !planIDRe.MatchString(o.ID) || ids[o.ID] || !ok || (o.Kind != "door" && o.Kind != "window") ||
+			!finite(o.Width) || o.Width < 100 || o.Width > length || !finite(o.Offset) || o.Offset-o.Width/2 < -1 || o.Offset+o.Width/2 > length+1 {
+			return nil, "", bad("opening")
+		}
+		ids[o.ID] = true
+	}
+	for i := range fp.Photos {
+		ph := &fp.Photos[i]
+		ph.Caption = strings.TrimSpace(ph.Caption)
+		if !planIDRe.MatchString(ph.ID) || ids[ph.ID] || !planIDRe.MatchString(ph.File) || !inside(ph.X, ph.Y) || len(ph.Caption) > 500 {
+			return nil, "", bad("photo")
+		}
+		ids[ph.ID] = true
 	}
 	if fp.Floor != "" {
 		refs = append(refs, fp.Floor)
@@ -246,4 +316,68 @@ func (s *Service) syncFloorplan(ctx context.Context, a Actor, p store.Project, d
 	if linked+unlinked > 0 {
 		s.event(ctx, a, "floorplan.sync", doc.ID, map[string]int{"linked": linked, "unlinked": unlinked})
 	}
+}
+
+// planFiles checks that the background and photos are files of the project.
+func (s *Service) planFiles(ctx context.Context, p store.Project, fp *Floorplan) error {
+	if fp == nil {
+		return nil
+	}
+	ids := []string{}
+	if fp.Image != "" {
+		ids = append(ids, fp.Image)
+	}
+	for _, ph := range fp.Photos {
+		ids = append(ids, ph.File)
+	}
+	seen := map[string]bool{}
+	for _, id := range ids {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		f, err := s.DB.GetFile(ctx, id)
+		if err != nil || f.ProjectID != p.ID {
+			return invalid("validation.floorplan", map[string]any{"what": "file"}, "floor plan: unknown file %s", id)
+		}
+	}
+	return nil
+}
+
+// planImagePixels is the size of a PDF page rendered as plan background.
+const planImagePixels = 4096
+
+// PlanImage turns an uploaded PDF into a PNG for a floor plan background
+// (the first page; editors). Images are returned as they are.
+func (s *Service) PlanImage(ctx context.Context, a Actor, ref, id string) (store.File, error) {
+	f, err := s.fileIn(ctx, a, ref, id, store.RoleEditor)
+	if err != nil {
+		return f, err
+	}
+	if strings.HasPrefix(f.Mime, "image/") {
+		return f, nil
+	}
+	if f.Mime != "application/pdf" {
+		return f, invalid("validation.plan_image", nil, "the background must be an image or a PDF")
+	}
+	p, err := s.project(ctx, a, ref, store.RoleEditor)
+	if err != nil {
+		return f, err
+	}
+	src, err := s.blobToTemp(ctx, f.SHA256)
+	if err != nil {
+		return f, err
+	}
+	defer os.Remove(src)
+	png, err := s.Preview.PDFPage(ctx, src, planImagePixels)
+	if err != nil {
+		slog.Warn("plan image", "file", f.ID, "err", err)
+		return f, invalid("validation.plan_pdf", nil, "the PDF could not be turned into an image on this server")
+	}
+	sp, err := s.spool(bytes.NewReader(png))
+	if err != nil {
+		return f, err
+	}
+	defer os.Remove(sp.path)
+	return s.ingest(ctx, a, p, sp, cleanName(strings.TrimSuffix(f.Name, path.Ext(f.Name))+".png"), f.DocumentID, f.EntityID, nil)
 }

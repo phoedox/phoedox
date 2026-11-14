@@ -16,6 +16,7 @@ import { CALLOUT_PRESETS, COLORS, type CalloutAttrs, type Color, type FenceKind,
 import { calloutIcons } from "../icon";
 import { LitElement, css, html, unsafeCSS } from "lit";
 import { ApiError, api, type Doc, type DraftInfo } from "../api";
+import { userColor } from "../collab";
 import { createLiveEditor, type LiveEditor, type Peer, type Status } from "../editor/editor";
 import { lossless } from "../editor/markdown";
 import { t } from "../i18n";
@@ -31,13 +32,6 @@ import { toast } from "./toasts";
 interface FormField { name: string; label: string; type: string; value: string; options?: [string, string][] }
 interface FormSpec { title: string; hint?: string; fields: FormField[]; resolve: (v?: Record<string, string>) => void }
 
-/** Stable caret color per user from the collaboration tokens. */
-function userColor(id: string): string {
-  let h = 0;
-  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  const v = getComputedStyle(document.documentElement).getPropertyValue(`--collab-${(h % 8) + 1}`).trim();
-  return v || "#d9480f";
-}
 
 /** Live editing of a Markdown page (Lexical + Yjs). */
 export class PhxLiveEditor extends LitElement {

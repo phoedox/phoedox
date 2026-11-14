@@ -253,6 +253,11 @@ func (s *Service) CreateDocument(ctx context.Context, a Actor, ref string, in Do
 	if _, _, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board, in.Floorplan); err != nil {
 		return DocResult{}, err
 	}
+	if in.Type == store.DocFloorplan {
+		if err := s.planFiles(ctx, p, in.Floorplan); err != nil {
+			return DocResult{}, err
+		}
+	}
 	if in.Type == store.DocADR {
 		adr := *in.ADR
 		in.ADR = &adr
@@ -367,6 +372,9 @@ func (s *Service) patched(ctx context.Context, p store.Project, cur store.Docume
 		_ = json.Unmarshal(cur.Content, fp)
 		if patch.Floorplan != nil {
 			fp = patch.Floorplan
+			if err := s.planFiles(ctx, p, fp); err != nil {
+				return doc, "", nil, err
+			}
 		}
 	case store.DocBoard:
 		board = &Board{}

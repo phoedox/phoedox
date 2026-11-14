@@ -18,6 +18,7 @@ import { $createLinkNode } from "@lexical/link";
 import { $insertNodeToNearestRoot } from "@lexical/utils";
 import { $createImageNode } from "./image";
 import { NODES, TRANSFORMERS } from "./markdown";
+import { MSG_CONTROL, MSG_SNAPSHOT } from "../collab";
 import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
 import { WebsocketProvider } from "y-websocket";
@@ -80,8 +81,6 @@ const theme = {
   text: { bold: "ed-bold", italic: "ed-italic", code: "ed-tcode", strikethrough: "ed-strike", underline: "ed-underline" },
 };
 
-const MSG_CONTROL = 100;
-const MSG_SNAPSHOT = 101;
 const SAVE_DELAY = 1500;
 
 export function markdownOf(editor: LexicalEditor): string {

@@ -135,6 +135,24 @@ func (t Tools) Thumbnail(ctx context.Context, path, mime string) ([]byte, string
 	return nil, "", ErrUnsupported
 }
 
+// PDFPage renders the first page of a PDF as a PNG, px pixels on the
+// longest side (for floor plan backgrounds).
+func (t Tools) PDFPage(ctx context.Context, path string, px int) ([]byte, error) {
+	if t.PDFToPPM == "" {
+		return nil, ErrUnsupported
+	}
+	dir, err := os.MkdirTemp("", "phx-page-*")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dir)
+	out := filepath.Join(dir, "page")
+	if _, err := t.run(ctx, t.PDFToPPM, "-f", "1", "-l", "1", "-scale-to", fmt.Sprint(px), "-png", "-singlefile", path, out); err != nil {
+		return nil, err
+	}
+	return os.ReadFile(out + ".png")
+}
+
 func (t Tools) encode(src image.Image) ([]byte, string, error) {
 	b := src.Bounds()
 	w, h := b.Dx(), b.Dy()

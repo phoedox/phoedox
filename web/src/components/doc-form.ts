@@ -1,5 +1,5 @@
 import { LitElement, css, html } from "lit";
-import { ApiError, api, decisionStatuses, type Decision, type Doc } from "../api";
+import { ApiError, api, decisionStatuses, type Decision, type Doc, type DraftInfo } from "../api";
 import { t } from "../i18n";
 import { docsVersion, navigate } from "../state";
 import { base } from "./shared";
@@ -62,7 +62,12 @@ export class PhxDocForm extends LitElement {
       body.markdown = ["process", "component", "dashboard", "dbmodel"].includes(kind) ? t(`pagetpl.${kind}` as any) : "";
     }
     if (this.type === "link") body.link = { url: s("url"), description: s("description") };
-    if (this.type === "floorplan") body.floorplan = { ...(this.doc?.content ?? {}), description: s("description") };
+    if (this.type === "floorplan") {
+      // With an open draft the change goes into the draft: start from its plan, not the published one.
+      const draft = this.doc ? await api<DraftInfo>("GET", `/projects/${this.project}/documents/${this.doc.id}/draft`).catch(() => undefined) : undefined;
+      const base = draft ? JSON.parse(draft.markdown || "{}") : this.doc?.content ?? {};
+      body.floorplan = { ...base, description: s("description") };
+    }
     if (this.type === "board") {
       body.board = this.doc
         ? { ...(this.doc.content ?? {}), description: s("description") }

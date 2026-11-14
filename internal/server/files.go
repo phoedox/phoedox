@@ -230,3 +230,9 @@ func (a *api) tusDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// planImage turns a PDF into a floor plan background image.
+func (a *api) planImage(w http.ResponseWriter, r *http.Request) {
+	f, err := a.core.PlanImage(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"))
+	respond(w, f, err)
+}

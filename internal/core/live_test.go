@@ -104,6 +104,11 @@ func TestDrafts(t *testing.T) {
 	if len(ends) != 1 || ends[0] != "published:Ed" {
 		t.Fatalf("ends: %v", ends)
 	}
+	// Publishing ends the session; it must not also tell editors to reload
+	// (they would reopen a draft).
+	if len(resets) != 1 {
+		t.Fatalf("publish must not reset the live room: %v", resets)
+	}
 	if _, err := s.Draft(ctx, owner, p.Slug, slug); !errors.Is(err, store.ErrNotFound) {
 		t.Fatal("draft must be gone")
 	}

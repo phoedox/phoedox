@@ -3,7 +3,12 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/phoedox/phoedox/internal/blob"
 )
 
 // TestFloorplan covers ADR-0034: validation, mentions and the graph sync
@@ -107,5 +112,82 @@ func TestPolygon(t *testing.T) {
 	}
 	if !inPolygon(0.5, 3, l) || inPolygon(3, 3, l) {
 		t.Fatal("point in L")
+	}
+}
+
+// TestFloorplanStage2 covers walls, openings, photos and live drafts.
+func TestFloorplanStage2(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _ := setup(t)
+	dir := t.TempDir()
+	s.Blobs, s.TempDir = blob.Local{Dir: filepath.Join(dir, "files")}, filepath.Join(dir, "tmp")
+	_ = os.MkdirAll(s.TempDir, 0o700)
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Haus"})
+	wall := FloorWall{ID: "w1", A: [2]float64{0, 0}, B: [2]float64{4000, 0}}
+	bad := []Floorplan{
+		{Walls: []FloorWall{{ID: "w1", A: [2]float64{0, 0}, B: [2]float64{0, 0}}}},
+		{Walls: []FloorWall{{ID: "w1", A: [2]float64{0, 0}, B: [2]float64{10, 0}, Thickness: 5}}},
+		{Walls: []FloorWall{wall}, Openings: []FloorOpening{{ID: "o1", Wall: "w2", Kind: "door", Offset: 500, Width: 900}}},
+		{Walls: []FloorWall{wall}, Openings: []FloorOpening{{ID: "o1", Wall: "w1", Kind: "hatch", Offset: 500, Width: 900}}},
+		{Walls: []FloorWall{wall}, Openings: []FloorOpening{{ID: "o1", Wall: "w1", Kind: "door", Offset: 3800, Width: 900}}},
+		{Photos: []FloorPhoto{{ID: "p1", File: "nope", X: 1, Y: 1}}},
+	}
+	for i, fp := range bad {
+		if _, err := s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: "floorplan", Title: "X", Floorplan: &fp}); invalidKey(err) != "validation.floorplan" {
+			t.Errorf("bad %d: %v", i, err)
+		}
+	}
+	txt, err := s.UploadFile(ctx, owner, p.Slug, FileInput{Name: "note.txt"}, strings.NewReader("hello"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.PlanImage(ctx, owner, p.Slug, txt.ID); invalidKey(err) != "validation.plan_image" {
+		t.Fatalf("plan image of text: %v", err)
+	}
+	fp := Floorplan{Walls: []FloorWall{wall}, Openings: []FloorOpening{{ID: "o1", Wall: "w1", Kind: "window", Offset: 2000, Width: 1200}},
+		Photos: []FloorPhoto{{ID: "p1", File: txt.ID, X: 100, Y: 100, Caption: " Kitchen "}}}
+	res, err := s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: "floorplan", Title: "EG", Floorplan: &fp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved Floorplan
+	_ = json.Unmarshal(res.Document.Content, &saved)
+	if len(saved.Walls) != 1 || saved.Walls[0].Thickness != 120 || len(saved.Openings) != 1 || saved.Photos[0].Caption != "Kitchen" {
+		t.Fatalf("saved: %+v", saved)
+	}
+
+	// Live editing works on a draft; publishing makes it the plan.
+	doc := res.Document
+	if _, err := s.LiveDocument(ctx, owner, p.Slug, doc.Slug); err == nil {
+		t.Fatal("live without draft")
+	}
+	d, err := s.StartDraft(ctx, owner, p.Slug, doc.Slug)
+	if err != nil || !sameJSON([]byte(d.Markdown), doc.Content) {
+		t.Fatalf("start: %v %s", err, d.Markdown)
+	}
+	if _, err := s.LiveDocument(ctx, owner, p.Slug, doc.Slug); err != nil {
+		t.Fatalf("live: %v", err)
+	}
+	next := saved
+	next.Walls = append(next.Walls, FloorWall{ID: "w2", A: [2]float64{4000, 0}, B: [2]float64{4000, 3000}, Thickness: 240})
+	if _, err := s.SaveDraft(ctx, owner, p.Slug, doc.Slug, DraftPatch{Floorplan: &Floorplan{Walls: []FloorWall{{ID: "w", A: [2]float64{0, 0}, B: [2]float64{0, 0}}}}}); invalidKey(err) != "validation.floorplan" {
+		t.Fatalf("bad draft: %v", err)
+	}
+	if _, err := s.SaveDraft(ctx, owner, p.Slug, doc.Slug, DraftPatch{Floorplan: &next}); err != nil {
+		t.Fatal(err)
+	}
+	// Readers still see the published plan.
+	cur, _ := s.Document(ctx, owner, p.Slug, doc.Slug)
+	if cur.Version != doc.Version {
+		t.Fatal("draft changed the published plan")
+	}
+	pub, err := s.PublishDraft(ctx, owner, p.Slug, doc.Slug)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var after Floorplan
+	_ = json.Unmarshal(pub.Document.Content, &after)
+	if len(after.Walls) != 2 || after.Walls[1].Thickness != 240 || pub.Document.Version != doc.Version+1 {
+		t.Fatalf("published: %+v v%d", after, pub.Document.Version)
 	}
 }

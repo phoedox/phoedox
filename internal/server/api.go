@@ -269,6 +269,7 @@ func (a *api) routes(r chi.Router) {
 			r.Patch("/files/{id}", a.renameFile)
 			r.Get("/files/{id}/versions", a.fileVersions)
 			r.Post("/files/{id}/versions", a.newFileVersion)
+			r.Post("/files/{id}/plan-image", a.planImage)
 			r.Post("/files/{id}/versions/{n}/restore", a.restoreFileVersion)
 			r.Get("/storage", a.storage)
 			r.Put("/storage", a.setStorage)

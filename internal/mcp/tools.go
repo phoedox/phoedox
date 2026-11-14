@@ -426,10 +426,15 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		v := view(d)
 		if dr, err := svc.Draft(ctx, a, in.Project, d.ID); err == nil {
-			return map[string]any{"document": v, "draft": map[string]any{
+			draft := map[string]any{
 				"title": dr.Title, "category": dr.Category, "markdown": dr.Markdown, "updatedAt": dr.UpdatedAt,
 				"participants": dr.Participants, "note": "Unpublished draft. A person publishes it in Phoedox.",
-			}}, nil
+			}
+			if d.Type == "floorplan" {
+				delete(draft, "markdown")
+				draft["floorplan"] = json.RawMessage(dr.Markdown)
+			}
+			return map[string]any{"document": v, "draft": draft}, nil
 		}
 		return v, nil
 	})

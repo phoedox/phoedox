@@ -3,10 +3,20 @@
 export type Pt = [number, number];
 export interface FloorRoom { id: string; name: string; entity?: string; color?: string; points: Pt[] }
 export interface FloorDevice { id: string; entity: string; x: number; y: number }
+/** A straight wall along its centre line. */
+export interface FloorWall { id: string; a: Pt; b: Pt; thickness: number; height?: number }
+/** A door or window; offset is the distance from the wall start to its centre. */
+export interface FloorOpening { id: string; wall: string; kind: "door" | "window"; offset: number; width: number }
+export interface FloorPhoto { id: string; file: string; x: number; y: number; caption?: string }
 export interface Floorplan {
   description?: string; floor?: string; image?: string; imageWidth?: number;
   width: number; height: number; rooms: FloorRoom[]; devices: FloorDevice[];
+  walls: FloorWall[]; openings: FloorOpening[]; photos: FloorPhoto[];
 }
+
+export const WALL_THICKNESS = 120;
+export const DOOR_WIDTH = 900;
+export const WINDOW_WIDTH = 1200;
 
 export const ROOM_COLORS = ["gray", "red", "orange", "yellow", "green", "blue", "purple", "pink"] as const;
 
@@ -15,7 +25,145 @@ export function normalizePlan(c: Partial<Floorplan> | undefined): Floorplan {
     ...c, width: c?.width || 20000, height: c?.height || 15000,
     rooms: (c?.rooms ?? []).map((r) => ({ ...r, points: r.points.map((p) => [p[0], p[1]] as Pt) })),
     devices: (c?.devices ?? []).map((d) => ({ ...d })),
+    walls: (c?.walls ?? []).map((w) => ({ ...w, a: [w.a[0], w.a[1]] as Pt, b: [w.b[0], w.b[1]] as Pt, thickness: w.thickness || WALL_THICKNESS })),
+    openings: (c?.openings ?? []).map((o) => ({ ...o })),
+    photos: (c?.photos ?? []).map((p) => ({ ...p })),
   };
+}
+
+/** The plan as the server stores it: empty stage-2 lists are left out. */
+export function planForSave(p: Floorplan): Partial<Floorplan> {
+  const out: Partial<Floorplan> = { ...p };
+  for (const k of ["walls", "openings", "photos"] as const) if (!p[k].length) delete out[k];
+  return out;
+}
+
+// ---- walls ----------------------------------------------------------------
+
+export const wallLength = (w: Pick<FloorWall, "a" | "b">) => distance(w.a, w.b);
+
+/** Where a point falls on a wall: offset along it (clamped) and distance from it. */
+export function onWall(w: Pick<FloorWall, "a" | "b">, p: Pt): { offset: number; dist: number; at: Pt } {
+  const len = wallLength(w);
+  const [dx, dy] = [(w.b[0] - w.a[0]) / len, (w.b[1] - w.a[1]) / len];
+  const offset = Math.min(len, Math.max(0, (p[0] - w.a[0]) * dx + (p[1] - w.a[1]) * dy));
+  const at: Pt = [w.a[0] + dx * offset, w.a[1] + dy * offset];
+  return { offset, dist: distance(at, p), at };
+}
+
+/** The wall closest to a point within reach (mm, beyond its half thickness), if any. */
+export function nearestWall(plan: Floorplan, p: Pt, reach: number): { wall: FloorWall; offset: number } | undefined {
+  let best: { wall: FloorWall; offset: number } | undefined;
+  let bestDist = Infinity;
+  for (const w of plan.walls) {
+    const r = onWall(w, p);
+    if (r.dist <= reach + w.thickness / 2 && r.dist < bestDist) [best, bestDist] = [{ wall: w, offset: r.offset }, r.dist];
+  }
+  return best;
+}
+
+/** Keeps an opening inside its wall. */
+export function clampOpening(len: number, offset: number, width: number): number {
+  const half = Math.min(width, len) / 2;
+  return Math.min(len - half, Math.max(half, offset));
+}
+
+/** Snaps to the nearest wall end within reach, so walls connect. */
+export function snapToEnds(plan: Floorplan, p: Pt, reach: number, skip?: string): Pt | undefined {
+  let best: Pt | undefined;
+  let bestDist = reach;
+  for (const w of plan.walls) {
+    if (w.id === skip) continue;
+    for (const e of [w.a, w.b]) {
+      const d = distance(e, p);
+      if (d < bestDist) [best, bestDist] = [e, d];
+    }
+  }
+  return best;
+}
+
+/** The four corners of a wall drawn with its thickness. */
+export function wallOutline(w: FloorWall): Pt[] {
+  const len = wallLength(w) || 1;
+  const [nx, ny] = [(-(w.b[1] - w.a[1]) / len) * (w.thickness / 2), ((w.b[0] - w.a[0]) / len) * (w.thickness / 2)];
+  return [[w.a[0] + nx, w.a[1] + ny], [w.b[0] + nx, w.b[1] + ny], [w.b[0] - nx, w.b[1] - ny], [w.a[0] - nx, w.a[1] - ny]];
+}
+
+/** Start and end of an opening on its wall's centre line. */
+export function openingSpan(w: FloorWall, o: Pick<FloorOpening, "offset" | "width">): [Pt, Pt] {
+  const len = wallLength(w) || 1;
+  const [dx, dy] = [(w.b[0] - w.a[0]) / len, (w.b[1] - w.a[1]) / len];
+  const [s, e] = [o.offset - o.width / 2, o.offset + o.width / 2];
+  return [[w.a[0] + dx * s, w.a[1] + dy * s], [w.a[0] + dx * e, w.a[1] + dy * e]];
+}
+
+/** The extent of everything drawn (rooms, walls, devices, photos). */
+export function bounds(p: Pick<Floorplan, "rooms" | "walls" | "devices" | "photos">): { min: Pt; max: Pt } | undefined {
+  const pts: Pt[] = [...p.rooms.flatMap((r) => r.points), ...p.walls.flatMap((w) => [w.a, w.b]),
+    ...p.devices.map((d) => [d.x, d.y] as Pt), ...p.photos.map((f) => [f.x, f.y] as Pt)];
+  if (!pts.length) return undefined;
+  const xs = pts.map((q) => q[0]);
+  const ys = pts.map((q) => q[1]);
+  return { min: [Math.min(...xs), Math.min(...ys)], max: [Math.max(...xs), Math.max(...ys)] };
+}
+
+// ---- live editing ----------------------------------------------------------
+// In a live session every element is one entry of a shared map (by id), so
+// two people changing different rooms or walls never overwrite each other.
+
+export type PlanItem =
+  | ({ t: "room" } & FloorRoom) | ({ t: "device" } & FloorDevice) | ({ t: "wall" } & FloorWall)
+  | ({ t: "opening" } & FloorOpening) | ({ t: "photo" } & FloorPhoto);
+export type PlanMeta = Omit<Floorplan, "rooms" | "devices" | "walls" | "openings" | "photos">;
+
+export function planItems(p: Floorplan): Map<string, PlanItem> {
+  const m = new Map<string, PlanItem>();
+  for (const r of p.rooms) m.set(r.id, { t: "room", ...r });
+  for (const d of p.devices) m.set(d.id, { t: "device", ...d });
+  for (const w of p.walls) m.set(w.id, { t: "wall", ...w });
+  for (const o of p.openings) m.set(o.id, { t: "opening", ...o });
+  for (const f of p.photos) m.set(f.id, { t: "photo", ...f });
+  return m;
+}
+
+export function planMeta(p: Floorplan): PlanMeta {
+  const { rooms: _r, devices: _d, walls: _w, openings: _o, photos: _f, ...meta } = p;
+  return meta;
+}
+
+/** Builds a plan from shared entries. Rooms are drawn largest first so small
+ * rooms inside big ones stay clickable; the rest in a stable order. */
+export function planFrom(meta: Partial<PlanMeta>, items: Iterable<PlanItem>): Floorplan {
+  const p = normalizePlan(meta as Partial<Floorplan>);
+  const strip = <T extends { t: string }>(x: T) => {
+    const { t: _t, ...rest } = x;
+    return rest;
+  };
+  for (const it of items) {
+    if (it.t === "room") p.rooms.push(strip(it) as FloorRoom);
+    else if (it.t === "device") p.devices.push(strip(it) as FloorDevice);
+    else if (it.t === "wall") p.walls.push(strip(it) as FloorWall);
+    else if (it.t === "opening") p.openings.push(strip(it) as FloorOpening);
+    else if (it.t === "photo") p.photos.push(strip(it) as FloorPhoto);
+  }
+  const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  p.rooms.sort((a, b) => area(b.points) - area(a.points) || byId(a, b));
+  p.devices.sort(byId);
+  p.walls.sort(byId);
+  const walls = new Set(p.walls.map((w) => w.id));
+  p.openings = p.openings.filter((o) => walls.has(o.wall)).sort(byId);
+  p.photos.sort(byId);
+  return p;
+}
+
+/** What changed between two plans: entries to write and ids to delete. */
+export function planDiff(before: Floorplan, after: Floorplan): { set: PlanItem[]; del: string[]; meta: boolean } {
+  const a = planItems(before);
+  const b = planItems(after);
+  const set: PlanItem[] = [];
+  for (const [id, it] of b) if (JSON.stringify(a.get(id)) !== JSON.stringify(it)) set.push(it);
+  const del = [...a.keys()].filter((id) => !b.has(id));
+  return { set, del, meta: JSON.stringify(planMeta(before)) !== JSON.stringify(planMeta(after)) };
 }
 
 export const newId = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
