@@ -6,6 +6,7 @@ import {
   Cpu, Layers, DoorOpen, Router, RadioTower, Wifi, Network, EthernetPort, Phone, Rows4, Server, Cable, Plug, PlugZap, Lightbulb, Package, Workflow, Database, Monitor, Boxes, Container, Shapes, Tag, CircleDot, Waypoints, Paperclip, Upload, Image, Download, Table, CircleAlert, ChevronRight, Maximize2, Building2, Share2, Lock, LockOpen, UserMinus, Clock, Globe, Archive, RotateCcw, Webhook, Send, Puzzle, Store, BadgeCheck, TriangleAlert, ScrollText, Power, BatteryCharging, Save, Minus, FileCode, BetweenHorizontalEnd, BetweenVerticalEnd, TableRowsSplit, TableColumnsSplit, FilePen, Minimize2, FolderPlus, Folder, SquareKanban, CalendarDays, Flag, GripVertical, Columns3, ArrowUp, ArrowDown, Languages, Info, MessageSquareWarning, OctagonAlert, User, Heart, Bookmark, CircleCheck, Zap, Flame, Rocket, Shield, Sparkles, Calendar, Timer, Sigma, SquarePlay, GitBranch, Frame, Type, Highlighter, Underline, Strikethrough, Palette, ListTodo, Heading, TextQuote, Hourglass, Link2Off,
   MousePointer2, PenTool, MapPin, Ruler, ImageUp, ZoomIn, ZoomOut, Maximize, LandPlot,
   CircleDashed, RefreshCw,
+  Braces,
 } from "lucide";
 
 type Node = [string, Record<string, string | number>][];
@@ -17,6 +18,7 @@ const icons: Record<string, Node> = {
   Cpu, Layers, DoorOpen, Router, RadioTower, Wifi, Network, EthernetPort, Phone, Rows4, Server, Cable, Plug, PlugZap, Lightbulb, Package, Workflow, Database, Monitor, Boxes, Container, Shapes, Tag, CircleDot, Waypoints, Paperclip, Upload, Image, Download, Table, CircleAlert, ChevronRight, Maximize2, Building2, Share2, Lock, LockOpen, UserMinus, Clock, Globe, Archive, RotateCcw, Webhook, Send, Puzzle, Store, BadgeCheck, TriangleAlert, ScrollText, Power, BatteryCharging, Save, Minus, FileCode, BetweenHorizontalEnd, BetweenVerticalEnd, TableRowsSplit, TableColumnsSplit, FilePen, Minimize2, FolderPlus, Folder, SquareKanban, CalendarDays, Flag, GripVertical, Columns3, ArrowUp, ArrowDown, Languages, Info, MessageSquareWarning, OctagonAlert, User, Heart, Bookmark, CircleCheck, Zap, Flame, Rocket, Shield, Sparkles, Calendar, Timer, Sigma, SquarePlay, GitBranch, Frame, Type, Highlighter, Underline, Strikethrough, Palette, ListTodo, Heading, TextQuote, Hourglass, Link2Off,
   MousePointer2, PenTool, MapPin, Ruler, ImageUp, ZoomIn, ZoomOut, Maximize, LandPlot,
   CircleDashed, RefreshCw,
+  Braces,
 } as unknown as Record<string, Node>;
 
 /** Renders a Lucide icon by its PascalCase name. */

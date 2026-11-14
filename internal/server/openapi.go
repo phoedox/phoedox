@@ -229,6 +229,8 @@ var apiDocs = map[string]op{
 	"POST /publications/{id}/releases":                       {Tag: "publications", Summary: "Freeze the current state as the next release (/v/<n>/).", Out: store.PublicationRelease{}},
 	"GET /templates":                                         {Tag: "projects", Summary: "Project templates (?lang=de|en): name, description, icon, tabs.", Out: []core.Template{}},
 	"GET /admin/events":                                      {Tag: "admin", Summary: "Audit log of the instance (?via=web|mcp|token|plugin|agent|cli, user, kind prefix, days, before, limit).", Out: []core.AuditEvent{}},
+	"POST /projects/{p}/import/markdown":                     {Tag: "projects", Summary: "Import a ZIP of Markdown files (also Obsidian vaults): folders become categories, [[links]] links.", Raw: true, Out: core.ImportResult{}},
+	"POST /projects/{p}/import/openapi":                      {Tag: "projects", Summary: "Import an OpenAPI 3 / Swagger 2 file (JSON or YAML): a service entry and a page per tag with request blocks.", Raw: true, Out: core.ImportResult{}},
 	"GET /projects/{p}/duplicates":                           {Tag: "graph", Summary: "Entries that look like the same thing (same MAC, serial number or hostname).", Out: []core.Duplicate{}},
 	"POST /projects/{p}/entities-merge":                      {Tag: "graph", Summary: "Merge entry remove into keep: relations, page links and attachments move over.", Out: store.Entity{}},
 	"GET /projects/{p}/topology":                             {Tag: "graph", Summary: "Network plan: stations connected by uplink, wired_to and runs_on, with status.", Out: core.Topology{}},

@@ -254,6 +254,8 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/events", a.projectEvents)
 			r.Get("/topology", a.topology)
 			r.Get("/duplicates", a.duplicates)
+			r.Post("/import/markdown", a.importMarkdown)
+			r.Post("/import/openapi", a.importOpenAPI)
 			r.Post("/entities-merge", a.mergeEntities)
 			r.Get("/entities/{e}/agent-actions", a.entityAgentActions)
 			r.Post("/entities/{e}/agent-jobs", a.createAgentJob)
@@ -778,6 +780,26 @@ func (a *api) traverse(w http.ResponseWriter, r *http.Request) {
 	depth, _ := strconv.Atoi(q.Get("depth"))
 	hops, err := a.core.Traverse(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "e"), q.Get("rel"), q.Get("dir"), depth)
 	respond(w, hops, err)
+}
+
+func (a *api) importMarkdown(w http.ResponseWriter, r *http.Request) {
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 50<<20))
+	if err != nil {
+		writeErr(w, core.Invalid("validation.import_size", nil, "the upload is larger than 50 MB"))
+		return
+	}
+	res, err := a.core.ImportMarkdown(r.Context(), actorOf(r), chi.URLParam(r, "p"), data)
+	respond(w, res, err)
+}
+
+func (a *api) importOpenAPI(w http.ResponseWriter, r *http.Request) {
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 5<<20))
+	if err != nil {
+		writeErr(w, core.Invalid("validation.import_size", nil, "the upload is too large"))
+		return
+	}
+	res, err := a.core.ImportOpenAPI(r.Context(), actorOf(r), chi.URLParam(r, "p"), data)
+	respond(w, res, err)
 }
 
 func (a *api) duplicates(w http.ResponseWriter, r *http.Request) {

@@ -9,6 +9,7 @@ import { icon } from "../icon";
 import { contentLocale, currentProject, docsVersion, favorites } from "../state";
 import { preferredLocale } from "../languages";
 import { base } from "./shared";
+import "./import-view";
 import "./topology-view";
 import "./doc-view";
 import "./doc-form";
@@ -122,6 +123,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "model", render: () => this.gated("model", html`<phx-data-model .project=${this.slug}></phx-data-model>`) },
     { path: "files", render: () => this.gated("files", html`<phx-project-files .project=${this.slug}></phx-project-files>`) },
     { path: "graph", render: () => this.gated("graph", html`<phx-graph-view .project=${this.slug}></phx-graph-view>`) },
+    { path: "import", render: () => html`<phx-import-view .project=${this.slug}></phx-import-view>` },
     { path: "topology", render: () => this.gated("graph", html`<phx-topology-view .project=${this.slug}></phx-topology-view>`) },
     { path: "e/:entity", render: ({ entity }) => html`<phx-entity-view .project=${this.slug} .entity=${entity!}></phx-entity-view>` },
     { path: "decisions", render: () => this.gated("decisions", html`<phx-decisions .project=${this.slug}></phx-decisions>`) },
@@ -381,6 +383,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
             ${this.newOpen ? html`<div class="menu" role="menu" @keydown=${(e: KeyboardEvent) => e.key === "Escape" && (this.newOpen = false)}>
               <a role="menuitem" href="#" @click=${(e: Event) => { e.preventDefault(); this.create("", "type"); }}>${icon("FilePlus", 15)} ${t("create.page")}</a>
               <a role="menuitem" href="#" @click=${(e: Event) => { e.preventDefault(); this.create(""); }}>${icon("FolderPlus", 15)} ${t("create.folder")}</a>
+              <a role="menuitem" href="/p/${this.slug}/import" @click=${() => (this.newOpen = false)}>${icon("Upload", 15)} ${t("import.title")}</a>
               ${hasFeature(proj, "decisions") ? html`<a role="menuitem" href="/p/${this.slug}/new/adr" @click=${() => (this.newOpen = false)}>${icon("Scale", 15)} ${t("doc.type.adr")}</a>` : ""}
               ${hasFeature(proj, "graph") || hasFeature(proj, "model") ? html`<a role="menuitem" href="/p/${this.slug}/new-entity" @click=${() => (this.newOpen = false)}>${icon("Plus", 15)} ${t("entity.new")}</a>` : ""}
             </div>` : ""}
