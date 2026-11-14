@@ -1,0 +1,56 @@
+{
+ "name": "Homelab",
+ "description": "Servers, VMs, containers, backups and runbooks – with the agent and the software tree.",
+ "icon": "Server",
+ "features": [
+  "decisions",
+  "graph",
+  "model",
+  "files"
+ ],
+ "pages": [
+  {
+   "title": "Overview",
+   "category": "",
+   "markdown": "# Homelab\n\n> [!note]\n> Install **phoedox-agent** on every host (Settings → Agents). It reports hosts, VMs, LXC and containers; the *software tree* and the *network plan* follow from that.\n\n## Hosts\n\n| Host | Role | Location |\n|---|---|---|\n| | | |\n"
+  },
+  {
+   "title": "Network and VLANs",
+   "category": "Network",
+   "markdown": "# Network and VLANs\n\n| VLAN | Network | Purpose |\n|---|---|---|\n| 1 | 192.168.1.0/24 | Management |\n| | | |\n\n```mermaid\nflowchart LR\n  Internet --> Router --> Switch\n  Switch --> Server\n```\n"
+  },
+  {
+   "title": "Backups",
+   "category": "Operations",
+   "markdown": "# Backups\n\n| What | Where to | How often | Last restore test |\n|---|---|---|---|\n| | | | |\n\n> [!tip]\n> A backup only counts once restoring it was tested. Put a recurring card for that on the board.\n"
+  },
+  {
+   "title": "Runbook: restart a host",
+   "category": "Operations",
+   "markdown": "# Runbook: restart a host\n\n1. Check running services (host page → *Software on this host*).\n2. Stop important containers cleanly.\n3. Restart.\n4. Afterwards check the *path to the network* and the container states.\n"
+  }
+ ],
+ "boards": [
+  {
+   "title": "Homelab",
+   "category": "",
+   "description": "Ideas, maintenance and upgrades.",
+   "columns": [
+    {
+     "id": "todo",
+     "name": "To do"
+    },
+    {
+     "id": "doing",
+     "name": "In progress"
+    },
+    {
+     "id": "done",
+     "name": "Done",
+     "done": true
+    }
+   ]
+  }
+ ],
+ "id": "homelab"
+}

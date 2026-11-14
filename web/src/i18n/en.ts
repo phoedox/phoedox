@@ -1333,4 +1333,8 @@ export const en: Record<keyof typeof de, string> = {
   "slash.mermaid": "Diagram (Mermaid)",
   "block.mermaid_hint": "Flowcharts, sequence, state or Gantt diagrams as text, see mermaid.js.org.",
   "block.mermaid_source": "Mermaid source",
+  "projects.template": "Template",
+  "projects.template_empty": "Empty",
+  "projects.template_empty_desc": "No starting content.",
+  "validation.template": "This template does not exist ({template}).",
 };

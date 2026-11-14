@@ -1,0 +1,60 @@
+{
+ "name": "IT support for a client",
+ "description": "For service providers: client overview, access through variables, emergency plan, maintenance and tickets.",
+ "icon": "Users",
+ "features": [
+  "decisions",
+  "graph",
+  "model",
+  "files"
+ ],
+ "pages": [
+  {
+   "title": "Client overview",
+   "category": "",
+   "markdown": "# Client overview\n\n| | |\n|---|---|\n| Company | |\n| Contact person | |\n| Phone | |\n| Sites | |\n| Contract / SLA | |\n"
+  },
+  {
+   "title": "Access",
+   "category": "",
+   "markdown": "# Access\n\n> [!warning]\n> Credentials **never** go here. They are stored encrypted in the project environment and used in request blocks as `{{variable}}`.\n\n| System | Address | Variable |\n|---|---|---|\n| Firewall | | `{{firewall_url}}` |\n| | | |\n"
+  },
+  {
+   "title": "Emergency plan",
+   "category": "Operations",
+   "markdown": "# Emergency plan\n\n## On call\n\n| Role | Name | Phone |\n|---|---|---|\n| On call | | |\n\n## When something fails\n\n1. Run the diagnosis on the affected device's page.\n2. Inform the client.\n3. Record cause and fix as a decision or page.\n"
+  },
+  {
+   "title": "Maintenance plan",
+   "category": "Operations",
+   "markdown": "# Maintenance plan\n\n| Task | Interval | Last | Next |\n|---|---|---|---|\n| Server updates | monthly | | |\n| Test a backup restore | quarterly | | |\n| Check certificates | monthly | | |\n"
+  }
+ ],
+ "boards": [
+  {
+   "title": "Tickets",
+   "category": "",
+   "description": "Requests and incidents of the client.",
+   "columns": [
+    {
+     "id": "new",
+     "name": "New"
+    },
+    {
+     "id": "doing",
+     "name": "In progress"
+    },
+    {
+     "id": "waiting",
+     "name": "Waiting for client"
+    },
+    {
+     "id": "done",
+     "name": "Done",
+     "done": true
+    }
+   ]
+  }
+ ],
+ "id": "it-client"
+}

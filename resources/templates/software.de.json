@@ -1,0 +1,58 @@
+{
+ "name": "Softwareprojekt",
+ "description": "Architektur, Entscheidungen, API mit testbaren Requests und Betrieb.",
+ "icon": "Code",
+ "features": [
+  "decisions",
+  "graph",
+  "model"
+ ],
+ "pages": [
+  {
+   "title": "Architektur",
+   "category": "Technik",
+   "markdown": "# Architektur\n\n```mermaid\nflowchart LR\n  Client --> API --> Datenbank\n```\n\nDienste und Datenbanken sind Einträge (Arten *Dienst*, *Datenbank*); verbinde sie mit „nutzt“ und „hängt ab von“.\n"
+  },
+  {
+   "title": "API",
+   "category": "Technik",
+   "markdown": "# API\n\nBasis-URL und Token stehen in der Umgebung des Projekts (`{{base}}`, `{{token}}`).\n\n```request\nGET {{base}}/health\n```\n"
+  },
+  {
+   "title": "Betrieb",
+   "category": "Betrieb",
+   "markdown": "# Betrieb\n\n| Umgebung | URL | Deployment |\n|---|---|---|\n| Produktion | | |\n| Test | | |\n"
+  }
+ ],
+ "boards": [
+  {
+   "title": "Entwicklung",
+   "category": "",
+   "description": "Aufgaben und Fehler.",
+   "columns": [
+    {
+     "id": "backlog",
+     "name": "Backlog"
+    },
+    {
+     "id": "todo",
+     "name": "Geplant"
+    },
+    {
+     "id": "doing",
+     "name": "In Arbeit"
+    },
+    {
+     "id": "review",
+     "name": "Review"
+    },
+    {
+     "id": "done",
+     "name": "Fertig",
+     "done": true
+    }
+   ]
+  }
+ ],
+ "id": "software"
+}

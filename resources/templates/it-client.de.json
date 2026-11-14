@@ -1,0 +1,60 @@
+{
+ "name": "IT-Betreuung eines Kunden",
+ "description": "Für Dienstleister: Kundenübersicht, Zugänge über Variablen, Notfallplan, Wartung und Tickets.",
+ "icon": "Users",
+ "features": [
+  "decisions",
+  "graph",
+  "model",
+  "files"
+ ],
+ "pages": [
+  {
+   "title": "Kundenübersicht",
+   "category": "",
+   "markdown": "# Kundenübersicht\n\n| | |\n|---|---|\n| Firma | |\n| Ansprechperson | |\n| Telefon | |\n| Standorte | |\n| Vertrag / SLA | |\n"
+  },
+  {
+   "title": "Zugänge",
+   "category": "",
+   "markdown": "# Zugänge\n\n> [!warning]\n> Zugangsdaten stehen **nie** hier. Sie liegen verschlüsselt in der Umgebung des Projekts und werden in Request-Blöcken als `{{variable}}` verwendet.\n\n| System | Adresse | Variable |\n|---|---|---|\n| Firewall | | `{{firewall_url}}` |\n| | | |\n"
+  },
+  {
+   "title": "Notfallplan",
+   "category": "Betrieb",
+   "markdown": "# Notfallplan\n\n## Erreichbarkeit\n\n| Rolle | Name | Telefon |\n|---|---|---|\n| Bereitschaft | | |\n\n## Ablauf bei Ausfall\n\n1. Diagnose auf der Seite des betroffenen Geräts starten.\n2. Kunde informieren.\n3. Ursache und Lösung als Entscheidung oder Seite festhalten.\n"
+  },
+  {
+   "title": "Wartungsplan",
+   "category": "Betrieb",
+   "markdown": "# Wartungsplan\n\n| Aufgabe | Intervall | Zuletzt | Nächstes Mal |\n|---|---|---|---|\n| Updates Server | monatlich | | |\n| Backup-Wiederherstellung testen | vierteljährlich | | |\n| Zertifikate prüfen | monatlich | | |\n"
+  }
+ ],
+ "boards": [
+  {
+   "title": "Tickets",
+   "category": "",
+   "description": "Anfragen und Störungen des Kunden.",
+   "columns": [
+    {
+     "id": "new",
+     "name": "Neu"
+    },
+    {
+     "id": "doing",
+     "name": "In Arbeit"
+    },
+    {
+     "id": "waiting",
+     "name": "Wartet auf Kunde"
+    },
+    {
+     "id": "done",
+     "name": "Erledigt",
+     "done": true
+    }
+   ]
+  }
+ ],
+ "id": "it-client"
+}

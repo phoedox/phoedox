@@ -28,6 +28,10 @@ type ProjectInput struct {
 	Locales    *[]string `json:"locales,omitempty"`
 	// Features switches optional tabs on (ADR-0032); nil = unchanged (none for new projects).
 	Features *[]string `json:"features,omitempty"`
+	// Template fills a new project with starting pages and boards (id from
+	// GET /templates), in TemplateLocale ("de" or "en").
+	Template       string `json:"template,omitempty"`
+	TemplateLocale string `json:"templateLocale,omitempty"`
 }
 
 // Features are the optional tabs of a project.
@@ -125,6 +129,16 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, in ProjectInput) (
 		return store.Project{}, err
 	}
 	features := []string{}
+	var tpl Template
+	if in.Template != "" {
+		var ok bool
+		if tpl, ok = loadTemplate(in.Template, in.TemplateLocale); !ok {
+			return store.Project{}, invalid("validation.template", map[string]any{"template": in.Template}, "unknown template %q", in.Template)
+		}
+		if in.Features == nil {
+			in.Features = &tpl.Features
+		}
+	}
 	if in.Features != nil {
 		if features, err = normalizeFeatures(*in.Features); err != nil {
 			return store.Project{}, err
@@ -136,6 +150,9 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, in ProjectInput) (
 		return p, err
 	}
 	s.event(ctx, a, "project.create", p.ID, in)
+	if tpl.ID != "" {
+		s.applyTemplate(ctx, a, p, tpl)
+	}
 	if full, err := s.DB.ProjectFor(ctx, p.ID, a.User.ID); err == nil {
 		full.Role = store.RoleOwner
 		p = full

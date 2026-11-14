@@ -1,0 +1,55 @@
+{
+ "name": "Wohnung oder Haus",
+ "description": "Netzwerk, Geräte, Räume und eine Notfallmappe für zu Hause.",
+ "icon": "House",
+ "features": [
+  "graph",
+  "model",
+  "files"
+ ],
+ "pages": [
+  {
+   "title": "Überblick",
+   "category": "",
+   "markdown": "# Überblick\n\nDieses Projekt beschreibt unser Zuhause: Räume, Netzwerk, Geräte und was im Notfall zu tun ist.\n\n> [!note]\n> Geräte und Räume sind **Einträge** im Wissensnetz. Erwähne sie mit `@kurzname`, dann sind Seiten und Einträge verknüpft. Unter *Netzplan* entsteht die Netzwerkübersicht von selbst.\n\n## So geht es weiter\n\n- [ ] Räume als Einträge anlegen (Art *Raum*)\n- [ ] Router, Repeater und Switches anlegen und mit „uplink“ oder „verkabelt mit“ verbinden\n- [ ] Einen *Grundriss* anlegen und Geräte platzieren\n- [ ] Die *Notfallmappe* ausfüllen\n"
+  },
+  {
+   "title": "Netzwerk",
+   "category": "Technik",
+   "markdown": "# Netzwerk\n\n| | |\n|---|---|\n| Anbieter | |\n| Anschluss | z. B. Glasfaser 500/100 |\n| Router | z. B. @router |\n| WLAN-Namen | |\n\n> [!warning]\n> Keine Passwörter in Seiten schreiben. Zugangsdaten gehören in die *Umgebung* des Projekts (Einstellungen) und werden als `{{variable}}` verwendet.\n\n## Aufbau\n\nWelches Gerät hängt woran? Pflege das als Beziehungen der Einträge, dann zeigt der *Netzplan* den Aufbau und die *Diagnose* findet Fehler.\n"
+  },
+  {
+   "title": "Notfallmappe",
+   "category": "",
+   "markdown": "# Notfallmappe\n\n## Wo ist was?\n\n| | Ort |\n|---|---|\n| Hauptwasserhahn | |\n| Sicherungskasten | |\n| Gas-Absperrhahn | |\n| Router / Internet | |\n\n## Wichtige Nummern\n\n| | Nummer |\n|---|---|\n| Notruf | 112 |\n| Hausverwaltung / Vermieter | |\n| Elektriker | |\n| Installateur | |\n\n## Wenn das Internet ausfällt\n\n1. Störungsseite des Anbieters prüfen.\n2. Router 10 Sekunden vom Strom trennen.\n3. Weiterhin nichts? Den *Weg ins Netz* auf der Seite des Routers ansehen.\n"
+  },
+  {
+   "title": "Geräte und Garantien",
+   "category": "",
+   "markdown": "# Geräte und Garantien\n\n| Gerät | Gekauft | Garantie bis | Beleg |\n|---|---|---|---|\n| | | | |\n\nBelege und Anleitungen als Anhang an den Eintrag des Geräts hängen.\n"
+  }
+ ],
+ "boards": [
+  {
+   "title": "Haushalt",
+   "category": "",
+   "description": "Aufgaben rund ums Zuhause.",
+   "columns": [
+    {
+     "id": "todo",
+     "name": "Offen"
+    },
+    {
+     "id": "doing",
+     "name": "In Arbeit"
+    },
+    {
+     "id": "done",
+     "name": "Erledigt",
+     "done": true
+    }
+   ]
+  }
+ ],
+ "id": "home"
+}

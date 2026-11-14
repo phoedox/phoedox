@@ -35,6 +35,37 @@ func PublishTexts(locale string) []byte {
 	return b
 }
 
+//go:embed templates/*.json
+var templates embed.FS
+
+// Template returns resources/templates/<id>.<locale>.json (English if the
+// locale is missing) or nil for an unknown template.
+func Template(id, locale string) []byte {
+	b, err := templates.ReadFile("templates/" + id + "." + locale + ".json")
+	if err != nil {
+		b, err = templates.ReadFile("templates/" + id + ".en.json")
+	}
+	if err != nil {
+		return nil
+	}
+	return b
+}
+
+// TemplateIDs lists the project templates.
+func TemplateIDs() []string {
+	entries, _ := templates.ReadDir("templates")
+	var ids []string
+	seen := map[string]bool{}
+	for _, e := range entries {
+		id, _, _ := strings.Cut(e.Name(), ".")
+		if !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
 //go:embed kinds/core.json
 var coreKinds []byte
 

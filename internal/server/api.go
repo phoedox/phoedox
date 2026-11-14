@@ -162,6 +162,9 @@ func (a *api) routes(r chi.Router) {
 
 		r.Get("/search", a.search)
 		r.Get("/projects", a.listProjects)
+		r.Get("/templates", func(w http.ResponseWriter, r *http.Request) {
+			writeJSON(w, http.StatusOK, core.Templates(r.URL.Query().Get("lang")))
+		})
 		r.Post("/projects", a.createProject)
 		r.Route("/projects/{p}", func(r chi.Router) {
 			r.Get("/", a.getProject)

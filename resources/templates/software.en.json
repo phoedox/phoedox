@@ -1,0 +1,58 @@
+{
+ "name": "Software project",
+ "description": "Architecture, decisions, an API with runnable requests and operations.",
+ "icon": "Code",
+ "features": [
+  "decisions",
+  "graph",
+  "model"
+ ],
+ "pages": [
+  {
+   "title": "Architecture",
+   "category": "Technology",
+   "markdown": "# Architecture\n\n```mermaid\nflowchart LR\n  Client --> API --> Database\n```\n\nServices and databases are entries (kinds *Service*, *Database*); connect them with “uses” and “depends on”.\n"
+  },
+  {
+   "title": "API",
+   "category": "Technology",
+   "markdown": "# API\n\nBase URL and token live in the project environment (`{{base}}`, `{{token}}`).\n\n```request\nGET {{base}}/health\n```\n"
+  },
+  {
+   "title": "Operations",
+   "category": "Operations",
+   "markdown": "# Operations\n\n| Environment | URL | Deployment |\n|---|---|---|\n| Production | | |\n| Staging | | |\n"
+  }
+ ],
+ "boards": [
+  {
+   "title": "Development",
+   "category": "",
+   "description": "Tasks and bugs.",
+   "columns": [
+    {
+     "id": "backlog",
+     "name": "Backlog"
+    },
+    {
+     "id": "todo",
+     "name": "Planned"
+    },
+    {
+     "id": "doing",
+     "name": "In progress"
+    },
+    {
+     "id": "review",
+     "name": "Review"
+    },
+    {
+     "id": "done",
+     "name": "Done",
+     "done": true
+    }
+   ]
+  }
+ ],
+ "id": "software"
+}

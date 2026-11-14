@@ -1,0 +1,55 @@
+{
+ "name": "Flat or house",
+ "description": "Network, devices, rooms and an emergency folder for your home.",
+ "icon": "House",
+ "features": [
+  "graph",
+  "model",
+  "files"
+ ],
+ "pages": [
+  {
+   "title": "Overview",
+   "category": "",
+   "markdown": "# Overview\n\nThis project describes our home: rooms, network, devices and what to do in an emergency.\n\n> [!note]\n> Devices and rooms are **entries** in the knowledge graph. Mention them with `@shortname` to link pages and entries. The *Network plan* draws itself.\n\n## Next steps\n\n- [ ] Add rooms as entries (kind *Room*)\n- [ ] Add router, repeaters and switches and connect them with “uplink” or “wired to”\n- [ ] Create a *floor plan* and place devices\n- [ ] Fill in the *emergency folder*\n"
+  },
+  {
+   "title": "Network",
+   "category": "Technology",
+   "markdown": "# Network\n\n| | |\n|---|---|\n| Provider | |\n| Connection | e.g. fibre 500/100 |\n| Router | e.g. @router |\n| Wi-Fi names | |\n\n> [!warning]\n> Never write passwords into pages. Credentials belong in the project *environment* (settings) and are used as `{{variable}}`.\n\n## Layout\n\nWhat is connected to what? Keep it as relations between entries; the *Network plan* shows the layout and *diagnosis* finds faults.\n"
+  },
+  {
+   "title": "Emergency folder",
+   "category": "",
+   "markdown": "# Emergency folder\n\n## Where is what?\n\n| | Place |\n|---|---|\n| Main water valve | |\n| Fuse box | |\n| Gas shut-off | |\n| Router / internet | |\n\n## Important numbers\n\n| | Number |\n|---|---|\n| Emergency | 112 |\n| Landlord / property manager | |\n| Electrician | |\n| Plumber | |\n\n## When the internet is down\n\n1. Check the provider's outage page.\n2. Unplug the router for 10 seconds.\n3. Still nothing? Look at the *path to the network* on the router's page.\n"
+  },
+  {
+   "title": "Devices and warranties",
+   "category": "",
+   "markdown": "# Devices and warranties\n\n| Device | Bought | Warranty until | Receipt |\n|---|---|---|---|\n| | | | |\n\nAttach receipts and manuals to the device's entry.\n"
+  }
+ ],
+ "boards": [
+  {
+   "title": "Household",
+   "category": "",
+   "description": "Tasks around the home.",
+   "columns": [
+    {
+     "id": "todo",
+     "name": "To do"
+    },
+    {
+     "id": "doing",
+     "name": "In progress"
+    },
+    {
+     "id": "done",
+     "name": "Done",
+     "done": true
+    }
+   ]
+  }
+ ],
+ "id": "home"
+}

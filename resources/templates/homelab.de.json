@@ -1,0 +1,56 @@
+{
+ "name": "Homelab",
+ "description": "Server, VMs, Container, Backups und Runbooks – mit Agent und Software-Baum.",
+ "icon": "Server",
+ "features": [
+  "decisions",
+  "graph",
+  "model",
+  "files"
+ ],
+ "pages": [
+  {
+   "title": "Überblick",
+   "category": "",
+   "markdown": "# Homelab\n\n> [!note]\n> Installiere auf jedem Host den **phoedox-agent** (Einstellungen → Agenten). Er meldet Hosts, VMs, LXC und Container; daraus entsteht der *Software-Baum* und der *Netzplan*.\n\n## Hosts\n\n| Host | Rolle | Ort |\n|---|---|---|\n| | | |\n"
+  },
+  {
+   "title": "Netzwerk und VLANs",
+   "category": "Netz",
+   "markdown": "# Netzwerk und VLANs\n\n| VLAN | Netz | Zweck |\n|---|---|---|\n| 1 | 192.168.1.0/24 | Verwaltung |\n| | | |\n\n```mermaid\nflowchart LR\n  Internet --> Router --> Switch\n  Switch --> Server\n```\n"
+  },
+  {
+   "title": "Backups",
+   "category": "Betrieb",
+   "markdown": "# Backups\n\n| Was | Wohin | Wie oft | Zuletzt geprüft |\n|---|---|---|---|\n| | | | |\n\n> [!tip]\n> Ein Backup zählt erst, wenn die Wiederherstellung getestet ist. Lege dafür eine wiederkehrende Karte auf dem Board an.\n"
+  },
+  {
+   "title": "Runbook: Host neu starten",
+   "category": "Betrieb",
+   "markdown": "# Runbook: Host neu starten\n\n1. Laufende Dienste prüfen (Seite des Hosts → *Software auf diesem Host*).\n2. Wichtige Container sauber stoppen.\n3. Neu starten.\n4. Danach den *Weg ins Netz* und die Container-Zustände prüfen.\n"
+  }
+ ],
+ "boards": [
+  {
+   "title": "Homelab",
+   "category": "",
+   "description": "Ideen, Wartung und Upgrades.",
+   "columns": [
+    {
+     "id": "todo",
+     "name": "Offen"
+    },
+    {
+     "id": "doing",
+     "name": "In Arbeit"
+    },
+    {
+     "id": "done",
+     "name": "Erledigt",
+     "done": true
+    }
+   ]
+  }
+ ],
+ "id": "homelab"
+}

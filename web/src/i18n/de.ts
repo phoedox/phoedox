@@ -1331,4 +1331,8 @@ export const de = {
   "slash.mermaid": "Diagramm (Mermaid)",
   "block.mermaid_hint": "Ablauf-, Sequenz-, Zustands- oder Gantt-Diagramme als Text, siehe mermaid.js.org.",
   "block.mermaid_source": "Mermaid-Quelltext",
+  "projects.template": "Vorlage",
+  "projects.template_empty": "Leer",
+  "projects.template_empty_desc": "Ohne Startinhalte.",
+  "validation.template": "Diese Vorlage gibt es nicht ({template}).",
 } as const;
