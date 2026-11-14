@@ -4,7 +4,8 @@
 // people can draw at once, and publishing makes the draft the plan.
 
 import { LitElement, css, html, nothing, svg, unsafeCSS } from "lit";
-import { ApiError, api, type Doc, type DraftInfo, type Entity } from "../api";
+import { ApiError, api, type Doc, type DraftInfo, type Edge, type Entity } from "../api";
+import type { PlanInput } from "./plan3d";
 import { userColor } from "../collab";
 import { fileURL, isImage, uploadFile, type FileInfo } from "../files";
 import {
@@ -41,7 +42,7 @@ export class PhxFloorplan extends LitElement {
     plan: { state: true }, editing: { state: true }, tool: { state: true }, selected: { state: true }, chain: { state: true },
     cursor: { state: true }, pending: { state: true }, entities: { state: true }, model: { state: true }, box: { state: true },
     busy: { state: true }, error: { state: true }, peers: { state: true }, status: { state: true }, saving: { state: true },
-    photo: { state: true }, wallThickness: { state: true },
+    photo: { state: true }, wallThickness: { state: true }, view3d: { state: true }, allFloors: { state: true }, cut: { state: true }, others: { state: true }, edges: { state: true },
   };
   static styles = [base, css`
     :host { display: block; }
@@ -82,6 +83,8 @@ export class PhxFloorplan extends LitElement {
     .bar .tools button { border: 0; border-radius: 0; padding: 6px 10px; background: var(--surface); color: var(--fg); }
     .bar .tools button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
     .bar .spacer { flex: 1; }
+    .bar label.check { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; }
+    .bar label.check input { width: auto; }
     .bar .state { font-size: 13px; color: var(--muted); }
     .avatars { display: inline-flex; gap: 2px; }
     .avatars span { width: 24px; height: 24px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 10px; font-weight: 700; color: var(--surface); }
@@ -131,6 +134,13 @@ export class PhxFloorplan extends LitElement {
   /** The photo shown large (view mode). */
   photo = "";
   wallThickness = WALL_THICKNESS;
+  /** 3D view (three.js, loaded on demand). */
+  view3d = false;
+  allFloors = false;
+  cut = false;
+  /** The project's other floor plans, for the building view. */
+  others?: PlanInput[];
+  edges: Edge[] = [];
   private drag?: Drag;
   private loadedFor = "";
   private live?: PlanLive;
@@ -206,6 +216,41 @@ export class PhxFloorplan extends LitElement {
     this.zoom(Math.exp(e.deltaY * 0.0015), this.toPlan(e));
   };
 
+  // ---- 3D --------------------------------------------------------------
+
+  private async show3d(on: boolean) {
+    if (!on) {
+      this.view3d = false;
+      return;
+    }
+    this.busy = true;
+    try {
+      await import("./plan3d");
+      const graph = await api<{ edges: Edge[] }>("GET", `/projects/${this.project}/graph`).catch(() => ({ edges: [] as Edge[] }));
+      this.edges = graph.edges ?? [];
+      this.view3d = true;
+      if (!this.others) void this.loadOthers();
+    } catch {
+      toast(t("plan3d.no_webgl"), "error");
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async loadOthers() {
+    const list = (await api<Doc[]>("GET", `/projects/${this.project}/documents?type=floorplan`).catch(() => [] as Doc[])) ?? [];
+    const docs = await Promise.all(list.filter((d) => d.id !== this.doc?.id).map((d) => api<Doc>("GET", `/projects/${this.project}/documents/${d.id}`).catch(() => undefined)));
+    this.others = docs.filter((d): d is Doc => !!d).map((d) => {
+      const plan = normalizePlan(d.content as Partial<Floorplan>);
+      return { plan, floor: plan.floor };
+    });
+  }
+
+  private plans3d(): PlanInput[] {
+    const own = { plan: this.plan, floor: this.plan.floor };
+    return this.allFloors && this.others?.length ? [own, ...this.others] : [own];
+  }
+
   // ---- live session ------------------------------------------------------
 
   /** Opens or joins the shared draft and starts drawing. */
@@ -213,6 +258,7 @@ export class PhxFloorplan extends LitElement {
     if (!this.doc || this.live) return;
     this.busy = true;
     this.error = "";
+    this.view3d = false;
     try {
       const d = await api<DraftInfo>("POST", `/projects/${this.project}/documents/${this.doc.id}/draft`);
       this.draft = d;
@@ -981,7 +1027,7 @@ export class PhxFloorplan extends LitElement {
     const state = this.status !== "connected" ? t(this.status === "connecting" ? "editor.connecting" : "editor.disconnected") : this.saving ? t("editor.saving") : t("editor.saved");
     return html`
       ${this.draftNote()}
-      ${this.canEdit ? html`<div class="bar">
+      ${this.canEdit || !this.editing ? html`<div class="bar">
         ${this.editing ? html`<div class="tools" role="toolbar" aria-label=${t("plan.tools")}>${tools.map(([id, ic, label]) => html`<button aria-pressed=${this.tool === id ? "true" : "false"}
           title=${label} @click=${() => this.setTool(id)}>${icon(ic, 15)} ${label}</button>`)}</div>
           <button class="ghost icon" title=${t("editor.undo")} aria-label=${t("editor.undo")} @click=${() => this.live?.undo()}>${icon("Undo2", 15)}</button>
@@ -994,8 +1040,15 @@ export class PhxFloorplan extends LitElement {
           <button class="ghost" ?disabled=${this.busy} @click=${() => this.close()} title=${t("plan.leave_hint")}>${t("plan.leave")}</button>
           ${this.draft?.canEnd !== false ? html`<button class="ghost danger" ?disabled=${this.busy} @click=${this.discard}>${t("plan.discard_button")}</button>
           <button ?disabled=${this.busy} @click=${this.publish}>${icon("Check", 14)} ${t("plan.publish")}</button>` : ""}`
-        : html`<span class="spacer"></span>${this.draft ? "" : html`<button class="ghost" ?disabled=${this.busy} @click=${() => this.startEdit()}>${icon("PenTool", 14)} ${t("plan.edit")}</button>`}`}
+        : html`<div class="tools" role="group" aria-label=${t("plan3d.view")}>
+            <button aria-pressed=${this.view3d ? "false" : "true"} @click=${() => this.show3d(false)}>${icon("LandPlot", 15)} 2D</button>
+            <button aria-pressed=${this.view3d ? "true" : "false"} ?disabled=${this.busy} @click=${() => this.show3d(true)}>${icon("Box", 15)} 3D</button></div>
+          ${this.view3d && this.others?.length ? html`<label class="check"><input type="checkbox" .checked=${this.allFloors} @change=${(e: Event) => (this.allFloors = (e.target as HTMLInputElement).checked)}> ${t("plan3d.all_floors")}</label>` : ""}
+          ${this.view3d ? html`<label class="check"><input type="checkbox" .checked=${this.cut} @change=${(e: Event) => (this.cut = (e.target as HTMLInputElement).checked)}> ${t("plan3d.cut")}</label>` : ""}
+          ${this.view3d ? html`<button class="ghost icon" title=${t("plan.fit")} aria-label=${t("plan.fit")} @click=${() => this.renderRoot.querySelector<HTMLElement & { resetView(): void }>("phx-plan3d")?.resetView()}>${icon("Maximize", 15)}</button>` : ""}
+          <span class="spacer"></span>${this.draft || !this.canEdit ? "" : html`<button class="ghost" ?disabled=${this.busy} @click=${() => this.startEdit()}>${icon("PenTool", 14)} ${t("plan.edit")}</button>`}`}
       </div>` : ""}
+      ${this.view3d && !this.editing ? html`<phx-plan3d .project=${this.project} .plans=${this.plans3d()} .entities=${this.entities} .edges=${this.edges} ?cut=${this.cut}></phx-plan3d>` : html`
       <div class="wrap ${this.editing ? `edit t-${this.tool}` : ""}" @keydown=${this.onKey} tabindex="-1">
         <div class="stage ${this.dropping ? "drop" : ""}" @dragover=${this.onDragOver} @dragleave=${this.onDragLeave} @drop=${this.onDrop}>
           <svg class="plan" viewBox="${b.x} ${b.y} ${b.w} ${b.h}" role="img" aria-label=${this.doc?.title ?? ""}
@@ -1013,7 +1066,7 @@ export class PhxFloorplan extends LitElement {
           </div>
         </div>
         ${this.editing ? html`<aside>${this.panel()}</aside>` : ""}
-      </div>
+      </div>`}
       <input class="photo-file" type="file" accept="image/*" multiple hidden @change=${this.onPhotoFile}>
       ${this.editing ? "" : this.legend()}
       ${this.photoDialog()}`;

@@ -1614,4 +1614,10 @@ export const en: Record<keyof typeof de, string> = {
   "plan.wall_hint": "Drag the wall ends to change the wall. Removing it also removes its doors and windows.",
   "validation.plan_image": "Backgrounds can be images or PDFs.",
   "validation.plan_pdf": "This server could not turn the PDF into an image (Poppler missing?). Please upload it as an image.",
+  "plan3d.no_webgl": "The 3D view needs WebGL, which this browser does not offer.",
+  "plan3d.view": "View",
+  "plan3d.all_floors": "All storeys",
+  "plan3d.label": "3D view of the floor plan",
+  "plan3d.hint": "Drag to rotate, right-click or two fingers to pan, wheel to zoom. Click to open the entry.",
+  "plan3d.cut": "Cut away",
 };

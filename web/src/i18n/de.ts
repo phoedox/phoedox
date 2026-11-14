@@ -1612,4 +1612,10 @@ export const de = {
   "plan.wall_hint": "Wandenden ziehen, um die Wand zu verändern. Entfernen löscht auch ihre Türen und Fenster.",
   "validation.plan_image": "Als Hintergrund gehen Bilder und PDFs.",
   "validation.plan_pdf": "Das PDF konnte auf diesem Server nicht in ein Bild umgewandelt werden (Poppler fehlt?). Bitte als Bild hochladen.",
+  "plan3d.no_webgl": "Die 3D-Ansicht braucht WebGL, das dieser Browser nicht anbietet.",
+  "plan3d.view": "Ansicht",
+  "plan3d.all_floors": "Alle Geschosse",
+  "plan3d.label": "3D-Ansicht des Grundrisses",
+  "plan3d.hint": "Ziehen dreht, Rechtsklick oder zwei Finger verschieben, Mausrad zoomt. Anklicken öffnet den Eintrag.",
+  "plan3d.cut": "Aufgeschnitten",
 } as const;
