@@ -1,5 +1,5 @@
 import { LitElement, css, html } from "lit";
-import { ApiError, api, type CatalogEntry, type PluginCollection, type PluginInfo, type PluginLog } from "../api";
+import { ApiError, api, type CatalogEntry, type PluginCollection, type PluginInfo, type PluginLog, type Project } from "../api";
 import { formatSize } from "../files";
 import { formatDate, locale, t } from "../i18n";
 import { icon } from "../icon";
@@ -7,6 +7,7 @@ import { permLabel } from "../plugin-perms";
 import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 import { toast } from "./toasts";
+import { currentUser } from "../state";
 
 interface List { plugins: PluginInfo[]; store: boolean; enabled: boolean; unsigned: boolean }
 
@@ -16,8 +17,12 @@ export class PhxPluginsAdmin extends LitElement {
     list: { state: true }, error: { state: true }, busy: { state: true }, catalog: { state: true }, catalogError: { state: true },
     collections: { state: true }, collection: { state: true },
     confirming: { state: true }, logs: { state: true }, logsFor: { state: true }, removing: { state: true },
+    request: { state: true }, requested: { state: true }, installedReq: { state: true }, ownProjects: { state: true },
   };
   static styles = [base, settingsNavStyles, css`
+    .req { display: grid; gap: 10px; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); margin-bottom: 18px; }
+    .req .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .req select { width: auto; margin-left: 6px; }
     :host { display: block; max-width: 900px; margin: 0 auto; padding: 28px 16px 60px; }
     h1 { margin-bottom: 16px; }
     h2 { font-size: 18px; margin: 30px 0 10px; }
@@ -59,10 +64,93 @@ export class PhxPluginsAdmin extends LitElement {
   logs: PluginLog[] = [];
   logsFor = "";
   removing = "";
+  /** Plugin id from an install link (?install=…), e.g. from the store's website. */
+  request = new URLSearchParams(location.search).get("install") ?? "";
+  /** Its catalog entry once found; null = not in this instance's store. */
+  requested?: CatalogEntry | null;
+  installedReq = false;
+  ownProjects: Project[] = [];
 
   async connectedCallback() {
     super.connectedCallback();
     await this.load();
+    if (this.request && this.list?.store) {
+      await this.loadCatalog();
+      this.requested = this.catalog?.find((c) => c.id === this.request) ?? null;
+      if (this.requested && this.requested.installed === this.requested.version) await this.loadOwnProjects();
+    }
+  }
+
+  /** The plugin an install link asks for: shown first, installed only after a click. */
+  private requestCard() {
+    if (!this.request) return "";
+    if (!currentUser.get()?.isAdmin) {
+      return html`<section class="plugin card req" aria-label=${t("plugins.request_title")}>
+        <b>${t("plugins.request_admin_only")}</b>
+        <p class="muted" style="margin:0">${t("plugins.request_send_link")}</p>
+        <div class="row"><code class="mono" style="word-break:break-all;align-self:center">${location.href}</code>
+          <button class="ghost" @click=${this.copyLink}>${icon("Copy", 13)} ${t("plugins.request_copy")}</button></div></section>`;
+    }
+    if (this.list && !this.list.store) return html`<p class="warn">${t("plugins.request_no_store")}</p>`;
+    if (this.requested === undefined) return html`<p class="muted">${t("app.loading")}</p>`;
+    if (this.requested === null) return html`<p class="warn">${t("plugins.request_unknown", { id: this.request })}</p>`;
+    const c = this.requested;
+    if (this.installedReq || c.installed === c.version) {
+      return html`<section class="plugin card req" aria-label=${t("plugins.request_title")}>
+        <b>${icon("BadgeCheck", 15)} ${t("plugins.request_done", { name: c.name })}</b>
+        ${this.ownProjects.length ? html`<form class="inline" @submit=${this.enableIn}>
+          <label class="muted" style="font-size:13px">${t("plugins.request_enable_in")}
+            <select name="project">${this.ownProjects.map((p) => html`<option value=${p.slug}>${p.name}</option>`)}</select></label>
+          <button ?disabled=${this.busy}>${icon("Power", 13)} ${t("plugins.enable")}</button></form>` : ""}
+        <button class="ghost" style="justify-self:start" @click=${this.clearRequest}>${t("board.close")}</button></section>`;
+    }
+    return html`<section class="plugin card req" aria-label=${t("plugins.request_title")}>
+      <span class="muted" style="font-size:12.5px">${icon("Store", 12)} ${t("plugins.request_title")}</span>
+      <header><span class="pic">${icon("Puzzle", 20)}</span>
+        <div class="t"><h3>${c.name} <span class="muted" style="font-weight:400">${c.version}</span></h3>
+          <span class="muted" style="font-size:13px">${c.author}${c.verified ? html` · ${icon("BadgeCheck", 12)} ${t("plugins.verified_author")}` : ""}</span>
+          ${c.summary ? html`<p class="muted" style="margin:4px 0 0;font-size:14px">${c.summary}</p>` : ""}</div></header>
+      ${c.recall ? html`<p class="warn">${icon("TriangleAlert", 14)} ${t("plugins.recall_warning")} ${c.recallNote ?? ""}</p>` : ""}
+      <b>${t("plugins.confirm_perms")}</b>${this.perms(c.permissions)}
+      <div class="row"><button ?disabled=${this.busy || !!c.recall} @click=${() => this.installRequested(c)}>${icon("Download", 13)} ${t(c.installed ? "plugins.update_now" : "plugins.install_with_perms")}</button>
+        <button class="ghost" @click=${this.clearRequest}>${t("doc.cancel")}</button></div>
+    </section>`;
+  }
+
+  private async installRequested(c: CatalogEntry) {
+    const r = await this.call(() => api<PluginInfo>("POST", "/admin/plugins/install", { id: c.id, version: c.version }));
+    if (!r) return;
+    toast(t("plugins.installed", { name: r.name, version: r.version }));
+    this.installedReq = true;
+    await Promise.all([this.loadOwnProjects(), this.load(), this.loadCatalog()]);
+  }
+
+  /** Projects the admin owns, to switch the new plugin on right away. */
+  private async loadOwnProjects() {
+    const all = await api<Project[]>("GET", "/projects").catch(() => [] as Project[]);
+    this.ownProjects = all.filter((p) => p.role === "owner");
+  }
+
+  private async copyLink() {
+    try {
+      await navigator.clipboard.writeText(location.href);
+      toast(t("plugins.request_copied"));
+    } catch {
+      toast(t("error.unknown"), "error");
+    }
+  }
+
+  private async enableIn(e: SubmitEvent) {
+    e.preventDefault();
+    const slug = String(new FormData(e.target as HTMLFormElement).get("project") ?? "");
+    if (!slug || !this.requested) return;
+    const ok = await this.call(() => api("PUT", `/projects/${slug}/plugins/${this.requested!.id}`, { enabled: true }), t("plugins.request_enabled"));
+    if (ok !== undefined) location.assign(`/p/${slug}/settings`);
+  }
+
+  private clearRequest() {
+    this.request = "";
+    history.replaceState(null, "", location.pathname);
   }
 
   private async load() {
@@ -285,7 +373,8 @@ export class PhxPluginsAdmin extends LitElement {
     return html`<div class="enter">
       <h1>${t("plugins.title")}</h1>
       ${settingsNav("plugins")}
-      ${this.error ? html`<p class="error">${this.error}</p>` : ""}
+      ${this.requestCard()}
+      ${this.error && !this.request ? html`<p class="error">${this.error}</p>` : ""}
       ${l ? html`
         ${!l.enabled ? html`<p class="warn">${t("plugins.server_off")}</p>` : ""}
         <p class="muted">${t("plugins.intro")}</p>
