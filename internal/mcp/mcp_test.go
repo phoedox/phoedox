@@ -109,9 +109,14 @@ func TestMCPTools(t *testing.T) {
 	}
 	call("create_document", map[string]any{"project": "phoedox", "title": "Architektur", "category": "Technik", "markdown": "Der @go-server …"})
 	call("upsert_entity", map[string]any{"project": "phoedox", "kind": "service", "name": "Go-Server", "attrs": map[string]any{"lang": "go"}})
+	bulk := call("upsert_entities", map[string]any{"project": "phoedox", "entities": []map[string]any{
+		{"kind": "service", "name": "Worker"}, {"kind": "service", "name": "Cron"}, {"kind": "", "name": "Kaputt"}}})
+	if !strings.Contains(bulk, `"created": 2`) || !strings.Contains(bulk, `"row": 2`) {
+		t.Fatalf("upsert_entities: %s", bulk)
+	}
 	call("create_link", map[string]any{"project": "phoedox", "title": "Riverpod", "url": "https://riverpod.dev"})
 	ov := call("get_project", map[string]any{"project": "phoedox"})
-	if !strings.Contains(ov, `"Decisions"`) || !strings.Contains(ov, `"Technik"`) || !strings.Contains(ov, `"service": 1`) {
+	if !strings.Contains(ov, `"Decisions"`) || !strings.Contains(ov, `"Technik"`) || !strings.Contains(ov, `"service": 3`) {
 		t.Fatalf("overview: %s", ov)
 	}
 	// links and boards can be changed through MCP
@@ -134,7 +139,7 @@ func TestMCPTools(t *testing.T) {
 		t.Fatalf("search: %s", s)
 	}
 
-	if dm := call("get_data_model", map[string]any{"project": "phoedox"}); !strings.Contains(dm, `"$id": "phoedox:kind/router"`) || !strings.Contains(dm, `"service": 1`) && !strings.Contains(dm, `"count": 1`) {
+	if dm := call("get_data_model", map[string]any{"project": "phoedox"}); !strings.Contains(dm, `"$id": "phoedox:kind/router"`) || !strings.Contains(dm, `"service": 3`) && !strings.Contains(dm, `"count": 3`) {
 		t.Fatalf("data model: %s", dm)
 	}
 	call("define_kind", map[string]any{"project": "phoedox", "id": "queue", "name": "Queue", "icon": "Workflow",

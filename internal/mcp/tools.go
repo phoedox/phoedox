@@ -305,6 +305,19 @@ type upsertEntityIn struct {
 	Attrs   map[string]any `json:"attrs,omitempty" jsonschema:"attribute values as described by the kind's schema; replaces all attributes"`
 }
 
+type upsertEntitiesIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Entities []struct {
+		Kind  string         `json:"kind" jsonschema:"a kind from get_data_model"`
+		Name  string         `json:"name"`
+		Slug  string         `json:"slug,omitempty" jsonschema:"optional; an existing slug updates that entity"`
+		Attrs map[string]any `json:"attrs,omitempty" jsonschema:"replaces all attributes of that entity"`
+	} `json:"entities" jsonschema:"up to 200 entities, each like upsert_entity"`
+}
+
+// maxMCPBulk keeps one tool call small enough to review as suggestions.
+const maxMCPBulk = 200
+
 type listFilesIn struct {
 	Project  string `json:"project" jsonschema:"project slug"`
 	Document string `json:"document,omitempty" jsonschema:"only files attached to this document (slug)"`
@@ -724,6 +737,16 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "upsert_entity", "Create an entity or update it if the slug exists.", func(ctx context.Context, a core.Actor, in upsertEntityIn) (any, error) {
 		return svc.UpsertEntity(ctx, a, in.Project, core.EntityInput{Kind: in.Kind, Name: in.Name, Slug: in.Slug, Attrs: in.Attrs})
+	})
+	tool(s, "upsert_entities", "Create or update many entities in one call (up to 200), e.g. all devices of a network. Each row works like upsert_entity; a bad row is reported in errors and the others go on. Relations still use link_entities.", func(ctx context.Context, a core.Actor, in upsertEntitiesIn) (any, error) {
+		if len(in.Entities) > maxMCPBulk {
+			return nil, core.Invalid("validation.bulk_size", map[string]any{"max": maxMCPBulk}, "at most %d entities per call", maxMCPBulk)
+		}
+		ups := make([]core.EntityInput, 0, len(in.Entities))
+		for _, e := range in.Entities {
+			ups = append(ups, core.EntityInput{Kind: e.Kind, Name: e.Name, Slug: e.Slug, Attrs: e.Attrs})
+		}
+		return svc.Bulk(ctx, a, in.Project, core.BulkInput{Upserts: ups})
 	})
 	tool(s, "delete_entity", "Move an entity and its relations to the trash.", func(ctx context.Context, a core.Actor, in entityRef) (any, error) {
 		return svc.DeleteEntity(ctx, a, in.Project, in.Entity)
