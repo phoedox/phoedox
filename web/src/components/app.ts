@@ -5,6 +5,7 @@ import { ApiError, api, type User } from "../api";
 import { t } from "../i18n";
 import { icon } from "../icon";
 import { currentProject, currentUser, isPublicPath, loginURL, navigate, signedIn } from "../state";
+import "./audit-log";
 import "./project-switcher";
 import "./lang-switcher";
 import { base } from "./shared";
@@ -70,6 +71,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/admin/settings", render: () => html`<phx-admin-settings></phx-admin-settings>` },
     { path: "/admin/backups", render: () => html`<phx-backups></phx-backups>` },
     { path: "/admin/plugins", render: () => html`<phx-plugins-admin></phx-plugins-admin>` },
+    { path: "/admin/audit", render: () => html`<phx-audit-log page></phx-audit-log>` },
     { path: "/orgs", render: () => html`<phx-orgs></phx-orgs>` },
     { path: "/orgs/:slug", render: ({ slug }) => html`<phx-org .slug=${slug!}></phx-org>` },
     { path: "/s/:token", render: ({ token }) => html`<phx-shared-view .token=${token!}></phx-shared-view>` },

@@ -9,6 +9,7 @@ import type { Storage } from "../files";
 import { storageBar, storageStyles } from "./project-files";
 import "./webhooks";
 import "./agents";
+import "./audit-log";
 import "./project-plugins";
 import { toast } from "./toasts";
 import { contentLocales, languageName } from "../languages";
@@ -301,6 +302,8 @@ export class PhxProjectSettings extends LitElement {
       ${this.envSection(owner, canEdit)}
       ${this.storageSection(owner)}
       ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("plugins.title")}</h2><phx-project-plugins .project=${this.project}></phx-project-plugins>` : ""}
+      ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("audit.project_title")}</h2><details><summary class="muted" style="cursor:pointer">${t("audit.project_show")}</summary>
+        <phx-audit-log .project=${this.project}></phx-audit-log></details>` : ""}
       ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("agents.title")}</h2><phx-agents .project=${this.project}></phx-agents>` : ""}
       ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("hooks.title")}</h2><phx-webhooks .project=${this.project}></phx-webhooks>` : ""}
     </div>`;

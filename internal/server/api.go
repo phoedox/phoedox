@@ -126,6 +126,7 @@ func (a *api) routes(r chi.Router) {
 			r.Patch("/users/{id}", a.updateUser)
 			r.Post("/users/{id}/link", a.userLink)
 			r.Post("/users/{id}/reset-2fa", a.reset2FA)
+			r.Get("/events", a.adminEvents)
 			r.Get("/plugins", a.listPlugins)
 			r.Post("/plugins", a.uploadPlugin)
 			r.Get("/plugins/catalog", a.pluginCatalog)
@@ -245,6 +246,7 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/entities/{e}/traverse", a.traverse)
 			r.Get("/entities/{e}/diagnose", a.diagnose)
 			r.Get("/entities/{e}/tree", a.softwareTree)
+			r.Get("/events", a.projectEvents)
 			r.Get("/entities/{e}/agent-actions", a.entityAgentActions)
 			r.Post("/entities/{e}/agent-jobs", a.createAgentJob)
 			r.Post("/agent-jobs/{id}/sign", a.signAgentJob)
@@ -751,6 +753,16 @@ func (a *api) traverse(w http.ResponseWriter, r *http.Request) {
 	depth, _ := strconv.Atoi(q.Get("depth"))
 	hops, err := a.core.Traverse(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "e"), q.Get("rel"), q.Get("dir"), depth)
 	respond(w, hops, err)
+}
+
+func (a *api) adminEvents(w http.ResponseWriter, r *http.Request) {
+	out, err := a.core.AuditLog(r.Context(), actorOf(r), "", core.ParseAuditQuery(r.URL.Query().Get))
+	respond(w, out, err)
+}
+
+func (a *api) projectEvents(w http.ResponseWriter, r *http.Request) {
+	out, err := a.core.AuditLog(r.Context(), actorOf(r), chi.URLParam(r, "p"), core.ParseAuditQuery(r.URL.Query().Get))
+	respond(w, out, err)
 }
 
 func (a *api) softwareTree(w http.ResponseWriter, r *http.Request) {

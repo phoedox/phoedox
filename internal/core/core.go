@@ -238,8 +238,27 @@ func (s *Service) docFilter(ctx context.Context, a Actor, p store.Project) (func
 
 func newID() string { return string(graph.NewID()) }
 
+// eventProject finds the project of an event: from its subject or a
+// "project" field of the payload.
+func (s *Service) eventProject(ctx context.Context, subject string, payload any) string {
+	if p := s.DB.ProjectOfSubject(ctx, subject); p != "" {
+		return p
+	}
+	var ref string
+	switch v := payload.(type) {
+	case map[string]any:
+		ref, _ = v["project"].(string)
+	case map[string]string:
+		ref = v["project"]
+	}
+	if ref != "" {
+		return s.DB.ProjectOfSubject(ctx, ref)
+	}
+	return ""
+}
+
 func (s *Service) event(ctx context.Context, a Actor, kind, subject string, payload any) {
-	_ = s.DB.AddEvent(ctx, a.String(), kind, subject, payload)
+	_ = s.DB.AddProjectEvent(ctx, a.String(), kind, subject, s.eventProject(ctx, subject, payload), payload)
 	s.emitWebhooks(ctx, a, kind, subject, payload)
 	s.emitPluginEvents(ctx, a, kind, subject, payload)
 }

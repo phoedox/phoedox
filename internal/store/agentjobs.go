@@ -158,3 +158,10 @@ func (d *DB) EntityJobs(ctx context.Context, projectID, slug string, limit int) 
 func (d *DB) AgentByID(ctx context.Context, projectID, id string) (Agent, error) {
 	return scanAgent(d.QueryRow(ctx, `SELECT `+agentCols+` FROM agents WHERE project_id = ? AND id = ?`, projectID, id))
 }
+
+// AgentHostname returns the hostname of an agent of the tenant ("" if unknown).
+func (d *DB) AgentHostname(ctx context.Context, id string) string {
+	var h string
+	_ = d.QueryRow(ctx, `SELECT hostname FROM agents WHERE id = ?`, id).Scan(&h)
+	return h
+}
