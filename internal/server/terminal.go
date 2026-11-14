@@ -110,7 +110,8 @@ func (r *recorder) add(kind string, data []byte) {
 }
 
 // relay copies messages until one side closes: binary data both ways,
-// text (control) only from the browser to the agent.
+// text (control) only from the browser to the agent. When one side ends,
+// the other is closed normally so the browser sees a clean end.
 func relay(ctx context.Context, p *termPair, rec *recorder) {
 	ctx, cancel := context.WithTimeout(ctx, termMax)
 	defer cancel()
@@ -118,7 +119,7 @@ func relay(ctx context.Context, p *termPair, rec *recorder) {
 	wg.Add(2)
 	go func() { // browser → agent
 		defer wg.Done()
-		defer cancel()
+		defer p.agent.Close(websocket.StatusNormalClosure, "closed")
 		for {
 			typ, data, err := p.browser.Read(ctx)
 			if err != nil {
@@ -136,7 +137,7 @@ func relay(ctx context.Context, p *termPair, rec *recorder) {
 	}()
 	go func() { // agent → browser
 		defer wg.Done()
-		defer cancel()
+		defer p.browser.Close(websocket.StatusNormalClosure, "ended")
 		for {
 			typ, data, err := p.agent.Read(ctx)
 			if err != nil {

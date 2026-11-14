@@ -49,7 +49,20 @@ func TestTerminalRelay(t *testing.T) {
 	if _, data, err := browser.Read(ctx); err != nil || string(data) != "file.txt\r\n" {
 		t.Fatalf("browser got %q %v", data, err)
 	}
+	// The browser keeps reading, as a real one does, so it answers the close.
+	closed := make(chan websocket.StatusCode, 1)
+	go func() {
+		for {
+			if _, _, err := browser.Read(ctx); err != nil {
+				closed <- websocket.CloseStatus(err)
+				return
+			}
+		}
+	}()
 	agent.Close(websocket.StatusNormalClosure, "exited")
+	if code := <-closed; code != websocket.StatusNormalClosure {
+		t.Fatalf("browser closed with %d", code)
+	}
 	select {
 	case rec := <-got:
 		lines := strings.Split(strings.TrimSpace(rec), "\n")
