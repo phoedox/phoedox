@@ -11,7 +11,7 @@ const VIA_ICON: Record<string, string> = { web: "UserRound", mcp: "Bot", token: 
 
 /** Audit log of the instance (admins) or of one project (owners). */
 export class PhxAuditLog extends LitElement {
-  static properties = { project: {}, page: { type: Boolean }, events: { state: true }, more: { state: true }, error: { state: true }, open: { state: true } };
+  static properties = { project: {}, page: { type: Boolean }, events: { state: true }, chain: { state: true }, more: { state: true }, error: { state: true }, open: { state: true } };
   static styles = [base, settingsNavStyles, css`
     :host { display: block; }
     :host([page]) { max-width: 1000px; margin: 0 auto; padding: 28px 16px; }
@@ -28,6 +28,15 @@ export class PhxAuditLog extends LitElement {
   `];
   project = "";
   page = false;
+  chain?: { ok: boolean; checked: number; head: string; headSeq: number; broken?: number; reason?: string };
+
+  private verify = async () => {
+    try {
+      this.chain = await api("GET", "/admin/audit/verify");
+    } catch (e) {
+      this.error = e instanceof ApiError ? e.text : t("error.unknown");
+    }
+  };
   events: AuditEntry[] = [];
   more = false;
   error = "";
@@ -89,7 +98,14 @@ export class PhxAuditLog extends LitElement {
 
   render() {
     if (!this.page) return this.body();
-    return html`<div class="enter"><h1>${t("audit.title")}</h1>${settingsNav("audit")}<p class="muted">${t("audit.intro")}</p>${this.body()}</div>`;
+    const c = this.chain;
+    return html`<div class="enter"><h1>${t("audit.title")}</h1>${settingsNav("audit")}<p class="muted">${t("audit.intro")}</p>
+      <div class="row" style="margin-bottom:12px;align-items:center;flex-wrap:wrap;gap:8px">
+        <button class="ghost" @click=${this.verify}>${icon("ShieldCheck", 14)} ${t("audit.verify")}</button>
+        ${c ? html`<span role="status" class=${c.ok ? "" : "error"}>${c.ok ? t("audit.chain_ok", { count: c.checked }) : t(`audit.chain_${c.reason}` as any, { seq: c.broken ?? 0 })}</span>
+          ${c.head ? html`<code title=${t("audit.head_hint")} style="font-size:12px;word-break:break-all">#${c.headSeq} ${c.head}</code>` : ""}` : ""}
+      </div>
+      ${this.body()}</div>`;
   }
 }
 customElements.define("phx-audit-log", PhxAuditLog);

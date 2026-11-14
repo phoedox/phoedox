@@ -88,6 +88,8 @@ type Service struct {
 	MaxDepth int
 	// Box decrypts project secrets for request blocks.
 	Box *secret.Box
+
+	vaults vaultCache
 	// RequestPolicy limits which addresses request blocks may reach.
 	RequestPolicy requests.Policy
 	// OnContentChange is called when a document's content changed outside

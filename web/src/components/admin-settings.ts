@@ -7,7 +7,7 @@ import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
-interface Settings { aiEnabled: boolean; quotaProjectMb: number; vulnCheck: boolean; pluginBeta: boolean; tools?: Record<string, boolean> }
+interface Settings { aiEnabled: boolean; quotaProjectMb: number; vulnCheck: boolean; pluginBeta: boolean; vault: { kind: string; url: string; connected: boolean }; tools?: Record<string, boolean> }
 
 /** Instance settings for system admins. */
 export class PhxAdminSettings extends SignalWatcher(LitElement) {
@@ -47,6 +47,22 @@ export class PhxAdminSettings extends SignalWatcher(LitElement) {
         <p class="muted">${t("admin.vuln_check_hint")}</p>
         <label class="switch"><input type="checkbox" .checked=${this.s.pluginBeta} @change=${(e: Event) => this.set({ pluginBeta: (e.target as HTMLInputElement).checked })} /> ${t("admin.plugin_beta")}</label>
         <p class="muted">${t("admin.plugin_beta_hint")}</p>
+        <h2>${icon("Lock", 16)} ${t("admin.vault")}</h2>
+        <p class="muted">${t("admin.vault_hint")}</p>
+        <form style="display:grid;gap:8px;max-width:520px" @submit=${(e: SubmitEvent) => {
+          e.preventDefault();
+          const f = new FormData(e.target as HTMLFormElement);
+          const token = String(f.get("vtoken") ?? "");
+          void this.set({ vaultKind: String(f.get("vkind") ?? ""), vaultUrl: String(f.get("vurl") ?? ""), ...(token ? { vaultToken: token } : {}) } as any);
+        }}>
+          <label class="field">${t("admin.vault_kind")}<select name="vkind">
+            <option value="" ?selected=${!this.s.vault?.kind}>${t("admin.vault_none")}</option>
+            <option value="hashicorp" ?selected=${this.s.vault?.kind === "hashicorp"}>HashiCorp Vault / OpenBao (KV)</option>
+            <option value="onepassword" ?selected=${this.s.vault?.kind === "onepassword"}>1Password Connect</option></select></label>
+          <label class="field">${t("admin.vault_url")}<input name="vurl" type="url" .value=${this.s.vault?.url ?? ""} placeholder="https://vault.example.org"></label>
+          <label class="field">${t("admin.vault_token")}<input name="vtoken" type="password" autocomplete="off" placeholder=${this.s.vault?.connected ? t("notif.matrix_token_kept") : ""}></label>
+          <div><button>${t("profile.save")}</button></div>
+        </form>
         <h2>${t("admin.files")}</h2>
         <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.set({ quotaProjectMb: Number(new FormData(e.target as HTMLFormElement).get("quota") || 0) }); }}>
           <label class="field">${t("admin.quota")}

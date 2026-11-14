@@ -59,16 +59,21 @@ type InstanceSettings struct {
 	VulnCheck bool `json:"vulnCheck"`
 	// PluginBeta offers pre-release versions of store plugins.
 	PluginBeta bool `json:"pluginBeta"`
+	// Vault is the external vault for environment secrets.
+	Vault VaultConfig `json:"vault"`
 	// Tools tells which file tools were found (PDF previews, OCR, virus scan); read only.
 	Tools map[string]bool `json:"tools,omitempty"`
 }
 
 // SettingsPatch changes some instance settings.
 type SettingsPatch struct {
-	AIEnabled      *bool `json:"aiEnabled,omitempty"`
-	QuotaProjectMB *int  `json:"quotaProjectMb,omitempty"`
-	VulnCheck      *bool `json:"vulnCheck,omitempty"`
-	PluginBeta     *bool `json:"pluginBeta,omitempty"`
+	AIEnabled      *bool   `json:"aiEnabled,omitempty"`
+	QuotaProjectMB *int    `json:"quotaProjectMb,omitempty"`
+	VulnCheck      *bool   `json:"vulnCheck,omitempty"`
+	PluginBeta     *bool   `json:"pluginBeta,omitempty"`
+	VaultKind      *string `json:"vaultKind,omitempty"`
+	VaultURL       *string `json:"vaultUrl,omitempty"`
+	VaultToken     *string `json:"vaultToken,omitempty"` // write-only
 }
 
 const settingQuota = "quota_project_mb"
@@ -82,7 +87,8 @@ func (s *Service) instanceQuotaMB(ctx context.Context) int {
 func (s *Service) settings(ctx context.Context) InstanceSettings {
 	tools := s.Preview.Available()
 	tools["virus_scan"] = s.Scanner != nil
-	return InstanceSettings{AIEnabled: s.AIEnabled(ctx), QuotaProjectMB: s.instanceQuotaMB(ctx), VulnCheck: s.vulnCheckOn(ctx), PluginBeta: s.pluginChannel(ctx) == "beta", Tools: tools}
+	vault, _ := s.vaultConfig(ctx)
+	return InstanceSettings{AIEnabled: s.AIEnabled(ctx), QuotaProjectMB: s.instanceQuotaMB(ctx), VulnCheck: s.vulnCheckOn(ctx), PluginBeta: s.pluginChannel(ctx) == "beta", Vault: vault, Tools: tools}
 }
 
 // Settings returns the instance settings (admins only).
@@ -103,6 +109,11 @@ func (s *Service) UpdateSettings(ctx context.Context, a Actor, in SettingsPatch)
 	}
 	if in.AIEnabled != nil {
 		if err := s.DB.SetSetting(ctx, settingAI, strconv.FormatBool(*in.AIEnabled), a.String()); err != nil {
+			return InstanceSettings{}, err
+		}
+	}
+	if in.VaultKind != nil || in.VaultURL != nil || in.VaultToken != nil {
+		if err := s.saveVaultConfig(ctx, a, in.VaultKind, in.VaultURL, in.VaultToken); err != nil {
 			return InstanceSettings{}, err
 		}
 	}
@@ -160,4 +171,16 @@ func (s *Service) visible(a Actor, p store.Project) bool {
 		return false
 	}
 	return a.Via != "mcp" || p.AIWriteMode != AIOff
+}
+
+// VerifyAudit checks the audit log's hash chain of this tenant (admins).
+func (s *Service) VerifyAudit(ctx context.Context, a Actor) (store.ChainReport, error) {
+	if err := s.adminOnly(a); err != nil {
+		return store.ChainReport{}, err
+	}
+	r, err := s.DB.VerifyEventChain(ctx)
+	if err == nil {
+		s.event(ctx, a, "audit.verify", "", map[string]any{"ok": r.OK, "checked": r.Checked, "broken": r.Broken})
+	}
+	return r, err
 }

@@ -151,6 +151,7 @@ export class PhxPalette extends SignalWatcher(LitElement) {
     items.push({ id: "a-projects", label: t("nav.projects"), icon: "FolderOpen", href: "/" });
     items.push({ id: "a-mytasks", label: t("mytasks.title"), icon: "ListChecks", href: "/tasks" });
     items.push({ id: "a-history", label: t("history_page.title"), icon: "History", href: "/history" });
+    items.push({ id: "a-secret", label: t("secretlink.title"), icon: "Lock", href: "/secrets/new" });
     items.push({ id: "a-focus", label: t(focusMode.get() ? "focus.leave" : "focus.enter"), icon: focusMode.get() ? "Minimize2" : "Maximize2", href: "", run: () => setFocusMode(!focusMode.get()) });
     items.push({ id: "a-profile", label: t("nav.profile"), icon: "UserRound", href: "/settings/profile" });
     items.push({ id: "a-security", label: t("nav.security"), icon: "ShieldCheck", href: "/settings/security" });

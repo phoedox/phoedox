@@ -60,7 +60,7 @@ export function loginURL(): string {
 
 /** Pages that work without a session. */
 export function isPublicPath(path: string) {
-  return path === "/login" || path === "/forgot" || /^\/(invite|reset)\/[^/]+$/.test(path) || /^\/s\/phxs_[^/]+(\/[^/]+)?$/.test(path);
+  return path === "/login" || path === "/forgot" || /^\/(invite|reset)\/[^/]+$/.test(path) || /^\/s\/phxs_[^/]+(\/[^/]+)?$/.test(path) || /^\/secret\/[a-z0-9]+$/.test(path);
 }
 
 /** Focus mode: no top bar and no sidebar, for reading and writing (per device). */

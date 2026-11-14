@@ -16,12 +16,20 @@ func (a *api) setEnv(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Value  string `json:"value"`
 		Secret bool   `json:"secret"`
+		// VaultRef keeps the value in the instance's vault instead.
+		VaultRef string `json:"vaultRef"`
 	}
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)
 		return
 	}
-	if err := a.core.SetVariable(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "name"), in.Value, in.Secret); err != nil {
+	var err error
+	if in.VaultRef != "" {
+		err = a.core.SetVaultVariable(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "name"), in.VaultRef)
+	} else {
+		err = a.core.SetVariable(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "name"), in.Value, in.Secret)
+	}
+	if err != nil {
 		writeErr(w, err)
 		return
 	}

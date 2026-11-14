@@ -110,6 +110,15 @@ func (s *Service) envValues(ctx context.Context, projectID string) (map[string]s
 	values := map[string]string{}
 	var secrets []string
 	for _, v := range vars {
+		if v.VaultRef != "" {
+			plain, err := s.vaultValue(ctx, v.VaultRef)
+			if err != nil {
+				continue // vault unreachable or entry missing: the variable stays unknown
+			}
+			values[v.Name] = plain
+			secrets = append(secrets, plain)
+			continue
+		}
 		if !v.Secret {
 			values[v.Name] = v.Value
 			continue

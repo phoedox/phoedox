@@ -18,7 +18,7 @@ import { contentLocales, languageName } from "../languages";
 import "./picture-picker";
 import { projectBadge } from "../pictures";
 
-type EnvVar = { name: string; value?: string; secret: boolean };
+type EnvVar = { name: string; value?: string; secret: boolean; vaultRef?: string };
 
 export class PhxProjectSettings extends LitElement {
   static properties = {
@@ -191,7 +191,9 @@ export class PhxProjectSettings extends LitElement {
     const form = e.target as HTMLFormElement;
     const f = new FormData(form);
     try {
-      await api("PUT", `/projects/${this.project}/env/${encodeURIComponent(String(f.get("envname")))}`, { value: f.get("value") ?? "", secret: f.get("secret") === "on" });
+      // "From vault": the value field holds the reference (e.g. secret/data/nas#password or op://Infra/NAS/password).
+      const body = f.get("vault") === "on" ? { vaultRef: String(f.get("value") ?? "").trim() } : { value: f.get("value") ?? "", secret: f.get("secret") === "on" };
+      await api("PUT", `/projects/${this.project}/env/${encodeURIComponent(String(f.get("envname")))}`, body);
       form.reset();
       toast(t("env.saved"));
       await this.loadEnv();
@@ -214,13 +216,15 @@ export class PhxProjectSettings extends LitElement {
       <p class="muted" style="max-width:640px;margin-top:0">${t("env.intro")}</p>
       ${this.env.length === 0 ? html`<p class="muted">${t("env.empty")}</p>` : html`<table>${this.env.map((v) => html`<tr>
         <td class="mono">${v.name}</td>
-        <td class="mono">${v.secret ? html`<span class="chip">${icon("KeyRound", 12)} ${t("env.secret")} · ${t("env.secret_set")}</span>` : v.value}</td>
+        <td class="mono">${v.vaultRef ? html`<span class="chip">${icon("Lock", 12)} ${t("env.vault")}</span> ${v.vaultRef}`
+          : v.secret ? html`<span class="chip">${icon("KeyRound", 12)} ${t("env.secret")} · ${t("env.secret_set")}</span>` : v.value}</td>
         <td style="text-align:right">${(v.secret ? owner : canEdit) ? html`<button class="danger" style="font-size:13px;padding:4px 10px" @click=${() => this.deleteVar(v.name)}>${t("env.delete")}</button>` : ""}</td></tr>`)}</table>`}
       ${canEdit ? html`<form @submit=${this.setVar} style="margin-top:14px">
         <div class="row">
           <input name="envname" required pattern="[A-Za-z_][A-Za-z0-9_]{0,63}" placeholder=${t("env.name")} style="width:180px" class="mono" autocomplete="off" />
           <input name="value" placeholder=${t("env.value")} style="flex:1;min-width:200px" autocomplete="off" />
-          ${owner ? html`<label class="row" style="gap:6px;font-size:14px"><input type="checkbox" name="secret" style="width:auto" /> ${t("env.secret")}</label>` : ""}
+          ${owner ? html`<label class="row" style="gap:6px;font-size:14px"><input type="checkbox" name="secret" style="width:auto" /> ${t("env.secret")}</label>
+            <label class="row" style="gap:6px;font-size:14px" title=${t("env.vault_hint")}><input type="checkbox" name="vault" style="width:auto" /> ${t("env.from_vault")}</label>` : ""}
           <button type="submit">${t("env.add")}</button>
         </div>
         ${owner ? "" : html`<p class="muted" style="font-size:13px">${t("env.owner_only")}</p>`}

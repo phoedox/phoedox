@@ -48,6 +48,8 @@ func (a *api) routes(r chi.Router) {
 	r.Post("/auth/login", a.login)
 	r.Post("/auth/logout", a.logout)
 	r.Get("/status/{token}", a.publicStatus)
+	// One-time secret links: POST so link previews cannot burn them.
+	r.Post("/secret-links/{id}/open", a.openSecretLink)
 	r.Get("/instance", func(w http.ResponseWriter, req *http.Request) {
 		info := map[string]any{"version": Version, "domain": a.cfg.Domain, "passwordReset": a.resetAvailable()}
 		// On an organization's own app domain the app shows its name.
@@ -108,6 +110,7 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/me/security", a.security)
 			r.Get("/me/notification-settings", a.notificationSettings)
 			r.Put("/me/notification-settings", a.saveNotificationSettings)
+			r.Post("/secret-links", a.createSecretLink)
 			r.Get("/me/recent", a.recent)
 			r.Post("/me/recent", a.recordView)
 			r.Delete("/me/recent", a.clearRecent)
@@ -148,6 +151,7 @@ func (a *api) routes(r chi.Router) {
 			r.Post("/users/{id}/link", a.userLink)
 			r.Post("/users/{id}/reset-2fa", a.reset2FA)
 			r.Get("/events", a.adminEvents)
+			r.Get("/audit/verify", a.verifyAudit)
 			r.Get("/plugins", a.listPlugins)
 			r.Post("/plugins", a.uploadPlugin)
 			r.Get("/plugins/catalog", a.pluginCatalog)

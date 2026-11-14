@@ -6,6 +6,7 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { comboFor, comboLabel, installShortcuts, onShortcut } from "../shortcuts";
 import "./recent-history";
+import "./secret-links";
 import "./shortcut-settings";
 import { appOrg, currentProject, currentUser, focusMode, setFocusMode, setWideReading, wideReading, isPublicPath, loginURL, navigate, signedIn } from "../state";
 import "./audit-log";
@@ -73,6 +74,8 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/oauth/authorize", render: () => html`<phx-consent></phx-consent>` },
     { path: "/tasks", render: () => html`<phx-my-tasks></phx-my-tasks>` },
     { path: "/history", render: () => html`<phx-recent-history></phx-recent-history>` },
+    { path: "/secrets/new", render: () => html`<phx-secret-new></phx-secret-new>` },
+    { path: "/secret/:id", render: ({ id }) => html`<phx-secret-open .id=${id!}></phx-secret-open>` },
     { path: "/settings/shortcuts", render: () => html`<phx-shortcut-settings></phx-shortcut-settings>` },
     { path: "/settings/notifications", render: () => html`<phx-notification-settings></phx-notification-settings>` },
     { path: "/settings/security", render: () => html`<phx-security></phx-security>` },
