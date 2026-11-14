@@ -2,7 +2,7 @@
 
 Dokumentation mit Wissensnetz: Go-Server mit eingebettetem Lit-Frontend.
 Alle Produkt- und Technik-Entscheidungen stehen in **Phoedox selbst**: https://app.phoedox.com, Projekt
-`phoedox`, Kategorie „Entscheidungen“ (ADR-0001 …). Vor größeren Änderungen per MCP lesen (`list_decisions`,
+`phoedox`, Kategorie „Decisions“ (ADR-0001 …), offene Arbeit auf dem Board „Roadmap“ (Spalten Backlog, To do, In progress, Needs Jan, Done). Vor größeren Änderungen per MCP lesen (`list_decisions`,
 `get_document`), neue Entscheidungen mit `create_decision` anlegen (bei Ersatz `supersedes`). Ohne MCP-Zugang
 den Nutzer fragen. `docs/decisions.md` ist nur noch ein Verweis (ADR-0026). Der klickbare Prototyp liegt in `docs/prototype/`.
 
@@ -32,6 +32,7 @@ den Nutzer fragen. `docs/decisions.md` ist nur noch ein Verweis (ADR-0026). Der 
 
 ## Regeln
 
+- **Dokumentation und Aufgaben auf Englisch:** README, `docs/`, Phoedox-Seiten, Entscheidungen (ADRs) und Karten auf dem Board „Roadmap“ immer auf Englisch schreiben; Deutsch nur als Übersetzung (Projekt `phoedox` hat Englisch als Hauptsprache).
 - Code, Bezeichner und Kommentare auf Englisch; Oberflächentexte nur über i18n (`web/src/i18n`, Deutsch + Englisch, beide Tabellen pflegen).
 - **Fehlermeldungen übersetzen:** Validierungsfehler mit Schlüssel (`invalid("validation.xyz", params, …)`), die API liefert `key` + `params`; jeder Schlüssel braucht Einträge in beiden i18n-Tabellen. Server-Texte (`error`) nie direkt im Web anzeigen.
 - Immer die aktuelle stabile Go-Version und aktuelle Abhängigkeiten verwenden.
