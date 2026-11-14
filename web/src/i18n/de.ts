@@ -1281,4 +1281,10 @@ export const de = {
   "validation.agent_action": "Diese Aktion gibt es für diesen Eintrag nicht ({action}).",
   "validation.agent_job_state": "Der Auftrag ist schon signiert oder abgelaufen.",
   "validation.agent_signature": "Die Signatur passt zu keinem deiner Schlüssel.",
+  "board.assignee_hint": "Mitglied oder Freitext, z. B. Claude",
+  "block.board_new": "Neues Board für diese Seite",
+  "block.board_new_hint": "Ein neues Board gehört zu dieser Seite und erscheint nicht extra in der Seitenleiste. Oder wähle ein vorhandenes Board, es wird live eingebunden.",
+  "block.board_new_title": "Name (für ein neues Board)",
+  "block.board_default_title": "Aufgaben: {page}",
+  "validation.parent": "Die übergeordnete Seite gibt es nicht ({parent}).",
 } as const;

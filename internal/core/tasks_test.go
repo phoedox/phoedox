@@ -38,6 +38,18 @@ func TestTasks(t *testing.T) {
 	if _, err := s.CreateTask(ctx, owner, p.Slug, board, TaskInput{Title: "x", Assignee: "nobody@x.de"}); invalidKey(err) != "validation.assignee" {
 		t.Fatalf("assignee must be member: %v", err)
 	}
+	byText, err := s.CreateTask(ctx, owner, p.Slug, board, TaskInput{Title: "Doku schreiben", Assignee: " Claude "})
+	if err != nil || byText.AssigneeID != "" || byText.AssigneeText != "Claude" {
+		t.Fatalf("free-text assignee: %v %+v", err, byText)
+	}
+	if list, _ := s.Tasks(ctx, owner, p.Slug, board, "", "claude", false); len(list) != 1 || list[0].ID != byText.ID {
+		t.Fatalf("filter by free text: %+v", list)
+	}
+	member := "reader@x.de"
+	if moved, err := s.UpdateTask(ctx, owner, p.Slug, byText.ID, TaskPatch{Assignee: &member}); err != nil || moved.AssigneeText != "" || moved.AssigneeID == "" {
+		t.Fatalf("back to a member: %v %+v", err, moved)
+	}
+	_ = s.DeleteTask(ctx, owner, p.Slug, byText.ID)
 	if _, err := s.CreateTask(ctx, owner, p.Slug, board, TaskInput{Title: "x", Due: "morgen"}); invalidKey(err) != "validation.due" {
 		t.Fatalf("due: %v", err)
 	}

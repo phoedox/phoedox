@@ -52,7 +52,12 @@ func TestEntitySlugMigration(t *testing.T) {
 			if _, err := old.LinkEntities(ctx, Edge{ID: id(), From: b.ID, Rel: "uplink", To: a.ID, Attrs: JSON(`{}`), Source: "manual"}); err != nil {
 				t.Fatal(err)
 			}
-			doc, _ := old.CreateDocument(ctx, Document{ID: id(), ProjectID: p.ID, Type: DocMarkdown, Slug: "netz", Title: "Netz", Content: JSON(`{}`), CreatedBy: u.ID}, "t")
+			// Also as of migration 8 (CreateDocument writes newer columns).
+			doc := Document{ID: id()}
+			if _, err := old.Exec(ctx, `INSERT INTO documents (id, tenant_id, project_id, doc_type, slug, title, content, created_by) VALUES (?, ?, ?, ?, 'netz', 'Netz', '{}', ?)`,
+				doc.ID, TenantOf(ctx), p.ID, DocMarkdown, u.ID); err != nil {
+				t.Fatal(err)
+			}
 			if err := old.SetDocumentLinks(ctx, doc.ID, []string{a.ID}); err != nil {
 				t.Fatal(err)
 			}

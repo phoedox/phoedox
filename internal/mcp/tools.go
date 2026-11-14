@@ -23,7 +23,7 @@ type listTasksIn struct {
 	Project  string `json:"project" jsonschema:"project slug"`
 	Board    string `json:"board,omitempty" jsonschema:"board slug or id; empty = all boards"`
 	Column   string `json:"column,omitempty" jsonschema:"column id or name (needs board)"`
-	Assignee string `json:"assignee,omitempty" jsonschema:"me, a user id or an e-mail"`
+	Assignee string `json:"assignee,omitempty" jsonschema:"me, a user id, an e-mail or a free-text assignee such as Claude"`
 	Open     bool   `json:"open,omitempty" jsonschema:"only tasks that are not done"`
 }
 
@@ -33,7 +33,7 @@ type createTaskIn struct {
 	Title       string   `json:"title"`
 	Description string   `json:"description,omitempty" jsonschema:"Markdown; @mentions allowed"`
 	Column      string   `json:"column,omitempty" jsonschema:"column id or name; default: first column"`
-	Assignee    string   `json:"assignee,omitempty" jsonschema:"user id or e-mail of a project member"`
+	Assignee    string   `json:"assignee,omitempty" jsonschema:"user id or e-mail of a project member, or free text for anyone else (e.g. Claude); empty = nobody"`
 	Due         string   `json:"due,omitempty" jsonschema:"YYYY-MM-DD"`
 	Priority    int      `json:"priority,omitempty" jsonschema:"0 none, 1 low, 2 medium, 3 high"`
 	Labels      []string `json:"labels,omitempty"`

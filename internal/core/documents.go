@@ -115,6 +115,9 @@ type DocumentInput struct {
 	Board    *Board `json:"board,omitempty"`
 	// Floorplan is the content of a floor plan document.
 	Floorplan *Floorplan `json:"floorplan,omitempty"`
+	// Parent makes the document part of a page (slug or id), e.g. a board
+	// created from the page's "/" menu; it stays out of the sidebar.
+	Parent string `json:"parent,omitempty"`
 }
 
 // DocumentPatch changes a document; nil fields stay as they are.
@@ -269,8 +272,19 @@ func (s *Service) createDocument(ctx context.Context, a Actor, p store.Project, 
 	if err != nil {
 		return DocResult{}, err
 	}
+	parentID := ""
+	if in.Parent != "" {
+		parent, err := s.DB.GetDocument(ctx, p.ID, in.Parent)
+		if err != nil {
+			return DocResult{}, invalid("validation.parent", map[string]any{"parent": in.Parent}, "parent page %q not found", in.Parent)
+		}
+		parentID = parent.ID
+		if in.Category == "" {
+			in.Category = parent.Category
+		}
+	}
 	doc, err := s.DB.CreateDocument(ctx, store.Document{ID: newID(), ProjectID: p.ID, Type: in.Type, Slug: in.Slug, Title: in.Title,
-		Category: strings.TrimSpace(in.Category), Position: in.Position, Content: c, CreatedBy: a.User.ID}, a.String(), related...)
+		Category: strings.TrimSpace(in.Category), Position: in.Position, Content: c, CreatedBy: a.User.ID, ParentID: parentID}, a.String(), related...)
 	if err != nil {
 		return DocResult{}, err
 	}

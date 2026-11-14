@@ -324,7 +324,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     };
     const uncategorized: Doc[] = [];
     for (const d of this.docs) {
-      if (d.type === "adr") continue;
+      if (d.type === "adr" || d.parentId) continue; // boards made inside a page live in that page
       const c = (d.category || "").split("/").map((x) => x.trim()).filter(Boolean).join("/");
       if (!c) uncategorized.push(d);
       else node(c).docs.push(d);

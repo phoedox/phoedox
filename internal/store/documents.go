@@ -29,6 +29,9 @@ type Document struct {
 	Number    int    `json:"number,omitempty"` // decisions only, per project, never reused
 	// Restricted documents are visible only to project owners and people or groups they are shared with.
 	Restricted bool `json:"restricted,omitempty"`
+	// ParentID is the page a document belongs to (a board made inside a
+	// page); such documents stay out of the sidebar.
+	ParentID string `json:"parentId,omitempty"`
 	// Role is the requesting user's role for this document (set by the service).
 	Role string `json:"role,omitempty"`
 	// Locale is the language of title and content when the project is
@@ -43,12 +46,13 @@ type Document struct {
 	UpdatedAt    Time          `json:"updatedAt"`
 }
 
-const docCols = `id, project_id, doc_type, slug, title, category, position, version, created_by, created_at, updated_at, number, restricted`
+const docCols = `id, project_id, doc_type, slug, title, category, position, version, created_by, created_at, updated_at, number, restricted, parent_id`
 
 func scanDoc(r interface{ Scan(...any) error }, withContent bool) (Document, error) {
 	var doc Document
 	var number sql.NullInt64
-	dest := []any{&doc.ID, &doc.ProjectID, &doc.Type, &doc.Slug, &doc.Title, &doc.Category, &doc.Position, &doc.Version, &doc.CreatedBy, &doc.CreatedAt, &doc.UpdatedAt, &number, &doc.Restricted}
+	var parent sql.NullString
+	dest := []any{&doc.ID, &doc.ProjectID, &doc.Type, &doc.Slug, &doc.Title, &doc.Category, &doc.Position, &doc.Version, &doc.CreatedBy, &doc.CreatedAt, &doc.UpdatedAt, &number, &doc.Restricted, &parent}
 	if withContent {
 		dest = append(dest, &doc.Content)
 	}
@@ -57,6 +61,7 @@ func scanDoc(r interface{ Scan(...any) error }, withContent bool) (Document, err
 		return doc, ErrNotFound
 	}
 	doc.Number = int(number.Int64)
+	doc.ParentID = parent.String
 	return doc, err
 }
 
@@ -79,8 +84,8 @@ func (d *DB) CreateDocument(ctx context.Context, doc Document, actor string, rel
 			}
 			number = doc.Number
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO documents (id, tenant_id, project_id, doc_type, slug, title, category, position, content, version, created_by, created_at, updated_at, number)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, doc.ID, TenantOf(ctx), doc.ProjectID, doc.Type, doc.Slug, doc.Title, doc.Category, doc.Position, doc.Content, doc.Version, doc.CreatedBy, now, now, number); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO documents (id, tenant_id, project_id, doc_type, slug, title, category, position, content, version, created_by, created_at, updated_at, number, parent_id)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, doc.ID, TenantOf(ctx), doc.ProjectID, doc.Type, doc.Slug, doc.Title, doc.Category, doc.Position, doc.Content, doc.Version, doc.CreatedBy, now, now, number, nullable(doc.ParentID)); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO document_versions (document_id, version, title, content, actor, created_at) VALUES (?, ?, ?, ?, ?, ?)`,

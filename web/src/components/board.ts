@@ -30,7 +30,7 @@ export class PhxBoard extends LitElement {
     dragging: { state: true }, dropAt: { state: true }, adding: { state: true },
   };
   static styles = [base, css`
-    :host { display: block; margin-top: 8px; }
+    :host { display: block; margin-top: 8px; white-space: normal; }
     .tools { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
     .tools .muted { font-size: 13px; }
     .cols { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; align-items: flex-start; scrollbar-width: thin; }
@@ -200,13 +200,20 @@ export class PhxBoard extends LitElement {
     this.open = undefined;
   }
 
+  /** Members are picked by name or e-mail; anything else is a free-text assignee (e.g. "Claude"). */
+  private assigneeRef(value: string): string {
+    const v = value.trim();
+    const m = this.members.find((x) => x.name === v || x.email.toLowerCase() === v.toLowerCase());
+    return m ? m.userId : v;
+  }
+
   private async saveCard(e: SubmitEvent) {
     e.preventDefault();
     const task = this.open!;
     const f = new FormData(e.target as HTMLFormElement);
     const s = (k: string) => String(f.get(k) ?? "");
     const saved = await this.patch(task, {
-      title: s("title"), description: s("description"), column: s("column"), assignee: s("assignee"), due: s("due"),
+      title: s("title"), description: s("description"), column: s("column"), assignee: this.assigneeRef(s("assignee")), due: s("due"),
       priority: Number(s("priority")), labels: s("labels").split(",").map((x) => x.trim()).filter(Boolean),
     });
     if (saved) this.close();
@@ -292,11 +299,12 @@ export class PhxBoard extends LitElement {
       @dragover=${(e: DragEvent) => { if (!this.dragging) return; e.preventDefault(); e.stopPropagation(); this.dropAt = { column: col.id, before: task.id }; }}
       @drop=${(e: DragEvent) => { e.preventDefault(); e.stopPropagation(); if (this.dragging) this.move(this.dragging, col.id, task.id); this.dragging = undefined; this.dropAt = undefined; }}>
       <span class="title">${task.title}</span>
-      ${task.labels.length || task.due || task.priority || task.assigneeName ? html`<span class="meta">
+      ${task.labels.length || task.due || task.priority || task.assigneeName || task.assigneeText ? html`<span class="meta">
         ${task.labels.map((l) => html`<span class="label">${l}</span>`)}
         ${task.priority ? html`<span class="prio p${task.priority}" title=${t(`board.priority.${task.priority}` as any)}>${icon("Flag", 12)}</span>` : ""}
         ${task.due ? html`<span class=${late ? "late" : ""} title=${t("board.due")}>${icon("CalendarDays", 12)} ${formatDay(task.due)}</span>` : ""}
-        ${task.assigneeName ? html`<span class="who" title=${task.assigneeName}>${userAvatar({ id: task.assigneeId ?? "", name: task.assigneeName, avatar: task.assigneeAvatar }, 22)}</span>` : ""}
+        ${task.assigneeName ? html`<span class="who" title=${task.assigneeName}>${userAvatar({ id: task.assigneeId ?? "", name: task.assigneeName, avatar: task.assigneeAvatar }, 22)}</span>`
+          : task.assigneeText ? html`<span class="chip who-text" title=${t("board.assignee") + ": " + task.assigneeText}>${icon("UserRound", 11)} ${task.assigneeText}</span>` : ""}
       </span>` : ""}
     </div>`;
   }
@@ -328,9 +336,9 @@ export class PhxBoard extends LitElement {
         ${!edit && task.description ? html`<div class="prose">${unsafeHTML(renderMarkdown(task.description, this.project))}</div>` : ""}
         <div class="two">
           <label class="field">${t("board.column")}<select name="column" ?disabled=${!edit}>${this.board.columns.map((c) => html`<option value=${c.id} ?selected=${c.id === task.column}>${c.name}</option>`)}</select></label>
-          <label class="field">${t("board.assignee")}<select name="assignee" ?disabled=${!edit}>
-            <option value="">${t("board.nobody")}</option>
-            ${this.members.map((m) => html`<option value=${m.userId} ?selected=${m.userId === task.assigneeId}>${m.name || m.email}</option>`)}</select></label>
+          <label class="field">${t("board.assignee")}<input name="assignee" list="assignees" autocomplete="off" ?disabled=${!edit} placeholder=${t("board.assignee_hint")}
+            .value=${task.assigneeId ? (this.members.find((m) => m.userId === task.assigneeId)?.name || task.assigneeName || "") : (task.assigneeText ?? "")}>
+            <datalist id="assignees">${this.members.map((m) => html`<option value=${m.name || m.email}>${m.email}</option>`)}</datalist></label>
           <label class="field">${t("board.due")}<input type="date" name="due" .value=${task.due ?? ""} ?disabled=${!edit}></label>
           <label class="field">${t("board.priority")}<select name="priority" ?disabled=${!edit}>${[0, 1, 2, 3].map((p) => html`<option value=${p} ?selected=${p === task.priority}>${t(`board.priority.${p}` as any)}</option>`)}</select></label>
         </div>

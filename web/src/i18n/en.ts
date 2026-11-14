@@ -1283,4 +1283,10 @@ export const en: Record<keyof typeof de, string> = {
   "validation.agent_action": "This entry has no such action ({action}).",
   "validation.agent_job_state": "The job is already signed or has expired.",
   "validation.agent_signature": "The signature matches none of your keys.",
+  "board.assignee_hint": "Member or free text, e.g. Claude",
+  "block.board_new": "New board for this page",
+  "block.board_new_hint": "A new board belongs to this page and does not appear separately in the sidebar. Or pick an existing board; it is embedded live.",
+  "block.board_new_title": "Name (for a new board)",
+  "block.board_default_title": "Tasks: {page}",
+  "validation.parent": "The parent page does not exist ({parent}).",
 };

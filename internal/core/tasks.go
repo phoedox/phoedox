@@ -120,7 +120,7 @@ type TaskInput struct {
 	Title       string   `json:"title"`
 	Description string   `json:"description,omitempty"`
 	Column      string   `json:"column,omitempty"`   // id or name; default: first column
-	Assignee    string   `json:"assignee,omitempty"` // user id or e-mail of a project member
+	Assignee    string   `json:"assignee,omitempty"` // user id or e-mail of a project member, or free text such as "Claude"
 	Due         string   `json:"due,omitempty"`      // YYYY-MM-DD
 	Priority    int      `json:"priority,omitempty"` // 0 none … 3 high
 	Labels      []string `json:"labels,omitempty"`
@@ -152,6 +152,27 @@ func (s *Service) boardAccess(ctx context.Context, a Actor, ref, boardRef, need 
 		return p, doc, invalid("validation.ai_tasks_direct", nil, "AI clients change tasks only in projects where AI writes directly")
 	}
 	return p, doc, nil
+}
+
+// assignee resolves an assignee: a project member (id or e-mail) becomes a
+// user id, anything else is kept as free text (e.g. "Claude", "ChatGPT").
+// An e-mail of someone who is not a member stays an error, it is a typo or a
+// missing invitation.
+func (s *Service) assignee(ctx context.Context, p store.Project, ref string) (id, text string, err error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return "", "", nil
+	}
+	if id, err := s.resolveAssignee(ctx, p, ref); err == nil {
+		return id, "", nil
+	}
+	if strings.Contains(ref, "@") {
+		return "", "", invalid("validation.assignee", map[string]any{"user": ref}, "%q is not a member of this project", ref)
+	}
+	if r := []rune(ref); len(r) > 60 {
+		ref = string(r[:60])
+	}
+	return "", ref, nil
 }
 
 func (s *Service) resolveAssignee(ctx context.Context, p store.Project, ref string) (string, error) {
@@ -219,7 +240,11 @@ func (s *Service) Tasks(ctx context.Context, a Actor, ref string, boardRef, colu
 	if assignee == "me" {
 		f.AssigneeID = a.User.ID
 	} else if assignee != "" {
-		if f.AssigneeID, err = s.resolveAssignee(ctx, p, assignee); err != nil {
+		var text string
+		if f.AssigneeID, text, err = s.assignee(ctx, p, assignee); err == nil && text != "" {
+			f.AssigneeText = text
+		}
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -261,7 +286,7 @@ func (s *Service) CreateTask(ctx context.Context, a Actor, ref, boardRef string,
 	if err := validDue(in.Due); err != nil {
 		return store.Task{}, err
 	}
-	assignee, err := s.resolveAssignee(ctx, p, in.Assignee)
+	assignee, assigneeText, err := s.assignee(ctx, p, in.Assignee)
 	if err != nil {
 		return store.Task{}, err
 	}
@@ -271,7 +296,7 @@ func (s *Service) CreateTask(ctx context.Context, a Actor, ref, boardRef string,
 	}
 	now := store.Now()
 	t := store.Task{ID: newID(), ProjectID: p.ID, BoardID: doc.ID, Column: col.ID, Position: pos + 1, Title: in.Title, Description: in.Description,
-		AssigneeID: assignee, Due: in.Due, Priority: min(max(in.Priority, 0), 3), Labels: cleanLabels(in.Labels), CreatedBy: a.String(), CreatedAt: now, UpdatedAt: now}
+		AssigneeID: assignee, AssigneeText: assigneeText, Due: in.Due, Priority: min(max(in.Priority, 0), 3), Labels: cleanLabels(in.Labels), CreatedBy: a.String(), CreatedAt: now, UpdatedAt: now}
 	if col.Done {
 		t.DoneAt = now
 	}
@@ -342,7 +367,7 @@ func (s *Service) UpdateTask(ctx context.Context, a Actor, ref, id string, patch
 		t.DoneAt = store.Time{}
 	}
 	if patch.Assignee != nil {
-		if t.AssigneeID, err = s.resolveAssignee(ctx, p, *patch.Assignee); err != nil {
+		if t.AssigneeID, t.AssigneeText, err = s.assignee(ctx, p, *patch.Assignee); err != nil {
 			return t, err
 		}
 	}

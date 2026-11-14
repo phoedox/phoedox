@@ -45,6 +45,8 @@ export class PhxLiveEditor extends LitElement {
     peers: { state: true }, error: { state: true }, asking: { state: true }, inTable: { state: true },
     slash: { state: true }, pop: { state: true }, form: { state: true }, callout: { state: true }, colors: { state: true } };
   static styles = [base, unsafeCSS(prose), css`
+    /* Embedded blocks (boards, embeds, formulas) must not inherit the editor's pre-wrap. */
+    [data-lexical-decorator] { white-space: normal; }
     :host { display: block; max-width: var(--reading-width, 820px); margin-inline: auto; }
     :host([wide]) { max-width: none; }
     header { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 10px; }
@@ -459,13 +461,24 @@ export class PhxLiveEditor extends LitElement {
   private async askFence(kind: FenceKind, current: string): Promise<string | undefined> {
     if (kind === "board") {
       const boards = (await api<Doc[]>("GET", `/projects/${this.project}/documents?type=board`).catch(() => [])) ?? [];
-      if (!boards.length) {
-        toast(t("block.no_boards"), "error");
+      const NEW = "__new__";
+      const v = await this.askForm({ title: t("slash.board"), hint: t("block.board_new_hint"), fields: [
+        { name: "board", label: t("block.board_pick"), type: "select", value: current || NEW,
+          options: [[NEW, t("block.board_new")] as [string, string], ...boards.map((b) => [b.slug, b.title] as [string, string])] },
+        { name: "title", label: t("block.board_new_title"), type: "text", value: this.doc ? t("block.board_default_title", { page: this.doc.title }) : "" }] });
+      if (!v) return undefined;
+      if (v.board !== NEW) return v.board;
+      // A board of its own: it belongs to this page and stays out of the sidebar.
+      try {
+        const res = await api<{ document?: Doc }>("POST", `/projects/${this.project}/documents`, {
+          type: "board", title: v.title?.trim() || t("doc.type.board"), parent: this.doc?.id,
+          board: { columns: [{ id: "todo", name: t("board.col_todo") }, { id: "doing", name: t("board.col_doing") }, { id: "done", name: t("board.col_done"), done: true }] },
+        });
+        return res.document?.slug;
+      } catch (e) {
+        toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
         return undefined;
       }
-      const v = await this.askForm({ title: t("slash.board"), fields: [{ name: "board", label: t("block.board_pick"), type: "select", value: current || boards[0].slug,
-        options: boards.map((b) => [b.slug, b.title]) }] });
-      return v?.board;
     }
     const label = kind === "math" ? t("block.tex") : kind === "iframe" ? t("block.url_iframe") : t("block.url_embed");
     const v = await this.askForm({ title: t(`slash.${kind}` as any), hint: kind === "iframe" ? t("block.iframe_hint") : kind === "embed" ? t("block.embed_hint") : t("block.math_hint"),

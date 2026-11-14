@@ -91,7 +91,7 @@ export interface ShareLink { id: string; projectId: string; documentId?: string;
 /** Address of a share link (the token is only known right after creating it). */
 export const shareURL = (token: string) => `${location.origin}/s/${token}`;
 export interface Doc {
-  id: string; projectId: string; type: "markdown" | "adr" | "link" | "board" | "floorplan"; slug: string; title: string;
+  id: string; projectId: string; type: "markdown" | "adr" | "link" | "board" | "floorplan"; slug: string; title: string; parentId?: string;
   category: string; position: number; version: number; updatedAt: string; content?: any;
   /** Decisions only: per-project number, never reused. */
   number?: number;
@@ -109,7 +109,7 @@ export interface BoardColumn { id: string; name: string; done?: boolean }
 export interface Board { description?: string; columns: BoardColumn[] }
 export interface Task {
   id: string; projectId: string; boardId: string; column: string; position: number; title: string; description: string;
-  assigneeId?: string; assigneeName?: string; assigneeAvatar?: string; due?: string; priority: number; labels: string[];
+  assigneeId?: string; assigneeName?: string; assigneeText?: string; assigneeAvatar?: string; due?: string; priority: number; labels: string[];
   createdBy: string; createdAt: string; updatedAt: string; doneAt?: string; boardSlug?: string; boardTitle?: string;
 }
 export interface TranslationMeta { documentId: string; locale: string; title: string; sourceVersion: number; machine: boolean; updatedAt: string }
