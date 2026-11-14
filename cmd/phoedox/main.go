@@ -84,16 +84,22 @@ func main() {
 		go runPlugins(ctx, a, log)
 	}
 
-	// Monitoring: run due checks (request blocks) every fifteen seconds.
+	// Monitoring: run due checks (request blocks) every fifteen seconds;
+	// daily notification digests are looked at every ten minutes.
 	go func() {
 		t := time.NewTicker(15 * time.Second)
 		defer t.Stop()
+		var digests time.Time
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-t.C:
 				a.Core.RunChecks(store.System(ctx), time.Now())
+				if time.Since(digests) > 10*time.Minute {
+					digests = time.Now()
+					a.Core.SendDigests(store.System(ctx), time.Now())
+				}
 			}
 		}
 	}()
@@ -108,6 +114,7 @@ func main() {
 			a.Core.CleanupUploads(sys)
 			a.Core.RemindDrafts(sys, time.Now())
 			_, _ = a.DB.PruneJobs(sys, store.Time{Time: time.Now().Add(-7 * 24 * time.Hour)})
+			_, _ = a.DB.PruneNotifications(sys, store.Time{Time: time.Now().Add(-90 * 24 * time.Hour)})
 			select {
 			case <-ctx.Done():
 				return

@@ -124,6 +124,10 @@ type Service struct {
 	schedMu   sync.Mutex
 	schedLast map[string]time.Time
 	checkMu   sync.Mutex
+	vapidMu   sync.Mutex
+
+	// SyncNotify sends ntfy and web push before notify returns (tests).
+	SyncNotify bool
 }
 
 // New returns a service with defaults.

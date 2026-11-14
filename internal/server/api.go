@@ -82,6 +82,8 @@ func (a *api) routes(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(a.requireActor)
 		r.Get("/me", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, actorOf(r).User) })
+		r.Get("/me/notifications", a.listNotifications)
+		r.Post("/me/notifications/read", a.readNotifications)
 		// Account changes need the full rights of the user (no narrowed token).
 		r.Group(func(r chi.Router) {
 			r.Use(requireFull)
@@ -97,6 +99,11 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/images/user/{id}", a.userImage)
 			r.Post("/me/password", a.changePassword)
 			r.Get("/me/security", a.security)
+			r.Get("/me/notification-settings", a.notificationSettings)
+			r.Put("/me/notification-settings", a.saveNotificationSettings)
+			r.Post("/me/push-subscriptions", a.addPushSubscription)
+			r.Post("/me/push-subscriptions/remove", a.deletePushSubscription)
+			r.Post("/me/notifications/test", a.testNotification)
 			r.Get("/me/signing-keys", a.signingKeys)
 			r.Post("/me/signing-keys", a.addSigningKey)
 			r.Delete("/me/signing-keys/{id}", a.deleteSigningKey)

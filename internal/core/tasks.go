@@ -304,6 +304,7 @@ func (s *Service) CreateTask(ctx context.Context, a Actor, ref, boardRef string,
 		return t, err
 	}
 	s.event(ctx, a, "task.create", t.ID, map[string]any{"board": doc.ID, "title": t.Title, "column": t.Column})
+	s.notifyAssignee(ctx, a, p, doc, t)
 	return s.DB.GetTask(ctx, p.ID, t.ID)
 }
 
@@ -366,6 +367,7 @@ func (s *Service) UpdateTask(ctx context.Context, a Actor, ref, id string, patch
 	} else if !col.Done {
 		t.DoneAt = store.Time{}
 	}
+	oldAssignee := t.AssigneeID
 	if patch.Assignee != nil {
 		if t.AssigneeID, t.AssigneeText, err = s.assignee(ctx, p, *patch.Assignee); err != nil {
 			return t, err
@@ -388,6 +390,9 @@ func (s *Service) UpdateTask(ctx context.Context, a Actor, ref, id string, patch
 		return t, err
 	}
 	s.event(ctx, a, "task.update", t.ID, map[string]any{"board": t.BoardID, "column": t.Column, "patch": patch})
+	if t.AssigneeID != "" && t.AssigneeID != oldAssignee {
+		s.notifyAssignee(ctx, a, p, doc, t)
+	}
 	return s.DB.GetTask(ctx, p.ID, t.ID)
 }
 
@@ -409,4 +414,18 @@ func (s *Service) DeleteTask(ctx context.Context, a Actor, ref, id string) error
 	}
 	s.event(ctx, a, "task.delete", id, map[string]any{"board": t.BoardID, "title": t.Title})
 	return nil
+}
+
+// notifyAssignee tells a person that a task was assigned to them (not
+// when they took it themselves).
+func (s *Service) notifyAssignee(ctx context.Context, a Actor, p store.Project, board store.Document, t store.Task) {
+	if t.AssigneeID == "" || t.AssigneeID == a.User.ID {
+		return
+	}
+	u, err := s.DB.UserByID(ctx, t.AssigneeID)
+	if err != nil || !s.canRead(ctx, u, p, board) {
+		return
+	}
+	s.notify(ctx, u, Note{Kind: "task.assigned", ProjectID: p.ID, Project: p.Name, Subject: t.ID, Title: t.Title, Body: excerpt(t.Description, 400),
+		Link: "/p/" + p.Slug + "/d/" + board.Slug + "?task=" + t.ID, Actor: a.User.Name})
 }

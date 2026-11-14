@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/phoedox/phoedox/internal/mail"
 	"github.com/phoedox/phoedox/internal/requests"
 	"github.com/phoedox/phoedox/internal/store"
 	"github.com/phoedox/phoedox/resources"
@@ -383,29 +382,23 @@ func (s *Service) checkChanged(ctx context.Context, c store.Check, prev string) 
 }
 
 func (s *Service) mailCheck(ctx context.Context, u store.User, c store.Check) {
-	if s.Mail == nil || !s.Mail.Enabled() || s.PublicURL == "" || u.Disabled {
-		return
-	}
 	p, err := s.DB.ProjectFor(ctx, c.ProjectID, "")
 	if err != nil {
 		return
 	}
-	link := s.PublicURL + "/p/" + p.Slug
+	link := "/p/" + p.Slug
 	if doc, err := s.DB.GetDocument(ctx, c.ProjectID, c.DocumentID); err == nil {
 		link += "/d/" + doc.Slug
 	}
-	locale := u.Locale
-	if locale == "" {
-		locale = s.DefaultLocale
+	kind := "check.recover"
+	if c.LastStatus == store.CheckFail {
+		kind = "check.fail"
 	}
-	subject, body, err := resources.Mail("check", locale, map[string]any{
-		"Name": u.Name, "Check": c.Name, "Project": p.Name, "Failed": c.LastStatus == store.CheckFail,
-		"Detail": c.LastDetail, "Time": c.LastRun.UTC().Format("2006-01-02 15:04 UTC"), "Link": link,
-	})
-	if err == nil {
-		err = s.Mail.Send(ctx, mail.Message{To: u.Email, Subject: subject, Body: body})
-	}
-	if err != nil {
-		slog.Warn("check mail failed", "check", c.ID, "err", err)
-	}
+	s.notify(ctx, u, Note{Kind: kind, ProjectID: p.ID, Project: p.Name, Subject: c.ID, Title: c.Name, Body: c.LastDetail, Link: link,
+		Mail: func(u store.User, locale string) (string, string, error) {
+			return resources.Mail("check", locale, map[string]any{
+				"Name": u.Name, "Check": c.Name, "Project": p.Name, "Failed": c.LastStatus == store.CheckFail,
+				"Detail": c.LastDetail, "Time": c.LastRun.UTC().Format("2006-01-02 15:04 UTC"), "Link": s.PublicURL + link,
+			})
+		}})
 }

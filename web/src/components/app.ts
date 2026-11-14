@@ -14,6 +14,8 @@ import "./login";
 import "./profile";
 import "./publications";
 import "./security";
+import "./notification-bell";
+import "./notification-settings";
 import "./consent";
 import "./palette";
 import type { PhxPalette } from "./palette";
@@ -64,6 +66,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/reset/:token", render: ({ token }) => html`<phx-set-password .token=${token!}></phx-set-password>` },
     { path: "/settings/profile", render: () => html`<phx-profile></phx-profile>` },
     { path: "/oauth/authorize", render: () => html`<phx-consent></phx-consent>` },
+    { path: "/settings/notifications", render: () => html`<phx-notification-settings></phx-notification-settings>` },
     { path: "/settings/security", render: () => html`<phx-security></phx-security>` },
     { path: "/settings/tokens", render: () => html`<phx-tokens></phx-tokens>` },
     { path: "/settings/publications", render: () => html`<phx-publications></phx-publications>` },
@@ -116,6 +119,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
               <a href="/" aria-label=${t("nav.projects")}>${icon("FolderOpen", 15)} <span class="lbl">${t("nav.projects")}</span></a>
               <button class="ghost search" @click=${this.openPalette} aria-label=${t("palette.button")} aria-keyshortcuts="Control+K Meta+K">
                 ${icon("Search", 15)}<span class="lbl">${t("palette.button")}</span><kbd class="lbl">${navigator.platform.startsWith("Mac") ? "⌘K" : t("palette.ctrl")}</kbd></button>
+              <phx-notification-bell></phx-notification-bell>
               <phx-user-menu @logout=${this.logout}></phx-user-menu>
             </nav>
           </header>`

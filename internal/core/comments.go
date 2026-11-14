@@ -2,12 +2,10 @@ package core
 
 import (
 	"context"
-	"log/slog"
 	"slices"
 	"strings"
 	"unicode/utf8"
 
-	"github.com/phoedox/phoedox/internal/mail"
 	"github.com/phoedox/phoedox/internal/store"
 	"github.com/phoedox/phoedox/resources"
 )
@@ -184,11 +182,8 @@ func (s *Service) canRead(ctx context.Context, u store.User, p store.Project, do
 	return err == nil && role != ""
 }
 
-// notifyComment mails mentioned people and the people in the thread.
+// notifyComment tells mentioned people and the people in the thread.
 func (s *Service) notifyComment(ctx context.Context, a Actor, p store.Project, doc store.Document, c store.Comment, thread []store.Comment) {
-	if s.Mail == nil || !s.Mail.Enabled() || s.PublicURL == "" {
-		return
-	}
 	type target struct {
 		id        string
 		mentioned bool
@@ -207,29 +202,25 @@ func (s *Service) notifyComment(ctx context.Context, a Actor, p store.Project, d
 			to = append(to, target{x.AuthorID, false})
 		}
 	}
-	excerpt := c.Body
-	if utf8.RuneCountInString(excerpt) > 600 {
-		excerpt = string([]rune(excerpt)[:600]) + " …"
-	}
+	body := excerpt(c.Body, 600)
+	link := "/p/" + p.Slug + "/d/" + doc.Slug + "#comment-" + c.ID
 	for _, t := range to {
 		u, err := s.DB.UserByID(ctx, t.id)
 		if err != nil || u.Disabled || !s.canRead(ctx, u, p, doc) {
 			continue
 		}
-		locale := u.Locale
-		if locale == "" {
-			locale = s.DefaultLocale
+		kind := "comment.reply"
+		if t.mentioned {
+			kind = "comment.mention"
 		}
-		subject, body, err := resources.Mail("comment", locale, map[string]any{
-			"Name": u.Name, "Author": a.User.Name, "Title": doc.Title, "Project": p.Name, "Mentioned": t.mentioned,
-			"Reply": c.ParentID != "", "Body": excerpt, "Link": s.PublicURL + "/p/" + p.Slug + "/d/" + doc.Slug + "#comment-" + c.ID,
-		})
-		if err == nil {
-			err = s.Mail.Send(ctx, mail.Message{To: u.Email, Subject: subject, Body: body})
-		}
-		if err != nil {
-			slog.Warn("comment mail failed", "user", u.ID, "err", err)
-		}
+		mentioned := t.mentioned
+		s.notify(ctx, u, Note{Kind: kind, ProjectID: p.ID, Project: p.Name, Subject: c.ID, Title: doc.Title, Body: body, Link: link, Actor: a.User.Name,
+			Mail: func(u store.User, locale string) (string, string, error) {
+				return resources.Mail("comment", locale, map[string]any{
+					"Name": u.Name, "Author": a.User.Name, "Title": doc.Title, "Project": p.Name, "Mentioned": mentioned,
+					"Reply": c.ParentID != "", "Body": body, "Link": s.PublicURL + link,
+				})
+			}})
 	}
 }
 
