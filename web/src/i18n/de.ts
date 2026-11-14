@@ -1249,4 +1249,5 @@ export const de = {
   "diag.state_down": "Zustand: {state}",
   "diag.state_ok": "Zustand: {state}",
   "diag.state_other": "Zustand: {state}",
+  "tree.title": "Software auf diesem Host",
 } as const;

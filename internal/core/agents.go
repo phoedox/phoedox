@@ -94,16 +94,27 @@ type Report struct {
 	IPs       []string          `json:"ips,omitempty"`
 	Disks     []json.RawMessage `json:"disks,omitempty"`
 	Docker    []Container       `json:"containers,omitempty"`
+	Packages  []Package         `json:"packages,omitempty"`
+	DockerVer string            `json:"dockerVersion,omitempty"`
 	Version   string            `json:"agentVersion,omitempty"`
 	TakenAt   time.Time         `json:"takenAt,omitzero"`
 }
 
 // Container is a Docker container of a report.
 type Container struct {
-	Name  string `json:"name"`
-	Image string `json:"image"`
-	State string `json:"state"`
-	Ports string `json:"ports,omitempty"`
+	Name       string `json:"name"`
+	Image      string `json:"image"`
+	State      string `json:"state"`
+	Ports      string `json:"ports,omitempty"`
+	Project    string `json:"project,omitempty"`
+	Service    string `json:"service,omitempty"`
+	ComposeDir string `json:"composeDir,omitempty"`
+}
+
+// Package is an installed system package.
+type Package struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
 }
 
 func gib(b uint64) float64 { return float64(b*10/(1<<30)) / 10 }
@@ -126,6 +137,9 @@ func (s *Service) AgentReport(ctx context.Context, token string, r Report) error
 	if len(r.Docker) > 500 {
 		r.Docker = r.Docker[:500]
 	}
+	if len(r.Packages) > 20000 {
+		r.Packages = r.Packages[:20000]
+	}
 	kind := map[string]string{"vm": "vm", "lxc": "lxc"}[r.Virt]
 	if kind == "" {
 		kind = "server"
@@ -133,6 +147,9 @@ func (s *Service) AgentReport(ctx context.Context, token string, r Report) error
 	slug := graph.Slugify(r.Hostname)
 	attrs := map[string]any{"hostname": r.Hostname, "os": strings.TrimSpace(r.Distro + " " + r.Kernel), "arch": r.Arch, "cpus": r.CPUs,
 		"ram": gib(r.MemTotal), "agent_seen": time.Now().UTC().Format(time.RFC3339)}
+	if len(r.Packages) > 0 {
+		attrs["packages"] = len(r.Packages)
+	}
 	if len(r.IPs) > 0 {
 		attrs["ip"] = r.IPs[0]
 		attrs["ips"] = strings.Join(r.IPs, ", ")
@@ -141,15 +158,7 @@ func (s *Service) AgentReport(ctx context.Context, token string, r Report) error
 	if err != nil {
 		return err
 	}
-	for _, c := range r.Docker {
-		if c.Name == "" {
-			continue
-		}
-		cs := graph.Slugify(r.Hostname + "-" + c.Name)
-		if _, err := s.agentUpsert(ctx, a, ag.ProjectID, "container", cs, c.Name, map[string]any{"image": c.Image, "state": c.State, "ports": c.Ports}); err == nil {
-			_, _ = s.Link(ctx, a, ag.ProjectID, EdgeInput{From: cs, Rel: "runs_on", To: host})
-		}
-	}
+	s.softwareTree(ctx, a, ag.ProjectID, host, r)
 	raw, _ := json.Marshal(r)
 	return s.DB.SaveAgentReport(ctx, ag.ID, r.Hostname, host, r.Version, raw)
 }
@@ -181,7 +190,27 @@ func (s *Service) Agents(ctx context.Context, a Actor, ref string) ([]store.Agen
 	if err != nil {
 		return nil, err
 	}
-	return s.DB.ProjectAgents(ctx, p.ID)
+	list, err := s.DB.ProjectAgents(ctx, p.ID)
+	for i := range list {
+		list[i].LastReport = withoutPackages(list[i].LastReport)
+	}
+	return list, err
+}
+
+// withoutPackages replaces the package list of a report by its length; the
+// full list stays stored for later checks (updates, CVEs).
+func withoutPackages(raw store.JSON) store.JSON {
+	var m map[string]json.RawMessage
+	if len(raw) == 0 || json.Unmarshal(raw, &m) != nil {
+		return raw
+	}
+	var pk []json.RawMessage
+	if json.Unmarshal(m["packages"], &pk) == nil && m["packages"] != nil {
+		delete(m, "packages")
+		m["packageCount"], _ = json.Marshal(len(pk))
+	}
+	out, _ := json.Marshal(m)
+	return out
 }
 
 // RevokeAgent blocks an agent at once.
@@ -195,4 +224,113 @@ func (s *Service) RevokeAgent(ctx context.Context, a Actor, ref, id string) erro
 	}
 	s.event(ctx, a, "agent.revoke", id, nil)
 	return nil
+}
+
+// notableSoftware maps package names to software entries of the software
+// tree (concept: hardware → hypervisor → VM → container platform → stack).
+var notableSoftware = map[string]struct{ name, typ string }{
+	"docker-ce": {"Docker", "container_platform"}, "docker.io": {"Docker", "container_platform"}, "moby-engine": {"Docker", "container_platform"},
+	"podman": {"Podman", "container_platform"}, "pve-manager": {"Proxmox VE", "hypervisor"}, "libvirt-daemon": {"libvirt", "hypervisor"},
+	"nginx": {"nginx", "application"}, "apache2": {"Apache", "application"}, "httpd": {"Apache", "application"}, "caddy": {"Caddy", "application"},
+	"haproxy": {"HAProxy", "application"}, "mariadb-server": {"MariaDB", "application"}, "mysql-server": {"MySQL", "application"},
+	"redis-server": {"Redis", "application"}, "redis": {"Redis", "application"}, "samba": {"Samba", "application"},
+	"wireguard-tools": {"WireGuard", "application"}, "tailscale": {"Tailscale", "application"}, "openssh-server": {"OpenSSH", "application"},
+	"postfix": {"Postfix", "application"}, "zfsutils-linux": {"ZFS", "application"},
+}
+
+// softwareTree turns packages, the Docker engine, compose stacks and
+// containers of a report into entries below the host.
+func (s *Service) softwareTree(ctx context.Context, a Actor, projectID, host string, r Report) {
+	soft := map[string]string{} // name -> slug
+	add := func(name, typ, version string) {
+		// Prefixes keep software, stacks and containers of the same name apart.
+		slug := graph.Slugify(r.Hostname + "-sw-" + name)
+		if _, ok := soft[name]; ok {
+			return
+		}
+		if _, err := s.agentUpsert(ctx, a, projectID, "software", slug, name, map[string]any{"type": typ, "version": version}); err == nil {
+			soft[name] = slug
+			_, _ = s.Link(ctx, a, projectID, EdgeInput{From: slug, Rel: "installed_on", To: host})
+		}
+	}
+	for _, p := range r.Packages {
+		if n, ok := notableSoftware[p.Name]; ok {
+			add(n.name, n.typ, p.Version)
+		}
+	}
+	if r.DockerVer != "" {
+		delete(soft, "Docker") // the engine's own version wins over the package version
+		add("Docker", "container_platform", r.DockerVer)
+	}
+	portainer := false
+	for _, c := range r.Docker {
+		if strings.Contains(c.Image, "portainer/portainer") {
+			portainer = true
+			add("Portainer", "container_platform", imageTag(c.Image))
+		}
+	}
+	stacks := map[string]string{} // project -> slug
+	running := map[string]bool{}
+	for _, c := range r.Docker {
+		if c.Project == "" {
+			continue
+		}
+		running[c.Project] = running[c.Project] || c.State == "running"
+		if _, ok := stacks[c.Project]; ok {
+			continue
+		}
+		slug := graph.Slugify(r.Hostname + "-stack-" + c.Project)
+		attrs := map[string]any{}
+		if c.ComposeDir != "" {
+			attrs["compose_path"] = c.ComposeDir
+		}
+		if _, err := s.agentUpsert(ctx, a, projectID, "stack", slug, c.Project, attrs); err != nil {
+			continue
+		}
+		stacks[c.Project] = slug
+		_, _ = s.Link(ctx, a, projectID, EdgeInput{From: slug, Rel: "runs_on", To: host})
+		manager := soft["Docker"]
+		if portainer && strings.HasPrefix(c.ComposeDir, "/data/compose/") {
+			manager = soft["Portainer"]
+		}
+		if manager != "" {
+			_, _ = s.Link(ctx, a, projectID, EdgeInput{From: slug, Rel: "managed_by", To: manager})
+		}
+	}
+	for project, slug := range stacks {
+		status := "stopped"
+		if running[project] {
+			status = "running"
+		}
+		_, _ = s.agentUpsert(ctx, a, projectID, "stack", slug, project, map[string]any{"status": status})
+	}
+	for _, c := range r.Docker {
+		if c.Name == "" {
+			continue
+		}
+		cs := graph.Slugify(r.Hostname + "-" + c.Name)
+		attrs := map[string]any{"image": c.Image, "state": c.State, "ports": c.Ports}
+		if c.Service != "" {
+			attrs["service"] = c.Service
+		}
+		if v := imageTag(c.Image); v != "" {
+			attrs["version"] = v
+		}
+		if _, err := s.agentUpsert(ctx, a, projectID, "container", cs, c.Name, attrs); err != nil {
+			continue
+		}
+		_, _ = s.Link(ctx, a, projectID, EdgeInput{From: cs, Rel: "runs_on", To: host})
+		if st := stacks[c.Project]; st != "" {
+			_, _ = s.Link(ctx, a, projectID, EdgeInput{From: cs, Rel: "part_of", To: st})
+		}
+	}
+}
+
+// imageTag returns the tag of an image reference ("nginx:1.29" -> "1.29").
+func imageTag(image string) string {
+	image, _, _ = strings.Cut(image, "@")
+	if i := strings.LastIndex(image, ":"); i > strings.LastIndex(image, "/") {
+		return image[i+1:]
+	}
+	return ""
 }

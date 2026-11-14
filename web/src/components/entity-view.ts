@@ -10,6 +10,7 @@ import { unsafeStatic, html as shtml } from "lit/static-html.js";
 import { base } from "./shared";
 import "./attachments";
 import "./diagnosis";
+import "./software-tree";
 import { toast } from "./toasts";
 
 type Detail = { entity: Entity; edges: Edge[]; documents: Doc[] };
@@ -284,6 +285,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
           </dl>` : html`<p class="muted">${t("entity.none")}</p>`}
           <h2 style="margin-top:12px">${t("entity.mentioned_in")}</h2>
           ${documents.length ? html`<ul>${documents.map((d) => html`<li><a href="/p/${this.project}/d/${d.slug}">${icon("FileText", 14)} ${d.title}</a></li>`)}</ul>` : html`<p class="muted">${t("entity.none")}</p>`}
+          ${["server", "vm", "lxc", "stack"].includes(e.kind) ? html`<phx-software-tree style="margin-top:12px" .project=${this.project} .entity=${e.slug}></phx-software-tree>` : ""}
           <phx-attachments style="margin-top:12px" .project=${this.project} .entity=${e.id} .editable=${edit}></phx-attachments>
         </section>
         <section>

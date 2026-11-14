@@ -1251,4 +1251,5 @@ export const en: Record<keyof typeof de, string> = {
   "diag.state_down": "state: {state}",
   "diag.state_ok": "state: {state}",
   "diag.state_other": "state: {state}",
+  "tree.title": "Software on this host",
 };

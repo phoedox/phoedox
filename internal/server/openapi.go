@@ -225,6 +225,7 @@ var apiDocs = map[string]op{
 	"PUT /projects/{p}/documents/{d}/sharing":                {Tag: "sharing", Summary: "Restrict a page to owners and shares.", In: restrictIn{}, Out: core.DocSharing{}},
 	"POST /projects/{p}/documents/{d}/sharing/grants":        {Tag: "sharing", Summary: "Share a page with a person or group.", In: core.GrantInput{}, Out: core.DocSharing{}},
 	"DELETE /projects/{p}/documents/{d}/sharing/grants/{id}": {Tag: "sharing", Summary: "Stop sharing.", Out: core.DocSharing{}},
+	"GET /projects/{p}/entities/{e}/tree":                    {Tag: "graph", Summary: "Software tree of a host: software, VMs, stacks and containers that are installed on, run on or are part of it.", Out: core.TreeNode{}},
 	"GET /projects/{p}/entities/{e}/diagnose":                {Tag: "graph", Summary: "Network path of a device or of the devices in a room, with a status per station.", Out: core.Diagnosis{}},
 	"POST /agent/enroll":                                     {Tag: "agents", Summary: "Exchange an enrollment code for an agent token (phoedox-agent enroll).", Out: core.Enrolled{}},
 	"POST /agent/report":                                     {Tag: "agents", Summary: "Report a host snapshot with the agent token (read-only, ADR-0033).", In: core.Report{}},
