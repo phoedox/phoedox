@@ -1951,4 +1951,10 @@ export const de = {
   "block.query_missing": "Die Abfrage „{query}“ gibt es nicht (mehr).",
   "block.query_count": "{n} Einträge",
   "block.query_open": "In der Tabelle öffnen",
+  "pub.embed_title": "Einbetten und KI-Zugang",
+  "pub.embed_hint": "Seiten und die Statusseite lassen sich als iframe in andere Websites einbetten (nur öffentliche Veröffentlichungen). Ersetze <project> und <page> durch die Adresse der Seite.",
+  "pub.embed_page": "Seite einbetten",
+  "pub.embed_status": "Status einbetten",
+  "pub.mcp_url": "Öffentlicher MCP-Endpunkt",
+  "pub.mcp_hint": "KI-Clients können die veröffentlichten Seiten hier ohne Konto auflisten, durchsuchen und lesen – nur was auch auf der Website steht.",
 } as const;

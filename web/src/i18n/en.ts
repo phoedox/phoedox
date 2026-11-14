@@ -1953,4 +1953,10 @@ export const en: Record<keyof typeof de, string> = {
   "block.query_missing": "The query “{query}” does not exist (any more).",
   "block.query_count": "{n} entries",
   "block.query_open": "Open in the table",
+  "pub.embed_title": "Embedding and AI access",
+  "pub.embed_hint": "Pages and the status page can be embedded as an iframe in other websites (public publications only). Replace <project> and <page> with the page's address.",
+  "pub.embed_page": "Embed a page",
+  "pub.embed_status": "Embed the status",
+  "pub.mcp_url": "Public MCP endpoint",
+  "pub.mcp_hint": "AI clients can list, search and read the published pages here without an account – only what is on the website.",
 };

@@ -51,7 +51,7 @@ func (s *Site) StatusPage(w http.ResponseWriter, r *http.Request, p core.StatusP
 }
 
 // pubStatus is /status of a publication: public checks and incidents of its projects.
-func (s *Site) pubStatus(w http.ResponseWriter, r *http.Request, p store.Publication, base string, site []core.PubProject, t texts) {
+func (s *Site) pubStatusPage(w http.ResponseWriter, r *http.Request, p store.Publication, base string, site []core.PubProject, t texts, embed bool) {
 	ids := make([]string, 0, len(site))
 	for _, pp := range site {
 		ids = append(ids, pp.Project.ID)
@@ -62,7 +62,7 @@ func (s *Site) pubStatus(w http.ResponseWriter, r *http.Request, p store.Publica
 		return
 	}
 	w.Header().Set("Cache-Control", "public, max-age=30")
-	s.render(w, r, http.StatusOK, &page{T: t, Base: base, Pub: p, Site: site, Title: t["status_title"] + " – " + p.Title, Body: statusBody(st, t), Plain: true})
+	s.render(w, r, http.StatusOK, &page{T: t, Base: base, Pub: p, Site: site, Title: t["status_title"] + " – " + p.Title, Body: statusBody(st, t), Plain: true, Embed: embed, Source: base + "/status"})
 }
 
 // Asset serves the styles and scripts of rendered pages below another base

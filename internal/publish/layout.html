@@ -14,15 +14,16 @@
 {{range .CSS}}<link rel="stylesheet" href="{{$.Base}}/{{.}}?v={{$.Version}}">{{end}}
 {{if .JS}}<script type="module" src="{{.Base}}/{{.JS}}?v={{.Version}}"></script>{{end}}
 <style>:root{ {{.Accent}} } {{.Custom}}</style>
+{{if .Embed}}<base target="_top"><style>body{background:transparent} .wrap.plain{padding:0} main article{margin:0;max-width:none} .embed-src{font-size:12px;margin:12px 0 0;opacity:.75}</style>{{end}}
 </head>
-<body>
-<header class="top">
+<body{{if .Embed}} class="embed"{{end}}>
+{{if not .Embed}}<header class="top">
   <button class="menu-toggle" type="button" aria-label="{{index .T "menu"}}">☰</button>
   <a class="brand" href="{{.Base}}/">{{.Pub.Title}}</a>
   {{if gt (len .Site) 1}}<nav class="projects" aria-label="{{index .T "pages"}}">{{range .Site}}<a href="{{$.Base}}/{{.Project.Slug}}" {{if and $.Project (eq $.Project.Project.ID .Project.ID)}}aria-current="page"{{end}}>{{.Project.Name}}</a>{{end}}</nav>{{end}}
   {{if .Site}}<form action="{{.Base}}/search" role="search"><input type="search" name="q" value="{{.Search}}" placeholder="{{index .T "search_placeholder"}}" aria-label="{{index .T "search"}}"></form>{{end}}
   {{if .Langs}}<nav class="langs" aria-label="{{index .T "language"}}">{{range .Langs}}<a href="{{.URL}}" hreflang="{{.Code}}" {{if .Current}}aria-current="true"{{end}}>{{.Code}}</a>{{end}}</nav>{{end}}
-</header>
+</header>{{end}}
 {{if .Login}}
 <div class="login">
   <h1 style="font-size:20px;margin-top:0">{{index .T "password_title"}}</h1>
@@ -43,10 +44,11 @@
       {{if .Doc}}<h1>{{.Doc.Title}}</h1><div class="meta"><span>{{index .T "updated"}}: {{.Doc.UpdatedAt.Format "02.01.2006"}}</span></div>{{end}}
       {{if .Note}}<p class="note" role="note">{{.Note}}{{if .NoteLink}} <a href="{{.NoteLink}}">{{.NoteLinkText}}</a>{{end}}</p>{{end}}
       <div class="prose">{{.Body}}</div>
+      {{if .Embed}}<p class="embed-src"><a href="{{.Source}}" target="_blank" rel="noopener">{{.Pub.Title}}</a></p>{{end}}
     </article>
   </main>
 </div>
 {{end}}
-<footer>{{index .T "made_with"}}</footer>
+{{if not .Embed}}<footer>{{index .T "made_with"}}</footer>{{end}}
 </body>
 </html>

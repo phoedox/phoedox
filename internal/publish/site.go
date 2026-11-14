@@ -141,6 +141,10 @@ type page struct {
 	LoginError   bool
 	// Plain: no page menu (status pages).
 	Plain bool
+	// Embed: only the content, for iframes on other sites; links open on top.
+	Embed bool
+	// Source is the full page of an embed.
+	Source string
 }
 
 type navGroup struct {
@@ -171,7 +175,12 @@ func (s *Site) Serve(w http.ResponseWriter, r *http.Request, p store.Publication
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 	// Islands load from here; embeds and iframes from https only.
-	h.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'self'")
+	// Only the /_embed/ views may be framed by other sites (public publications).
+	frame := "'self'"
+	if strings.HasPrefix(rel, "/_embed/") && p.Access == "public" {
+		frame = "*"
+	}
+	h.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors "+frame)
 
 	switch {
 	case strings.HasPrefix(rel, "/pub/") || strings.HasPrefix(rel, "/assets/"):
@@ -188,6 +197,11 @@ func (s *Site) Serve(w http.ResponseWriter, r *http.Request, p store.Publication
 	}
 
 	t := textsFor(uiLocale(r))
+	// Embeds and the public MCP endpoint exist for public publications only.
+	if (strings.HasPrefix(rel, "/_embed/") || rel == "/mcp") && p.Access != "public" {
+		http.NotFound(w, r)
+		return
+	}
 	if p.Access == "members" && (s.Member == nil || !s.Member(r)) {
 		// The app's session cookie only exists on the app's own domain.
 		target := base + rel
@@ -239,6 +253,12 @@ func (s *Site) Serve(w http.ResponseWriter, r *http.Request, p store.Publication
 		return
 	}
 	switch {
+	case rel == "/mcp":
+		s.mcp(w, r, p, base, site)
+	case rel == "/_embed/status":
+		s.pubStatusPage(w, r, p, base, site, t, true)
+	case len(parts) == 3 && parts[0] == "_embed":
+		s.docPage(w, r, p, base, site, parts[1], parts[2], t, true)
 	case rel == "/sitemap.xml":
 		s.sitemap(w, r, p, base, site)
 	case rel == "/llms.txt":
@@ -246,7 +266,7 @@ func (s *Site) Serve(w http.ResponseWriter, r *http.Request, p store.Publication
 	case len(parts) == 2 && strings.HasSuffix(parts[1], ".md"):
 		s.markdown(w, r, site, parts[0], strings.TrimSuffix(parts[1], ".md"))
 	case rel == "/status":
-		s.pubStatus(w, r, p, base, site, t)
+		s.pubStatusPage(w, r, p, base, site, t, false)
 	case rel == "/search":
 		s.search(w, r, p, base, site, t)
 	case parts[0] == "_files" && len(parts) >= 2:
@@ -274,7 +294,7 @@ func (s *Site) Serve(w http.ResponseWriter, r *http.Request, p store.Publication
 		}
 		s.notFound(w, r, p, base, site, t)
 	case len(parts) == 2:
-		s.doc(w, r, p, base, site, parts[0], parts[1], t)
+		s.docPage(w, r, p, base, site, parts[0], parts[1], t, false)
 	default:
 		s.notFound(w, r, p, base, site, t)
 	}
@@ -404,7 +424,7 @@ func nav(base string, pp core.PubProject, current string, t texts, lang string) 
 	return out
 }
 
-func (s *Site) doc(w http.ResponseWriter, r *http.Request, p store.Publication, base string, site []core.PubProject, projectSlug, docSlug string, t texts) {
+func (s *Site) docPage(w http.ResponseWriter, r *http.Request, p store.Publication, base string, site []core.PubProject, projectSlug, docSlug string, t texts, embed bool) {
 	lang := r.URL.Query().Get("lang")
 	pp, d, err := s.Core.PubDocument(r.Context(), site, projectSlug, docSlug, lang)
 	if err != nil {
@@ -441,6 +461,9 @@ func (s *Site) doc(w http.ResponseWriter, r *http.Request, p store.Publication, 
 	pg := &page{T: t, Base: base, Pub: p, Site: site, Project: &pp, Doc: &d, Title: d.Title + " – " + p.Title, Body: template.HTML(body.String()),
 		Nav: nav(base, pp, d.Slug, t, lang), Canonical: s.absolute(r, base+"/"+pp.Project.Slug+"/"+d.Slug), Lang: pp.Project.MainLocale}
 	pg.Description = summary(str("markdown") + str("decision") + str("description"))
+	if embed {
+		pg.Embed, pg.Plain, pg.Source = true, true, base+"/"+pp.Project.Slug+"/"+d.Slug
+	}
 	if ri, ok := r.Context().Value(releaseKey{}).(releaseInfo); ok {
 		pg.Note = fmt.Sprintf(t["release_note"], ri.Release.Number, ri.Release.CreatedAt.Format(time.DateOnly))
 		if ri.Release.Note != "" {
@@ -665,6 +688,12 @@ func (s *Site) markdown(w http.ResponseWriter, r *http.Request, site []core.PubP
 		http.NotFound(w, r)
 		return
 	}
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	_, _ = io.WriteString(w, docMarkdown(d))
+}
+
+// docMarkdown is the Markdown source of a published page.
+func docMarkdown(d store.Document) string {
 	c := map[string]any{}
 	_ = json.Unmarshal(d.Content, &c)
 	str := func(k string) string { v, _ := c[k].(string); return v }
@@ -686,8 +715,7 @@ func (s *Site) markdown(w http.ResponseWriter, r *http.Request, site []core.PubP
 	default:
 		fmt.Fprintf(&b, "# %s\n\n%s\n", d.Title, str("description"))
 	}
-	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
-	_, _ = io.WriteString(w, b.String())
+	return b.String()
 }
 
 func (s *Site) sitemap(w http.ResponseWriter, r *http.Request, p store.Publication, base string, site []core.PubProject) {

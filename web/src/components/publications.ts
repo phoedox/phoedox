@@ -155,6 +155,12 @@ export class PhxPublications extends LitElement {
           <a class="url" href=${this.urlOf(p)} target="_blank" rel="noopener">${this.urlOf(p)}</a>
           <span class="muted" style="font-size:12.5px">${t("pub.llms")} <a class="url" href=${this.urlOf(p) + "llms.txt"} target="_blank" rel="noopener">llms.txt</a></span>
           ${p.domain ? html`<a class="url" href=${`${location.origin}/pub/${p.slug}/`} target="_blank" rel="noopener">${location.origin}/pub/${p.slug}/</a>` : ""}
+          ${p.access === "public" ? html`<details style="font-size:13px"><summary class="muted" style="cursor:pointer">${icon("Code", 12)} ${t("pub.embed_title")}</summary>
+            <p class="muted" style="margin:6px 0">${t("pub.embed_hint")}</p>
+            <label>${t("pub.embed_page")}<input readonly class="mono" .value=${`<iframe src="${this.urlOf(p)}_embed/<project>/<page>" style="width:100%;height:480px;border:0" loading="lazy" title="${p.title}"></iframe>`} @focus=${(e: Event) => (e.target as HTMLInputElement).select()}></label>
+            <label>${t("pub.embed_status")}<input readonly class="mono" .value=${`<iframe src="${this.urlOf(p)}_embed/status" style="width:100%;height:360px;border:0" loading="lazy" title="${p.title}"></iframe>`} @focus=${(e: Event) => (e.target as HTMLInputElement).select()}></label>
+            <label>${t("pub.mcp_url")}<input readonly class="mono" .value=${`${this.urlOf(p)}mcp`} @focus=${(e: Event) => (e.target as HTMLInputElement).select()}></label>
+            <p class="muted" style="margin:4px 0 0">${t("pub.mcp_hint")}</p></details>` : ""}
           <span class="muted" style="font-size:13px">${p.projectNames.join(", ")} · ${t("doc.updated", { date: formatDate(p.updatedAt) })}</span>
           ${p.canEdit ? html`<div class="row" style="font-size:13px">
             <button class="ghost" style="padding:3px 9px;font-size:13px" @click=${() => this.release(p)}>${icon("Flag", 13)} ${t("pub.release")}</button>

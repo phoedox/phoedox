@@ -153,6 +153,10 @@ func New(d Deps) http.Handler {
 func spa(web fs.FS) http.Handler {
 	files := http.FileServer(http.FS(web))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The app is never shown inside frames of other sites (clickjacking);
+		// publications have their own /_embed/ views for that.
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
 		p := r.URL.Path
 		if p != "/" {
 			if _, err := fs.Stat(web, p[1:]); err != nil {
