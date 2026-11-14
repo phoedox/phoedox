@@ -22,6 +22,7 @@ import (
 	"github.com/phoedox/phoedox/internal/auth"
 	"github.com/phoedox/phoedox/internal/config"
 	"github.com/phoedox/phoedox/internal/core"
+	"github.com/phoedox/phoedox/internal/graph"
 	"github.com/phoedox/phoedox/internal/realtime"
 	"github.com/phoedox/phoedox/internal/store"
 )
@@ -143,6 +144,15 @@ func New(d Deps) http.Handler {
 		r.Get("/pub/{slug}", servePub)
 		r.Handle("/pub/{slug}/*", http.HandlerFunc(servePub))
 	}
+	// Label links (QR codes, the app's scanner): /e/<project>/<slug> opens the entry.
+	r.Get("/e/{project}/{slug}", func(w http.ResponseWriter, r *http.Request) {
+		project, slug := chi.URLParam(r, "project"), chi.URLParam(r, "slug")
+		if graph.ValidateSlug(project) != nil || graph.ValidateSlug(slug) != nil {
+			http.NotFound(w, r)
+			return
+		}
+		http.Redirect(w, r, "/p/"+project+"/e/"+slug, http.StatusFound)
+	})
 	if d.Web != nil {
 		r.Handle("/*", spa(d.Web))
 	}

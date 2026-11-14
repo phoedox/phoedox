@@ -13,10 +13,13 @@ export type Pt3 = [number, number, number];
 export type CableKind = "network" | "power" | "coax" | "other";
 export interface FloorCable { id: string; kind: CableKind; label?: string; points: Pt3[]; from?: string; to?: string; entity?: string }
 export const CABLE_KINDS: CableKind[] = ["network", "power", "coax", "other"];
+/** A Wi-Fi measurement: signal (dBm) and/or speed test (Mbit/s, ms); 0 = not measured. */
+export interface FloorMeasurement { id: string; x: number; y: number; rssi?: number; down?: number; up?: number; ping?: number; ssid?: string; at?: string }
 export interface Floorplan {
   description?: string; floor?: string; image?: string; imageWidth?: number;
   width: number; height: number; rooms: FloorRoom[]; devices: FloorDevice[];
   walls: FloorWall[]; openings: FloorOpening[]; photos: FloorPhoto[]; cables: FloorCable[];
+  measurements: FloorMeasurement[];
 }
 
 export const WALL_THICKNESS = 120;
@@ -34,13 +37,14 @@ export function normalizePlan(c: Partial<Floorplan> | undefined): Floorplan {
     openings: (c?.openings ?? []).map((o) => ({ ...o })),
     photos: (c?.photos ?? []).map((p) => ({ ...p })),
     cables: (c?.cables ?? []).map((k) => ({ ...k, kind: k.kind || "network", points: k.points.map((q) => [q[0], q[1], q[2] ?? 0] as Pt3) })),
+    measurements: (c?.measurements ?? []).map((m) => ({ ...m })),
   };
 }
 
 /** The plan as the server stores it: empty stage-2 lists are left out. */
 export function planForSave(p: Floorplan): Partial<Floorplan> {
   const out: Partial<Floorplan> = { ...p };
-  for (const k of ["walls", "openings", "photos", "cables"] as const) if (!p[k].length) delete out[k];
+  for (const k of ["walls", "openings", "photos", "cables", "measurements"] as const) if (!p[k].length) delete out[k];
   return out;
 }
 
@@ -120,8 +124,8 @@ export function bounds(p: Pick<Floorplan, "rooms" | "walls" | "devices" | "photo
 
 export type PlanItem =
   | ({ t: "room" } & FloorRoom) | ({ t: "device" } & FloorDevice) | ({ t: "wall" } & FloorWall)
-  | ({ t: "opening" } & FloorOpening) | ({ t: "photo" } & FloorPhoto) | ({ t: "cable" } & FloorCable);
-export type PlanMeta = Omit<Floorplan, "rooms" | "devices" | "walls" | "openings" | "photos" | "cables">;
+  | ({ t: "opening" } & FloorOpening) | ({ t: "photo" } & FloorPhoto) | ({ t: "cable" } & FloorCable) | ({ t: "measure" } & FloorMeasurement);
+export type PlanMeta = Omit<Floorplan, "rooms" | "devices" | "walls" | "openings" | "photos" | "cables" | "measurements">;
 
 export function planItems(p: Floorplan): Map<string, PlanItem> {
   const m = new Map<string, PlanItem>();
@@ -131,11 +135,12 @@ export function planItems(p: Floorplan): Map<string, PlanItem> {
   for (const o of p.openings) m.set(o.id, { t: "opening", ...o });
   for (const f of p.photos) m.set(f.id, { t: "photo", ...f });
   for (const c of p.cables) m.set(c.id, { t: "cable", ...c });
+  for (const x of p.measurements) m.set(x.id, { t: "measure", ...x });
   return m;
 }
 
 export function planMeta(p: Floorplan): PlanMeta {
-  const { rooms: _r, devices: _d, walls: _w, openings: _o, photos: _f, cables: _c, ...meta } = p;
+  const { rooms: _r, devices: _d, walls: _w, openings: _o, photos: _f, cables: _c, measurements: _m, ...meta } = p;
   return meta;
 }
 
@@ -154,6 +159,7 @@ export function planFrom(meta: Partial<PlanMeta>, items: Iterable<PlanItem>): Fl
     else if (it.t === "opening") p.openings.push(strip(it) as FloorOpening);
     else if (it.t === "photo") p.photos.push(strip(it) as FloorPhoto);
     else if (it.t === "cable") p.cables.push(strip(it) as FloorCable);
+    else if (it.t === "measure") p.measurements.push(strip(it) as FloorMeasurement);
   }
   const byId = (a: { id: string }, b: { id: string }) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   p.rooms.sort((a, b) => area(b.points) - area(a.points) || byId(a, b));
@@ -163,6 +169,7 @@ export function planFrom(meta: Partial<PlanMeta>, items: Iterable<PlanItem>): Fl
   p.openings = p.openings.filter((o) => walls.has(o.wall)).sort(byId);
   p.photos.sort(byId);
   p.cables.sort(byId);
+  p.measurements.sort(byId);
   return p;
 }
 

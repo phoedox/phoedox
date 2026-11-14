@@ -233,3 +233,15 @@ func TestFloorplanCables(t *testing.T) {
 		t.Fatalf("no wired_to edge: %+v", d.Edges)
 	}
 }
+
+func TestFloorplanMeasurements(t *testing.T) {
+	ok := &Floorplan{Width: 10000, Height: 8000, Measurements: []FloorMeasurement{{ID: "m1", X: 100, Y: 200, RSSI: -55, Down: 300.5, Up: 40, Ping: 3, SSID: "Home"}}}
+	if _, _, err := floorplanContent(ok); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range []FloorMeasurement{{ID: "m1", X: 1, Y: 1, RSSI: 10}, {ID: "m1", X: 2e6, Y: 1}, {ID: "bad id!", X: 1, Y: 1}, {ID: "m1", X: 1, Y: 1, Down: -1}} {
+		if _, _, err := floorplanContent(&Floorplan{Width: 100, Height: 100, Measurements: []FloorMeasurement{m}}); err == nil {
+			t.Fatalf("accepted %+v", m)
+		}
+	}
+}

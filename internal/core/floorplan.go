@@ -40,6 +40,23 @@ type Floorplan struct {
 	Openings []FloorOpening `json:"openings,omitempty"`
 	Photos   []FloorPhoto   `json:"photos,omitempty"`
 	Cables   []FloorCable   `json:"cables,omitempty"`
+	// Measurements are Wi-Fi signal and speed test results at points of
+	// the plan (heat map, speed per room).
+	Measurements []FloorMeasurement `json:"measurements,omitempty"`
+}
+
+// FloorMeasurement is a Wi-Fi measurement at a point: signal strength
+// (dBm, negative) and/or a speed test (Mbit/s, ms). Zero means not measured.
+type FloorMeasurement struct {
+	ID   string  `json:"id"`
+	X    float64 `json:"x"`
+	Y    float64 `json:"y"`
+	RSSI float64 `json:"rssi,omitempty"`
+	Down float64 `json:"down,omitempty"`
+	Up   float64 `json:"up,omitempty"`
+	Ping float64 `json:"ping,omitempty"`
+	SSID string  `json:"ssid,omitempty"`
+	At   string  `json:"at,omitempty"` // RFC 3339
 }
 
 // FloorCable is a cable route: points with x, y and the height above this
@@ -113,6 +130,7 @@ const (
 	maxPlanOpen   = 2000
 	maxPlanPhotos = 500
 	maxPlanCables = 1000
+	maxPlanMeas   = 2000
 	maxCablePts   = 200
 )
 
@@ -137,7 +155,7 @@ func floorplanContent(fp *Floorplan) (store.JSON, string, error) {
 	if !finite(fp.ImageWidth) || fp.ImageWidth < 0 || fp.ImageWidth > maxPlanSize {
 		return nil, "", bad("imageWidth")
 	}
-	if len(fp.Rooms) > maxPlanRooms || len(fp.Devices) > maxPlanDevs || len(fp.Walls) > maxPlanWalls || len(fp.Openings) > maxPlanOpen || len(fp.Photos) > maxPlanPhotos || len(fp.Cables) > maxPlanCables {
+	if len(fp.Rooms) > maxPlanRooms || len(fp.Devices) > maxPlanDevs || len(fp.Walls) > maxPlanWalls || len(fp.Openings) > maxPlanOpen || len(fp.Photos) > maxPlanPhotos || len(fp.Cables) > maxPlanCables || len(fp.Measurements) > maxPlanMeas {
 		return nil, "", bad("count")
 	}
 	if fp.Rooms == nil {
@@ -227,6 +245,19 @@ func floorplanContent(fp *Floorplan) (store.JSON, string, error) {
 			return nil, "", bad("photo")
 		}
 		ids[ph.ID] = true
+	}
+	for i := range fp.Measurements {
+		m := &fp.Measurements[i]
+		m.SSID = strings.TrimSpace(m.SSID)
+		ok := planIDRe.MatchString(m.ID) && !ids[m.ID] && inside(m.X, m.Y) && len(m.SSID) <= 64 && len(m.At) <= 40
+		for _, v := range []float64{m.RSSI, m.Down, m.Up, m.Ping} {
+			ok = ok && finite(v)
+		}
+		ok = ok && m.RSSI >= -130 && m.RSSI <= 0 && m.Down >= 0 && m.Down <= 100000 && m.Up >= 0 && m.Up <= 100000 && m.Ping >= 0 && m.Ping <= 60000
+		if !ok {
+			return nil, "", bad("measurement")
+		}
+		ids[m.ID] = true
 	}
 	if fp.Floor != "" {
 		refs = append(refs, fp.Floor)

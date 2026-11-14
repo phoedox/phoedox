@@ -636,6 +636,9 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "household_overview", "Household overview of a project: entries with price, purchase date, warranty end (days left) and yearly power use and cost, plus totals.", func(ctx context.Context, a core.Actor, in projectOnlyIn) (any, error) {
 		return svc.Household(ctx, a, in.Project)
 	})
+	tool(s, "ip_addresses", "IP address management: subnets (entries of kind subnet) with used addresses and their entries, free count, next free address outside DHCP, conflicts (one address on several entries) and addresses outside any subnet.", func(ctx context.Context, a core.Actor, in projectOnlyIn) (any, error) {
+		return svc.IPAM(ctx, a, in.Project)
+	})
 	tool(s, "list_locations", "The location hierarchy of a project: sites → buildings → floors → rooms, with how many entries are located in each.", func(ctx context.Context, a core.Actor, in projectOnlyIn) (any, error) {
 		return svc.Locations(ctx, a, in.Project)
 	})

@@ -9,26 +9,28 @@ import type { PlanInput } from "./plan3d";
 import { userColor } from "../collab";
 import { fileURL, isImage, uploadFile, type FileInfo } from "../files";
 import {
-  CABLE_KINDS, DOOR_WIDTH, ROOM_COLORS, WALL_THICKNESS, WINDOW_WIDTH, areaM2, calibrate, clampOpening, distance, labelPoint, metres, nearestWall, newId,
+  CABLE_KINDS, DOOR_WIDTH, ROOM_COLORS, WALL_THICKNESS, WINDOW_WIDTH, areaM2, bounds, calibrate, clampOpening, distance, labelPoint, metres, nearestWall, newId,
   normalizePlan, onWall, openingSpan, orthogonal, planForSave, roomAt, snap, snapToEnds, wallLength, wallOutline,
-  type FloorCable, type Pt3, type FloorDevice, type FloorOpening, type FloorRoom, type FloorWall, type Floorplan, type Pt,
+  type FloorCable, type FloorMeasurement, type Pt3, type FloorDevice, type FloorOpening, type FloorRoom, type FloorWall, type Floorplan, type Pt,
 } from "../floorplan";
 import { ImportError, addImport, parseImport, type ImportResult } from "../floorplan-import";
 import { connectPlan, type PlanLive, type PlanPeer, type Status } from "../floorplan-live";
-import { locale, t } from "../i18n";
+import { formatDate, locale, t } from "../i18n";
+import { heatColor, heatGrid, quality, roomStats, type Metric } from "../wifi-heat";
+import { speedTest } from "../speedtest";
 import { icon } from "../icon";
 import { findKind, kindName, loadModel, type Model } from "../model";
 import { currentUser, navigate } from "../state";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
-type Tool = "select" | "room" | "wall" | "opening" | "device" | "photo" | "cable" | "calibrate";
+type Tool = "select" | "room" | "wall" | "opening" | "device" | "photo" | "cable" | "measure" | "calibrate";
 type Box = { x: number; y: number; w: number; h: number };
 /** What the side panel asks for before something is added. */
 type Pending =
   | { kind: "room"; points: Pt[] } | { kind: "device"; at: Pt } | { kind: "calibrate"; a: Pt; b: Pt }
   | { kind: "opening"; wall: string; offset: number } | { kind: "import"; result: ImportResult; name: string }
-  | { kind: "cable"; points: Pt3[] };
+  | { kind: "cable"; points: Pt3[] } | { kind: "measure"; at: Pt };
 type Drag =
   | { kind: "pan"; from: Pt; box: Box } | { kind: "device" | "photo"; id: string } | { kind: "vertex"; room: string; index: number }
   | { kind: "wallEnd"; wall: string; end: "a" | "b" } | { kind: "opening"; id: string } | { kind: "cvertex"; cable: string; index: number };
@@ -43,11 +45,17 @@ export class PhxFloorplan extends LitElement {
     plan: { state: true }, editing: { state: true }, tool: { state: true }, selected: { state: true }, chain: { state: true },
     cursor: { state: true }, pending: { state: true }, entities: { state: true }, model: { state: true }, box: { state: true },
     busy: { state: true }, error: { state: true }, peers: { state: true }, status: { state: true }, saving: { state: true },
-    photo: { state: true }, wallThickness: { state: true }, cableHeight: { state: true }, view3d: { state: true }, allFloors: { state: true }, cut: { state: true }, others: { state: true }, edges: { state: true },
+    photo: { state: true }, heat: { state: true }, speed: { state: true }, wallThickness: { state: true }, cableHeight: { state: true }, view3d: { state: true }, allFloors: { state: true }, cut: { state: true }, others: { state: true }, edges: { state: true },
   };
   static styles = [base, css`
     :host { display: block; }
     .wrap { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .heat rect { opacity: .32; pointer-events: none; }
+    .meas circle { fill: var(--fg); stroke: var(--surface); stroke-width: 2px; vector-effect: non-scaling-stroke; }
+    .meas.sel circle { fill: var(--accent); }
+    .meas text { fill: var(--fg); stroke: var(--surface); paint-order: stroke; }
+    .speeds { margin-top: 14px; font-size: 14px; }
+    .speeds table { border-collapse: collapse; } .speeds th, .speeds td { border-bottom: 1px solid var(--line); padding: 4px 10px; text-align: left; }
     .wrap.edit { grid-template-columns: minmax(0, 1fr) 280px; }
     .stage { position: relative; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
     .stage.drop { outline: 2px dashed var(--accent); outline-offset: -4px; }
@@ -128,6 +136,10 @@ export class PhxFloorplan extends LitElement {
   chain: Pt[] = [];
   cursor?: Pt;
   pending?: Pending;
+  /** Heat map layer: off, signal strength or download speed. */
+  heat: "" | Metric = "";
+  /** Speed test running at the pending measurement ("" when idle). */
+  speed = "";
   entities: Entity[] = [];
   model?: Model;
   box: Box = { x: 0, y: 0, w: 20000, h: 15000 };
@@ -443,6 +455,7 @@ export class PhxFloorplan extends LitElement {
     const roomId = ds("room", "room");
     const wallId = ds("wall", "wall");
     const openingId = ds("opening", "opening");
+    const measureId = ds("measure", "measure");
     if (!this.editing) {
       if (photoId) {
         this.photo = photoId;
@@ -488,6 +501,9 @@ export class PhxFloorplan extends LitElement {
         this.chain = this.cableChain.map((q) => [q[0], q[1]] as Pt);
         return;
       }
+      case "measure":
+        this.pending = { kind: "measure", at: this.toPlan(e) };
+        return;
       case "photo":
         this.photoAt = this.toPlan(e);
         this.renderRoot.querySelector<HTMLInputElement>("input.photo-file")?.click();
@@ -529,6 +545,8 @@ export class PhxFloorplan extends LitElement {
     } else if (photoId) {
       this.selected = photoId;
       this.drag = { kind: "photo", id: photoId };
+    } else if (measureId) {
+      this.selected = measureId;
     } else if (wallId) {
       this.selected = wallId;
     } else if (roomId) {
@@ -694,6 +712,15 @@ export class PhxFloorplan extends LitElement {
           points: pend.points, from: s("from") || undefined, to: s("to") || undefined };
         this.change((p) => p.cables.push(c));
         this.selected = c.id;
+      } else if (pend.kind === "measure") {
+        const opt = (k: string) => (s(k) === "" ? undefined : Math.abs(num(k)) || undefined);
+        const rssi = s("rssi") === "" ? undefined : -Math.abs(num("rssi")) || undefined;
+        const m: FloorMeasurement = { id: newId("m"), x: Math.round(pend.at[0]), y: Math.round(pend.at[1]), rssi, down: opt("down"), up: opt("up"), ping: opt("ping"),
+          ssid: s("ssid") || undefined, at: new Date().toISOString() };
+        if (!m.rssi && !m.down && !m.up && !m.ping) return toast(t("wifi.need_value"), "error");
+        this.change((p) => p.measurements.push(m));
+        this.selected = m.id;
+        if (!this.heat) this.heat = m.down ? "down" : "rssi";
       } else if (pend.kind === "import") {
         const level = pend.result.levels[Number(s("level")) || 0];
         this.applyImport(level, pend.result.skipped);
@@ -840,6 +867,45 @@ export class PhxFloorplan extends LitElement {
       <line class="win" x1=${s[0] - n[0] * q} y1=${s[1] - n[1] * q} x2=${e[0] - n[0] * q} y2=${e[1] - n[1] * q}/></g>`;
   }
 
+  private measureText(m: FloorMeasurement) {
+    const parts = [m.rssi ? `${m.rssi} dBm` : "", m.down ? `↓ ${m.down} Mbit/s` : "", m.up ? `↑ ${m.up} Mbit/s` : "", m.ping ? `${m.ping} ms` : "", m.ssid ?? ""];
+    return parts.filter(Boolean).join(" · ");
+  }
+
+  /** Where the heat map is drawn: the rooms, else the whole plan. */
+  private heatBox() {
+    const b = bounds({ ...this.plan, devices: [], photos: [] });
+    return b ? { x: b.min[0], y: b.min[1], w: b.max[0] - b.min[0], h: b.max[1] - b.min[1] } : { x: 0, y: 0, w: this.plan.width, h: this.plan.height };
+  }
+
+  private heatPicker() {
+    return html`<label class="check">${icon("Wifi", 14)} <select aria-label=${t("wifi.layer")} @change=${(e: Event) => (this.heat = (e.target as HTMLSelectElement).value as "" | Metric)}>
+      <option value="" ?selected=${!this.heat}>${t("wifi.layer_off")}</option>
+      <option value="rssi" ?selected=${this.heat === "rssi"}>${t("wifi.layer_rssi")}</option>
+      <option value="down" ?selected=${this.heat === "down"}>${t("wifi.layer_down")}</option></select></label>`;
+  }
+
+  private roomSpeeds() {
+    const st = roomStats(this.plan.rooms, this.plan.measurements);
+    if (!st.length) return "";
+    const n = (v?: number, unit = "") => (v === undefined ? "–" : `${v}${unit}`);
+    return html`<section class="speeds"><h3>${t("wifi.per_room")}</h3><table>
+      <thead><tr><th>${t("plan.room_name")}</th><th>${t("wifi.rssi")}</th><th>${t("wifi.down")}</th><th>${t("wifi.up")}</th><th>${t("wifi.ping")}</th><th>${t("wifi.count")}</th></tr></thead>
+      <tbody>${st.map((r) => html`<tr><td>${r.name}</td><td>${n(r.rssi, " dBm")}</td><td>${n(r.down)}</td><td>${n(r.up)}</td><td>${n(r.ping)}</td><td>${r.count}</td></tr>`)}</tbody></table></section>`;
+  }
+
+  private runSpeedTest = async (e: Event) => {
+    const form = (e.target as HTMLElement).closest("form")!;
+    try {
+      const r = await speedTest((step) => (this.speed = step));
+      for (const [k, v] of [["down", r.down], ["up", r.up], ["ping", r.ping]] as const) (form.elements.namedItem(k) as HTMLInputElement).value = String(v);
+    } catch {
+      toast(t("wifi.test_failed"), "error");
+    } finally {
+      this.speed = "";
+    }
+  };
+
   private drawPlan() {
     const p = this.plan;
     // Markers and labels keep about the same size on screen at every zoom.
@@ -857,6 +923,7 @@ export class PhxFloorplan extends LitElement {
         points=${pts(r.points)}><title>${r.name}</title></polygon>`)}</g>
       ${p.walls.map((w) => svg`<polygon data-wall=${w.id} class="wall ${sel(w.id)}" points=${pts(wallOutline(w))}><title>${t("plan.wall")} · ${metres(wallLength(w), loc)}</title></polygon>`)}
       ${p.openings.map((o) => (walls.get(o.wall) ? this.drawOpening(o, walls.get(o.wall)!) : nothing))}
+      ${this.heat ? svg`<g class="heat" aria-hidden="true">${heatGrid(p.measurements, this.heat, this.heatBox()).map((c) => svg`<rect x=${c.x} y=${c.y} width=${c.w} height=${c.h} fill=${heatColor(quality(this.heat as Metric, c.v))}/>`)}</g>` : nothing}
       ${p.rooms.map((r) => {
         const [x, y] = labelPoint(r.points);
         return svg`<text x=${x} y=${y} font-size=${unit * 0.75} text-anchor="middle" stroke-width=${unit * 0.15}>${r.name}</text>
@@ -872,6 +939,9 @@ export class PhxFloorplan extends LitElement {
           <g transform="translate(${d.x - r * 0.62} ${d.y - r * 0.62})">${icon(k?.icon ?? "Cpu", r * 1.24)}</g>
           <text x=${d.x} y=${d.y + r + unit * 0.6} font-size=${unit * 0.5} text-anchor="middle" stroke-width=${unit * 0.12}>${e?.name ?? d.entity}</text></g>`;
       })}
+      ${this.heat || this.tool === "measure" ? p.measurements.map((m) => svg`<g data-measure=${m.id} class="meas ${sel(m.id)}" role="img" aria-label=${this.measureText(m)}>
+          <title>${this.measureText(m)}</title><circle cx=${m.x} cy=${m.y} r=${unit * 0.22}/>
+          <text x=${m.x} y=${m.y - unit * 0.35} font-size=${unit * 0.42} text-anchor="middle" stroke-width=${unit * 0.1}>${this.heat === "down" && m.down ? `${Math.round(m.down)}` : m.rssi ? `${m.rssi}` : m.down ? `${Math.round(m.down)}` : ""}</text></g>`) : nothing}
       ${p.photos.map((f) => {
         const r = unit * 0.45;
         return svg`<g data-photo=${f.id} class="photo ${sel(f.id)}" role="button" aria-label=${f.caption || t("plan.photo")}>
@@ -980,6 +1050,19 @@ export class PhxFloorplan extends LitElement {
           ${this.formButtons()}
         </form></section>`;
     }
+    if (pend?.kind === "measure") {
+      const room = roomAt(p, pend.at[0], pend.at[1]);
+      return html`<section><h3>${t("wifi.new")}</h3>
+        <form @submit=${this.submitPending} style="display:grid;gap:8px">
+          <p class="hint">${room ? t("plan.in_room", { room: room.name }) : t("plan.no_room")}</p>
+          <label class="field">${t("wifi.rssi")}<input name="rssi" inputmode="numeric" placeholder="-58" autofocus></label>
+          <label class="field">${t("wifi.ssid")}<input name="ssid" maxlength="64"></label>
+          <button type="button" class="ghost" ?disabled=${!!this.speed} @click=${this.runSpeedTest}>${icon("Gauge", 14)} ${this.speed ? t(`wifi.step_${this.speed}` as any) : t("wifi.run_test")}</button>
+          <p class="hint">${t("wifi.test_hint")}</p>
+          <div class="row"><label class="field">${t("wifi.down")}<input name="down" inputmode="decimal"></label><label class="field">${t("wifi.up")}<input name="up" inputmode="decimal"></label><label class="field">${t("wifi.ping")}<input name="ping" inputmode="decimal"></label></div>
+          ${this.formButtons()}
+        </form></section>`;
+    }
     if (pend?.kind === "import") {
       return html`<section><h3>${t("plan.import")}</h3>
         <form @submit=${this.submitPending} style="display:grid;gap:8px">
@@ -994,6 +1077,12 @@ export class PhxFloorplan extends LitElement {
           <label class="field">${t("plan.real_distance")}<input name="metres" inputmode="decimal" required pattern="[0-9]+([.,][0-9]+)?" autofocus placeholder="4,25"></label>
           ${this.formButtons(t("plan.apply"))}
         </form></section>`;
+    }
+    const meas = p.measurements.find((m) => m.id === this.selected);
+    if (meas) {
+      return html`<section><h3>${t("wifi.measurement")}</h3>
+        <p>${this.measureText(meas)}</p>${meas.at ? html`<p class="hint">${formatDate(meas.at)}</p>` : ""}
+        <button class="ghost danger" @click=${() => { this.change((q) => { q.measurements = q.measurements.filter((x) => x.id !== meas.id); }); this.selected = ""; }}>${icon("Trash2", 14)} ${t("doc.delete")}</button></section>`;
     }
     const room = p.rooms.find((r) => r.id === this.selected);
     const dev = p.devices.find((d) => d.id === this.selected);
@@ -1071,7 +1160,7 @@ export class PhxFloorplan extends LitElement {
     }
     const hints: Record<Tool, string> = {
       select: t("plan.hint_select"), room: t("plan.hint_room"), wall: t("plan.hint_wall"), opening: t("plan.hint_opening"),
-      device: t("plan.hint_device"), photo: t("plan.hint_photo"), cable: t("plan.hint_cable"), calibrate: t("plan.hint_calibrate"),
+      device: t("plan.hint_device"), photo: t("plan.hint_photo"), cable: t("plan.hint_cable"), measure: t("wifi.hint"), calibrate: t("plan.hint_calibrate"),
     };
     return html`<section><p class="hint">${hints[this.tool]}</p>
         ${this.tool === "wall" ? html`<label class="field">${t("plan.thickness_cm")}<input type="number" min="1" max="200" step="0.5" .value=${String(this.wallThickness / 10)}
@@ -1136,7 +1225,7 @@ export class PhxFloorplan extends LitElement {
     const tools: [Tool, string, string][] = [
       ["select", "MousePointer2", t("plan.tool_select")], ["wall", "BrickWall", t("plan.tool_wall")], ["opening", "DoorOpen", t("plan.tool_opening")],
       ["room", "PenTool", t("plan.tool_room")], ["device", "MapPin", t("plan.tool_device")], ["photo", "Camera", t("plan.tool_photo")],
-      ["cable", "Cable", t("plan.tool_cable")],
+      ["cable", "Cable", t("plan.tool_cable")], ["measure", "Wifi", t("wifi.tool")],
     ];
     if (this.plan.image) tools.push(["calibrate", "Ruler", t("plan.tool_calibrate")]);
     const state = this.status !== "connected" ? t(this.status === "connecting" ? "editor.connecting" : "editor.disconnected") : this.saving ? t("editor.saving") : t("editor.saved");
@@ -1145,6 +1234,7 @@ export class PhxFloorplan extends LitElement {
       ${this.canEdit || !this.editing ? html`<div class="bar">
         ${this.editing ? html`<div class="tools" role="toolbar" aria-label=${t("plan.tools")}>${tools.map(([id, ic, label]) => html`<button aria-pressed=${this.tool === id ? "true" : "false"}
           title=${label} @click=${() => this.setTool(id)}>${icon(ic, 15)} ${label}</button>`)}</div>
+          ${this.plan.measurements.length ? this.heatPicker() : ""}
           <button class="ghost icon" title=${t("editor.undo")} aria-label=${t("editor.undo")} @click=${() => this.live?.undo()}>${icon("Undo2", 15)}</button>
           <button class="ghost icon" title=${t("editor.redo")} aria-label=${t("editor.redo")} @click=${() => this.live?.redo()}>${icon("Redo2", 15)}</button>
           <span class="spacer"></span>
@@ -1159,6 +1249,7 @@ export class PhxFloorplan extends LitElement {
         : html`<div class="tools" role="group" aria-label=${t("plan3d.view")}>
             <button aria-pressed=${this.view3d ? "false" : "true"} @click=${() => this.show3d(false)}>${icon("LandPlot", 15)} 2D</button>
             <button aria-pressed=${this.view3d ? "true" : "false"} ?disabled=${this.busy} @click=${() => this.show3d(true)}>${icon("Box", 15)} 3D</button></div>
+          ${!this.view3d && this.plan.measurements.length ? this.heatPicker() : ""}
           ${this.view3d && this.others?.length ? html`<label class="check"><input type="checkbox" .checked=${this.allFloors} @change=${(e: Event) => (this.allFloors = (e.target as HTMLInputElement).checked)}> ${t("plan3d.all_floors")}</label>` : ""}
           ${this.view3d ? html`<label class="check"><input type="checkbox" .checked=${this.cut} @change=${(e: Event) => (this.cut = (e.target as HTMLInputElement).checked)}> ${t("plan3d.cut")}</label>` : ""}
           ${this.view3d ? html`<button class="ghost icon" title=${t("plan.fit")} aria-label=${t("plan.fit")} @click=${() => this.renderRoot.querySelector<HTMLElement & { resetView(): void }>("phx-plan3d")?.resetView()}>${icon("Maximize", 15)}</button>` : ""}
@@ -1185,6 +1276,7 @@ export class PhxFloorplan extends LitElement {
       </div>`}
       <input class="photo-file" type="file" accept="image/*" multiple hidden @change=${this.onPhotoFile}>
       ${this.editing ? "" : this.legend()}
+      ${!this.editing && this.heat ? this.roomSpeeds() : ""}
       ${this.photoDialog()}`;
   }
 }

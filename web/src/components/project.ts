@@ -14,6 +14,7 @@ import "./topology-view";
 import "./locations";
 import "./entity-table";
 import "./household";
+import "./ipam";
 import "./doc-view";
 import "./doc-form";
 import "./decisions";
@@ -134,6 +135,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "import", render: () => html`<phx-import-view .project=${this.slug}></phx-import-view>` },
     { path: "topology", render: () => this.gated("graph", html`<phx-topology-view .project=${this.slug}></phx-topology-view>`) },
     { path: "table", render: () => this.gated("graph", html`<phx-entity-table .project=${this.slug}></phx-entity-table>`) },
+    { path: "ipam", render: () => this.gated("graph", html`<phx-ipam .project=${this.slug}></phx-ipam>`) },
     { path: "household", render: () => this.gated("household", html`<phx-household .project=${this.slug}></phx-household>`) },
     { path: "locations", render: () => this.gated("graph", html`<phx-locations .project=${this.slug}></phx-locations>`) },
     { path: "e/:entity", render: ({ entity }) => html`<phx-entity-view .project=${this.slug} .entity=${entity!}></phx-entity-view>` },
@@ -282,6 +284,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     if (here.endsWith("/locations")) return t("loc.title");
     if (here.endsWith("/table")) return t("table.title");
     if (here.endsWith("/household")) return t("house.title");
+    if (here.endsWith("/ipam")) return t("ipam.title");
     if (here.endsWith("/settings")) return t("nav.settings");
     return t("project.overview");
   }
@@ -400,6 +403,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
               ${decisions ? html`<span class="num">${decisions}</span>` : ""}</a>`}
             ${docOnly || !hasFeature(proj, "graph") ? "" : html`<a href="/p/${this.slug}/graph" class=${here === `/p/${this.slug}/graph` || here.startsWith(`/p/${this.slug}/e/`) ? "on" : ""}>${icon("Waypoints", 15)} ${t("nav.graph")}</a>
               <a href="/p/${this.slug}/topology" class=${here === `/p/${this.slug}/topology` ? "on" : ""}>${icon("Network", 15)} ${t("topo.title")}</a>
+              <a href="/p/${this.slug}/ipam" class=${here === `/p/${this.slug}/ipam` ? "on" : ""}>${icon("Network", 15)} ${t("ipam.title")}</a>
               <a href="/p/${this.slug}/table" class=${here === `/p/${this.slug}/table` ? "on" : ""}>${icon("Table", 15)} ${t("table.title")}</a>
               <a href="/p/${this.slug}/locations" class=${here === `/p/${this.slug}/locations` ? "on" : ""}>${icon("MapPin", 15)} ${t("loc.title")}</a>`}
             ${docOnly || !hasFeature(proj, "model") ? "" : html`<a href="/p/${this.slug}/model" class=${here === `/p/${this.slug}/model` ? "on" : ""}>${icon("Shapes", 15)} ${t("nav.model")}</a>`}

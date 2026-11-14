@@ -32,6 +32,10 @@
       {"name": "area", "type": "number", "unit": "m²"}],
       "relations": [{"rel": "part_of", "to": ["floor"]}]},
 
+    {"id": "subnet", "group": "network", "icon": "Network", "attrs": [
+      {"name": "cidr", "type": "text", "required": true}, {"name": "vlan", "type": "number"}, {"name": "gateway", "type": "ip"},
+      {"name": "dhcp_start", "type": "ip"}, {"name": "dhcp_end", "type": "ip"}, {"name": "purpose", "type": "text"}],
+      "relations": [{"rel": "routed_by", "to": ["router"]}]},
     {"id": "router", "group": "network", "icon": "Router", "attrs": [
       {"name": "model", "type": "text"}, {"name": "ip", "type": "ip"},
       {"name": "uplink", "type": "select", "options": ["vdsl", "fiber", "cable", "lte", "other"]}, {"name": "firmware", "type": "text"}],

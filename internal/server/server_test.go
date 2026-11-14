@@ -231,3 +231,17 @@ func TestNarrowedTokens(t *testing.T) {
 		t.Fatalf("mcp while disabled: %d", code)
 	}
 }
+
+func TestLabelRedirect(t *testing.T) {
+	h := New(Deps{})
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/e/home/nas-1", nil))
+	if w.Code != http.StatusFound || w.Header().Get("Location") != "/p/home/e/nas-1" {
+		t.Fatalf("redirect: %d %s", w.Code, w.Header().Get("Location"))
+	}
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/e/home/..%2Fx", nil))
+	if w.Code == http.StatusFound {
+		t.Fatal("bad slug redirected")
+	}
+}
