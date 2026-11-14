@@ -115,6 +115,9 @@ const marked = new Marked({
       if (kind === "math") return `<phx-math data-tex="${escape(value)}" data-display="1"><pre>${escape(value)}</pre></phx-math>`;
       if (kind === "embed" || kind === "iframe") return `<phx-embed data-url="${escape(value)}" data-kind="${kind}"><a href="${escape(value)}">${escape(value)}</a></phx-embed>`;
       if (kind === "mermaid") return `<phx-mermaid><pre>${escape(value)}</pre></phx-mermaid>`;
+      if (kind === "dbmodel") return `<phx-dbmodel><pre>${escape(value)}</pre></phx-dbmodel>`;
+      if (kind === "status") return `<phx-status data-project="${escape(context.project)}"><pre>${escape(value)}</pre></phx-status>`;
+      if (kind === "entity") return `<phx-entity-card data-project="${escape(context.project)}" data-src="${escape(value)}"></phx-entity-card>`;
       if (kind === "board") return `<phx-board-embed data-board="${escape(value)}" data-project="${escape(context.project)}"></phx-board-embed>`;
       if (kind !== "request" && kind !== "http") return false;
       const i = requestIndex++;
@@ -133,7 +136,7 @@ export function markdownHTML(md: string, project: string, doc = ""): string {
 /** Renders Markdown to sanitised HTML. */
 export function renderMarkdown(md: string, project: string, doc = ""): string {
   const html = markdownHTML(md, project, doc);
-  return DOMPurify.sanitize(html, { ADD_ATTR: ["target"], ADD_TAGS: ["phx-request-block", "phx-math", "phx-embed", "phx-time", "phx-board-embed", "phx-mermaid"] });
+  return DOMPurify.sanitize(html, { ADD_ATTR: ["target"], ADD_TAGS: ["phx-request-block", "phx-math", "phx-embed", "phx-time", "phx-board-embed", "phx-mermaid", "phx-dbmodel", "phx-status", "phx-entity-card"] });
 }
 
 /** Drops a leading "# Heading" that only repeats the page title. */

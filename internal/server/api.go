@@ -221,6 +221,7 @@ func (a *api) routes(r chi.Router) {
 			r.Delete("/comments/{id}", a.deleteComment)
 			r.Get("/comments/open", a.openComments)
 			r.Get("/checks", a.listChecks)
+			r.Get("/status", a.statuses)
 			r.Post("/checks", a.createCheck)
 			r.Patch("/checks/{id}", a.updateCheck)
 			r.Delete("/checks/{id}", a.deleteCheck)

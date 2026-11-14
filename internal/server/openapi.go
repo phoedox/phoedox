@@ -235,6 +235,7 @@ var apiDocs = map[string]op{
 	"POST /me/push-subscriptions":                            {Tag: "notifications", Summary: "Register this browser for web push.", In: core.PushSubscriptionInput{}},
 	"POST /me/push-subscriptions/remove":                     {Tag: "notifications", Summary: "Unregister a browser ({endpoint})."},
 	"POST /me/notifications/test":                            {Tag: "notifications", Summary: "Send a test notification on all channels."},
+	"GET /projects/{p}/status":                               {Tag: "monitoring", Summary: "State of entries (?e=<slug>, repeatable) and checks (?check=<name> or ?check=*) for dashboards.", Out: core.StatusBoard{}},
 	"GET /projects/{p}/checks":                               {Tag: "monitoring", Summary: "Checks of a project (?document= narrows to one page).", Out: []core.CheckView{}},
 	"POST /projects/{p}/checks":                              {Tag: "monitoring", Summary: "Monitor a reading request block on a schedule.", In: core.CheckInput{}, Out: core.CheckView{}},
 	"PATCH /projects/{p}/checks/{id}":                        {Tag: "monitoring", Summary: "Change name, interval, entry or switch of a check.", In: core.CheckInput{}, Out: core.CheckView{}},

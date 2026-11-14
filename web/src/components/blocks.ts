@@ -60,6 +60,7 @@ export class PhxMermaid extends HTMLElement {
     // The source lives in the <pre> fallback: sanitizers drop attributes that
     // contain "-->", which is every Mermaid arrow.
     const src = this.dataset.src ?? this.querySelector("pre")?.textContent ?? "";
+    if (!src.trim()) return;
     const dark = matchMedia("(prefers-color-scheme: dark)").matches && document.documentElement.dataset.theme !== "light" || document.documentElement.dataset.theme === "dark";
     const key = src + dark;
     if (this.done === key) return;
@@ -239,3 +240,156 @@ export const blockStyles = `
   .ci.ic-${c} { color: var(--tc-${c}) !important; }
   .tc-${c} { color: var(--tc-${c}); } .tb-${c} { background: var(--tb-${c}); border-radius: 3px; padding: 0 2px; }`).join("")}
 `;
+
+/** ```dbmodel: SQL CREATE TABLE statements shown as an ER diagram with a table list. */
+export class PhxDbModel extends HTMLElement {
+  private done = "";
+  connectedCallback() {
+    void this.render();
+  }
+
+  static get observedAttributes() {
+    return ["data-src"];
+  }
+
+  attributeChangedCallback() {
+    if (this.isConnected) void this.render();
+  }
+
+  private async render() {
+    const src = this.dataset.src ?? this.querySelector("pre")?.textContent ?? "";
+    if (src === this.done) return;
+    this.done = src;
+    const { parseDDL, toMermaid } = await import("../erd");
+    const tables = parseDDL(src);
+    const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
+    const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+    if (!tables.length) {
+      root.innerHTML = `<style>:host{display:block}pre{white-space:pre-wrap;font-size:12.5px}</style><p>${esc(t("block.dbmodel_empty"))}</p><pre>${esc(src)}</pre>`;
+      return;
+    }
+    const rows = tables.map((tb) => `<details><summary><b>${esc(tb.name)}</b> <span class="m">${tables.length ? tb.columns.length : 0} ${esc(t("block.dbmodel_columns"))}</span></summary>
+      <table><thead><tr><th>${esc(t("block.dbmodel_column"))}</th><th>${esc(t("block.dbmodel_type"))}</th><th></th></tr></thead><tbody>${tb.columns.map((c) =>
+        `<tr><td>${esc(c.name)}</td><td class="m">${esc(c.type)}${c.notNull ? " NOT NULL" : ""}</td><td>${c.pk ? "PK " : ""}${c.ref ? `→ ${esc(c.ref.table)}.${esc(c.ref.column)}` : ""}</td></tr>`).join("")}</tbody></table></details>`).join("");
+    root.innerHTML = `<style>:host{display:block;margin:.8em 0}details{border-top:1px solid var(--line);padding:6px 0}summary{cursor:pointer}
+      .m{color:var(--muted);font-family:var(--font-mono);font-size:12px}table{border-collapse:collapse;margin:6px 0;font-size:13px}td,th{border:1px solid var(--line);padding:3px 8px;text-align:left}</style>
+      ${rows}`;
+    // The source must be set before the element connects (else Mermaid renders "").
+    const diagram = document.createElement("phx-mermaid");
+    diagram.setAttribute("data-src", toMermaid(tables));
+    root.insertBefore(diagram, root.querySelector("details"));
+  }
+}
+customElements.get("phx-dbmodel") || customElements.define("phx-dbmodel", PhxDbModel);
+
+interface Hop { slug: string; name: string; kind: string; status: string; reason: string; params?: Record<string, unknown> }
+interface StatusCheck { id: string; name: string; enabled: boolean; lastStatus: string; lastRun: string | null; documentSlug: string; lastDetail: string }
+
+/** ```status: live tiles for entries (@slug lines) and checks (check: name, or "checks" for all). */
+export class PhxStatus extends LitElement {
+  static properties = { src: { attribute: "data-src" }, project: { attribute: "data-project" }, board: { state: true } };
+  static styles = [base, css`
+    :host { display: block; margin: 1em 0; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+    a.tile { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--fg); text-decoration: none;
+      border-left: 4px solid var(--muted); }
+    a.tile.ok { border-left-color: var(--good); } a.tile.warn { border-left-color: var(--signal); } a.tile.down, a.tile.fail { border-left-color: var(--bad); }
+    .n { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .r { font-size: 12.5px; color: var(--muted); }
+    .foot { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  `];
+  src = "";
+  project = "";
+  board?: { entries: Hop[]; checks: StatusCheck[] };
+  private timer?: number;
+  private loaded = "";
+
+  connectedCallback() {
+    super.connectedCallback();
+    // Dashboards stay current while open.
+    this.timer = window.setInterval(() => document.visibilityState === "visible" && void this.load(), 60_000);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    window.clearInterval(this.timer);
+  }
+
+  willUpdate() {
+    const src = this.src || this.querySelector("pre")?.textContent || "";
+    if (this.project && src !== this.loaded) {
+      this.loaded = src;
+      void this.load();
+    }
+  }
+
+  private async load() {
+    const q = new URLSearchParams();
+    for (const line of this.loaded.split("\n").map((l) => l.trim()).filter(Boolean)) {
+      const check = /^checks?\s*:?\s*(.*)$/i.exec(line);
+      if (check) q.append("check", check[1].trim() || "*");
+      else for (const m of line.matchAll(/@?([a-z0-9][a-z0-9-]*)/gi)) q.append("e", m[1]);
+    }
+    this.board = await api<{ entries: Hop[]; checks: StatusCheck[] }>("GET", `/projects/${this.project}/status?${q}`).catch(() => this.board);
+  }
+
+  render() {
+    const b = this.board;
+    if (!b) return html`<p class="muted">${t("app.loading")}</p>`;
+    if (!b.entries.length && !b.checks.length) return html`<p class="muted">${t("block.status_empty")}</p>`;
+    return html`<div class="grid">
+      ${b.entries.map((h) => html`<a class="tile ${h.status}" href="/p/${this.project}/e/${h.slug}">
+        <span class="n">${h.name}</span><span class="r">${t(`diag.status.${h.status}` as any)} · ${t(h.reason as any, h.params as any)}</span></a>`)}
+      ${b.checks.map((c) => html`<a class="tile ${c.enabled ? c.lastStatus : ""}" href="/p/${this.project}/d/${c.documentSlug}">
+        <span class="n">${icon("Activity", 13)} ${c.name}</span><span class="r">${t(`check.state.${c.enabled ? c.lastStatus : "paused"}` as any)}${c.lastDetail ? ` · ${c.lastDetail}` : ""}</span></a>`)}
+    </div><p class="foot">${t("block.status_live")}</p>`;
+  }
+}
+customElements.get("phx-status") || customElements.define("phx-status", PhxStatus);
+
+interface EntityDetail { entity: { slug: string; name: string; kind: string; attrs: Record<string, unknown> }; edges: { from: string; rel: string; to: string; fromName: string; toName: string; fromSlug?: string; toSlug?: string }[] }
+
+/** ```entity: a card for one entry (component pages): attributes and relations, live. */
+export class PhxEntityCard extends LitElement {
+  static properties = { src: { attribute: "data-src" }, project: { attribute: "data-project" }, d: { state: true }, missing: { state: true } };
+  static styles = [base, css`
+    :host { display: block; margin: 1em 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+    .head { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+    .head a { font-weight: 700; font-size: 16px; color: var(--fg); text-decoration: none; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 8px 0 0; font-size: 13.5px; }
+    dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; }
+    ul { margin: 8px 0 0; padding-left: 18px; font-size: 13.5px; }
+  `];
+  src = "";
+  project = "";
+  d?: EntityDetail;
+  missing = false;
+  private loaded = "";
+
+  async willUpdate() {
+    const slug = (this.src || this.querySelector("pre")?.textContent || "").trim().replace(/^@/, "");
+    if (!this.project || !slug || slug === this.loaded) return;
+    this.loaded = slug;
+    try {
+      this.d = await api<EntityDetail>("GET", `/projects/${this.project}/entities/${encodeURIComponent(slug)}`);
+      this.missing = false;
+    } catch {
+      this.missing = true;
+    }
+  }
+
+  render() {
+    if (this.missing) return html`<p class="muted">${t("block.entity_missing", { entity: this.loaded })}</p>`;
+    const d = this.d;
+    if (!d) return html`<p class="muted">${t("app.loading")}</p>`;
+    const e = d.entity;
+    const attrs = Object.entries(e.attrs ?? {}).filter(([, v]) => v !== "" && v !== null && typeof v !== "object").slice(0, 12);
+    const self = (s?: string, n?: string) => s === e.slug || n === e.name;
+    return html`<div class="head">${icon("Box", 15)}<a href="/p/${this.project}/e/${e.slug}">${e.name}</a><span class="chip">${e.kind}</span></div>
+      ${attrs.length ? html`<dl>${attrs.map(([k, v]) => html`<dt>${k}</dt><dd>${String(v)}</dd>`)}</dl>` : ""}
+      ${d.edges.length ? html`<ul>${d.edges.slice(0, 20).map((x) => self(x.fromSlug, x.fromName)
+        ? html`<li>${x.rel} → <a href="/p/${this.project}/e/${x.toSlug ?? x.to}">${x.toName}</a></li>`
+        : html`<li><a href="/p/${this.project}/e/${x.fromSlug ?? x.from}">${x.fromName}</a> → ${x.rel}</li>`)}</ul>` : ""}`;
+  }
+}
+customElements.get("phx-entity-card") || customElements.define("phx-entity-card", PhxEntityCard);

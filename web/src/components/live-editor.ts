@@ -485,6 +485,13 @@ export class PhxLiveEditor extends LitElement {
         fields: [{ name: "v", label: t("block.mermaid_source"), type: "textarea", value: current || "flowchart LR\n  Internet --> Router --> Switch\n  Switch --> NAS" }] });
       return v?.v.trim() || undefined;
     }
+    if (kind === "dbmodel" || kind === "status" || kind === "entity") {
+      const preset = kind === "dbmodel" ? "CREATE TABLE customers (\n  id INTEGER PRIMARY KEY,\n  name TEXT NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  customer_id INTEGER REFERENCES customers(id),\n  total NUMERIC(10,2)\n);"
+        : kind === "status" ? "@router\n@nas\nchecks" : "";
+      const v = await this.askForm({ title: t(`slash.${kind}` as any), hint: t(`block.${kind}_hint` as any),
+        fields: [{ name: "v", label: t(`block.${kind}_source` as any), type: kind === "entity" ? "text" : "textarea", value: current || preset }] });
+      return v?.v.trim() || undefined;
+    }
     const label = kind === "math" ? t("block.tex") : kind === "iframe" ? t("block.url_iframe") : t("block.url_embed");
     const v = await this.askForm({ title: t(`slash.${kind}` as any), hint: kind === "iframe" ? t("block.iframe_hint") : kind === "embed" ? t("block.embed_hint") : t("block.math_hint"),
       fields: [{ name: "v", label, type: kind === "math" ? "textarea" : "url", value: current }] });

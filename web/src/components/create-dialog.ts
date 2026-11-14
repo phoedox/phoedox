@@ -37,6 +37,17 @@ export class PhxCreateDialog extends LitElement {
     .pv .chips b.ok { background: color-mix(in srgb, var(--good) 30%, transparent); }
     .pv .sec { font: 600 7px var(--font-body); letter-spacing: .08em; color: var(--muted); text-transform: uppercase; }
     .pv .tbl { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2px; } .pv .tbl i { height: 7px; border-radius: 1px; }
+    .pv.flow { flex-direction: row; align-items: center; gap: 4px; }
+    .pv.flow b { flex: 1; height: 16px; border-radius: 4px; background: var(--surface2); border: 1px solid var(--line); }
+    .pv.flow b.ok { background: color-mix(in srgb, var(--good) 20%, var(--surface)); }
+    .pv.flow i { width: 8px; height: 2px; background: var(--muted); }
+    .pv .card { display: flex; flex-direction: column; gap: 4px; padding: 5px; border: 1px solid var(--line); border-radius: 5px; }
+    .pv.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+    .pv.tiles b { height: 14px; border-radius: 4px; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--good); }
+    .pv.tiles b.bad { border-left-color: var(--bad); }
+    .pv.er { flex-direction: row; align-items: center; gap: 4px; }
+    .pv.er > span { flex: 1; display: flex; flex-direction: column; gap: 3px; padding: 4px; border: 1px solid var(--line); border-radius: 4px; }
+    .pv.er em { width: 10px; height: 2px; background: var(--muted); }
     .pv.link { align-items: center; justify-content: center; gap: 8px; color: var(--accent); }
     .pv.link i { width: 60%; }
     .pv.board { flex-direction: row; gap: 5px; }
@@ -69,10 +80,13 @@ export class PhxCreateDialog extends LitElement {
     this.renderRoot.querySelector("dialog")?.close();
   }
 
-  private create(type: Doc["type"] | "entity") {
+  private create(type: Doc["type"] | "entity", kind = "") {
     this.close();
-    const q = this.category ? `?category=${encodeURIComponent(this.category)}` : "";
-    navigate(type === "entity" ? `/p/${this.project}/new-entity` : `/p/${this.project}/new/${type}${q}`);
+    const q = new URLSearchParams();
+    if (this.category) q.set("category", this.category);
+    if (kind) q.set("kind", kind);
+    const qs = q.size ? `?${q}` : "";
+    navigate(type === "entity" ? `/p/${this.project}/new-entity` : `/p/${this.project}/new/${type}${qs}`);
   }
 
   private folder(e: SubmitEvent) {
@@ -127,6 +141,14 @@ export class PhxCreateDialog extends LitElement {
           html`<span class="pv plan"><svg viewBox="0 0 60 40" aria-hidden="true"><path d="M2 2h34v22H2zM36 2h22v36H20V24h16" /><circle cx="12" cy="12" r="3"/><circle cx="46" cy="28" r="3"/></svg></span>`, () => this.create("floorplan"))}
         ${this.choice("Link", t("doc.type.link"), t("create.link_desc"),
           html`<span class="pv link">${icon("ExternalLink", 22)}<i></i></span>`, () => this.create("link"))}
+        ${this.choice("Workflow", t("create.kind.process"), t("create.kind.process_desc"),
+          html`<span class="pv flow"><b></b><i></i><b></b><i></i><b class="ok"></b></span>`, () => this.create("markdown", "process"))}
+        ${this.choice("Box", t("create.kind.component"), t("create.kind.component_desc"),
+          html`<span class="pv"><span class="card"><i class="h"></i><i></i><i class="s"></i></span><i></i><i class="xs"></i></span>`, () => this.create("markdown", "component"))}
+        ${this.choice("Activity", t("create.kind.dashboard"), t("create.kind.dashboard_desc"),
+          html`<span class="pv tiles"><b class="ok"></b><b class="ok"></b><b class="bad"></b><b class="ok"></b></span>`, () => this.create("markdown", "dashboard"))}
+        ${this.choice("Database", t("create.kind.dbmodel"), t("create.kind.dbmodel_desc"),
+          html`<span class="pv er"><span><i class="h"></i><i></i><i></i></span><em></em><span><i class="h"></i><i></i></span></span>`, () => this.create("markdown", "dbmodel"))}
       </div>
       <div class="row"><button class="ghost" @click=${this.close}>${t("doc.cancel")}</button></div>`;
   }

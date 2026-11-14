@@ -56,7 +56,11 @@ export class PhxDocForm extends LitElement {
     const f = new FormData(e.target as HTMLFormElement);
     const s = (k: string) => String(f.get(k) ?? "");
     const body: Record<string, unknown> = { title: s("title"), category: s("category") };
-    if (this.type === "markdown") body.markdown = "";
+    if (this.type === "markdown") {
+      // Page kinds (process, component, dashboard, database model) start from a template.
+      const kind = new URLSearchParams(location.search).get("kind") ?? "";
+      body.markdown = ["process", "component", "dashboard", "dbmodel"].includes(kind) ? t(`pagetpl.${kind}` as any) : "";
+    }
     if (this.type === "link") body.link = { url: s("url"), description: s("description") };
     if (this.type === "floorplan") body.floorplan = { ...(this.doc?.content ?? {}), description: s("description") };
     if (this.type === "board") {

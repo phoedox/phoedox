@@ -8,7 +8,7 @@ import {
 } from "lexical";
 import { iconSVG } from "../icon";
 import {
-  CALLOUT_START, COLOR_SPAN, colorAttrs, calloutHead, isColor, parseCallout, parseColorAttrs, type CalloutAttrs, type Color, type FenceKind, type TimeKind,
+  CALLOUT_START, COLOR_SPAN, colorAttrs, calloutHead, isColor, parseCallout, parseColorAttrs, type CalloutAttrs, type Color, FENCES, type FenceKind, type TimeKind,
 } from "../syntax";
 
 // ---------- Callout ----------
@@ -152,6 +152,13 @@ export class FenceNode extends DecoratorNode<null> {
     } else if (this.__kind === "mermaid") {
       el = document.createElement("phx-mermaid");
       el.dataset.src = src;
+    } else if (this.__kind === "dbmodel") {
+      el = document.createElement("phx-dbmodel");
+      el.dataset.src = src;
+    } else if (this.__kind === "status" || this.__kind === "entity") {
+      el = document.createElement(this.__kind === "status" ? "phx-status" : "phx-entity-card");
+      el.dataset.src = src;
+      el.dataset.project = project;
     } else if (this.__kind === "board") {
       el = document.createElement("phx-board-embed");
       el.dataset.board = src;
@@ -191,7 +198,7 @@ export const $isFenceNode = (n: LexicalNode | null | undefined): n is FenceNode 
 export const FENCE: MultilineElementTransformer = {
   dependencies: [FenceNode],
   type: "multiline-element",
-  regExpStart: /^```(math|embed|iframe|board|mermaid)\s*$/,
+  regExpStart: new RegExp("^```(" + FENCES.join("|") + ")\\s*$"),
   regExpEnd: /^```\s*$/,
   replace(rootNode, _children, startMatch, _endMatch, linesInBetween, isImport) {
     const node = $createFenceNode(startMatch[1] as FenceKind, (linesInBetween ?? []).join("\n").trim());

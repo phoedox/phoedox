@@ -45,3 +45,9 @@ func (a *api) runCheck(w http.ResponseWriter, r *http.Request) {
 	c, err := a.core.RunCheckNow(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"))
 	respond(w, c, err)
 }
+
+func (a *api) statuses(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	board, err := a.core.Statuses(r.Context(), actorOf(r), chi.URLParam(r, "p"), q["e"], q["check"])
+	respond(w, board, err)
+}
