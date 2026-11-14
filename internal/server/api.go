@@ -338,6 +338,8 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/entities/{e}", a.getEntity)
 			r.Delete("/entities/{e}", a.deleteEntity)
 			r.Get("/entities/{e}/traverse", a.traverse)
+			r.Get("/entities/{e}/readings", a.entityReadings)
+			r.Post("/readings", a.recordReadings)
 			r.Get("/entities/{e}/device", a.device)
 			r.Put("/entities/{e}/device", a.setDevice)
 			r.Get("/entities/{e}/device/log", a.deviceLog)

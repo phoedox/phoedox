@@ -84,6 +84,8 @@ func (a Actor) String() string {
 // Service bundles the core operations.
 type Service struct {
 	DB *store.DB
+	// readingSeen throttles readings per series (tenant|entity|metric → time.Time).
+	readingSeen sync.Map
 	// MaxDepth limits traversals (admin setting, default 6).
 	MaxDepth int
 	// Box decrypts project secrets for request blocks.

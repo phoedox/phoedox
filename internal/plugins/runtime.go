@@ -30,6 +30,9 @@ type Env interface {
 	Secret(ctx context.Context, name string) (string, error)
 	KVGet(ctx context.Context, key string) (json.RawMessage, error)
 	KVSet(ctx context.Context, key string, value json.RawMessage) error
+	// GraphRecord stores measured values of entries; allow tells on which
+	// kinds the plugin may record (graph:write).
+	GraphRecord(ctx context.Context, readings json.RawMessage, allow func(kind string) bool) (any, error)
 	// ConfiguredHosts are the hosts of the addresses the project owner set
 	// for the plugin (secrets "url" or "*_url"); net:fetch:config allows them.
 	ConfiguredHosts(ctx context.Context) ([]string, error)
@@ -352,6 +355,14 @@ func (r *Runtime) dispatch(st *callState, req hostRequest) (any, error) {
 			}
 		}
 		return st.env.GraphApply(ctx, ops, m.CanWriteKind)
+	case "graph.record":
+		a, err := decode[struct {
+			Readings json.RawMessage `json:"readings"`
+		}](req.Args)
+		if err != nil {
+			return nil, err
+		}
+		return st.env.GraphRecord(ctx, a.Readings, m.CanWriteKind)
 	case "secret.get":
 		a, err := decode[struct{ Name string }](req.Args)
 		if err != nil {

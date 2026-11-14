@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -69,4 +70,20 @@ func (a *api) controlShared(w http.ResponseWriter, r *http.Request) {
 	}
 	out, err := a.core.ControlShared(r.Context(), actorOf(r), chi.URLParam(r, "grant"), in)
 	respond(w, json.RawMessage(out), err)
+}
+
+func (a *api) entityReadings(w http.ResponseWriter, r *http.Request) {
+	hours, _ := strconv.Atoi(r.URL.Query().Get("hours"))
+	res, err := a.core.EntityReadings(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "e"), r.URL.Query().Get("metric"), hours)
+	respond(w, res, err)
+}
+
+func (a *api) recordReadings(w http.ResponseWriter, r *http.Request) {
+	var in []core.ReadingInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	res, err := a.core.RecordReadings(r.Context(), actorOf(r), chi.URLParam(r, "p"), in)
+	respond(w, res, err)
 }

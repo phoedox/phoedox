@@ -51,6 +51,18 @@ func pluginCode(err error) string {
 // PluginErrorCode is set as plugins.Runtime.Code.
 func PluginErrorCode(err error) string { return pluginCode(err) }
 
+// GraphRecord stores readings on entries of kinds the plugin may write.
+func (e *pluginEnv) GraphRecord(ctx context.Context, raw json.RawMessage, allow func(string) bool) (any, error) {
+	var in []ReadingInput
+	if err := json.Unmarshal(raw, &in); err != nil {
+		return nil, invalid("validation.reading", nil, "readings must be a list of {entity, metric, value, unit, at}")
+	}
+	if _, err := e.s.project(ctx, e.a, e.p.ID, store.RoleEditor); err != nil {
+		return nil, err
+	}
+	return e.s.recordReadings(ctx, e.p, in, allow)
+}
+
 func (e *pluginEnv) GraphGet(ctx context.Context, ref string) (any, error) {
 	return e.s.Entity(ctx, e.a, e.p.ID, ref)
 }

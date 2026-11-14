@@ -124,6 +124,13 @@ func (f *fakeEnv) KVGet(_ context.Context, key string) (json.RawMessage, error) 
 	defer f.mu.Unlock()
 	return f.kv[key], nil
 }
+func (f *fakeEnv) GraphRecord(_ context.Context, raw json.RawMessage, allow func(string) bool) (any, error) {
+	if !allow("ups") {
+		return nil, ErrDenied
+	}
+	return map[string]int{"recorded": len(raw)}, nil
+}
+
 func (f *fakeEnv) KVSet(_ context.Context, key string, v json.RawMessage) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

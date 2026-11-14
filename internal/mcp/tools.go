@@ -138,6 +138,13 @@ type changesIn struct {
 	Days    int    `json:"days,omitempty" jsonschema:"look back this many days (default 7, at most 90)"`
 }
 
+type readingsIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Entity  string `json:"entity" jsonschema:"entry slug"`
+	Metric  string `json:"metric,omitempty" jsonschema:"one metric; empty = all"`
+	Hours   int    `json:"hours,omitempty" jsonschema:"time span in hours (default 24, at most 2160)"`
+}
+
 type skillsIn struct {
 	Project string `json:"project,omitempty" jsonschema:"project slug; empty = all your projects"`
 }
@@ -647,6 +654,9 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "ip_addresses", "IP address management: subnets (entries of kind subnet) with used addresses and their entries, free count, next free address outside DHCP, conflicts (one address on several entries) and addresses outside any subnet.", func(ctx context.Context, a core.Actor, in projectOnlyIn) (any, error) {
 		return svc.IPAM(ctx, a, in.Project)
+	})
+	tool(s, "get_readings", "Measured values of an entry over time (temperatures, power, switch states 1/0, …) from plugins, the agent or the API: per metric the unit, the latest value and points [unix ms, average, min, max] over the last hours (default 24).", func(ctx context.Context, a core.Actor, in readingsIn) (any, error) {
+		return svc.EntityReadings(ctx, a, in.Project, in.Entity, in.Metric, in.Hours)
 	})
 	tool(s, "list_skills", "Skills are pages that people in Phoedox marked as instructions for AI, each with a name and a description of when to use it. Lists the skills of one project, or of all your projects if project is empty. Call it at the start of a task and load matching skills with get_skill.", func(ctx context.Context, a core.Actor, in skillsIn) (any, error) {
 		return svc.Skills(ctx, a, in.Project)

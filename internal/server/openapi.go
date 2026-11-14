@@ -236,6 +236,8 @@ var apiDocs = map[string]op{
 	"GET /projects/{p}/skills/{name}":                        {Tag: "documents", Summary: "One AI skill with its instructions and attached files.", Out: core.SkillContent{}},
 	"GET /projects/{p}/skills/{name}/download":               {Tag: "documents", Summary: "One AI skill as a ZIP with SKILL.md and attached files."},
 	"GET /me/skills":                                         {Tag: "documents", Summary: "AI skills of all your projects.", Out: []core.SkillInfo{}},
+	"GET /projects/{p}/entities/{e}/readings":                {Tag: "graph", Summary: "Measured values of an entry over the last hours (default 24, at most 90 days), condensed to at most 240 points per metric.", Out: []core.Series{}, Query: []string{"metric", "hours"}},
+	"POST /projects/{p}/readings":                            {Tag: "graph", Summary: "Record measured values of entries (editors; at most 500 per call, 30 s apart per metric).", In: []core.ReadingInput{}, Out: core.RecordResult{}},
 	"GET /projects/{p}/entities/{e}/device":                  {Tag: "graph", Summary: "Control tools that act on an entry, its AI control rule and (owners) who it is shared with.", Out: core.DeviceInfo{}},
 	"PUT /projects/{p}/entities/{e}/device":                  {Tag: "graph", Summary: "Allow AI clients to switch a device without confirmation (aiControl direct) or not (suggest); owners."},
 	"GET /projects/{p}/entities/{e}/device/log":              {Tag: "graph", Summary: "Who switched a device and who changed its rules.", Out: []core.AuditEvent{}},
