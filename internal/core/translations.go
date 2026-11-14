@@ -196,6 +196,7 @@ func (s *Service) SaveTranslation(ctx context.Context, a Actor, ref, docRef, loc
 		return TranslationInfo{}, err
 	}
 	s.event(ctx, a, "document.translation", doc.ID, map[string]any{"locale": locale, "machine": t.Machine, "sourceVersion": t.SourceVersion})
+	s.indexDocument(ctx, doc)
 	return TranslationInfo{Translation: t, MainVersion: doc.Version}, nil
 }
 
@@ -209,5 +210,6 @@ func (s *Service) DeleteTranslation(ctx context.Context, a Actor, ref, docRef, l
 		return err
 	}
 	s.event(ctx, a, "document.translation_delete", doc.ID, map[string]any{"locale": locale})
+	s.unindex(ctx, store.TranslationRef(doc.ID, locale))
 	return nil
 }

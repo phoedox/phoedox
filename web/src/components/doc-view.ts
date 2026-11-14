@@ -115,6 +115,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     if (key !== this.loaded) {
       this.loaded = key;
       this.doc = undefined;
+      this.error = ""; // from a page loaded before (e.g. with the previous project)
       this.confirming = false;
       try {
         const proj = currentProject.get();
@@ -130,8 +131,10 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         if (doc.type === "markdown" && ["editor", "owner"].includes(doc.role ?? currentProject.get()?.role ?? "")) {
           this.draft = await api<DraftInfo>("GET", `/projects/${this.project}/documents/${doc.id}/draft`).catch(() => undefined);
         }
+        if (this.loaded !== key) return; // a newer load started meanwhile
         this.doc = doc;
       } catch (e) {
+        if (this.loaded !== key) return;
         this.error = e instanceof ApiError ? e.text : t("error.unknown");
       }
     }

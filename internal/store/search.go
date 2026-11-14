@@ -41,9 +41,13 @@ func (d *DB) IndexPut(ctx context.Context, e IndexEntry) error {
 	})
 }
 
-// IndexDelete removes an entry (deleted or trashed objects).
+// TranslationRef is the index key of a document's translation.
+func TranslationRef(documentID, locale string) string { return documentID + "~" + locale }
+
+// IndexDelete removes an entry (deleted or trashed objects), with the
+// translations of a document.
 func (d *DB) IndexDelete(ctx context.Context, refID string) error {
-	_, err := d.Exec(ctx, `DELETE FROM search_index WHERE ref_id = ?`, refID)
+	_, err := d.Exec(ctx, `DELETE FROM search_index WHERE ref_id = ? OR ref_id LIKE ? ESCAPE '\'`, refID, escapeLike(refID)+"~%")
 	return err
 }
 
@@ -52,6 +56,17 @@ func (d *DB) IndexCount(ctx context.Context) (int, error) {
 	var n int
 	err := d.QueryRow(ctx, `SELECT count(*) FROM search_index`).Scan(&n)
 	return n, err
+}
+
+// TranslationsUnindexed tells whether translations exist but none is in
+// the index (instances updated from before translations were searchable).
+func (d *DB) TranslationsUnindexed(ctx context.Context) (bool, error) {
+	var t, i int
+	if err := d.QueryRow(ctx, `SELECT count(*) FROM document_translations`).Scan(&t); err != nil || t == 0 {
+		return false, err
+	}
+	err := d.QueryRow(ctx, `SELECT count(*) FROM search_index WHERE kind = 'document' AND ref_id LIKE '%~%'`).Scan(&i)
+	return i == 0, err
 }
 
 // Hit is a search result.
@@ -63,7 +78,8 @@ type Hit struct {
 	ID          string  `json:"id"`
 	Slug        string  `json:"slug"`
 	Title       string  `json:"title"`
-	Kind        string  `json:"kind"` // document type or entity kind
+	Kind        string  `json:"kind"`             // document type or entity kind
+	Locale      string  `json:"locale,omitempty"` // set when a translation matched
 	Snippet     string  `json:"snippet,omitempty"`
 	Score       float64 `json:"-"`
 }
@@ -102,7 +118,16 @@ func (d *DB) Search(ctx context.Context, projectIDs []string, query string, limi
 	if err != nil {
 		return nil, err
 	}
-	return hits, nil
+	// A document and its translations count once: the best match wins.
+	seen := map[string]bool{}
+	out := hits[:0]
+	for _, h := range hits {
+		if key := h.Type + "/" + h.ID; !seen[key] {
+			seen[key] = true
+			out = append(out, h)
+		}
+	}
+	return out, nil
 }
 
 func placeholders(n int) string { return strings.TrimSuffix(strings.Repeat("?, ", n), ", ") }
@@ -213,6 +238,9 @@ func scanHits(rows interface {
 		var body string
 		if err := rows.Scan(&h.Type, &h.ProjectID, &h.ProjectSlug, &h.ProjectName, &h.ID, &h.Slug, &h.Title, &h.Kind, &body, &h.Score); err != nil {
 			return nil, err
+		}
+		if id, loc, ok := strings.Cut(h.ID, "~"); ok && h.Type == "document" {
+			h.ID, h.Locale = id, loc
 		}
 		h.Snippet = Snippet(body, words, 180)
 		hits = append(hits, h)

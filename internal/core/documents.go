@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -199,9 +200,18 @@ func (s *Service) Documents(ctx context.Context, a Actor, ref string, f store.Do
 	if err != nil {
 		return nil, err
 	}
+	var titles map[string]string
+	if f.Locale != "" && f.Locale != p.MainLocale && slices.Contains(p.Locales, f.Locale) {
+		if titles, err = s.DB.TranslatedTitles(ctx, p.ID, f.Locale); err != nil {
+			return nil, err
+		}
+	}
 	out := docs[:0]
 	for _, d := range docs {
 		if see(d.ID, d.Restricted) {
+			if t, ok := titles[d.ID]; ok {
+				d.Title, d.Locale = t, f.Locale
+			}
 			out = append(out, d)
 		}
 	}

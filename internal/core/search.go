@@ -72,10 +72,27 @@ func entityText(e store.Entity) string {
 	return strings.Join(lines, "\n")
 }
 
+// indexDocument indexes a document and its translations (each its own
+// entry, so a search in either language finds the page).
 func (s *Service) indexDocument(ctx context.Context, doc store.Document) {
 	if err := s.DB.IndexPut(ctx, store.IndexEntry{RefID: doc.ID, Kind: "document", ProjectID: doc.ProjectID, Slug: doc.Slug,
 		Subtype: doc.Type, Title: doc.Title, Body: documentText(doc)}); err != nil {
 		slog.Warn("search index update failed", "document", doc.ID, "err", err)
+	}
+	ts, err := s.DB.Translations(ctx, doc.ID)
+	if err != nil {
+		return
+	}
+	for _, t := range ts {
+		if t, err = s.DB.GetTranslation(ctx, doc.ID, t.Locale); err != nil {
+			continue // the list leaves out the content
+		}
+		td := doc
+		td.Title, td.Content = t.Title, t.Content
+		if err := s.DB.IndexPut(ctx, store.IndexEntry{RefID: store.TranslationRef(doc.ID, t.Locale), Kind: "document", ProjectID: doc.ProjectID,
+			Slug: doc.Slug, Subtype: doc.Type, Title: t.Title, Body: documentText(td)}); err != nil {
+			slog.Warn("search index update failed", "document", doc.ID, "locale", t.Locale, "err", err)
+		}
 	}
 }
 
@@ -118,8 +135,13 @@ func (s *Service) Reindex(ctx context.Context) (int, error) {
 // EnsureSearchIndex fills an empty index (first start after the update).
 func (s *Service) EnsureSearchIndex(ctx context.Context) error {
 	n, err := s.DB.IndexCount(ctx)
-	if err != nil || n > 0 {
+	if err != nil {
 		return err
+	}
+	if n > 0 {
+		if missing, err := s.DB.TranslationsUnindexed(ctx); err != nil || !missing {
+			return err
+		}
 	}
 	count, err := s.Reindex(ctx)
 	if err == nil && count > 0 {

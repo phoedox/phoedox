@@ -4,7 +4,8 @@ import { MARK_END, MARK_START, api, type Hit, type Project } from "../api";
 import { t } from "../i18n";
 import { fileIcon } from "../files";
 import { icon } from "../icon";
-import { currentProject, currentUser, navigate } from "../state";
+import { contentLocale, currentProject, currentUser, navigate } from "../state";
+import { languageName, rememberLocale } from "../languages";
 import { pluginCommands } from "../plugin-host";
 import { base } from "./shared";
 
@@ -166,8 +167,10 @@ export class PhxPalette extends SignalWatcher(LitElement) {
       id: `h-${h.id}`, label: h.title,
       icon: h.type === "entity" ? "Box" : h.type === "file" ? fileIcon(h.kind) : docIcon[h.kind] ?? "FileText",
       href: h.type === "file" ? `/p/${h.projectSlug}/files?open=${h.id}` : `/p/${h.projectSlug}/${h.type === "entity" ? "e" : "d"}/${h.slug}`,
+      // A match in a translation opens the page in that language.
+      run: h.locale ? () => { rememberLocale(h.projectSlug, h.locale!); if (h.projectId === here) contentLocale.set(h.locale!); navigate(`/p/${h.projectSlug}/d/${h.slug}`); } : undefined,
       sub: h.snippet ? html`${marked(h.snippet)}` : undefined,
-      chip: h.projectId === here ? undefined : h.projectName,
+      chip: [h.projectId === here ? "" : h.projectName, h.locale ? languageName(h.locale) : ""].filter(Boolean).join(" · ") || undefined,
     }));
     const out: [string, Item[]][] = [];
     if (results.length) out.push([t("palette.results"), results]);

@@ -110,6 +110,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
   dropTarget = "";
   private loadedFor = "";
   private loadedVersion = -1;
+  private loadedLang = "";
 
   private routes = new Routes(this, [
     { path: "d/:doc/edit", render: ({ doc }) => html`<phx-doc-form .project=${this.slug} .docSlug=${doc!}></phx-doc-form>` },
@@ -134,6 +135,13 @@ export class PhxProject extends SignalWatcher(LitElement) {
   async willUpdate(changed: Map<string, unknown>) {
     if (this.root && (changed.has("root") || changed.has("slug"))) await this.routes.goto("");
     const v = docsVersion.get();
+    const lang = contentLocale.get();
+    if (this.slug && this.slug === this.loadedFor && v === this.loadedVersion && lang !== this.loadedLang) {
+      // Another content language: only the titles in the sidebar change.
+      this.loadedLang = lang;
+      const p = currentProject.get();
+      this.docs = (await api<Doc[]>("GET", `/projects/${this.slug}/documents${p?.mainLocale && lang ? `?lang=${lang}` : ""}`).catch(() => this.docs)) ?? this.docs;
+    }
     if (this.slug && (this.slug !== this.loadedFor || v !== this.loadedVersion)) {
       this.loadedFor = this.slug;
       this.loadedVersion = v;
@@ -148,7 +156,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
         }
         void loadProjectPlugins(p.slug);
         applyProjectColor(document.documentElement, p.primaryColor);
-        this.docs = (await api<Doc[]>("GET", `/projects/${this.slug}/documents`)) ?? [];
+        this.loadedLang = contentLocale.get();
+        this.docs = (await api<Doc[]>("GET", `/projects/${this.slug}/documents${p.mainLocale && this.loadedLang ? `?lang=${this.loadedLang}` : ""}`)) ?? [];
         this.drafts = new Set(((await api<DraftInfo[]>("GET", `/projects/${this.slug}/drafts`).catch(() => [])) ?? []).map((d) => d.documentId));
         favorites.set((await api<Favorite[]>("GET", `/projects/${this.slug}/favorites`).catch(() => [])) ?? []);
       } catch {

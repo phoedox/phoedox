@@ -48,6 +48,22 @@ func TestTranslations(t *testing.T) {
 		t.Fatalf("save: %v %+v", err, tr)
 	}
 
+	// Search finds the page through its translation, once, with the language.
+	hits, err := s.Search(ctx, reader, "hallo", p.Slug, 10)
+	if err != nil || len(hits) != 1 || hits[0].ID != res.Document.ID || hits[0].Locale != "de" || hits[0].Title != "Überblick" {
+		t.Fatalf("search translation: %v %+v", err, hits)
+	}
+	if hits, _ := s.Search(ctx, reader, "overview", p.Slug, 10); len(hits) != 1 || hits[0].Locale != "" {
+		t.Fatalf("search main: %+v", hits)
+	}
+	// The sidebar shows translated titles for the chosen language.
+	if docs, _ := s.Documents(ctx, reader, p.Slug, store.DocFilter{Locale: "de"}); len(docs) != 1 || docs[0].Title != "Überblick" || docs[0].Locale != "de" {
+		t.Fatalf("titles de: %+v", docs)
+	}
+	if docs, _ := s.Documents(ctx, reader, p.Slug, store.DocFilter{Locale: "en"}); docs[0].Title != "Overview" {
+		t.Fatalf("titles en: %+v", docs)
+	}
+
 	// Reading in German shows the translation; English and unknown languages the main text.
 	d, _ := s.LocalizedDocument(ctx, reader, p.Slug, slug, "de")
 	if d.Title != "Überblick" || markdownOf(d) != "Hallo @router" || d.Locale != "de" || d.Translation == nil || len(d.Translations) != 1 {

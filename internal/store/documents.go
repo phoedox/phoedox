@@ -162,6 +162,9 @@ type DocFilter struct {
 	// WithContent includes the content of all documents. Otherwise only
 	// link documents carry it (the sidebar needs their URL).
 	WithContent bool
+	// Locale shows titles in this translation where one exists (sidebar of
+	// multilingual projects); Document.Locale is then set on those.
+	Locale string
 }
 
 // ListDocuments returns documents ordered for the sidebar: by category,
@@ -196,6 +199,25 @@ func (d *DB) ListDocuments(ctx context.Context, projectID string, f DocFilter) (
 			doc.Content = nil
 		}
 		out = append(out, doc)
+	}
+	return out, rows.Err()
+}
+
+// TranslatedTitles maps the documents of a project to their title in a locale.
+func (d *DB) TranslatedTitles(ctx context.Context, projectID, locale string) (map[string]string, error) {
+	rows, err := d.Query(ctx, `SELECT t.document_id, t.title FROM document_translations t JOIN documents d ON d.id = t.document_id
+		WHERE d.project_id = ? AND t.locale = ?`, projectID, locale)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var id, title string
+		if err := rows.Scan(&id, &title); err != nil {
+			return nil, err
+		}
+		out[id] = title
 	}
 	return out, rows.Err()
 }

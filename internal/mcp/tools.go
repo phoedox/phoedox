@@ -140,8 +140,9 @@ type updateProjectIn struct {
 
 type listDocsIn struct {
 	Project  string `json:"project" jsonschema:"project slug"`
-	Type     string `json:"type,omitempty" jsonschema:"markdown, adr or link"`
+	Type     string `json:"type,omitempty" jsonschema:"markdown, adr, link, board or floorplan"`
 	Category string `json:"category,omitempty"`
+	Lang     string `json:"lang,omitempty" jsonschema:"multilingual projects: show titles in this translation where one exists"`
 }
 
 type createDocIn struct {
@@ -416,7 +417,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		return svc.UpdateProject(ctx, a, p.Slug, upd)
 	})
 	tool(s, "list_documents", "List documents of a project (without content), optionally filtered by type or category.", func(ctx context.Context, a core.Actor, in listDocsIn) (any, error) {
-		return svc.Documents(ctx, a, in.Project, store.DocFilter{Type: in.Type, Category: in.Category})
+		return svc.Documents(ctx, a, in.Project, store.DocFilter{Type: in.Type, Category: in.Category, Locale: in.Lang})
 	})
 	tool(s, "get_document", "Read a document with its full content (the published version). If the page has an open draft, it is returned as \"draft\" too – your writes go into it. In multilingual projects, lang picks a translation; \"translation.sourceVersion\" lower than \"version\" means the translation is outdated.", func(ctx context.Context, a core.Actor, in getDocIn) (any, error) {
 		d, err := svc.LocalizedDocument(ctx, a, in.Project, in.Document, in.Lang)

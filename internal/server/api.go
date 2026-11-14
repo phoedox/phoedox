@@ -435,7 +435,7 @@ func (a *api) setMember(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) listDocuments(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	ds, err := a.core.Documents(r.Context(), actorOf(r), chi.URLParam(r, "p"), store.DocFilter{Type: q.Get("type"), Category: q.Get("category")})
+	ds, err := a.core.Documents(r.Context(), actorOf(r), chi.URLParam(r, "p"), store.DocFilter{Type: q.Get("type"), Category: q.Get("category"), Locale: q.Get("lang")})
 	respond(w, ds, err)
 }
 
