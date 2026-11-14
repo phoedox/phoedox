@@ -317,6 +317,7 @@ var apiDocs = map[string]op{
 	"GET /projects/{p}/files/{id}/versions":              {Tag: "files", Summary: "Versions of a file.", Out: []store.FileVersion{}},
 	"POST /projects/{p}/files/{id}/versions":             {Tag: "files", Summary: "Upload a new version (raw body).", Raw: true, Out: store.File{}},
 	"POST /projects/{p}/files/{id}/versions/{n}/restore": {Tag: "files", Summary: "Make an older version current.", Out: store.File{}},
+	"GET /admin/plugins/collections":                     {Tag: "plugins", Summary: "Curated plugin collections from the store (admins).", Out: []core.PluginCollection{}},
 	"GET /me/recent":                                     {Tag: "account", Summary: "Recently opened pages and entries (?limit, newest first).", Out: []core.RecentItem{}},
 	"POST /me/recent":                                    {Tag: "account", Summary: "Remember that a page or entry was opened (project, kind document|entity, ref)."},
 	"DELETE /me/recent":                                  {Tag: "account", Summary: "Forget one entry (?ref=id) or the whole history."},

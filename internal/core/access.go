@@ -57,6 +57,8 @@ type InstanceSettings struct {
 	// VulnCheck sends reported package lists to osv.dev once a day to find
 	// known vulnerabilities (off by default: the lists leave the instance).
 	VulnCheck bool `json:"vulnCheck"`
+	// PluginBeta offers pre-release versions of store plugins.
+	PluginBeta bool `json:"pluginBeta"`
 	// Tools tells which file tools were found (PDF previews, OCR, virus scan); read only.
 	Tools map[string]bool `json:"tools,omitempty"`
 }
@@ -66,6 +68,7 @@ type SettingsPatch struct {
 	AIEnabled      *bool `json:"aiEnabled,omitempty"`
 	QuotaProjectMB *int  `json:"quotaProjectMb,omitempty"`
 	VulnCheck      *bool `json:"vulnCheck,omitempty"`
+	PluginBeta     *bool `json:"pluginBeta,omitempty"`
 }
 
 const settingQuota = "quota_project_mb"
@@ -79,7 +82,7 @@ func (s *Service) instanceQuotaMB(ctx context.Context) int {
 func (s *Service) settings(ctx context.Context) InstanceSettings {
 	tools := s.Preview.Available()
 	tools["virus_scan"] = s.Scanner != nil
-	return InstanceSettings{AIEnabled: s.AIEnabled(ctx), QuotaProjectMB: s.instanceQuotaMB(ctx), VulnCheck: s.vulnCheckOn(ctx), Tools: tools}
+	return InstanceSettings{AIEnabled: s.AIEnabled(ctx), QuotaProjectMB: s.instanceQuotaMB(ctx), VulnCheck: s.vulnCheckOn(ctx), PluginBeta: s.pluginChannel(ctx) == "beta", Tools: tools}
 }
 
 // Settings returns the instance settings (admins only).
@@ -100,6 +103,11 @@ func (s *Service) UpdateSettings(ctx context.Context, a Actor, in SettingsPatch)
 	}
 	if in.AIEnabled != nil {
 		if err := s.DB.SetSetting(ctx, settingAI, strconv.FormatBool(*in.AIEnabled), a.String()); err != nil {
+			return InstanceSettings{}, err
+		}
+	}
+	if in.PluginBeta != nil {
+		if err := s.DB.SetSetting(ctx, settingPluginBeta, strconv.FormatBool(*in.PluginBeta), a.String()); err != nil {
 			return InstanceSettings{}, err
 		}
 	}

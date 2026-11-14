@@ -283,10 +283,15 @@ type fakeStore struct {
 	recalls map[string]Recall
 	pkg     []byte
 	sig     plugins.Signature
+	channel string
 }
 
-func (f *fakeStore) Catalog(context.Context, string, string) ([]CatalogEntry, error) {
+func (f *fakeStore) Catalog(_ context.Context, _, _, channel string) ([]CatalogEntry, error) {
+	f.channel = channel
 	return f.catalog, nil
+}
+func (f *fakeStore) Collections(context.Context) ([]PluginCollection, error) {
+	return []PluginCollection{{Slug: "home-lab", Title: "Home lab", Plugins: []string{"de.example.ups"}}}, nil
 }
 func (f *fakeStore) Download(context.Context, string, string) ([]byte, plugins.Signature, error) {
 	return f.pkg, f.sig, nil
@@ -312,6 +317,22 @@ func TestPluginStoreSync(t *testing.T) {
 	list, _ := s.PluginCatalog(ctx, admin)
 	if list[0].Installed != "1.2.0" {
 		t.Fatalf("catalog: %+v", list)
+	}
+	if fs.channel != "stable" {
+		t.Fatalf("channel by default: %q", fs.channel)
+	}
+	yes := true
+	if _, err := s.UpdateSettings(ctx, admin, SettingsPatch{PluginBeta: &yes}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _ = s.PluginCatalog(ctx, admin); fs.channel != "beta" {
+		t.Fatalf("beta channel: %q", fs.channel)
+	}
+	if cols, err := s.PluginCollections(ctx, admin); err != nil || len(cols) != 1 || cols[0].Slug != "home-lab" {
+		t.Fatalf("collections: %v %+v", err, cols)
+	}
+	if _, err := s.PluginCollections(ctx, owner); err == nil {
+		t.Fatal("collections need an admin")
 	}
 	fs.catalog[0].Version = "1.3.0"
 	fs.recalls = map[string]Recall{"de.example.ups": {Level: "critical", Note: "leak"}}

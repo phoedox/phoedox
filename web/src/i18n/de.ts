@@ -1701,4 +1701,11 @@ export const de = {
   "plan.cable.power": "Strom",
   "plan.cable.coax": "Koax/Antenne",
   "plan.cable.other": "Sonstiges",
+  "plugins.beta": "Beta",
+  "plugins.beta_hint": "Vorabversion – kann Fehler enthalten.",
+  "plugins.domain_verified": "Der Autor hat dem Store die Domain {domain} nachgewiesen.",
+  "plugins.collections": "Sammlungen",
+  "plugins.all": "Alle",
+  "admin.plugin_beta": "Beta-Versionen von Plugins anbieten",
+  "admin.plugin_beta_hint": "Zeigt im Plugin-Store auch Vorabversionen (z. B. 1.3.0-beta.1) und bietet sie als Update an. Für Testinstanzen gedacht.",
 } as const;

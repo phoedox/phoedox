@@ -159,8 +159,12 @@ export interface PluginInfo {
 }
 export interface CatalogEntry {
   id: string; name: string; version: string; summary: string; author: string; verified: boolean; icon?: string;
+  /** Domain a verified author proved to the store. */
+  authorDomain?: string;
+  channel?: "stable" | "beta";
   permissions: string[]; sha256: string; recall?: string; recallNote?: string; installed?: string;
 }
+export interface PluginCollection { slug: string; title: string; description: string; plugins: string[] }
 export interface ProjectPlugin {
   id: string; name: string; version: string; description?: string; enabled: boolean; permissions?: string[];
   kinds: string[]; tools: string[]; frontend?: string; secrets?: Record<string, boolean>; lastRun: string | null; lastError?: string;

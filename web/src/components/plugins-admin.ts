@@ -1,5 +1,5 @@
 import { LitElement, css, html } from "lit";
-import { ApiError, api, type CatalogEntry, type PluginInfo, type PluginLog } from "../api";
+import { ApiError, api, type CatalogEntry, type PluginCollection, type PluginInfo, type PluginLog } from "../api";
 import { formatSize } from "../files";
 import { formatDate, locale, t } from "../i18n";
 import { icon } from "../icon";
@@ -14,6 +14,7 @@ interface List { plugins: PluginInfo[]; store: boolean; enabled: boolean; unsign
 export class PhxPluginsAdmin extends LitElement {
   static properties = {
     list: { state: true }, error: { state: true }, busy: { state: true }, catalog: { state: true }, catalogError: { state: true },
+    collections: { state: true }, collection: { state: true },
     confirming: { state: true }, logs: { state: true }, logsFor: { state: true }, removing: { state: true },
   };
   static styles = [base, settingsNavStyles, css`
@@ -51,6 +52,9 @@ export class PhxPluginsAdmin extends LitElement {
   busy = false;
   catalog?: CatalogEntry[];
   catalogError = "";
+  collections: PluginCollection[] = [];
+  /** The collection chosen as filter ("" = all). */
+  collection = "";
   confirming = "";
   logs: PluginLog[] = [];
   logsFor = "";
@@ -116,7 +120,10 @@ export class PhxPluginsAdmin extends LitElement {
 
   private async loadCatalog() {
     try {
-      this.catalog = await api<CatalogEntry[]>("GET", "/admin/plugins/catalog");
+      [this.catalog, this.collections] = await Promise.all([
+        api<CatalogEntry[]>("GET", "/admin/plugins/catalog"),
+        api<PluginCollection[]>("GET", "/admin/plugins/collections").catch(() => [] as PluginCollection[]),
+      ]);
       this.catalogError = "";
     } catch (e) {
       this.catalogError = e instanceof ApiError ? e.text : t("error.unknown");
@@ -245,12 +252,22 @@ export class PhxPluginsAdmin extends LitElement {
     </article>`;
   }
 
+  /** The catalog, filtered and ordered by the chosen collection. */
+  private shown(): CatalogEntry[] {
+    const all = this.catalog ?? [];
+    const col = this.collections.find((c) => c.slug === this.collection);
+    if (!col) return all;
+    return col.plugins.map((id) => all.find((c) => c.id === id)).filter((c): c is CatalogEntry => !!c);
+  }
+
   private entry(c: CatalogEntry) {
     const upToDate = c.installed === c.version;
     return html`<article class="plugin card">
       <header><span class="pic">${icon("Puzzle", 20)}</span>
-        <div class="t"><h3>${c.name} <span class="muted" style="font-weight:400">${c.version}</span></h3>
-          <span class="muted" style="font-size:13px">${c.author}${c.verified ? html` · ${icon("BadgeCheck", 12)} ${t("plugins.verified_author")}` : ""}</span>
+        <div class="t"><h3>${c.name} <span class="muted" style="font-weight:400">${c.version}</span>
+            ${c.channel === "beta" ? html`<span class="chip" title=${t("plugins.beta_hint")}>${t("plugins.beta")}</span>` : ""}</h3>
+          <span class="muted" style="font-size:13px">${c.author}${c.verified ? html` · ${icon("BadgeCheck", 12)} ${t("plugins.verified_author")}` : ""}
+            ${c.authorDomain ? html` · <span title=${t("plugins.domain_verified", { domain: c.authorDomain })}>${icon("Globe", 12)} ${c.authorDomain}</span>` : ""}</span>
           ${c.summary ? html`<p class="muted" style="margin:4px 0 0;font-size:14px">${c.summary}</p>` : ""}</div>
         ${upToDate ? html`<span class="chip good">${t("plugins.installed_chip")}</span>`
           : html`<button ?disabled=${this.busy} @click=${() => (this.confirming = this.confirming === c.id ? "" : c.id)}>${icon("Download", 13)} ${t(c.installed ? "plugins.update_now" : "plugins.install")}</button>`}
@@ -274,7 +291,12 @@ export class PhxPluginsAdmin extends LitElement {
         <p class="muted">${t("plugins.intro")}</p>
         ${l.plugins.length ? l.plugins.map((p) => this.card(p)) : html`<p class="muted">${t("plugins.none")}</p>`}
         ${l.store ? html`<h2>${icon("Store", 16)} ${t("plugins.store")}</h2>
-          ${this.catalog ? (this.catalog.length ? this.catalog.map((c) => this.entry(c)) : html`<p class="muted">${t("plugins.store_empty")}</p>`)
+          ${this.catalog && this.collections.length ? html`<div class="row" role="group" aria-label=${t("plugins.collections")} style="margin-bottom:10px">
+            <button class="ghost" aria-pressed=${this.collection ? "false" : "true"} @click=${() => (this.collection = "")}>${t("plugins.all")}</button>
+            ${this.collections.map((col) => html`<button class="ghost" aria-pressed=${this.collection === col.slug ? "true" : "false"} title=${col.description}
+              @click=${() => (this.collection = col.slug)}>${col.title}</button>`)}</div>
+            ${this.collection ? html`<p class="muted">${this.collections.find((col) => col.slug === this.collection)?.description ?? ""}</p>` : ""}` : ""}
+          ${this.catalog ? (this.shown().length ? this.shown().map((c) => this.entry(c)) : html`<p class="muted">${t("plugins.store_empty")}</p>`)
             : html`<button class="ghost" @click=${this.loadCatalog}>${icon("Store", 14)} ${t("plugins.browse")}</button>`}
           ${this.catalogError ? html`<p class="error">${this.catalogError}</p>` : ""}` : ""}
         <h2>${icon("Upload", 16)} ${t("plugins.upload")}</h2>

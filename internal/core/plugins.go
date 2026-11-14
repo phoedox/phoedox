@@ -37,11 +37,22 @@ type PluginConfig struct {
 
 // PluginStore is the client side of the plugin store (internal/storeclient).
 type PluginStore interface {
-	Catalog(ctx context.Context, version, hostAPI string) ([]CatalogEntry, error)
+	// Catalog lists the newest compatible versions; channel "beta" includes pre-releases.
+	Catalog(ctx context.Context, version, hostAPI, channel string) ([]CatalogEntry, error)
+	// Collections lists the store's curated plugin collections.
+	Collections(ctx context.Context) ([]PluginCollection, error)
 	Download(ctx context.Context, id, version string) ([]byte, plugins.Signature, error)
 	Redeem(ctx context.Context, code, pluginID, orgID, instanceID string) (json.RawMessage, error)
 	// Recalls reports recalls of installed versions (id -> version).
 	Recalls(ctx context.Context, installed map[string]string) (map[string]Recall, error)
+}
+
+// PluginCollection is a curated list of plugins in the store.
+type PluginCollection struct {
+	Slug        string   `json:"slug"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Plugins     []string `json:"plugins"`
 }
 
 // Recall marks a plugin version the store pulled back.
@@ -52,12 +63,16 @@ type Recall struct {
 
 // CatalogEntry is a plugin offered by the store (newest compatible version).
 type CatalogEntry struct {
-	ID          string          `json:"id"`
-	Name        string          `json:"name"`
-	Version     string          `json:"version"`
-	Summary     string          `json:"summary"`
-	Author      string          `json:"author"`
-	Verified    bool            `json:"verified"` // also signed by the author
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Version  string `json:"version"`
+	Summary  string `json:"summary"`
+	Author   string `json:"author"`
+	Verified bool   `json:"verified"` // also signed by the author
+	// AuthorDomain is the domain a verified author proved to the store.
+	AuthorDomain string `json:"authorDomain,omitempty"`
+	// Channel is stable or beta.
+	Channel     string          `json:"channel,omitempty"`
 	Icon        string          `json:"icon,omitempty"`
 	Permissions []string        `json:"permissions"`
 	License     json.RawMessage `json:"license,omitempty"`
@@ -997,7 +1012,7 @@ func (s *Service) PluginCatalog(ctx context.Context, a Actor) ([]CatalogEntry, e
 	if s.Plugins.Store == nil {
 		return []CatalogEntry{}, nil
 	}
-	list, err := s.Plugins.Store.Catalog(ctx, s.Plugins.Version, plugins.HostAPI)
+	list, err := s.Plugins.Store.Catalog(ctx, s.Plugins.Version, plugins.HostAPI, s.pluginChannel(ctx))
 	if err != nil {
 		return nil, invalid("validation.store_failed", map[string]any{"reason": err.Error()}, "store: %v", err)
 	}
@@ -1051,7 +1066,7 @@ func (s *Service) SyncPluginStore(ctx context.Context) error {
 	if len(installed) == 0 {
 		return nil
 	}
-	list, err := s.Plugins.Store.Catalog(ctx, s.Plugins.Version, plugins.HostAPI)
+	list, err := s.Plugins.Store.Catalog(ctx, s.Plugins.Version, plugins.HostAPI, s.pluginChannel(ctx))
 	if err != nil {
 		return err
 	}
@@ -1246,4 +1261,29 @@ func (s *Service) PluginTools(ctx context.Context) []PluginToolSpec {
 		}
 	}
 	return out
+}
+
+const settingPluginBeta = "plugins.beta"
+
+// pluginChannel is "beta" when the instance admin wants pre-release versions.
+func (s *Service) pluginChannel(ctx context.Context) string {
+	if v, _ := s.DB.Setting(ctx, settingPluginBeta, "false"); v == "true" {
+		return "beta"
+	}
+	return "stable"
+}
+
+// PluginCollections lists the store's curated collections (admins).
+func (s *Service) PluginCollections(ctx context.Context, a Actor) ([]PluginCollection, error) {
+	if err := s.adminOnly(a); err != nil {
+		return nil, err
+	}
+	if s.Plugins.Store == nil {
+		return []PluginCollection{}, nil
+	}
+	list, err := s.Plugins.Store.Collections(ctx)
+	if err != nil {
+		return nil, invalid("validation.store_failed", map[string]any{"reason": err.Error()}, "store: %v", err)
+	}
+	return list, nil
 }

@@ -42,6 +42,11 @@ func (a *api) pluginCatalog(w http.ResponseWriter, r *http.Request) {
 	respond(w, list, err)
 }
 
+func (a *api) pluginCollections(w http.ResponseWriter, r *http.Request) {
+	list, err := a.core.PluginCollections(r.Context(), actorOf(r))
+	respond(w, list, err)
+}
+
 func (a *api) installFromStore(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		ID      string `json:"id"`

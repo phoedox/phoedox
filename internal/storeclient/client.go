@@ -71,11 +71,14 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 }
 
 // Catalog lists the newest compatible version of every plugin.
-func (c *Client) Catalog(ctx context.Context, version, hostAPI string) ([]core.CatalogEntry, error) {
+func (c *Client) Catalog(ctx context.Context, version, hostAPI, channel string) ([]core.CatalogEntry, error) {
 	var out struct {
 		Plugins []core.CatalogEntry `json:"plugins"`
 	}
 	q := url.Values{"phoedox": {version}, "hostApi": {hostAPI}}
+	if channel == "beta" {
+		q.Set("channel", "beta")
+	}
 	if err := c.do(ctx, http.MethodGet, "/api/v1/catalog?"+q.Encode(), nil, &out); err != nil {
 		return nil, err
 	}
@@ -83,6 +86,20 @@ func (c *Client) Catalog(ctx context.Context, version, hostAPI string) ([]core.C
 		out.Plugins = []core.CatalogEntry{}
 	}
 	return out.Plugins, nil
+}
+
+// Collections lists the store's curated plugin collections.
+func (c *Client) Collections(ctx context.Context) ([]core.PluginCollection, error) {
+	var out struct {
+		Collections []core.PluginCollection `json:"collections"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/api/v1/collections", nil, &out); err != nil {
+		return nil, err
+	}
+	if out.Collections == nil {
+		out.Collections = []core.PluginCollection{}
+	}
+	return out.Collections, nil
 }
 
 // Download fetches a package and the store's signature of it.

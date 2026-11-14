@@ -151,6 +151,7 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/plugins", a.listPlugins)
 			r.Post("/plugins", a.uploadPlugin)
 			r.Get("/plugins/catalog", a.pluginCatalog)
+			r.Get("/plugins/collections", a.pluginCollections)
 			r.Post("/plugins/install", a.installFromStore)
 			r.Patch("/plugins/{id}", a.patchPlugin)
 			r.Delete("/plugins/{id}", a.deletePlugin)

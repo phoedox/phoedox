@@ -1703,4 +1703,11 @@ export const en: Record<keyof typeof de, string> = {
   "plan.cable.power": "Power",
   "plan.cable.coax": "Coax/antenna",
   "plan.cable.other": "Other",
+  "plugins.beta": "Beta",
+  "plugins.beta_hint": "Pre-release version – may contain bugs.",
+  "plugins.domain_verified": "The author proved the domain {domain} to the store.",
+  "plugins.collections": "Collections",
+  "plugins.all": "All",
+  "admin.plugin_beta": "Offer beta versions of plugins",
+  "admin.plugin_beta_hint": "Also shows pre-release versions (e.g. 1.3.0-beta.1) in the plugin store and offers them as updates. Meant for test instances.",
 };
