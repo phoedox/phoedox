@@ -2149,4 +2149,8 @@ export const en: Record<keyof typeof de, string> = {
   "agentjob.ha.turn_off": "Switch off",
   "agentjob.ha.toggle": "Toggle",
   "agentjob.ha.call": "Switch in Home Assistant",
+  "board.add_image": "Add image",
+  "board.paste_hint": "or paste an image with Ctrl+V or drop it here",
+  "board.uploading": "Uploading …",
+  "board.pasted_image": "Image",
 };

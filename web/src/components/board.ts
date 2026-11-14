@@ -4,6 +4,8 @@ import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { ApiError, api, type Board, type BoardColumn, type Doc, type Member, type Task } from "../api";
 import { formatDate, formatDay, t } from "../i18n";
 import { icon } from "../icon";
+import { coverImage, imageFiles, imageMarkdown, insertAt } from "../card-images";
+import { fileURL, uploadFile } from "../files";
 import { renderMarkdown } from "../md";
 import { currentProject } from "../state";
 import { base } from "./shared";
@@ -28,7 +30,7 @@ function between(before?: number, after?: number): number {
 export class PhxBoard extends LitElement {
   static properties = {
     project: {}, doc: {}, tasks: { state: true }, members: { state: true }, open: { state: true }, editingColumns: { state: true },
-    dragging: { state: true }, dropAt: { state: true }, adding: { state: true },
+    dragging: { state: true }, dropAt: { state: true }, adding: { state: true }, desc: { state: true }, uploading: { state: true },
   };
   static styles = [base, css`
     :host { display: block; margin-top: 8px; white-space: normal; }
@@ -48,6 +50,10 @@ export class PhxBoard extends LitElement {
     .card.ghost { opacity: .4; }
     .card.before { box-shadow: 0 -3px 0 -1px var(--accent); }
     .card.done .title { color: var(--muted); text-decoration: line-through; }
+    .card .cover { margin: -8px -10px 0; width: calc(100% + 20px); max-height: 140px; object-fit: cover; border-radius: 7px 7px 0 0; display: block; }
+    .desc-tools { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--muted); flex-wrap: wrap; }
+    .desc-tools input[type=file] { display: none; }
+    dialog .prose img { display: block; max-width: 100%; margin: 6px 0; border-radius: 6px; }
     .title { font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
     .meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
     .meta .late { color: var(--bad); }
@@ -82,6 +88,9 @@ export class PhxBoard extends LitElement {
   members: Member[] = [];
   /** The card in the dialog ("new:<column>" for a new one). */
   open?: Task;
+  /** The description while the dialog is open (live preview of images). */
+  desc?: string;
+  uploading = false;
   editingColumns = false;
   dragging?: Task;
   dropAt?: { column: string; before?: string };
@@ -249,12 +258,14 @@ export class PhxBoard extends LitElement {
 
   private show(task: Task) {
     this.open = task;
+    this.desc = undefined;
     this.updateComplete.then(() => this.renderRoot.querySelector<HTMLDialogElement>("dialog")?.showModal());
   }
 
   private close() {
     this.renderRoot.querySelector<HTMLDialogElement>("dialog")?.close();
     this.open = undefined;
+    this.desc = undefined;
   }
 
   /** Members are picked by name or e-mail; anything else is a free-text assignee (e.g. "Claude"). */
@@ -274,6 +285,30 @@ export class PhxBoard extends LitElement {
       priority: Number(s("priority")), labels: s("labels").split(",").map((x) => x.trim()).filter(Boolean),
     });
     if (saved) this.close();
+  }
+
+  /** Uploads pasted, dropped or picked images to the board and inserts them
+   * into the description at the cursor. */
+  private async addImages(e: Event | undefined, files: File[]) {
+    if (!files.length || !this.canEdit || !this.open) return;
+    e?.preventDefault();
+    const ta = this.renderRoot.querySelector<HTMLTextAreaElement>('dialog textarea[name="description"]');
+    if (!ta) return;
+    this.uploading = true;
+    try {
+      for (const file of files) {
+        const named = file.name && file.name !== "image.png" ? file : new File([file], `${t("board.pasted_image")} ${new Date().toISOString().slice(0, 19).replace("T", " ").replaceAll(":", "-")}.${file.type.split("/")[1] || "png"}`, { type: file.type });
+        const f = await uploadFile(this.project, named, { document: this.doc.id });
+        const r = insertAt(ta.value, ta.selectionStart, ta.selectionEnd, imageMarkdown(f.name, fileURL(f)));
+        ta.value = r.value;
+        ta.setSelectionRange(r.cursor, r.cursor);
+        this.desc = r.value;
+      }
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+    } finally {
+      this.uploading = false;
+    }
   }
 
   private async deleteCard() {
@@ -355,6 +390,7 @@ export class PhxBoard extends LitElement {
       @dragend=${() => { this.dragging = undefined; this.dropAt = undefined; }}
       @dragover=${(e: DragEvent) => { if (!this.dragging) return; e.preventDefault(); e.stopPropagation(); this.dropAt = { column: col.id, before: task.id }; }}
       @drop=${(e: DragEvent) => { e.preventDefault(); e.stopPropagation(); if (this.dragging) this.move(this.dragging, col.id, task.id); this.dragging = undefined; this.dropAt = undefined; }}>
+      ${coverImage(task.description) ? html`<img class="cover" src=${coverImage(task.description)!} alt="" loading="lazy" draggable="false">` : ""}
       <span class="title">${task.title}</span>
       ${task.labels.length || task.due || task.priority || task.assigneeName || task.assigneeText ? html`<span class="meta">
         ${task.labels.map((l) => html`<span class="label">${l}</span>`)}
@@ -386,11 +422,18 @@ export class PhxBoard extends LitElement {
     const task = this.open;
     if (!task) return "";
     const edit = this.canEdit;
-    return html`<dialog aria-labelledby="card-title" @close=${() => (this.open = undefined)}>
+    return html`<dialog aria-labelledby="card-title" @close=${() => { this.open = undefined; this.desc = undefined; }}>
       <form @submit=${this.saveCard}>
         <label class="field" id="card-title">${t("doc.title")}<input name="title" required .value=${task.title} ?disabled=${!edit}></label>
-        <label class="field">${t("board.card_description")}<textarea name="description" .value=${task.description} ?disabled=${!edit}></textarea></label>
-        ${!edit && task.description ? html`<div class="prose">${unsafeHTML(renderMarkdown(task.description, this.project))}</div>` : ""}
+        <label class="field">${t("board.card_description")}<textarea name="description" .value=${this.desc ?? task.description} ?disabled=${!edit}
+          @input=${(e: Event) => (this.desc = (e.target as HTMLTextAreaElement).value)}
+          @paste=${(e: ClipboardEvent) => this.addImages(e, imageFiles(e.clipboardData?.files))}
+          @drop=${(e: DragEvent) => this.addImages(e, imageFiles(e.dataTransfer?.files))}></textarea></label>
+        ${edit ? html`<div class="desc-tools">
+          <label class="btn ghost">${icon("ImageUp", 14)} ${t("board.add_image")}<input type="file" accept="image/*" multiple
+            @change=${(e: Event) => { const i = e.target as HTMLInputElement; void this.addImages(undefined, imageFiles(i.files)); i.value = ""; }}></label>
+          <span>${this.uploading ? t("board.uploading") : t("board.paste_hint")}</span></div>` : ""}
+        ${(this.desc ?? task.description) && (!edit || coverImage(this.desc ?? task.description)) ? html`<div class="prose">${unsafeHTML(renderMarkdown(this.desc ?? task.description, this.project))}</div>` : ""}
         <div class="two">
           <label class="field">${t("board.column")}<select name="column" ?disabled=${!edit}>${this.board.columns.map((c) => html`<option value=${c.id} ?selected=${c.id === task.column}>${c.name}</option>`)}</select></label>
           <label class="field">${t("board.assignee")}<input name="assignee" list="assignees" autocomplete="off" ?disabled=${!edit} placeholder=${t("board.assignee_hint")}

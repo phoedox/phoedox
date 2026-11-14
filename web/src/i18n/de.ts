@@ -2147,4 +2147,8 @@ export const de = {
   "agentjob.ha.turn_off": "Ausschalten",
   "agentjob.ha.toggle": "Umschalten",
   "agentjob.ha.call": "Home Assistant schalten",
+  "board.add_image": "Bild hinzufügen",
+  "board.paste_hint": "oder ein Bild mit Strg+V einfügen bzw. hineinziehen",
+  "board.uploading": "Wird hochgeladen …",
+  "board.pasted_image": "Bild",
 } as const;
