@@ -633,6 +633,9 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "query_entities", "Find entries of one kind by field conditions (op: eq, ne, contains, empty, set, gt, lt) and relation conditions (rel, in, to, kind, missing), e.g. servers without a located_in edge.", func(ctx context.Context, a core.Actor, in queryEntitiesIn) (any, error) {
 		return svc.RunQuery(ctx, a, in.Project, in.GraphQuery)
 	})
+	tool(s, "household_overview", "Household overview of a project: entries with price, purchase date, warranty end (days left) and yearly power use and cost, plus totals.", func(ctx context.Context, a core.Actor, in projectOnlyIn) (any, error) {
+		return svc.Household(ctx, a, in.Project)
+	})
 	tool(s, "list_locations", "The location hierarchy of a project: sites → buildings → floors → rooms, with how many entries are located in each.", func(ctx context.Context, a core.Actor, in projectOnlyIn) (any, error) {
 		return svc.Locations(ctx, a, in.Project)
 	})

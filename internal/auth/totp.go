@@ -73,6 +73,9 @@ func totpURI(secret []byte, issuer, account string) string {
 	return "otpauth://totp/" + label + "?" + q.Encode()
 }
 
+// QRSVG renders text as a QR code (SVG) for other parts of the app.
+func QRSVG(text string) (string, error) { return qrSVG(text) }
+
 // qrSVG renders text as a QR code (scales with CSS, dark modules use
 // currentColor so it follows the theme on a light background).
 func qrSVG(text string) (string, error) {

@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/phoedox/phoedox/internal/auth"
 	"github.com/phoedox/phoedox/internal/core"
 )
 
@@ -170,4 +171,47 @@ func (a *api) bulkEntities(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := a.core.Bulk(r.Context(), actorOf(r), chi.URLParam(r, "p"), in)
 	respond(w, res, err)
+}
+
+func (a *api) household(w http.ResponseWriter, r *http.Request) {
+	res, err := a.core.Household(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, res, err)
+}
+
+type powerPriceIn struct {
+	Price float64 `json:"price"`
+}
+
+func (a *api) setPowerPrice(w http.ResponseWriter, r *http.Request) {
+	var in powerPriceIn
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	respond(w, in, a.core.SetPowerPrice(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.Price))
+}
+
+type qrIn struct {
+	Text string `json:"text"`
+}
+
+type qrOut struct {
+	SVG string `json:"svg"`
+}
+
+// qr renders a QR code (e.g. a guest Wi-Fi card). The text is neither
+// stored nor logged.
+func (a *api) qr(w http.ResponseWriter, r *http.Request) {
+	var in qrIn
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	if in.Text == "" || len(in.Text) > 1000 {
+		writeErr(w, core.Invalid("validation.qr_text", nil, "text must have 1 to 1000 characters"))
+		return
+	}
+	svg, err := auth.QRSVG(in.Text)
+	w.Header().Set("Cache-Control", "no-store")
+	respond(w, qrOut{SVG: svg}, err)
 }

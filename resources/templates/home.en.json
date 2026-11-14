@@ -2,11 +2,9 @@
  "name": "Flat or house",
  "description": "Network, devices, rooms and an emergency folder for your home.",
  "icon": "House",
- "features": [
-  "graph",
+ "features": ["graph",
   "model",
-  "files"
- ],
+  "files", "household"],
  "pages": [
   {
    "title": "Overview",

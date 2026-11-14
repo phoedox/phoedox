@@ -2,11 +2,9 @@
  "name": "Wohnung oder Haus",
  "description": "Netzwerk, Geräte, Räume und eine Notfallmappe für zu Hause.",
  "icon": "House",
- "features": [
-  "graph",
+ "features": ["graph",
   "model",
-  "files"
- ],
+  "files", "household"],
  "pages": [
   {
    "title": "Überblick",

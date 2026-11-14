@@ -62,8 +62,8 @@ export interface LinkInfo { purpose: "invite" | "reset"; email: string; name: st
 export interface LinkResult { user: User; purpose: "invite" | "reset"; link: string; mailed: boolean; expiresAt: string }
 /** Minimum password length, same as the server (auth.MinPasswordLen). */
 export const minPasswordLength = 10;
-export type ProjectFeature = "decisions" | "graph" | "model" | "files";
-export const projectFeatures: readonly ProjectFeature[] = ["decisions", "graph", "model", "files"];
+export type ProjectFeature = "decisions" | "graph" | "model" | "files" | "household";
+export const projectFeatures: readonly ProjectFeature[] = ["decisions", "graph", "model", "files", "household"];
 /** Whether a project has an optional tab switched on. */
 export const hasFeature = (p: { features?: string[] } | null | undefined, f: ProjectFeature) => !!p?.features?.includes(f);
 export interface Project {

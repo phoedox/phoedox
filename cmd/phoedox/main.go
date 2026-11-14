@@ -104,6 +104,7 @@ func main() {
 					a.Core.RunMaintenance(ctx, time.Now())
 					a.Core.RemindReviews(ctx, time.Now())
 					a.Core.RemindEntityReviews(ctx, time.Now())
+					a.Core.RemindWarranties(ctx, time.Now())
 					a.Core.PurgeSecretLinks(ctx, time.Now())
 				}
 			}

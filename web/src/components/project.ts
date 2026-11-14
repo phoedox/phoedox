@@ -13,6 +13,7 @@ import "./import-view";
 import "./topology-view";
 import "./locations";
 import "./entity-table";
+import "./household";
 import "./doc-view";
 import "./doc-form";
 import "./decisions";
@@ -133,6 +134,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "import", render: () => html`<phx-import-view .project=${this.slug}></phx-import-view>` },
     { path: "topology", render: () => this.gated("graph", html`<phx-topology-view .project=${this.slug}></phx-topology-view>`) },
     { path: "table", render: () => this.gated("graph", html`<phx-entity-table .project=${this.slug}></phx-entity-table>`) },
+    { path: "household", render: () => this.gated("household", html`<phx-household .project=${this.slug}></phx-household>`) },
     { path: "locations", render: () => this.gated("graph", html`<phx-locations .project=${this.slug}></phx-locations>`) },
     { path: "e/:entity", render: ({ entity }) => html`<phx-entity-view .project=${this.slug} .entity=${entity!}></phx-entity-view>` },
     { path: "decisions", render: () => this.gated("decisions", html`<phx-decisions .project=${this.slug}></phx-decisions>`) },
@@ -279,6 +281,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     if (here.endsWith("/insights")) return t("insights.title");
     if (here.endsWith("/locations")) return t("loc.title");
     if (here.endsWith("/table")) return t("table.title");
+    if (here.endsWith("/household")) return t("house.title");
     if (here.endsWith("/settings")) return t("nav.settings");
     return t("project.overview");
   }
@@ -415,6 +418,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
             </div>` : ""}
           </div>
           <a href="/p/${this.slug}/trash" class=${here.endsWith("/trash") ? "on" : ""}>${icon("Trash2", 15)} ${t("nav.trash")}</a>` : ""}
+          ${docOnly || !hasFeature(proj, "household") ? "" : html`<a href="/p/${this.slug}/household" class=${here.endsWith("/household") ? "on" : ""}>${icon("House", 15)} ${t("house.title")}</a>`}
           ${docOnly ? "" : html`<a href="/p/${this.slug}/insights" class=${here.endsWith("/insights") ? "on" : ""}>${icon("Sparkles", 15)} ${t("insights.title")}</a>
           <a href="/p/${this.slug}/monitoring" class=${here.endsWith("/monitoring") ? "on" : ""}>${icon("Activity", 15)} ${t("monitoring.title")}</a>
           <a href="/p/${this.slug}/suggestions" class=${here.endsWith("/suggestions") ? "on" : ""}>${icon("Bot", 15)} ${t("nav.suggestions")}</a>

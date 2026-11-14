@@ -6,9 +6,20 @@
       "relations": [{"rel": "responsible_for", "to": ["*"]}]},
     {"id": "device", "group": "general", "icon": "Cpu", "attrs": [
       {"name": "manufacturer", "type": "text"}, {"name": "model", "type": "text"}, {"name": "serial", "type": "text"},
-      {"name": "ip", "type": "ip"}, {"name": "mac", "type": "text"}],
+      {"name": "ip", "type": "ip"}, {"name": "mac", "type": "text"},
+      {"name": "purchase_date", "type": "date"}, {"name": "price", "type": "number", "unit": "€"}, {"name": "warranty_until", "type": "date"}, {"name": "vendor", "type": "text"}],
       "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}, {"rel": "wired_to", "to": ["switch", "router", "lan_port"]}, {"rel": "uplink", "to": ["router", "repeater", "access_point"]}]},
 
+    {"id": "appliance", "group": "general", "icon": "WashingMachine", "attrs": [
+      {"name": "manufacturer", "type": "text"}, {"name": "model", "type": "text"}, {"name": "serial", "type": "text"},
+      {"name": "purchase_date", "type": "date"}, {"name": "price", "type": "number", "unit": "€"}, {"name": "vendor", "type": "text"},
+      {"name": "warranty_until", "type": "date"}, {"name": "power", "type": "number", "unit": "W"}, {"name": "standby", "type": "number", "unit": "W"},
+      {"name": "hours_per_day", "type": "number", "unit": "h"}],
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}]},
+    {"id": "part", "group": "general", "icon": "Wrench", "attrs": [
+      {"name": "part_number", "type": "text"}, {"name": "supplier", "type": "text"}, {"name": "url", "type": "url"},
+      {"name": "price", "type": "number", "unit": "€"}, {"name": "stock", "type": "number"}],
+      "relations": [{"rel": "fits", "to": ["*"]}, {"rel": "located_in", "to": ["room"]}]},
     {"id": "site", "group": "building", "icon": "MapPin", "attrs": [
       {"name": "address", "type": "text"}, {"name": "lat", "type": "number"}, {"name": "lng", "type": "number"}]},
     {"id": "building", "group": "building", "icon": "Building2", "attrs": [
