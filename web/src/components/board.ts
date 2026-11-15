@@ -8,10 +8,12 @@ import { coverImage, imageFiles, imageMarkdown, insertAt } from "../card-images"
 import { fileURL, uploadFile } from "../files";
 import { renderMarkdown } from "../md";
 import { currentProject } from "../state";
+import { hm } from "./task-time";
 import { base } from "./shared";
 import { userAvatar } from "../pictures";
 import { toast } from "./toasts";
 import "./task-code";
+import "./task-time";
 import "./task-docs";
 import type { CodeLink, TaskDoc } from "../api";
 
@@ -561,6 +563,7 @@ export class PhxBoard extends LitElement {
       ${this.subtaskList(task)}
       ${task.labels.length || task.due || task.priority || task.assigneeName || task.assigneeText || task.codeLinks?.length || task.documents?.length || task.subtasks?.length ? html`<span class="meta">
         ${task.labels.map((l) => html`<span class="label">${l}</span>`)}
+        ${task.minutes ? html`<span class="progress" title=${t("time.title")}>${icon("Timer", 12)} ${hm(task.minutes)}</span>` : ""}
         ${task.subtasks?.length ? html`<span class=${task.subtasks.every((s) => s.done) ? "progress all" : "progress"} title=${t("board.subtasks")}>${icon("ListChecks", 12)} ${task.subtasks.filter((s) => s.done).length}/${task.subtasks.length}</span>` : ""}
         ${task.documents?.length ? html`<span class="code" title=${task.documents.map((d) => d.title).join(", ")}>${icon("Link", 12)} ${task.documents.length}</span>` : ""}
         ${this.codeBadges(task)}
@@ -651,6 +654,8 @@ export class PhxBoard extends LitElement {
           @changed=${(e: CustomEvent<TaskDoc[]>) => { e.stopPropagation(); this.tasks = this.tasks?.map((x) => (x.id === task.id ? { ...x, documents: e.detail } : x)); if (this.open) this.open = { ...this.open, documents: e.detail }; }}></phx-task-docs>
         <phx-task-code .project=${this.project} .task=${task.id} ?canEdit=${edit}
           @changed=${(e: CustomEvent<CodeLink[]>) => { this.tasks = this.tasks?.map((x) => (x.id === task.id ? { ...x, codeLinks: e.detail } : x)); }}></phx-task-code>
+        <phx-task-time .project=${this.project} .task=${task.id} ?canEdit=${edit} ?owner=${currentProject.get()?.role === "owner"}
+          @changed=${(e: CustomEvent<number>) => { this.tasks = this.tasks?.map((x) => (x.id === task.id ? { ...x, minutes: e.detail } : x)); }}></phx-task-time>
         <p class="hint">${t("board.created", { date: formatDate(task.createdAt) })}${task.doneAt ? ` · ${t("board.done_at", { date: formatDate(task.doneAt) })}` : ""}</p>
         <div class="row">
           ${edit ? html`<button type="button" class="danger" @click=${this.deleteCard}>${icon("Trash2", 14)} ${t("board.delete")}</button>` : ""}
@@ -671,6 +676,8 @@ export class PhxBoard extends LitElement {
         <span class="muted">${t("board.summary", { open, total: this.tasks.length })}</span>
         <span style="flex:1"></span>
         ${this.tasks.some((x) => x.subtasks?.length) ? html`<button class="ghost" aria-pressed=${this.showSubs ? "true" : "false"} @click=${() => this.toggleSubs()}>${icon("ListChecks", 14)} ${t("board.show_subtasks")}</button>` : ""}
+        ${this.tasks.some((x) => x.minutes) && currentProject.get()?.role === "owner" ? html`<a class="btn ghost" title=${t("time.report_hint")} download
+          href=${`/api/v1/projects/${this.project}/time.csv?board=${this.doc.id}&from=${new Date().toISOString().slice(0, 8)}01`}>${icon("Timer", 14)} ${t("time.report")}</a>` : ""}
         ${this.canEdit && !this.editingColumns ? html`<button class="ghost" @click=${() => (this.editingColumns = true)}>${icon("Columns3", 14)} ${t("board.edit_columns")}</button>` : ""}
       </div>
       ${this.editingColumns ? this.columnsForm() : ""}

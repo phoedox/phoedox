@@ -346,6 +346,14 @@ type listEntitiesIn struct {
 	Kind    string `json:"kind,omitempty"`
 }
 
+type logTimeIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Task     string `json:"task" jsonschema:"task id"`
+	Duration string `json:"duration" jsonschema:"e.g. 1:30, 45m, 1.5h or minutes"`
+	Day      string `json:"day,omitempty" jsonschema:"YYYY-MM-DD, default today"`
+	Note     string `json:"note,omitempty"`
+}
+
 type timelineIn struct {
 	Project string `json:"project" jsonschema:"project slug"`
 	Entity  string `json:"entity" jsonschema:"entity slug or id"`
@@ -856,6 +864,9 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "list_discovered", "Devices the project's agents saw in the network (neighbour table, mDNS) with IP, MAC, host name, announced services, a suggested kind and the entry they already match. Add the unknown ones you are asked to document with upsert_entities (keep ip, mac, hostname).", func(ctx context.Context, a core.Actor, in projectRef) (any, error) {
 		return svc.Discovered(ctx, a, in.Project, false)
+	})
+	tool(s, "log_time", "Log time spent on a card (task), e.g. after work someone describes: duration like \"1:30\", \"45m\" or \"1.5h\", optional day (YYYY-MM-DD, default today) and note. It is logged for the signed-in person.", func(ctx context.Context, a core.Actor, in logTimeIn) (any, error) {
+		return svc.LogTime(ctx, a, in.Project, in.Task, core.TimeInput{Duration: in.Duration, Day: in.Day, Note: in.Note})
 	})
 	tool(s, "entity_timeline", "What happened to an entry, newest first: changes (by people, AI, agents, plugins, with the changed fields), check failures and recoveries, switching actions, agent jobs, reviews, and comments and cards that mention it. Use it to answer \"what changed on the NAS lately?\" or \"when did the router last go down?\".", func(ctx context.Context, a core.Actor, in timelineIn) (any, error) {
 		return svc.EntityTimeline(ctx, a, in.Project, in.Entity, in.Limit)

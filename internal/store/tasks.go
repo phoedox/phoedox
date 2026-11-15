@@ -40,6 +40,8 @@ type Task struct {
 	Documents []TaskDoc `json:"documents,omitempty"`
 	// Subtasks are the checklist of the card.
 	Subtasks []Subtask `json:"subtasks"`
+	// Minutes is the time logged on the card (filled by the core).
+	Minutes int `json:"minutes,omitempty"`
 }
 
 // Subtask is one item of a card's checklist.

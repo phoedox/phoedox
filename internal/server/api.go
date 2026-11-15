@@ -383,6 +383,11 @@ func (a *api) routes(r chi.Router) {
 			r.Post("/boards/{d}/tasks", a.createTask)
 			r.Patch("/tasks/{id}", a.updateTask)
 			r.Delete("/tasks/{id}", a.deleteTask)
+			r.Get("/tasks/{id}/time", a.taskTime)
+			r.Post("/tasks/{id}/time", a.logTime)
+			r.Delete("/time/{id}", a.deleteTime)
+			r.Get("/time", a.projectTime)
+			r.Get("/time.csv", a.timeCSV)
 			r.Get("/tasks/{id}/code", a.taskCode)
 			r.Post("/tasks/{id}/code", a.linkTaskCode)
 			r.Delete("/tasks/{id}/code/{link}", a.unlinkTaskCode)
@@ -674,6 +679,50 @@ func (a *api) whiteboardSVG(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:")
 	w.Header().Set("Cache-Control", "private, no-cache")
 	_, _ = io.WriteString(w, publish.WhiteboardSVG(wb, d.Title, "/api/v1/files/"))
+}
+
+func timeFilter(r *http.Request) store.TimeFilter {
+	q := r.URL.Query()
+	return store.TimeFilter{From: q.Get("from"), To: q.Get("to"), UserID: q.Get("user"), BoardID: q.Get("board")}
+}
+
+func (a *api) taskTime(w http.ResponseWriter, r *http.Request) {
+	list, err := a.core.TimeEntries(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), store.TimeFilter{})
+	respond(w, list, err)
+}
+
+func (a *api) logTime(w http.ResponseWriter, r *http.Request) {
+	var in core.TimeInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	e, err := a.core.LogTime(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), in)
+	respondStatus(w, http.StatusCreated, e, err)
+}
+
+func (a *api) deleteTime(w http.ResponseWriter, r *http.Request) {
+	if err := a.core.DeleteTime(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id")); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) projectTime(w http.ResponseWriter, r *http.Request) {
+	list, err := a.core.TimeEntries(r.Context(), actorOf(r), chi.URLParam(r, "p"), "", timeFilter(r))
+	respond(w, list, err)
+}
+
+func (a *api) timeCSV(w http.ResponseWriter, r *http.Request) {
+	b, err := a.core.TimeReportCSV(r.Context(), actorOf(r), chi.URLParam(r, "p"), timeFilter(r))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="time-`+chi.URLParam(r, "p")+`.csv"`)
+	_, _ = w.Write(b)
 }
 
 func (a *api) entityTimeline(w http.ResponseWriter, r *http.Request) {

@@ -112,7 +112,7 @@ export interface Board { description?: string; columns: BoardColumn[] }
 export interface Task {
   id: string; projectId: string; boardId: string; column: string; position: number; title: string; description: string;
   assigneeId?: string; assigneeName?: string; assigneeText?: string; assigneeAvatar?: string; due?: string; priority: number; labels: string[];
-  createdBy: string; createdAt: string; updatedAt: string; doneAt?: string; boardSlug?: string; boardTitle?: string;
+  createdBy: string; createdAt: string; updatedAt: string; doneAt?: string; boardSlug?: string; boardTitle?: string; minutes?: number;
   /** Commits, pull requests and releases of the card (ADR-0063). */
   codeLinks?: CodeLink[];
   /** Pages, decisions and other documents linked to the card (ADR-0064). */

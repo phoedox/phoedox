@@ -70,6 +70,7 @@ func (s *Service) withTaskExtras(ctx context.Context, a Actor, p store.Project, 
 	list := []store.Task{t}
 	s.attachCodeLinks(ctx, p.ID, list)
 	s.attachTaskDocs(ctx, a, p, list)
+	s.attachMinutes(ctx, p.ID, list)
 	return list[0]
 }
 
