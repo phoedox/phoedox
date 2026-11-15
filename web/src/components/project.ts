@@ -9,6 +9,7 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { contentLocale, currentProject, docsVersion, favorites, focusMode } from "../state";
 import { preferredLocale } from "../languages";
+import { comboFor, comboLabel, onShortcut } from "../shortcuts";
 import { base } from "./shared";
 import "./import-view";
 import "./topology-view";
@@ -38,9 +39,27 @@ const typeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scal
 
 /** Project layout: sidebar with documents by category + nested routes. */
 export class PhxProject extends SignalWatcher(LitElement) {
-  static properties = { slug: {}, root: {}, docs: { state: true }, drafts: { state: true }, collapsed: { state: true }, newOpen: { state: true }, error: { state: true }, menuOpen: { state: true }, dropTarget: { state: true } };
+  static properties = { slug: {}, root: {}, docs: { state: true }, drafts: { state: true }, collapsed: { state: true }, newOpen: { state: true }, error: { state: true }, menuOpen: { state: true }, dropTarget: { state: true }, sideWidth: { state: true }, sideHidden: { type: Boolean, reflect: true, attribute: "sidehidden" } };
   static styles = [base, css`
-    :host { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: calc(100vh - var(--header-h)); }
+    :host { display: grid; grid-template-columns: var(--side-w, 260px) minmax(0, 1fr); min-height: calc(100vh - var(--header-h)); }
+    /* Collapsed sidebar (desktop): the page uses the full width; a small
+       button at the left edge brings the sidebar back. */
+    :host([sidehidden]) { grid-template-columns: minmax(0, 1fr); }
+    :host([sidehidden]) aside { display: none; }
+    .reopen { display: none; }
+    :host([sidehidden]) .reopen { display: grid; place-items: center; position: fixed; left: 0; top: calc(var(--header-h) + 12px); z-index: 6;
+      width: 26px; height: 34px; padding: 0; border: 1px solid var(--line); border-left: 0; border-radius: 0 8px 8px 0; background: var(--surface); color: var(--muted); cursor: pointer; }
+    @media (hover: hover) and (pointer: fine) { :host([sidehidden]) .reopen:hover { color: var(--fg); border-color: var(--muted); } }
+    /* Drag the right edge to resize; arrow keys work on the focused edge. */
+    .resize { position: absolute; top: 0; right: -4px; width: 8px; height: 100%; cursor: col-resize; z-index: 2; touch-action: none; }
+    .resize::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent; transition: background-color var(--dur-fast) ease; }
+    .resize:focus-visible { outline: none; }
+    .resize:focus-visible::after, .resize.dragging::after { background: var(--accent); }
+    @media (hover: hover) and (pointer: fine) { .resize:hover::after { background: var(--line); } }
+    .collapse { all: unset; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; color: var(--muted); font-size: 14px; cursor: pointer; }
+    .collapse:focus-visible { outline: 2px solid var(--accent); }
+    @media (hover: hover) and (pointer: fine) { .collapse:hover { background: var(--surface2); color: var(--fg); } }
+    .collapse kbd { margin-left: auto; font: 11px var(--font-mono); opacity: .7; }
     :host([focus]) { grid-template-columns: minmax(0, 1fr); }
     :host([focus]) aside, :host([focus]) .mbar { display: none; }
     /* The sidebar stays in place; only its page tree scrolls, the actions stay visible. */
@@ -82,7 +101,9 @@ export class PhxProject extends SignalWatcher(LitElement) {
 
     /* Phones and small tablets: the sidebar becomes a drawer from the left. */
     @media (max-width: 800px) {
-      :host { grid-template-columns: 1fr; align-content: start; }
+      :host, :host([sidehidden]) { grid-template-columns: 1fr; align-content: start; }
+      :host([sidehidden]) aside { display: flex; }
+      .resize, .collapse, :host([sidehidden]) .reopen { display: none; }
       main { padding: 18px 16px 48px; }
       .mbar { display: flex; align-items: center; gap: 10px; position: sticky; top: var(--header-h); z-index: 5;
         padding: 8px 12px; background: var(--bg); border-bottom: 1px solid var(--line); }
@@ -114,6 +135,10 @@ export class PhxProject extends SignalWatcher(LitElement) {
   error = "";
   /** Drawer state on small screens; ignored on wide screens. */
   menuOpen = false;
+  /** Sidebar width in px (desktop), remembered per browser. */
+  sideWidth = readSide("phx.sidebar.width", 260);
+  sideHidden = readSide("phx.sidebar.hidden", 0) === 1;
+  private unshortcut?: () => void;
   /** Favorite being dragged and the one it hovers. */
   private dragging?: Favorite;
   dropTarget = "";
@@ -188,6 +213,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
     super.connectedCallback();
     // New, renamed or deleted pages and decisions of others appear at once.
     this.unlive = onProjectChange(LIST_KINDS, () => docsVersion.set(docsVersion.get() + 1));
+    this.unshortcut = onShortcut("sidebar", () => this.setSideHidden(!this.sideHidden));
+    this.style.setProperty("--side-w", `${this.sideWidth}px`);
     addEventListener("popstate", this.onNavigate);
     addEventListener("keydown", this.onKey);
     addEventListener("click", this.closeNew);
@@ -196,6 +223,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.unlive?.();
+    this.unshortcut?.();
     stopWatching();
     removeEventListener("popstate", this.onNavigate);
     removeEventListener("keydown", this.onKey);
@@ -203,6 +231,47 @@ export class PhxProject extends SignalWatcher(LitElement) {
     this.setMenu(false);
     delete document.documentElement.dataset.pc;
   }
+
+  private setSideHidden(hidden: boolean) {
+    this.sideHidden = hidden;
+    writeSide("phx.sidebar.hidden", hidden ? 1 : 0);
+  }
+
+  private setSideWidth(w: number, save = true) {
+    this.sideWidth = Math.round(Math.min(SIDE_MAX, Math.max(SIDE_MIN, w)));
+    this.style.setProperty("--side-w", `${this.sideWidth}px`);
+    if (save) writeSide("phx.sidebar.width", this.sideWidth);
+  }
+
+  private startResize = (e: PointerEvent) => {
+    if (e.button !== 0) return;
+    const handle = e.currentTarget as HTMLElement;
+    const left = (handle.parentElement as HTMLElement).getBoundingClientRect().left;
+    handle.setPointerCapture(e.pointerId);
+    handle.classList.add("dragging");
+    document.documentElement.style.cursor = "col-resize";
+    const move = (ev: PointerEvent) => this.setSideWidth(ev.clientX - left, false);
+    const end = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.classList.remove("dragging");
+      document.documentElement.style.cursor = "";
+      writeSide("phx.sidebar.width", this.sideWidth);
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", end, { once: true });
+    handle.addEventListener("pointercancel", end, { once: true });
+    e.preventDefault();
+  };
+
+  private resizeKey = (e: KeyboardEvent) => {
+    const step = e.shiftKey ? 48 : 16;
+    if (e.key === "ArrowLeft") this.setSideWidth(this.sideWidth - step);
+    else if (e.key === "ArrowRight") this.setSideWidth(this.sideWidth + step);
+    else if (e.key === "Home") this.setSideWidth(260);
+    else if (e.key === "Enter") this.setSideHidden(true);
+    else return;
+    e.preventDefault();
+  };
 
   private onNavigate = () => this.setMenu(false);
   private onKey = (e: KeyboardEvent) => {
@@ -403,7 +472,12 @@ export class PhxProject extends SignalWatcher(LitElement) {
         <span class="where">${this.where(here)}</span>
       </div>
       <div class=${this.menuOpen ? "scrim open" : "scrim"} @click=${() => this.setMenu(false, true)}></div>
+      <button class="reopen" aria-controls="nav" aria-expanded="false" title=${`${t("nav.sidebar_show")}${comboFor("sidebar") ? ` (${comboLabel(comboFor("sidebar"))})` : ""}`}
+        aria-label=${t("nav.sidebar_show")} @click=${() => this.setSideHidden(false)}>${icon("PanelLeftOpen", 16)}</button>
       <aside id="nav" class=${this.menuOpen ? "open" : ""} aria-label=${t("nav.menu")} @click=${this.onAsideClick}>
+        <div class="resize" role="separator" aria-orientation="vertical" tabindex="0" aria-label=${t("nav.sidebar_resize")}
+          aria-valuemin=${SIDE_MIN} aria-valuemax=${SIDE_MAX} aria-valuenow=${this.sideWidth}
+          @pointerdown=${this.startResize} @keydown=${this.resizeKey} @dblclick=${() => this.setSideWidth(260)}></div>
         <div class="scroll">
           ${this.favoritesGroup(here)}
           <div class="grp"><a href="/p/${this.slug}" class=${here === `/p/${this.slug}` ? "on" : ""}>${icon("House", 15)} ${t("project.overview")}</a>
@@ -435,6 +509,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
           <a href="/p/${this.slug}/monitoring" class=${here.endsWith("/monitoring") ? "on" : ""}>${icon("Activity", 15)} ${t("monitoring.title")}</a>
           <a href="/p/${this.slug}/suggestions" class=${here.endsWith("/suggestions") ? "on" : ""}>${icon("Bot", 15)} ${t("nav.suggestions")}</a>
           <a href="/p/${this.slug}/settings" class=${here.endsWith("/settings") ? "on" : ""}>${icon("Settings", 15)} ${t("nav.settings")}</a>`}
+          <button class="collapse" aria-controls="nav" aria-expanded="true" @click=${() => this.setSideHidden(true)}>${icon("PanelLeftClose", 15)} ${t("nav.sidebar_hide")}
+            ${comboFor("sidebar") ? html`<kbd>${comboLabel(comboFor("sidebar"))}</kbd>` : ""}</button>
         </div>
         <phx-create-dialog .project=${this.slug}></phx-create-dialog>
       </aside>
@@ -443,3 +519,21 @@ export class PhxProject extends SignalWatcher(LitElement) {
   }
 }
 customElements.define("phx-project", PhxProject);
+
+const SIDE_MIN = 200;
+const SIDE_MAX = 520;
+
+function readSide(key: string, fallback: number): number {
+  try {
+    const n = Number(localStorage.getItem(key));
+    return localStorage.getItem(key) !== null && Number.isFinite(n) ? n : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeSide(key: string, value: number) {
+  try {
+    localStorage.setItem(key, String(value));
+  } catch { /* only for this page then */ }
+}

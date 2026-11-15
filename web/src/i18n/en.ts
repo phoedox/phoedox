@@ -2236,4 +2236,8 @@ export const en: Record<keyof typeof de, string> = {
   "adr.partly_notice": "Parts of this decision no longer apply.",
   "adr.partly_by": "Partially superseded by",
   "adr.marked_partly": "{ref} marked as partially superseded",
+  "nav.sidebar_hide": "Collapse sidebar",
+  "nav.sidebar_show": "Show sidebar",
+  "nav.sidebar_resize": "Sidebar width (arrow keys change it, Home resets, Enter collapses)",
+  "shortcut.sidebar": "Show or hide the sidebar",
 };

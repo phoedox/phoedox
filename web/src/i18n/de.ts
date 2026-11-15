@@ -2234,4 +2234,8 @@ export const de = {
   "adr.partly_notice": "Teile dieser Entscheidung gelten nicht mehr.",
   "adr.partly_by": "Teilweise ersetzt durch",
   "adr.marked_partly": "{ref} als teilweise ersetzt markiert",
+  "nav.sidebar_hide": "Seitenleiste einklappen",
+  "nav.sidebar_show": "Seitenleiste einblenden",
+  "nav.sidebar_resize": "Breite der Seitenleiste (Pfeiltasten ändern, Pos1 setzt zurück, Enter klappt ein)",
+  "shortcut.sidebar": "Seitenleiste ein- und ausblenden",
 } as const;

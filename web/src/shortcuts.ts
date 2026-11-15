@@ -16,6 +16,7 @@ export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   { id: "newPage", combo: "Alt+N", label: "shortcut.new_page" },
   { id: "wide", combo: "Alt+W", label: "shortcut.wide" },
   { id: "projects", combo: "Alt+P", label: "shortcut.projects" },
+  { id: "sidebar", combo: "Alt+B", label: "shortcut.sidebar" },
 ];
 
 /** The person's own combinations (action → combo, "" = off). */
