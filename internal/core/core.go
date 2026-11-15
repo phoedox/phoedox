@@ -126,6 +126,8 @@ type Service struct {
 	// AIPrice overrides the built-in price of its model (ADR-0066).
 	AI      ai.Provider
 	AIPrice *ai.Price
+	// AIEnvModel is the model of the built-in provider (PHOEDOX_AI_MODEL).
+	AIEnvModel string
 	// SignupDefault opens self sign-up unless an admin changed it (PHOEDOX_SIGNUP=open).
 	SignupDefault bool
 	// AgentReleases is the base URL of agent releases (…/download/<tag>/<asset>);

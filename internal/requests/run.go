@@ -72,6 +72,16 @@ func (p Policy) Client() *http.Client {
 	}}
 }
 
+// StreamClient is like Client but without an overall timeout, for long
+// streamed answers (AI chat); the connection and the response headers
+// still time out.
+func (p Policy) StreamClient() *http.Client {
+	c := p.Client()
+	c.Timeout = 0
+	c.Transport.(*http.Transport).ResponseHeaderTimeout = 120 * time.Second
+	return c
+}
+
 // Result is what the web app shows.
 type Result struct {
 	Status    int         `json:"status"`

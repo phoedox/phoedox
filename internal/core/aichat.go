@@ -21,14 +21,16 @@ const (
 	settingAIChatOrgBudget  = "ai_chat_org_budget"
 	settingAIChatUserBudget = "ai_chat_user_budget"
 	settingAIChatCap        = "ai_chat_instance_cap"
+	settingAIChatModel      = "ai_chat_model"
 )
 
 // AIChatSettings are the instance settings of the AI chat.
 type AIChatSettings struct {
 	Enabled bool `json:"enabled"`
-	// Configured tells whether a provider and key are set (read only).
-	Configured bool   `json:"configured"`
-	Model      string `json:"model,omitempty"`
+	// Configured tells whether the instance has a model (read only).
+	Configured bool `json:"configured"`
+	// DefaultModel is the instance's default model ("provider/model").
+	DefaultModel string `json:"defaultModel"`
 	// OrgBudget is the default monthly limit of each organization, UserBudget
 	// the default limit of each person, InstanceCap the limit of all chats.
 	OrgBudget   int `json:"orgBudget"`
@@ -44,6 +46,8 @@ type AIChatPatch struct {
 	OrgBudget   *int  `json:"orgBudget,omitempty"`
 	UserBudget  *int  `json:"userBudget,omitempty"`
 	InstanceCap *int  `json:"instanceCap,omitempty"`
+	// DefaultModel is a model ref of an instance provider ("" = the first).
+	DefaultModel *string `json:"defaultModel,omitempty"`
 }
 
 // monthStart is the first moment of the current month (UTC).
@@ -67,15 +71,13 @@ func (s *Service) intSetting(ctx context.Context, key string, def int) int {
 func (s *Service) aiChatSettings(ctx context.Context) AIChatSettings {
 	v, _ := s.DB.Setting(ctx, settingAIChat, "true")
 	used, _ := s.DB.AIUsageTotalSince(ctx, monthStart(time.Now()))
+	model, _ := s.DB.Setting(ctx, settingAIChatModel, "")
 	out := AIChatSettings{
-		Enabled: v != "false", Configured: s.AI != nil,
+		Enabled: v != "false", Configured: len(s.instanceModels(ctx)) > 0, DefaultModel: model,
 		OrgBudget:   s.intSetting(ctx, settingAIChatOrgBudget, 2000),
 		UserBudget:  s.intSetting(ctx, settingAIChatUserBudget, 500),
 		InstanceCap: s.intSetting(ctx, settingAIChatCap, 0),
 		UsedCents:   centsOf(used),
-	}
-	if s.AI != nil {
-		out.Model = s.AI.Model()
 	}
 	return out
 }
@@ -95,6 +97,14 @@ func (s *Service) saveAIChatSettings(ctx context.Context, a Actor, in *AIChatPat
 	}
 	for _, v := range []*int{in.OrgBudget, in.UserBudget, in.InstanceCap} {
 		if err := validBudget(v); err != nil {
+			return err
+		}
+	}
+	if in.DefaultModel != nil {
+		if *in.DefaultModel != "" && !hasModel(s.instanceModels(ctx), *in.DefaultModel) {
+			return invalid("validation.ai_model_unknown", nil, "unknown model %q", *in.DefaultModel)
+		}
+		if err := s.DB.SetSetting(ctx, settingAIChatModel, *in.DefaultModel, a.String()); err != nil {
 			return err
 		}
 	}
@@ -136,14 +146,19 @@ func orgChatLimit(o store.Org, st AIChatSettings) int {
 // OrgAIChat describes the chat budget of an organization for its admins.
 type OrgAIChat struct {
 	Enabled bool `json:"enabled"`
-	// Limit is the highest budget the organization may set (from system
-	// admins); Budget its own budget (nil = the limit); UserBudget the
-	// limit per person (nil = the instance default).
+	// Limit is what the organization may spend on the instance's models per
+	// month (from system admins; 0 = no limit); Budget its own limit for
+	// all models including its own keys (nil = none); UserBudget the limit
+	// per person (nil = the instance default).
 	Limit             int   `json:"limit"`
 	Budget            *int  `json:"budget"`
 	UserBudget        *int  `json:"userBudget"`
 	DefaultUserBudget int   `json:"defaultUserBudget"`
 	UsedCents         int64 `json:"usedCents"`
+	// UsedInstanceCents is the part paid by the instance (not own keys).
+	UsedInstanceCents int64 `json:"usedInstanceCents"`
+	// DefaultModel is the organization's default model ("" = the instance's).
+	DefaultModel string `json:"defaultModel"`
 	// Available is false when the instance has no provider or switched the chat off.
 	Available bool `json:"available"`
 }
@@ -158,9 +173,12 @@ func (s *Service) OrgAIChatInfo(ctx context.Context, a Actor, ref string) (OrgAI
 		return OrgAIChat{}, err
 	}
 	st := s.aiChatSettings(ctx)
-	used, _ := s.DB.AIUsageSince(ctx, o.ID, "", monthStart(time.Now()))
+	used, _ := s.DB.AIUsageSince(ctx, o.ID, "", monthStart(time.Now()), false)
+	inst, _ := s.DB.AIUsageSince(ctx, o.ID, "", monthStart(time.Now()), true)
+	own, _ := s.DB.AIProviders(ctx, o.ID)
 	return OrgAIChat{Enabled: o.AIChat, Limit: orgChatLimit(o, st), Budget: o.AIChatBudget, UserBudget: o.AIChatUserBudget,
-		DefaultUserBudget: st.UserBudget, UsedCents: centsOf(used), Available: st.Configured && st.Enabled && s.AIEnabled(ctx)}, nil
+		DefaultUserBudget: st.UserBudget, UsedCents: centsOf(used), UsedInstanceCents: centsOf(inst), DefaultModel: o.AIChatModel,
+		Available: (st.Configured || len(own) > 0) && st.Enabled && s.AIEnabled(ctx)}, nil
 }
 
 // applyOrgAIChat applies the chat fields of an OrgInput. A negative budget
@@ -190,10 +208,13 @@ func (s *Service) applyOrgAIChat(ctx context.Context, a Actor, o *store.Org, in 
 		if err := validBudget(b); err != nil {
 			return err
 		}
-		if limit := orgChatLimit(*o, s.aiChatSettings(ctx)); b != nil && limit > 0 && (*b == 0 || *b > limit) && !a.User.IsAdmin {
-			return invalid("validation.ai_budget_above_limit", map[string]any{"limit": limit}, "the budget must not be above %d cents", limit)
-		}
 		o.AIChatBudget = b
+	}
+	if in.AIChatModel != nil {
+		if *in.AIChatModel != "" && !hasModel(append(s.orgModels(ctx, o.ID), s.instanceModels(ctx)...), *in.AIChatModel) {
+			return invalid("validation.ai_model_unknown", nil, "unknown model %q", *in.AIChatModel)
+		}
+		o.AIChatModel = *in.AIChatModel
 	}
 	if in.AIChatUserBudget != nil {
 		b := clear(in.AIChatUserBudget)
@@ -211,12 +232,18 @@ type ChatStatus struct {
 	Available bool `json:"available"`
 	// Reason is an i18n key when the chat is not available.
 	Reason string `json:"reason,omitempty"`
-	Model  string `json:"model,omitempty"`
-	// Budgets in cents per month (0 = no limit) and what was used.
+	// Budgets in cents per month (0 = no limit) and what was used. UserLimit
+	// and OrgBudget count every model; OrgLimit and the instance cap only
+	// the instance's models (not the organization's own keys).
 	UserLimit int   `json:"userLimit"`
 	UserUsed  int64 `json:"userUsed"`
 	OrgLimit  int   `json:"orgLimit"`
 	OrgUsed   int64 `json:"orgUsed"`
+	OrgBudget int   `json:"orgBudget"`
+	OrgSpent  int64 `json:"orgSpent"`
+	// InstanceBlocked: the instance's models are used up for this month;
+	// the organization's own models still work.
+	InstanceBlocked bool `json:"instanceBlocked,omitempty"`
 	// WriteMode is the project's AI write mode (read: the AI only reads).
 	WriteMode string `json:"writeMode"`
 	OrgID     string `json:"-"`
@@ -233,9 +260,10 @@ func (s *Service) ChatStatus(ctx context.Context, a Actor, ref string) (ChatStat
 		return ChatStatus{}, err
 	}
 	st := s.aiChatSettings(ctx)
-	cs := ChatStatus{Model: st.Model, OrgID: p.OrgID, ProjectID: p.ID, WriteMode: p.AIWriteMode}
+	cs := ChatStatus{OrgID: p.OrgID, ProjectID: p.ID, WriteMode: p.AIWriteMode}
+	models := s.projectModels(ctx, p)
 	switch {
-	case !st.Configured:
+	case len(models) == 0:
 		cs.Reason = "ai_chat.unavailable.not_configured"
 	case !st.Enabled || !s.AIEnabled(ctx):
 		cs.Reason = "ai_chat.unavailable.instance_off"
@@ -243,8 +271,7 @@ func (s *Service) ChatStatus(ctx context.Context, a Actor, ref string) (ChatStat
 		cs.Reason = "ai_chat.unavailable.project_off"
 	}
 	now := monthStart(time.Now())
-	userLimit := st.UserBudget
-	orgLimit := 0
+	cs.UserLimit = st.UserBudget
 	if p.OrgID != "" {
 		o, err := s.DB.OrgFor(ctx, p.OrgID, a.User.ID)
 		if err != nil {
@@ -253,38 +280,49 @@ func (s *Service) ChatStatus(ctx context.Context, a Actor, ref string) (ChatStat
 		if cs.Reason == "" && (!p.OrgAI || !o.AIChat) {
 			cs.Reason = "ai_chat.unavailable.org_off"
 		}
-		orgLimit = orgChatLimit(o, st)
-		if o.AIChatBudget != nil && *o.AIChatBudget > 0 {
-			orgLimit = lower(orgLimit, *o.AIChatBudget)
+		cs.OrgLimit = orgChatLimit(o, st)
+		if o.AIChatBudget != nil {
+			cs.OrgBudget = *o.AIChatBudget
 		}
 		if o.AIChatUserBudget != nil {
-			userLimit = *o.AIChatUserBudget
+			cs.UserLimit = *o.AIChatUserBudget
 		}
-		cs.OrgUsed, _ = s.DB.AIUsageSince(ctx, p.OrgID, "", now)
-		cs.OrgUsed = centsOf(cs.OrgUsed)
+		used, _ := s.DB.AIUsageSince(ctx, p.OrgID, "", now, true)
+		spent, _ := s.DB.AIUsageSince(ctx, p.OrgID, "", now, false)
+		cs.OrgUsed, cs.OrgSpent = centsOf(used), centsOf(spent)
 	}
-	cs.UserLimit, cs.OrgLimit = userLimit, orgLimit
-	used, _ := s.DB.AIUsageSince(ctx, p.OrgID, a.User.ID, now)
+	used, _ := s.DB.AIUsageSince(ctx, p.OrgID, a.User.ID, now, false)
 	cs.UserUsed = centsOf(used)
+	total, _ := s.DB.AIUsageTotalSince(ctx, now)
+	cs.InstanceBlocked = (st.InstanceCap > 0 && centsOf(total) >= int64(st.InstanceCap)) || (cs.OrgLimit > 0 && cs.OrgUsed >= int64(cs.OrgLimit))
+	ownModels := false
+	for _, m := range models {
+		ownModels = ownModels || m.Own
+	}
 	if cs.Reason == "" {
-		total, _ := s.DB.AIUsageTotalSince(ctx, now)
 		switch {
-		case st.InstanceCap > 0 && centsOf(total) >= int64(st.InstanceCap):
-			cs.Reason = "ai_chat.unavailable.instance_budget"
-		case orgLimit > 0 && cs.OrgUsed >= int64(orgLimit):
+		case cs.OrgBudget > 0 && cs.OrgSpent >= int64(cs.OrgBudget):
 			cs.Reason = "ai_chat.unavailable.org_budget"
-		case userLimit > 0 && cs.UserUsed >= int64(userLimit):
+		case cs.UserLimit > 0 && cs.UserUsed >= int64(cs.UserLimit):
 			cs.Reason = "ai_chat.unavailable.user_budget"
+		case cs.InstanceBlocked && !ownModels:
+			if st.InstanceCap > 0 && centsOf(total) >= int64(st.InstanceCap) {
+				cs.Reason = "ai_chat.unavailable.instance_budget"
+			} else {
+				cs.Reason = "ai_chat.unavailable.org_budget"
+			}
 		}
 	}
 	cs.Available = cs.Reason == ""
 	return cs, nil
 }
 
-// RecordAIUsage writes a model call to the usage ledger.
-func (s *Service) RecordAIUsage(ctx context.Context, a Actor, cs ChatStatus, chatID string, u ai.Usage) int64 {
-	cost := ai.CostMicros(u, ai.PriceOf(u.Model, s.AIPrice))
-	_ = s.DB.AddAIUsage(ctx, store.AIUsage{ID: newID(), OrgID: cs.OrgID, UserID: a.User.ID, ProjectID: cs.ProjectID, ChatID: chatID, Model: u.Model,
+// RecordAIUsage writes a model call to the usage ledger and returns its
+// cost in micro-dollars.
+func (s *Service) RecordAIUsage(ctx context.Context, a Actor, cs ChatStatus, chatID string, m ChatModel, u ai.Usage) int64 {
+	cost := ai.CostMicros(u, m.price)
+	_ = s.DB.AddAIUsage(ctx, store.AIUsage{ID: newID(), OrgID: cs.OrgID, UserID: a.User.ID, ProjectID: cs.ProjectID, ChatID: chatID,
+		ProviderID: m.ProviderID, OwnKey: m.Own, Model: u.Model,
 		InputTokens: u.Input, OutputTokens: u.Output, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite, CostMicros: cost, CreatedAt: store.Now()})
 	return cost
 }

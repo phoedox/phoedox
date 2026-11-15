@@ -46,11 +46,9 @@ const maxMessages = 400
 
 // Service runs chats.
 type Service struct {
-	Core *core.Service
-	// Provider overrides Core.AI (tests).
-	Provider ai.Provider
-	tools    map[string]tool
-	list     []ai.Tool
+	Core  *core.Service
+	tools map[string]tool
+	list  []ai.Tool
 }
 
 type tool struct {
@@ -72,13 +70,6 @@ func New(c *core.Service) *Service {
 func (s *Service) add(def ai.Tool, call func(context.Context, core.Actor, json.RawMessage) (any, error)) {
 	s.tools[def.Name] = tool{def: def, call: call}
 	s.list = append(s.list, def)
-}
-
-func (s *Service) provider() ai.Provider {
-	if s.Provider != nil {
-		return s.Provider
-	}
-	return s.Core.AI
 }
 
 // aiActor is the person acting through the chat: an AI client.
@@ -205,6 +196,8 @@ type Input struct {
 	Document string `json:"document,omitempty"`
 	// Language is the person's interface language (de, en …).
 	Language string `json:"language,omitempty"`
+	// Model is the model ref to use ("" = the chat's last model or the default).
+	Model string `json:"model,omitempty"`
 }
 
 // Send adds a message of the person and lets the model answer, calling
@@ -221,16 +214,26 @@ func (s *Service) Send(ctx context.Context, a core.Actor, ref, id string, in Inp
 	if len(in.Text) > 100_000 {
 		return core.Invalid("validation.ai_chat_too_long", nil, "the message is too long")
 	}
-	prov := s.provider()
-	if prov == nil {
-		return core.Invalid("ai_chat.unavailable.not_configured", nil, "no AI provider is configured")
-	}
 	cs, err := s.Core.ChatStatus(ctx, a, ref)
 	if err != nil {
 		return err
 	}
 	if !cs.Available {
 		return core.Invalid(cs.Reason, nil, "the AI chat is not available")
+	}
+	want := in.Model
+	if want == "" {
+		want = c.Model
+	}
+	model, prov, err := s.Core.ResolveChatModel(ctx, a, ref, want)
+	if err != nil {
+		return err
+	}
+	if !model.Own && cs.InstanceBlocked {
+		return core.Invalid("ai_chat.unavailable.instance_models", nil, "the instance's models are used up this month")
+	}
+	if model.Ref != c.Model {
+		_ = s.Core.DB.SetAIChatModel(ctx, c.ID, model.Ref)
 	}
 	msgs, err := s.Core.DB.AIChatMessages(ctx, c.ID)
 	if err != nil {
@@ -239,9 +242,9 @@ func (s *Service) Send(ctx context.Context, a core.Actor, ref, id string, in Inp
 	if len(msgs) >= maxMessages {
 		return core.Invalid("validation.ai_chat_full", nil, "this chat is full; start a new one")
 	}
-	history := make([]json.RawMessage, 0, len(msgs)+2)
+	history := make([]ai.Message, 0, len(msgs)+2)
 	for _, m := range msgs {
-		history = append(history, m.Content)
+		history = append(history, ai.Message{Raw: m.Content, Model: m.Model})
 	}
 	// Calls left open (an aborted turn or a limit) are answered first.
 	var open []ai.ToolResult
@@ -255,10 +258,10 @@ func (s *Service) Send(ctx context.Context, a core.Actor, ref, id string, in Inp
 		text = notes + "\n\n" + text
 	}
 	user := ai.UserMessage(text, open)
-	if _, err := s.Core.DB.AppendAIChatMessage(ctx, c.ID, "user", user); err != nil {
+	if _, err := s.Core.DB.AppendAIChatMessage(ctx, c.ID, "user", "", user); err != nil {
 		return err
 	}
-	history = append(history, user)
+	history = append(history, ai.Message{Raw: user})
 	if c.Title == "" {
 		_ = s.Core.DB.RenameAIChat(ctx, c.ID, core.ChatTitle(in.Text))
 	}
@@ -276,18 +279,25 @@ func (s *Service) Send(ctx context.Context, a core.Actor, ref, id string, in Inp
 				emit(Event{Type: "notice", Key: cs.Reason})
 				return nil
 			}
+			if !model.Own && cs.InstanceBlocked {
+				emit(Event{Type: "notice", Key: "ai_chat.unavailable.instance_models"})
+				return nil
+			}
 		}
-		turn, err := prov.Stream(ctx, ai.Request{System: system, History: normalize(history), Tools: s.list}, func(e ai.Event) {
+		turn, err := prov.Stream(ctx, ai.Request{Model: model.Model, System: system, History: normalize(history), Tools: s.list}, func(e ai.Event) {
 			emit(Event{Type: e.Type, Text: e.Text, Tool: e.Tool})
 		})
 		if err != nil {
 			return providerError(err)
 		}
-		spent += s.Core.RecordAIUsage(ctx, a, cs, c.ID, turn.Usage)
-		if _, err := s.Core.DB.AppendAIChatMessage(ctx, c.ID, "assistant", turn.Message); err != nil {
+		if turn.Usage.Model == "" {
+			turn.Usage.Model = model.Model
+		}
+		spent += s.Core.RecordAIUsage(ctx, a, cs, c.ID, model, turn.Usage)
+		if _, err := s.Core.DB.AppendAIChatMessage(ctx, c.ID, "assistant", model.Model, turn.Message); err != nil {
 			return err
 		}
-		history = append(history, turn.Message)
+		history = append(history, ai.Message{Raw: turn.Message, Model: model.Model})
 		switch {
 		case turn.Stop == ai.StopRefusal:
 			emit(Event{Type: "notice", Key: "ai_chat.notice.refused"})
@@ -313,10 +323,10 @@ func (s *Service) Send(ctx context.Context, a core.Actor, ref, id string, in Inp
 			}
 		}
 		msg := ai.UserMessage("", results)
-		if _, err := s.Core.DB.AppendAIChatMessage(ctx, c.ID, "user", msg); err != nil {
+		if _, err := s.Core.DB.AppendAIChatMessage(ctx, c.ID, "user", "", msg); err != nil {
 			return err
 		}
-		history = append(history, msg)
+		history = append(history, ai.Message{Raw: msg})
 	}
 }
 
@@ -378,21 +388,21 @@ func providerError(err error) error {
 
 // normalize merges consecutive user messages (after an aborted turn) so the
 // history alternates; stored messages stay as they are.
-func normalize(h []json.RawMessage) []json.RawMessage {
-	out := make([]json.RawMessage, 0, len(h))
+func normalize(h []ai.Message) []ai.Message {
+	out := make([]ai.Message, 0, len(h))
 	var prevUser bool
 	for _, m := range h {
 		var msg struct {
 			Role    string          `json:"role"`
 			Content json.RawMessage `json:"content"`
 		}
-		if json.Unmarshal(m, &msg) != nil {
+		if json.Unmarshal(m.Raw, &msg) != nil {
 			continue
 		}
 		if msg.Role == "user" && prevUser {
-			merged, err := mergeUser(out[len(out)-1], msg.Content)
+			merged, err := mergeUser(out[len(out)-1].Raw, msg.Content)
 			if err == nil {
-				out[len(out)-1] = merged
+				out[len(out)-1].Raw = merged
 				continue
 			}
 		}

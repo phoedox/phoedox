@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { ApiError, api } from "../api";
-import { WRITE_TOOLS, dollars, sendMessage, toolResults, userText, type Chat, type ChatEvent, type ChatStatus, type ChatView, type Message, type Part } from "../ai-chat";
+import { WRITE_TOOLS, dollars, sendMessage, toolResults, userText, type Chat, type ChatEvent, type ChatModels, type ChatStatus, type ChatView, type Message, type Part } from "../ai-chat";
 import { hasKey, locale, t, type Key } from "../i18n";
 import { icon } from "../icon";
 import { renderMarkdown } from "../md";
@@ -23,7 +23,7 @@ const tr = (key: string, vars: Record<string, unknown> = {}) => (hasKey(key) ? t
 export class PhxAIChat extends LitElement {
   static properties = {
     project: {}, doc: {}, status: { state: true }, chats: { state: true }, view: { state: true }, draft: { state: true }, busy: { state: true },
-    live: { state: true }, picks: { state: true }, error: { state: true }, pending: { state: true },
+    live: { state: true }, picks: { state: true }, error: { state: true }, pending: { state: true }, models: { state: true }, model: { state: true },
   };
   static styles = [base, css`
     :host { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--surface); border-left: 1px solid var(--line); }
@@ -31,7 +31,8 @@ export class PhxAIChat extends LitElement {
     header h2 { font-size: 15px; flex: none; display: flex; gap: 6px; align-items: center; }
     header select { flex: 1; min-width: 0; padding: 4px 8px; font-size: 13px; }
     header button { padding: 5px 7px; }
-    .budget { font-size: 12px; color: var(--muted); padding: 6px 12px; border-bottom: 1px solid var(--line); display: flex; gap: 10px; flex-wrap: wrap; }
+    .budget { font-size: 12px; color: var(--muted); padding: 6px 12px; border-bottom: 1px solid var(--line); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .budget select.model { width: auto; max-width: 100%; padding: 3px 6px; font-size: 12px; }
     .log { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; overscroll-behavior: contain; }
     .msg { max-width: 100%; font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
     .msg.user { align-self: flex-end; max-width: 88%; background: var(--accent-soft); padding: 8px 12px; border-radius: 12px 12px 4px 12px; white-space: pre-wrap; }
@@ -83,6 +84,9 @@ export class PhxAIChat extends LitElement {
   error = "";
   /** The message being sent, shown until the chat reloads. */
   pending = "";
+  models?: ChatModels;
+  /** The chosen model ref. */
+  model = "";
   private abort?: AbortController;
 
   async connectedCallback() {
@@ -98,6 +102,8 @@ export class PhxAIChat extends LitElement {
   private async load() {
     try {
       this.status = await api<ChatStatus>("GET", `/projects/${this.project}/ai/status`);
+      this.models = await api<ChatModels>("GET", `/projects/${this.project}/ai/models`).catch(() => undefined);
+      this.model ||= this.models?.default ?? "";
       this.chats = await api<Chat[]>("GET", `/projects/${this.project}/ai/chats`);
       if (this.chats.length && !this.view) await this.open(this.chats[0].id);
     } catch (e) {
@@ -108,6 +114,7 @@ export class PhxAIChat extends LitElement {
   private async open(id: string) {
     this.view = await api<ChatView>("GET", `/projects/${this.project}/ai/chats/${id}`);
     this.status = this.view.status;
+    if (this.view.model && this.models?.models.some((m) => m.ref === this.view!.model)) this.model = this.view.model;
     this.picks = {};
     await this.updateComplete;
     this.scrollDown();
@@ -152,7 +159,7 @@ export class PhxAIChat extends LitElement {
       this.live = { text: "", tools: [] };
       this.abort = new AbortController();
       let wrote = false;
-      await sendMessage(this.project, chat.id, { text, document: this.doc || undefined, language: locale() }, (ev) => {
+      await sendMessage(this.project, chat.id, { text, document: this.doc || undefined, language: locale(), model: this.model || undefined }, (ev) => {
         wrote = this.onEvent(ev) || wrote;
       }, this.abort.signal);
       if (wrote) docsVersion.set(docsVersion.get() + 1);
@@ -291,9 +298,14 @@ export class PhxAIChat extends LitElement {
     if (!s) return nothing;
     const loc = locale();
     const part = (label: string, used: number, limit: number) => html`<span>${label}: ${limit ? t("ai_chat.used_of", { used: dollars(used, loc), limit: dollars(limit, loc) }) : t("ai_chat.used", { used: dollars(used, loc) })}</span>`;
+    const ms = this.models?.models ?? [];
     return html`<div class="budget" aria-label=${t("ai_chat.budget")}>
+      ${ms.length > 1 ? html`<select class="model" aria-label=${t("ai_chat.model")} @change=${(e: Event) => (this.model = (e.target as HTMLSelectElement).value)}>
+        ${ms.map((m) => html`<option value=${m.ref} ?selected=${m.ref === this.model} ?disabled=${!m.own && s.instanceBlocked}>${m.label} · ${m.provider}${m.own ? ` (${t("ai_chat.own_key")})` : ""}</option>`)}
+      </select>` : ms.length === 1 ? html`<span>${ms[0].label}</span>` : nothing}
       ${part(t("ai_chat.budget_you"), s.userUsed, s.userLimit)}
       ${s.orgLimit || s.orgUsed ? part(t("ai_chat.budget_org"), s.orgUsed, s.orgLimit) : nothing}
+      ${s.orgBudget ? part(t("ai_chat.budget_org_all"), s.orgSpent, s.orgBudget) : nothing}
     </div>`;
   }
 

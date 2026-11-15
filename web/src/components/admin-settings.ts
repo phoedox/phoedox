@@ -6,14 +6,17 @@ import { dollars } from "../ai-chat";
 import { icon } from "../icon";
 import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
+import "./ai-providers";
+import type { AIProvider } from "./ai-providers";
 import { toast } from "./toasts";
 
-interface AIChat { enabled: boolean; configured: boolean; model?: string; orgBudget: number; userBudget: number; instanceCap: number; usedCents: number }
+interface AIChat { enabled: boolean; configured: boolean; defaultModel: string; orgBudget: number; userBudget: number; instanceCap: number; usedCents: number }
 interface Settings { aiChat: AIChat; aiEnabled: boolean; quotaProjectMb: number; vulnCheck: boolean; pluginBeta: boolean; signup: boolean; vault: { kind: string; url: string; connected: boolean }; tools?: Record<string, boolean> }
 
 /** Instance settings for system admins. */
 export class PhxAdminSettings extends SignalWatcher(LitElement) {
-  static properties = { s: { state: true } };
+  static properties = { s: { state: true }, providers: { state: true } };
+  providers: AIProvider[] = [];
   static styles = [base, settingsNavStyles, css`
     :host { display: block; max-width: 760px; margin: 0 auto; padding: 28px 16px; }
     h1 { margin-bottom: 16px; }
@@ -21,6 +24,7 @@ export class PhxAdminSettings extends SignalWatcher(LitElement) {
     label.switch input { width: auto; }
     p { max-width: 620px; line-height: 1.5; }
     h2 { font-size: 18px; margin: 28px 0 10px; }
+    h3 { font-size: 15px; margin: 18px 0 6px; }
     ul.tools { list-style: none; padding: 0; display: grid; gap: 4px; }
   `];
   s?: Settings;
@@ -40,7 +44,14 @@ export class PhxAdminSettings extends SignalWatcher(LitElement) {
     const val = (cents: number) => (cents ? (cents / 100).toFixed(2) : "");
     return html`<h2>${icon("BotMessageSquare", 16)} ${t("admin.ai_chat")}</h2>
       <p class="muted">${t("admin.ai_chat_hint")}</p>
-      ${c.configured ? html`<p class="muted">${t("admin.ai_chat_model", { model: c.model ?? "" })}</p>`
+      <h3>${t("ai_providers.title")}</h3>
+      <p class="muted">${t("ai_providers.intro_instance")}</p>
+      <phx-ai-providers @changed=${(e: CustomEvent<AIProvider[]>) => { this.providers = e.detail; void this.reloadSettings(); }}></phx-ai-providers>
+      ${c.configured ? html`<label class="field" style="max-width:420px;margin-top:12px">${t("admin.ai_chat_default_model")}
+          <select @change=${(e: Event) => this.set({ aiChat: { defaultModel: (e.target as HTMLSelectElement).value } } as any)}>
+            <option value="" ?selected=${!c.defaultModel}>${t("admin.ai_chat_first_model")}</option>
+            ${this.providers.filter((p) => p.enabled).flatMap((p) => p.models.map((m) => html`<option value=${`${p.id}/${m.id}`} ?selected=${c.defaultModel === `${p.id}/${m.id}`}>${p.name}: ${m.label || m.id}</option>`))}
+          </select></label>`
         : html`<p class="muted">${icon("CircleAlert", 14)} ${t("admin.ai_chat_not_configured")}</p>`}
       <label class="switch"><input type="checkbox" .checked=${c.enabled} ?disabled=${!c.configured}
         @change=${(e: Event) => this.set({ aiChat: { enabled: (e.target as HTMLInputElement).checked } } as any)} /> ${t("admin.ai_chat_enabled")}</label>
@@ -55,6 +66,10 @@ export class PhxAdminSettings extends SignalWatcher(LitElement) {
         <div><button>${t("profile.save")}</button></div>
       </form>
       <p class="muted">${t("admin.ai_chat_used", { used: dollars(c.usedCents, locale()) })} ${t("admin.ai_chat_budget_hint")}</p>`;
+  }
+
+  private async reloadSettings() {
+    this.s = (await api<Settings>("GET", "/admin/settings").catch(() => undefined)) ?? this.s;
   }
 
   private async set(patch: Partial<Settings>) {

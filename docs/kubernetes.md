@@ -254,8 +254,13 @@ kubectl -n phoedox exec deploy/phoedox -- phx admin test-mail --email you@exampl
 ## AI chat
 
 People can chat with an AI in their projects: work out concepts, let it write into a page's draft, and
-turn a concept into cards (ADR-0066). It needs an API key of the model provider (today Anthropic,
-from the Claude Console). Without a key the chat is not offered.
+turn a concept into cards (ADR-0066). Model providers are usually set up in the app (ADR-0067): Admin →
+Instance → AI chat → Models. Choose Anthropic or any OpenAI-compatible API (OpenAI, Mistral, Kimi,
+OpenRouter, Ollama, your own gateway), enter the API key, load the models and enter their prices.
+Organization admins can add their own providers and keys on the organization's page. Without a model
+the chat is not offered.
+
+Alternatively, a built-in Anthropic provider can come from the Helm values:
 
 ```yaml
 ai:

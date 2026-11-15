@@ -23,6 +23,8 @@ type OrgInput struct {
 	AIChatBudget     *int  `json:"aiChatBudget,omitempty"`
 	AIChatUserBudget *int  `json:"aiChatUserBudget,omitempty"`
 	AIChatCap        *int  `json:"aiChatCap,omitempty"`
+	// AIChatModel is the organization's default model ("" = the instance's).
+	AIChatModel *string `json:"aiChatModel,omitempty"`
 }
 
 // OrgDetail is an organization with members and groups (for its members).

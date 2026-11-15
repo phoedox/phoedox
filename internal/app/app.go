@@ -125,7 +125,12 @@ func Open(ctx context.Context) (*App, error) {
 	svc.SignupDefault = cfg.Signup == "open"
 	svc.PaidFeatures = cfg.PaidFeatures
 	if cfg.AI.Enabled() {
-		svc.AI = anthropic.New(cfg.AI.APIKey, cfg.AI.BaseURL, cfg.AI.Model, cfg.AI.Effort)
+		effort := cfg.AI.Effort
+		if effort == "" {
+			effort = "medium"
+		}
+		svc.AI = anthropic.New(cfg.AI.APIKey, cfg.AI.BaseURL, effort, nil)
+		svc.AIEnvModel = cfg.AI.Model
 		if len(cfg.AI.Price) == 4 {
 			svc.AIPrice = &ai.Price{Input: cfg.AI.Price[0], Output: cfg.AI.Price[1], CacheRead: cfg.AI.Price[2], CacheWrite: cfg.AI.Price[3]}
 		}

@@ -48,12 +48,12 @@ func TestStreamTextAndToolUse(t *testing.T) {
 			`{"type":"message_stop"}`)
 	}))
 	defer srv.Close()
-	p := New("test-key", srv.URL, "", "")
+	p := New("test-key", srv.URL, "medium", nil)
 	var text strings.Builder
 	var tools []string
 	turn, err := p.Stream(context.Background(), ai.Request{
 		System:  []string{"You help.", "Today is Monday."},
-		History: []json.RawMessage{ai.UserMessage("Where is the NAS?", nil)},
+		History: []ai.Message{{Raw: ai.UserMessage("Where is the NAS?", nil)}},
 		Tools:   []ai.Tool{{Name: "search", Description: "Search", Schema: json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}},"required":["query"]}`)}},
 	}, func(e ai.Event) {
 		switch e.Type {
@@ -72,7 +72,7 @@ func TestStreamTextAndToolUse(t *testing.T) {
 	if turn.Stop != ai.StopToolUse || len(turn.Calls) != 1 || string(turn.Calls[0].Input) != `{"query":"nas"}` {
 		t.Fatalf("turn: %+v", turn)
 	}
-	if turn.Usage.Input != 120 || turn.Usage.Output != 42 || turn.Usage.CacheRead != 80 || turn.Usage.CacheWrite != 10 {
+	if turn.Usage.Model != DefaultModel || turn.Usage.Input != 120 || turn.Usage.Output != 42 || turn.Usage.CacheRead != 80 || turn.Usage.CacheWrite != 10 {
 		t.Fatalf("usage: %+v", turn.Usage)
 	}
 	// The stored message can be sent back as it is.
@@ -105,7 +105,7 @@ func TestStreamCutOffToolInput(t *testing.T) {
 			`{"type":"message_stop"}`)
 	}))
 	defer srv.Close()
-	turn, err := New("k", srv.URL, "", "").Stream(context.Background(), ai.Request{History: []json.RawMessage{ai.UserMessage("x", nil)}}, func(ai.Event) {})
+	turn, err := New("k", srv.URL, "", nil).Stream(context.Background(), ai.Request{History: []ai.Message{{Raw: ai.UserMessage("x", nil)}}}, func(ai.Event) {})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,9 +125,56 @@ func TestStreamAPIError(t *testing.T) {
 		_, _ = w.Write([]byte(`{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}`))
 	}))
 	defer srv.Close()
-	_, err := New("bad", srv.URL, "", "").Stream(context.Background(), ai.Request{History: []json.RawMessage{ai.UserMessage("x", nil)}}, func(ai.Event) {})
+	_, err := New("bad", srv.URL, "", nil).Stream(context.Background(), ai.Request{History: []ai.Message{{Raw: ai.UserMessage("x", nil)}}}, func(ai.Event) {})
 	var apiErr *ai.APIError
 	if !errors.As(err, &apiErr) || apiErr.Status != http.StatusUnauthorized {
 		t.Fatalf("error: %v", err)
+	}
+}
+
+func TestReasoningOfOtherModelsIsDropped(t *testing.T) {
+	var body struct {
+		Messages []struct {
+			Content []map[string]any `json:"content"`
+		} `json:"messages"`
+		OutputConfig any `json:"output_config"`
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(b, &body)
+		sse(w, start, `{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":1}}`, `{"type":"message_stop"}`)
+	}))
+	defer srv.Close()
+	asst := json.RawMessage(`{"role":"assistant","content":[{"type":"thinking","thinking":"hm","signature":"sig"},{"type":"text","text":"Hi"}]}`)
+	hist := []ai.Message{{Raw: ai.UserMessage("a", nil)}, {Raw: asst, Model: "claude-sonnet-5-5"}, {Raw: ai.UserMessage("b", nil)}}
+	if _, err := New("k", srv.URL, "", nil).Stream(context.Background(), ai.Request{Model: "claude-opus-5-5", History: hist}, func(ai.Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(body.Messages[1].Content); n != 1 || body.Messages[1].Content[0]["type"] != "text" {
+		t.Fatalf("thinking of another model must be dropped: %+v", body.Messages[1].Content)
+	}
+	if body.OutputConfig != nil {
+		t.Fatalf("no effort configured, none sent: %v", body.OutputConfig)
+	}
+	// The same model keeps its reasoning.
+	hist[1].Model = "claude-opus-5-5"
+	_, _ = New("k", srv.URL, "", nil).Stream(context.Background(), ai.Request{Model: "claude-opus-5-5", History: hist}, func(ai.Event) {})
+	if len(body.Messages[1].Content) != 2 {
+		t.Fatalf("own reasoning must stay: %+v", body.Messages[1].Content)
+	}
+}
+
+func TestModels(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			t.Errorf("path %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"id":"claude-opus-5-5","type":"model","display_name":"Opus","created_at":"2026-01-01T00:00:00Z"}],"has_more":false,"first_id":"a","last_id":"a"}`))
+	}))
+	defer srv.Close()
+	ms, err := New("k", srv.URL, "", nil).Models(context.Background())
+	if err != nil || len(ms) != 1 || ms[0] != "claude-opus-5-5" {
+		t.Fatalf("models: %v %v", err, ms)
 	}
 }

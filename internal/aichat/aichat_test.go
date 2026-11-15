@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -12,6 +15,7 @@ import (
 	"github.com/phoedox/phoedox/internal/ai"
 	"github.com/phoedox/phoedox/internal/core"
 	"github.com/phoedox/phoedox/internal/graph"
+	"github.com/phoedox/phoedox/internal/secret"
 	"github.com/phoedox/phoedox/internal/store"
 )
 
@@ -21,7 +25,7 @@ type fake struct {
 	reqs  []ai.Request
 }
 
-func (f *fake) Model() string { return "claude-opus-5-5" }
+func (f *fake) Models(context.Context) ([]string, error) { return []string{"claude-opus-5-5"}, nil }
 
 func (f *fake) Stream(ctx context.Context, req ai.Request, emit func(ai.Event)) (ai.Turn, error) {
 	f.reqs = append(f.reqs, req)
@@ -71,6 +75,11 @@ func setup(t *testing.T) (*Service, *fake, core.Actor, store.Project) {
 		t.Fatal(err)
 	}
 	c := core.New(db)
+	box, err := secret.New(make([]byte, 32))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Box = box
 	f := &fake{}
 	c.AI = f
 	a := core.Actor{User: u, Via: "web"}
@@ -112,8 +121,8 @@ func TestChatEditsDraftAndProposesCards(t *testing.T) {
 		t.Fatalf("context: %s", f.reqs[0].System[1])
 	}
 	last := f.reqs[3].History
-	if len(last) != 7 || !strings.Contains(string(last[6]), `"tool_result"`) {
-		t.Fatalf("history: %d %s", len(last), last[len(last)-1])
+	if len(last) != 7 || !strings.Contains(string(last[6].Raw), `"tool_result"`) || last[5].Model != "claude-opus-5-5" {
+		t.Fatalf("history: %d %+v", len(last), last[len(last)-1])
 	}
 	for _, e := range events {
 		if e.Type == "tool_done" && !e.OK {
@@ -152,7 +161,7 @@ func TestChatEditsDraftAndProposesCards(t *testing.T) {
 	if err := s.Send(ctx, a, p.Slug, chat.ID, Input{Text: "Thanks"}, func(Event) {}); err != nil {
 		t.Fatal(err)
 	}
-	if h := f.reqs[4].History; !strings.Contains(string(h[len(h)-1]), "created 1 card") {
+	if h := f.reqs[4].History; !strings.Contains(string(h[len(h)-1].Raw), "created 1 card") {
 		t.Fatalf("note: %s", h[len(h)-1])
 	}
 
@@ -161,7 +170,7 @@ func TestChatEditsDraftAndProposesCards(t *testing.T) {
 		t.Fatalf("view: %v %+v", err, v)
 	}
 	// Five calls of 1000 input and 500 output tokens at $4/$20 per MTok.
-	used, _ := s.Core.DB.AIUsageSince(ctx, "", a.User.ID, monthStartForTest())
+	used, _ := s.Core.DB.AIUsageSince(ctx, "", a.User.ID, monthStartForTest(), false)
 	if used != 5*(1000*4+500*20) {
 		t.Fatalf("usage: %d", used)
 	}
@@ -241,15 +250,13 @@ func TestOrgSwitchAndBudgetLimits(t *testing.T) {
 	if st, _ := s.Status(ctx, a, p.Slug); !st.Available || st.OrgLimit != 2000 || st.UserLimit != 500 {
 		t.Fatalf("defaults: %+v", st)
 	}
-	// Org admins may lower the budget, not raise it above the limit.
+	// Org admins set their own budget (it covers their own keys too) and
+	// the budget per person; the instance's limit stays.
 	high, low, user := 5000, 300, 1000
-	if _, err := s.Core.UpdateOrg(ctx, a, o.Slug, core.OrgInput{AIChatBudget: &high}); err == nil {
-		t.Fatal("budget above the limit must fail")
-	}
 	if _, err := s.Core.UpdateOrg(ctx, a, o.Slug, core.OrgInput{AIChatBudget: &low, AIChatUserBudget: &user}); err != nil {
 		t.Fatal(err)
 	}
-	if st, _ := s.Status(ctx, a, p.Slug); st.OrgLimit != 300 || st.UserLimit != 1000 {
+	if st, _ := s.Status(ctx, a, p.Slug); st.OrgLimit != 2000 || st.OrgBudget != 300 || st.UserLimit != 1000 {
 		t.Fatalf("org budget: %+v", st)
 	}
 	// Only system admins set the cap.
@@ -295,17 +302,17 @@ func TestOpenCallsAreAnsweredAndHistoryMerged(t *testing.T) {
 	if err := s.Send(ctx, a, p.Slug, chat.ID, Input{Text: "Shorter please"}, func(Event) {}); err != nil {
 		t.Fatal(err)
 	}
-	last := string(f.reqs[1].History[2])
+	last := string(f.reqs[1].History[2].Raw)
 	if !strings.Contains(last, `"tool_use_id":"x1"`) || !strings.Contains(last, "Shorter please") {
 		t.Fatalf("open call not answered: %s", last)
 	}
 
-	h := normalize([]json.RawMessage{
-		json.RawMessage(`{"role":"user","content":[{"type":"text","text":"a"}]}`),
-		json.RawMessage(`{"role":"user","content":[{"type":"text","text":"b"}]}`),
-		json.RawMessage(`{"role":"assistant","content":[{"type":"text","text":"c"}]}`),
+	h := normalize([]ai.Message{
+		{Raw: json.RawMessage(`{"role":"user","content":[{"type":"text","text":"a"}]}`)},
+		{Raw: json.RawMessage(`{"role":"user","content":[{"type":"text","text":"b"}]}`)},
+		{Raw: json.RawMessage(`{"role":"assistant","content":[{"type":"text","text":"c"}]}`), Model: "m"},
 	})
-	if len(h) != 2 || !strings.Contains(string(h[0]), `"b"`) {
+	if len(h) != 2 || !strings.Contains(string(h[0].Raw), `"b"`) || h[1].Model != "m" {
 		t.Fatalf("normalize: %s", h)
 	}
 }
@@ -313,4 +320,94 @@ func TestOpenCallsAreAnsweredAndHistoryMerged(t *testing.T) {
 func monthStartForTest() time.Time {
 	now := time.Now().UTC()
 	return time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+}
+
+// An organization's own provider (OpenAI-compatible) works when the
+// instance's models are used up, and its key pays (not the instance).
+func TestOrgOwnProvider(t *testing.T) {
+	ctx := context.Background()
+	s, _, a, _ := setup(t)
+	admin := a
+	admin.User.IsAdmin = true
+	var gotModel, gotKey string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/models" {
+			_, _ = w.Write([]byte(`{"data":[{"id":"mistral-large-latest"},{"id":"mistral-small-latest"}]}`))
+			return
+		}
+		var body struct {
+			Model string `json:"model"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		gotModel, gotKey = body.Model, r.Header.Get("Authorization")
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"Bonjour\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1000,\"completion_tokens\":100}}\n\ndata: [DONE]\n\n")
+	}))
+	defer srv.Close()
+
+	o, err := s.Core.CreateOrg(ctx, admin, core.OrgInput{Name: "Acme", AdminEmail: a.User.Email})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, _ := s.Core.CreateProject(ctx, a, core.ProjectInput{Name: "Acme docs", Org: &o.Slug})
+	key := "sk-org-secret"
+	in := core.AIProviderInput{Name: "Mistral", Kind: "openai", BaseURL: srv.URL + "/v1", APIKey: &key,
+		Models: []store.AIModel{{ID: "mistral-large-latest", Input: 2, Output: 6}}}
+	// Hosted instances block private addresses for organizations' providers.
+	prov, err := s.Core.SaveAIProvider(ctx, a, o.Slug, "", in)
+	if err != nil || !prov.HasKey || prov.APIKey == key {
+		t.Fatalf("save: %v %+v", err, prov)
+	}
+	if _, err := s.Core.DiscoverAIModels(ctx, a, o.Slug, prov.ID); err == nil {
+		t.Fatal("a private address must be blocked for organizations")
+	}
+	s.Core.RequestPolicy.AllowPrivate = true
+	ms, err := s.Core.DiscoverAIModels(ctx, a, o.Slug, prov.ID)
+	if err != nil || len(ms) != 2 {
+		t.Fatalf("discover: %v %v", err, ms)
+	}
+	// Only system admins manage the instance's providers.
+	if _, err := s.Core.SaveAIProvider(ctx, a, "", "", in); !errors.Is(err, core.ErrForbidden) {
+		t.Fatalf("instance provider by a person: %v", err)
+	}
+
+	models, _ := s.Core.ProjectChatModels(ctx, a, p.Slug)
+	if len(models.Models) != 2 || !models.Models[0].Own || models.Default != models.Models[0].Ref {
+		t.Fatalf("models: %+v", models)
+	}
+	// Use up the instance (cap of 1 cent) with the built-in model.
+	capc := 1
+	if _, err := s.Core.UpdateSettings(ctx, admin, core.SettingsPatch{AIChat: &core.AIChatPatch{InstanceCap: &capc}}); err != nil {
+		t.Fatal(err)
+	}
+	ref := "env/claude-opus-5-5"
+	chat, _ := s.Create(ctx, a, p.Slug, "")
+	s.Core.AI.(*fake).turns = []ai.Turn{turn("Hello")}
+	if err := s.Send(ctx, a, p.Slug, chat.ID, Input{Text: "Hi", Model: ref}, func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	st, _ := s.Status(ctx, a, p.Slug)
+	if !st.Available || !st.InstanceBlocked {
+		t.Fatalf("own models keep the chat available: %+v", st)
+	}
+	if err := s.Send(ctx, a, p.Slug, chat.ID, Input{Text: "Again", Model: ref}, func(Event) {}); err == nil {
+		t.Fatal("the instance's model is used up")
+	}
+	// The organization's model still answers, with its own key; reasoning
+	// of the other model is not sent along.
+	if err := s.Send(ctx, a, p.Slug, chat.ID, Input{Text: "Und jetzt?", Model: models.Models[0].Ref}, func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	if gotModel != "mistral-large-latest" || gotKey != "Bearer sk-org-secret" {
+		t.Fatalf("request: %q %q", gotModel, gotKey)
+	}
+	inst, _ := s.Core.DB.AIUsageSince(ctx, o.ID, "", monthStartForTest(), true)
+	all, _ := s.Core.DB.AIUsageSince(ctx, o.ID, "", monthStartForTest(), false)
+	if all-inst != 1000*2+100*6 {
+		t.Fatalf("own key usage: %d %d", inst, all)
+	}
+	v, _ := s.Get(ctx, a, p.Slug, chat.ID)
+	if v.Model != models.Models[0].Ref {
+		t.Fatalf("chat model: %q", v.Model)
+	}
 }

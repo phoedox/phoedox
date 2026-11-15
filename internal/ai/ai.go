@@ -44,12 +44,20 @@ type Usage struct {
 	CacheWrite int64
 }
 
+// Message is a stored message and the model that wrote it ("" for the
+// person's messages). Adapters drop reasoning blocks of other models.
+type Message struct {
+	Raw   json.RawMessage
+	Model string
+}
+
 // Request is one call of the model.
 type Request struct {
+	Model string
 	// System holds the instructions: the first part is the same for every
 	// chat (cached), the rest describes the situation (project, page, date).
 	System    []string
-	History   []json.RawMessage
+	History   []Message
 	Tools     []Tool
 	MaxTokens int
 }
@@ -76,11 +84,20 @@ type Turn struct {
 	Usage   Usage
 }
 
-// Provider calls a model.
+// Provider calls the models of one API (Anthropic, or an OpenAI-compatible
+// API such as OpenAI, Mistral, Kimi, Ollama or a gateway).
 type Provider interface {
-	Model() string
 	Stream(ctx context.Context, req Request, emit func(Event)) (Turn, error)
+	// Models lists the models the API offers (to choose from when an admin
+	// sets up the provider).
+	Models(ctx context.Context) ([]string, error)
 }
+
+// Kinds of providers.
+const (
+	KindAnthropic = "anthropic"
+	KindOpenAI    = "openai" // OpenAI-compatible chat completions
+)
 
 // ErrNotConfigured means no provider is set up on this instance.
 var ErrNotConfigured = errors.New("ai: no provider configured")
@@ -115,6 +132,33 @@ func PriceOf(model string, override *Price) Price {
 func CostMicros(u Usage, p Price) int64 {
 	c := float64(u.Input)*p.Input + float64(u.Output)*p.Output + float64(u.CacheRead)*p.CacheRead + float64(u.CacheWrite)*p.CacheWrite
 	return int64(math.Ceil(c))
+}
+
+// StripReasoning removes reasoning blocks (thinking) from an assistant
+// message; they are only valid for the model that wrote them.
+func StripReasoning(raw json.RawMessage) json.RawMessage {
+	var m map[string]json.RawMessage
+	if json.Unmarshal(raw, &m) != nil {
+		return raw
+	}
+	var blocks []map[string]json.RawMessage
+	if json.Unmarshal(m["content"], &blocks) != nil {
+		return raw
+	}
+	kept := blocks[:0]
+	for _, b := range blocks {
+		var typ string
+		_ = json.Unmarshal(b["type"], &typ)
+		if typ != "thinking" && typ != "redacted_thinking" {
+			kept = append(kept, b)
+		}
+	}
+	m["content"], _ = json.Marshal(kept)
+	out, err := json.Marshal(m)
+	if err != nil {
+		return raw
+	}
+	return out
 }
 
 // UserMessage builds a user message: tool results first (they must answer

@@ -148,3 +148,43 @@ func (a *api) orgAIChat(w http.ResponseWriter, r *http.Request) {
 }
 
 func asInvalid(err error, target **core.InvalidError) bool { return errors.As(err, target) }
+
+func (a *api) chatModels(w http.ResponseWriter, r *http.Request) {
+	act, ok := a.chatActor(w, r)
+	if !ok {
+		return
+	}
+	ms, err := a.core.ProjectChatModels(r.Context(), act, chi.URLParam(r, "p"))
+	respond(w, ms, err)
+}
+
+// Model providers of the instance (/admin/ai/…) or an organization
+// (/orgs/{o}/ai/…; ADR-0067).
+
+func (a *api) listAIProviders(w http.ResponseWriter, r *http.Request) {
+	ps, err := a.core.AIProviders(r.Context(), actorOf(r), chi.URLParam(r, "o"))
+	respond(w, ps, err)
+}
+
+func (a *api) saveAIProvider(w http.ResponseWriter, r *http.Request) {
+	var in core.AIProviderInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	p, err := a.core.SaveAIProvider(r.Context(), actorOf(r), chi.URLParam(r, "o"), chi.URLParam(r, "id"), in)
+	respond(w, p, err)
+}
+
+func (a *api) deleteAIProvider(w http.ResponseWriter, r *http.Request) {
+	if err := a.core.DeleteAIProvider(r.Context(), actorOf(r), chi.URLParam(r, "o"), chi.URLParam(r, "id")); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) discoverAIModels(w http.ResponseWriter, r *http.Request) {
+	ms, err := a.core.DiscoverAIModels(r.Context(), actorOf(r), chi.URLParam(r, "o"), chi.URLParam(r, "id"))
+	respond(w, ms, err)
+}

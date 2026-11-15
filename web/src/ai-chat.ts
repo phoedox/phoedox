@@ -10,7 +10,24 @@ export interface ChatStatus {
   userUsed: number;
   orgLimit: number;
   orgUsed: number;
+  orgBudget: number;
+  orgSpent: number;
+  instanceBlocked?: boolean;
   writeMode: string;
+}
+
+export interface ChatModel {
+  ref: string;
+  providerId: string;
+  provider: string;
+  model: string;
+  label: string;
+  own?: boolean;
+}
+
+export interface ChatModels {
+  models: ChatModel[];
+  default: string;
 }
 
 export interface Chat {
@@ -18,6 +35,7 @@ export interface Chat {
   projectId: string;
   documentId?: string;
   title: string;
+  model?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -85,7 +103,7 @@ export function parseSSE(buf: string): { events: ChatEvent[]; rest: string } {
 }
 
 /** Sends a message and calls onEvent for each event of the answer. */
-export async function sendMessage(project: string, chat: string, body: { text: string; document?: string; language?: string },
+export async function sendMessage(project: string, chat: string, body: { text: string; document?: string; language?: string; model?: string },
   onEvent: (e: ChatEvent) => void, signal?: AbortSignal): Promise<void> {
   let res: Response;
   try {
