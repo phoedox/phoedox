@@ -44,3 +44,11 @@ den Nutzer fragen. `docs/decisions.md` ist nur noch ein Verweis (ADR-0026). Der 
 - Keine Geheimnisse in Dokument-Inhalten; Request-Blöcke referenzieren `{{variablen}}` der Projekt-Umgebung.
 - Farben nur über Tokens (`web/src/styles/tokens.css`); Projektfarbe überschreibt `--accent` über `--pl`/`--pd`.
 - Icons ausschließlich aus Lucide (dann Heroicons, dann Feather); keine eigenen Icons.
+
+## Demo-Projekt
+
+Auf app.phoedox.com gibt es das Projekt `demo` („Phoedox Demo“): Familienhaus mit Homelab, zeigt alle Funktionen ohne Plugins.
+- **Nach jedem Update der Cloud** (Jan meldet es, oder `/healthz` zeigt einen neuen Commit) neue Funktionen dort per MCP anlegen und auf dem Board „Household and homelab“ in der Spalte **„New in Phoedox“** je eine Karte zum Ausprobieren anlegen (Titel = Funktion, Beschreibung = wo man sie findet). Alte Karten nach dem nächsten Update nach „Done“ schieben.
+- Was noch fehlt, steht auf der Roadmap-Karte „Demo project: show features after the next cloud update“.
+- Inhalte bleiben fiktiv (keine echten Namen, Adressen, Telefonnummern), Hauptsprache Englisch mit deutscher Übersetzung der Startseite.
+
