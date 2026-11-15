@@ -37,6 +37,17 @@ func TestAdminSeesOtherProjectsOnlyWhenAsked(t *testing.T) {
 	if err != nil || !p.AdminAccess {
 		t.Fatalf("open: %+v %v", p, err)
 	}
+	// The owners see it in the audit log, once per hour and admin.
+	_, _ = s.Project(ctx, admin, theirs.Slug)
+	if ev, _ := s.DB.Events(ctx, store.EventFilter{Kind: "project.admin_access", Limit: 10}); len(ev) != 1 || ev[0].Subject != theirs.ID {
+		t.Fatalf("admin access events: %+v", ev)
+	}
+	if _, err := s.Project(ctx, admin, mine.Slug); err != nil {
+		t.Fatal(err)
+	}
+	if ev, _ := s.DB.Events(ctx, store.EventFilter{Kind: "project.admin_access", Limit: 10}); len(ev) != 1 {
+		t.Fatalf("own project logged: %d", len(ev))
+	}
 	// AI clients of an admin never get the whole instance.
 	if all, _ := s.AllProjects(ctx, Actor{User: adminUser, Via: "mcp"}); len(all) != 1 {
 		t.Fatalf("mcp: %d", len(all))

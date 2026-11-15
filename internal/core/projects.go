@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/phoedox/phoedox/internal/graph"
@@ -247,8 +248,22 @@ func (s *Service) listProjects(ctx context.Context, a Actor, all bool) ([]store.
 
 // Project returns one project if the actor can read it.
 func (s *Service) Project(ctx context.Context, a Actor, ref string) (store.Project, error) {
-	return s.project(ctx, a, ref, store.RoleDoc)
+	p, err := s.project(ctx, a, ref, store.RoleDoc)
+	if err == nil && p.AdminAccess && a.User.ID != "" && a.Via != "cli" {
+		// A system admin opens a project they are not a member of: the
+		// owners can see that in the audit log (at most once an hour).
+		key := a.User.ID + "|" + p.ID
+		now := time.Now()
+		if last, ok := adminOpens.Load(key); !ok || now.Sub(last.(time.Time)) > time.Hour {
+			adminOpens.Store(key, now)
+			s.event(ctx, a, "project.admin_access", p.ID, map[string]any{"project": p.Slug})
+		}
+	}
+	return p, err
 }
+
+// adminOpens remembers when a system admin last opened a foreign project.
+var adminOpens sync.Map
 
 // Members lists members (readers may see them).
 func (s *Service) Members(ctx context.Context, a Actor, ref string) ([]store.Member, error) {
