@@ -17,6 +17,8 @@ import (
 
 // Page is a page to create.
 type Page struct {
+	// Path is where the page is in the archive (for page: references).
+	Path     string
 	Category string // folder path, "A/B"
 	Title    string
 	Key      string // file name without extension, for wiki links

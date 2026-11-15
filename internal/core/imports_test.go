@@ -5,8 +5,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/phoedox/phoedox/internal/blob"
 )
 
 func TestImports(t *testing.T) {
@@ -57,5 +60,36 @@ func TestImports(t *testing.T) {
 	}
 	if e, _ := s.Entity(ctx, owner, p.Slug, "shop"); len(e.Documents) != 1 {
 		t.Fatalf("service linked to its page: %+v", e.Documents)
+	}
+}
+
+func TestImportArchiveWithImages(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _ := setup(t)
+	dir := t.TempDir()
+	s.Blobs = blob.Local{Dir: filepath.Join(dir, "files")}
+	s.TempDir = filepath.Join(dir, "tmp")
+	s.MaxUpload = 1 << 20
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Wiki"})
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	for name, body := range map[string]string{
+		"data.json":       `{"book":{"name":"B","pages":[{"id":1,"name":"Rack","markdown":"![front]([[bsexport:image:5]]) see [[[bsexport:page:2]]]([[bsexport:page:2]])","images":[{"id":5,"name":"front","file":"front.png"}]},{"id":2,"name":"Power","markdown":"UPS"}]}}`,
+		"files/front.png": string(pngBytes),
+	} {
+		f, _ := w.Create(name)
+		_, _ = f.Write([]byte(body))
+	}
+	_ = w.Close()
+	res, err := s.ImportMarkdown(ctx, owner, p.Slug, buf.Bytes())
+	if err != nil || res.Format != "bookstack" || res.Files != 1 || len(res.Created) != 2 {
+		t.Fatalf("%+v %v", res, err)
+	}
+	d, err := s.Document(ctx, owner, p.Slug, "rack")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(markdownOf(d), "![front](/api/v1/files/") || !strings.Contains(markdownOf(d), "(/p/wiki/d/power)") {
+		t.Fatalf("markdown: %s", markdownOf(d))
 	}
 }

@@ -1089,7 +1089,8 @@ func (a *api) traverse(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) importMarkdown(w http.ResponseWriter, r *http.Request) {
-	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 50<<20))
+	// Archives with images (Notion, Confluence, BookStack) can be large.
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 300<<20))
 	if err != nil {
 		writeErr(w, core.Invalid("validation.import_size", nil, "the upload is larger than 50 MB"))
 		return

@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -17,8 +18,12 @@ import (
 // ImportResult says what an import did.
 type ImportResult struct {
 	Created []string `json:"created"` // slugs
-	Skipped []string `json:"skipped"` // files that are not Markdown
+	Skipped []string `json:"skipped"` // files that were not imported
 	Entity  string   `json:"entity,omitempty"`
+	// Format of the archive (markdown, notion, confluence, bookstack) and
+	// how many images and documents became project files.
+	Format string `json:"format,omitempty"`
+	Files  int    `json:"files,omitempty"`
 }
 
 func (s *Service) importAccess(ctx context.Context, a Actor, ref string) (store.Project, error) {
@@ -44,32 +49,49 @@ func (s *Service) freeSlug(ctx context.Context, p store.Project, title string, t
 	}
 }
 
-// ImportMarkdown creates a page per Markdown file of a ZIP archive; folders
-// become categories and [[wiki links]] links between the new pages.
+// ImportMarkdown creates a page per page of an uploaded archive: a ZIP of
+// Markdown files (also Obsidian vaults and Notion exports), a Confluence
+// HTML space export or a BookStack ZIP export. Folders, breadcrumbs and
+// chapters become categories, links between pages stay links, and images
+// and PDFs the pages use become project files.
 func (s *Service) ImportMarkdown(ctx context.Context, a Actor, ref string, zipData []byte) (ImportResult, error) {
 	res := ImportResult{Created: []string{}, Skipped: []string{}}
 	p, err := s.importAccess(ctx, a, ref)
 	if err != nil {
 		return res, err
 	}
-	pages, skipped, err := importer.MarkdownZip(zipData)
+	arc, err := importer.ReadArchive(zipData)
 	if errors.Is(err, importer.ErrNotZip) {
 		return res, invalid("validation.import_zip", nil, "upload a ZIP archive with Markdown files")
 	}
 	if err != nil {
 		return res, invalid("validation.import_failed", map[string]any{"error": err.Error()}, "%v", err)
 	}
-	res.Skipped = append(res.Skipped, skipped...)
+	res.Format = arc.Format
+	res.Skipped = append(res.Skipped, arc.Skipped...)
 	taken := map[string]bool{}
-	slugs := make([]string, len(pages))
+	slugs := make([]string, len(arc.Pages))
 	byKey := map[string]string{}
-	for i, pg := range pages {
+	byPath := map[string]string{}
+	for i, pg := range arc.Pages {
 		slugs[i] = s.freeSlug(ctx, p, pg.Title, taken)
+		byPath[pg.Path] = slugs[i]
 		for _, k := range []string{pg.Key, pg.Title, strings.Trim(pg.Category+"/"+pg.Key, "/")} {
 			if _, dup := byKey[strings.ToLower(k)]; !dup {
 				byKey[strings.ToLower(k)] = slugs[i]
 			}
 		}
+	}
+	// Files first, so the pages can point to them.
+	files := map[string]string{}
+	for _, as := range arc.Assets {
+		f, err := s.UploadFile(ctx, a, p.Slug, FileInput{Name: as.Name}, bytes.NewReader(as.Data))
+		if err != nil {
+			res.Skipped = append(res.Skipped, as.Path)
+			continue
+		}
+		files[as.Path] = "/api/v1/files/" + f.ID
+		res.Files++
 	}
 	url := func(key string) string {
 		if slug, ok := byKey[strings.ToLower(key)]; ok {
@@ -77,16 +99,24 @@ func (s *Service) ImportMarkdown(ctx context.Context, a Actor, ref string, zipDa
 		}
 		return ""
 	}
-	for i, pg := range pages {
-		md := importer.ResolveWikiLinks(pg.Markdown, url)
+	pageURL := func(path string) string {
+		if slug, ok := byPath[path]; ok {
+			return "/p/" + p.Slug + "/d/" + slug
+		}
+		return ""
+	}
+	fileURL := func(path string) string { return files[path] }
+	for i, pg := range arc.Pages {
+		md := importer.ReplaceRefs(pg.Markdown, pageURL, fileURL)
+		md = importer.ResolveWikiLinks(md, url)
 		r, err := s.createDocument(ctx, a, p, DocumentInput{Type: store.DocMarkdown, Title: pg.Title, Slug: slugs[i], Category: pg.Category, Markdown: md})
 		if err != nil {
-			res.Skipped = append(res.Skipped, pg.Category+"/"+pg.Key+".md")
+			res.Skipped = append(res.Skipped, pg.Path)
 			continue
 		}
 		res.Created = append(res.Created, r.Document.Slug)
 	}
-	s.event(ctx, a, "project.import", p.ID, map[string]any{"kind": "markdown", "created": len(res.Created), "skipped": len(res.Skipped)})
+	s.event(ctx, a, "project.import", p.ID, map[string]any{"kind": arc.Format, "created": len(res.Created), "files": res.Files, "skipped": len(res.Skipped)})
 	return res, nil
 }
 

@@ -5,7 +5,7 @@ import { icon } from "../icon";
 import { docsVersion } from "../state";
 import { base } from "./shared";
 
-interface Result { created: string[]; skipped: string[]; entity?: string }
+interface Result { created: string[]; skipped: string[]; entity?: string; format?: string; files?: number }
 
 /** Import Markdown folders (ZIP, also Obsidian) and OpenAPI files. */
 export class PhxImportView extends LitElement {
@@ -63,7 +63,7 @@ export class PhxImportView extends LitElement {
       ${this.busy ? html`<p class="muted" role="status">${t("import.running")}</p>` : ""}
       ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
       ${r ? html`<div class="res" role="status">
-        <p><strong>${t("import.done", { count: r.created.length })}</strong>${r.entity ? html` · <a href="/p/${this.project}/e/${r.entity}">${t("import.entity")}</a>` : ""}</p>
+        <p><strong>${t("import.done", { count: r.created.length })}</strong>${r.format ? html` · ${t(`import.format.${r.format}` as any)}` : ""}${r.files ? html` · ${t("import.files", { count: r.files })}` : ""}${r.entity ? html` · <a href="/p/${this.project}/e/${r.entity}">${t("import.entity")}</a>` : ""}</p>
         <ul>${r.created.map((s) => html`<li><a href="/p/${this.project}/d/${s}">${s}</a></li>`)}</ul>
         ${r.skipped.length ? html`<p class="hint">${t("import.skipped", { count: r.skipped.length })}: ${r.skipped.slice(0, 20).join(", ")}${r.skipped.length > 20 ? " …" : ""}</p>` : ""}
       </div>` : ""}
