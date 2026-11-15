@@ -72,7 +72,10 @@ export class PhxProject extends SignalWatcher(LitElement) {
     :host([focus]) aside, :host([focus]) .mbar { display: none; }
     /* The sidebar stays in place; only its page tree scrolls, the actions stay visible. */
     aside { border-right: 1px solid var(--line); display: flex; flex-direction: column; background: var(--bg);
-      position: sticky; top: var(--header-h); height: calc(100dvh - var(--header-h)); }
+      position: sticky; top: var(--header-h); height: calc(100dvh - var(--header-h));
+      /* A sticky element is its own stacking context: lift it, so its context
+         menu stays above positioned content of the page (whiteboard, plan). */
+      z-index: 4; }
     .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 10px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: thin; }
     .lbl { display: flex; align-items: center; gap: 4px; }
     .lbl .fold { all: unset; display: flex; align-items: center; gap: 4px; cursor: pointer; flex: 1; min-width: 0; border-radius: 4px; }

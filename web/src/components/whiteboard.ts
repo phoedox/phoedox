@@ -69,7 +69,7 @@ interface Pop { kind: "comment" | "newcomment" | "embed" | "entity"; x: number; 
 export class PhxWhiteboard extends LitElement {
   static properties = {
     project: {}, doc: { attribute: false }, canEdit: { type: Boolean },
-    tool: { state: true }, selId: { state: true }, sel: { state: true }, snap: { state: true }, present: { state: true }, status: { state: true }, saved: { state: true }, peers: { state: true }, zoom: { state: true },
+    tool: { state: true }, selId: { state: true }, sel: { state: true }, snap: { state: true }, embedWeb: { state: true }, present: { state: true }, status: { state: true }, saved: { state: true }, peers: { state: true }, zoom: { state: true },
     pop: { state: true }, panel: { state: true }, arrowMode: { state: true }, roundDefault: { state: true }, trail: { state: true }, laserSize: { state: true },
     entities: { state: true }, query: { state: true }, busy: { state: true }, boardVersion: { state: true },
   };
@@ -125,6 +125,7 @@ export class PhxWhiteboard extends LitElement {
     @keyframes rise { from { opacity: 0; transform: translateY(4px); } }
     @media (prefers-reduced-motion: reduce) { .pop { animation: none; } }
     .pop textarea, .pop input[type="url"], .pop input[type="search"] { width: 100%; box-sizing: border-box; }
+    .pop .as { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); }
     .pop textarea { min-height: 70px; resize: vertical; }
     .pop canvas { width: 100%; height: 110px; border: 1px dashed var(--line); border-radius: 8px; touch-action: none; background: var(--surface2); }
     .pop .who { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
@@ -157,6 +158,8 @@ export class PhxWhiteboard extends LitElement {
   /** Several selected elements (box, Shift-click, groups); selId is then null. */
   sel: string[] = [];
   snap = localStorage.getItem("wb.snap") === "1";
+  /** Embed dialog: a live website instead of a preview card. */
+  embedWeb = false;
   /** Presentation: index of the frame shown (-1 = off). */
   present = -1;
   status: Status = "connecting";
@@ -963,6 +966,7 @@ export class PhxWhiteboard extends LitElement {
       return;
     }
     if (this.tool === "embed") {
+      this.embedWeb = false;
       this.pop = { kind: "embed", x, y };
       return;
     }
@@ -1897,7 +1901,9 @@ export class PhxWhiteboard extends LitElement {
       return html`<div class="pop" style=${this.popPos(p.x, p.y)} role="dialog" aria-label=${t("wb.embed")}>
         <strong>${t("wb.embed")}</strong>
         <input type="url" placeholder=${t("wb.embed_placeholder")} aria-label=${t("wb.link")} autofocus @keydown=${(e: KeyboardEvent) => { e.stopPropagation(); if (e.key === "Enter") this.submitEmbed(); if (e.key === "Escape") close(); }}>
-        <label class="check"><input type="checkbox" name="web"> ${t("wb.embed_web")}</label>
+        <div class="as" role="radiogroup" aria-label=${t("wb.embed_as")}><span>${t("wb.embed_as")}</span>
+          <span class="seg2">${([false, true] as const).map((w) => html`<button type="button" role="radio" aria-checked=${this.embedWeb === w ? "true" : "false"} aria-pressed=${this.embedWeb === w ? "true" : "false"}
+            @click=${() => (this.embedWeb = w)}>${t(w ? "wb.embed_as_web" : "wb.embed_as_card")}</button>`)}</span></div>
         <p class="muted" style="margin:0">${t("wb.embed_hint")}</p>
         <div class="acts"><button class="ghost" @click=${close}>${t("doc.cancel")}</button><button ?disabled=${this.busy} @click=${() => this.submitEmbed()}>${t("wb.embed_button")}</button></div>
       </div>`;
@@ -1942,7 +1948,7 @@ export class PhxWhiteboard extends LitElement {
   private submitEmbed() {
     const pop = this.renderRoot.querySelector(".pop");
     const url = (pop?.querySelector("input[type=url]") as HTMLInputElement | null)?.value.trim() ?? "";
-    const web = (pop?.querySelector("input[name=web]") as HTMLInputElement | null)?.checked ?? false;
+    const web = this.embedWeb;
     if (url && this.pop) void this.embed(url, this.pop.x, this.pop.y, web);
   }
 

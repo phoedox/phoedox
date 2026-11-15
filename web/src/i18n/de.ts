@@ -2754,7 +2754,6 @@ export const de = {
   "wb.embed_button": "Einbetten",
   "wb.link": "Link",
   "wb.embed_placeholder": "Link einfügen: Video, Pull-Request, Issue, Webseite …",
-  "wb.embed_web": "Als interaktive Webseite einbetten (statt Vorschaukarte)",
   "wb.embed_hint": "Videos und Webseiten laden erst nach einem Klick. Pull-Requests und Issues zeigen Titel und Status, Links eine von Phoedox geladene Vorschau.",
   "wb.not_frameable": "Diese Webseite erlaubt kein Einbetten – sie wird als Vorschaukarte gezeigt.",
   "wb.empty": "Ein leeres Board. Oben ein Werkzeug wählen, doppelklicken zum Schreiben – oder den KI-Chat ein Diagramm zeichnen lassen.",
@@ -3087,4 +3086,7 @@ export const de = {
   "board.edit_description": "Bearbeiten",
   "board.no_description": "Noch keine Beschreibung.",
   "board.checklist_hint": "Zeilen wie „- [ ] Schritt“ werden beim Speichern zu Unteraufgaben.",
+  "wb.embed_as": "Anzeigen als",
+  "wb.embed_as_card": "Vorschaukarte",
+  "wb.embed_as_web": "Live-Webseite",
 } as const;

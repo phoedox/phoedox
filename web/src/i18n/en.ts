@@ -2756,7 +2756,6 @@ export const en: Record<keyof typeof de, string> = {
   "wb.embed_button": "Embed",
   "wb.link": "Link",
   "wb.embed_placeholder": "Paste a link: video, pull request, issue, website …",
-  "wb.embed_web": "Embed as an interactive website (instead of a preview card)",
   "wb.embed_hint": "Videos and websites load only after a click. Pull requests and issues show title and status; links show a preview fetched by Phoedox.",
   "wb.not_frameable": "This website does not allow being embedded – it is shown as a preview card.",
   "wb.empty": "An empty board. Pick a tool above, double-click to write, or ask the AI chat to draw a diagram.",
@@ -3089,4 +3088,7 @@ export const en: Record<keyof typeof de, string> = {
   "board.edit_description": "Edit",
   "board.no_description": "No description yet.",
   "board.checklist_hint": "Lines like “- [ ] step” become subtasks when you save.",
+  "wb.embed_as": "Show as",
+  "wb.embed_as_card": "Preview card",
+  "wb.embed_as_web": "Live website",
 };
