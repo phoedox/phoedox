@@ -50,5 +50,11 @@
   "incident_monitoring": "Wird beobachtet",
   "incident_resolved": "Behoben",
   "status_auto": "automatisch",
-  "status_no_checks": "Noch wird nichts öffentlich überwacht."
+  "status_no_checks": "Noch wird nichts öffentlich überwacht.",
+  "offline_home": "Übersicht",
+  "offline_entries": "Einträge",
+  "offline_relations": "Verbindungen",
+  "offline_files": "Dateien",
+  "offline_note": "Notfallkopie vom %s – sie kann veraltet sein. Geheimnisse der Projektumgebung sind nicht enthalten.",
+  "offline_readme": "Notfallkopie von „%s“, erstellt am %s.\n\nÖffne index.html in einem Browser. Die Kopie braucht weder Internet noch Server.\nSie enthält nur, was die Person lesen durfte, die sie erstellt hat. Bewahre sie sicher auf (z. B. verschlüsselter USB-Stick), denn sie kann vertrauliche Angaben enthalten.\n"
 }

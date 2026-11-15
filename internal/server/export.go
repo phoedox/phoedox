@@ -2,8 +2,10 @@ package server
 
 import (
 	"bytes"
+	"github.com/phoedox/phoedox/internal/publish"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -21,6 +23,40 @@ func (a *api) exportProject(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", `attachment; filename="`+chi.URLParam(r, "p")+"-"+time.Now().UTC().Format("20060102")+`.phoedox.zip"`)
 	_, _ = w.Write(buf.Bytes())
+}
+
+// offlineCopy sends the emergency copy of a project: static HTML pages in a
+// ZIP that open without a server. It is built in a temporary file because
+// attachments can be large.
+func (a *api) offlineCopy(w http.ResponseWriter, r *http.Request) {
+	d, err := a.core.Offline(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	tmp, err := os.CreateTemp("", "phx-offline-*.zip")
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	defer os.Remove(tmp.Name())
+	defer tmp.Close()
+	locale := actorOf(r).User.Locale
+	if locale == "" {
+		locale = a.cfg.DefaultLocale
+	}
+	if err := publish.WriteOffline(r.Context(), tmp, d, a.core.OfflineFile, locale, time.Now()); err != nil {
+		writeErr(w, err)
+		return
+	}
+	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+d.Project.Slug+"-offline-"+time.Now().UTC().Format("20060102")+`.zip"`)
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = io.Copy(w, tmp)
 }
 
 // importProject creates a project from an export ZIP (request body).

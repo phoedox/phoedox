@@ -2297,4 +2297,7 @@ export const de = {
   "projects.all_admin": "Alle Projekte der Instanz anzeigen",
   "projects.all_admin_hint": "Als System-Admin kannst du auch Projekte anderer Personen öffnen. Standardmäßig siehst du nur deine eigenen.",
   "board.touch_hint": "Karte kurz gedrückt halten, dann in eine andere Spalte oder an eine andere Stelle ziehen. Antippen öffnet die Karte.",
+  "offline.title": "Notfallkopie",
+  "offline.download": "Notfallkopie herunterladen (HTML)",
+  "offline.hint": "Alle Seiten, Entscheidungen, Boards, Einträge und Bilder als ZIP mit einfachen HTML-Seiten. Sie öffnen sich im Browser ohne Server und ohne Internet – für den USB-Stick oder das NAS, falls Phoedox selbst ausfällt. Enthält nur, was du lesen darfst, aber keine Geheimnisse der Projektumgebung. Sicher aufbewahren.",
 } as const;

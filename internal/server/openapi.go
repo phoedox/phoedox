@@ -310,6 +310,7 @@ var apiDocs = map[string]op{
 	"PUT /orgs/{o}/domain":                                   {Tag: "orgs", Summary: "Choose an app domain ({domain}; empty removes it). It is used once verified."},
 	"POST /orgs/{o}/domain/verify":                           {Tag: "orgs", Summary: "Look up the TXT record _phoedox.<domain> and activate the domain."},
 	"GET /projects/{p}/export":                               {Tag: "projects", Summary: "The project as a ZIP (settings, pages with translations, entries, relations, kinds, boards, files; owners, read-only tokens work)."},
+	"GET /projects/{p}/offline":                              {Tag: "projects", Summary: "Emergency copy: the project as static HTML pages in a ZIP that open without a server (what you may read)."},
 	"POST /projects/import":                                  {Tag: "projects", Summary: "Create a project from an export ZIP (request body).", Out: core.ImportResultProject{}},
 	"POST /projects/import-remote/list":                      {Tag: "projects", Summary: "Projects another instance offers for the given API token ({url, token}).", In: core.RemoteSource{}, Out: []core.RemoteProject{}},
 	"POST /projects/import-remote":                           {Tag: "projects", Summary: "Move a project from another instance ({url, token, project}).", In: core.RemoteSource{}, Out: core.ImportResultProject{}},

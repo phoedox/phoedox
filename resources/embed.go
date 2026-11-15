@@ -40,6 +40,16 @@ var publishTexts embed.FS
 
 // PublishTexts returns the interface texts of published sites
 // (resources/publish/<locale>.json; "en" if the locale is unknown).
+// PublishLabels returns the names of kinds, attributes, relations and
+// choices (copied from the web app by internal/publish/labelsgen).
+func PublishLabels(locale string) []byte {
+	b, err := publishTexts.ReadFile("publish/labels." + locale + ".json")
+	if err != nil {
+		b, _ = publishTexts.ReadFile("publish/labels.en.json")
+	}
+	return b
+}
+
 func PublishTexts(locale string) []byte {
 	b, err := publishTexts.ReadFile("publish/" + locale + ".json")
 	if err != nil {

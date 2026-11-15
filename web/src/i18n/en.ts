@@ -2299,4 +2299,7 @@ export const en: Record<keyof typeof de, string> = {
   "projects.all_admin": "Show all projects of the instance",
   "projects.all_admin_hint": "As a system admin you can also open other people's projects. By default you only see your own.",
   "board.touch_hint": "Hold a card for a moment, then drag it to another column or place. Tap to open it.",
+  "offline.title": "Emergency copy",
+  "offline.download": "Download emergency copy (HTML)",
+  "offline.hint": "All pages, decisions, boards, entries and images as a ZIP of plain HTML pages. They open in a browser without a server or internet – for a USB stick or the NAS, in case Phoedox itself is down. Contains only what you may read and no secrets of the project environment. Keep it safe.",
 };

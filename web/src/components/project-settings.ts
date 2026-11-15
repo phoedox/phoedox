@@ -346,6 +346,9 @@ export class PhxProjectSettings extends LitElement {
       ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("audit.project_title")}</h2><details><summary class="muted" style="cursor:pointer">${t("audit.project_show")}</summary>
         <phx-audit-log .project=${this.project}></phx-audit-log></details>` : ""}
       ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("agents.title")}</h2><phx-agents .project=${this.project}></phx-agents>` : ""}
+      <h2 style="font-size:18px;margin:28px 0 6px">${t("offline.title")}</h2>
+      <p class="muted">${t("offline.hint")}</p>
+      <a class="btn ghost" href=${`/api/v1/projects/${this.project}/offline`} download>${icon("HardDriveDownload", 14)} ${t("offline.download")}</a>
       ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("transfer.settings_title")}</h2><phx-project-transfer .project=${this.project}></phx-project-transfer>` : ""}
       ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("hooks.title")}</h2><phx-webhooks .project=${this.project}></phx-webhooks>` : ""}
     </div>`;

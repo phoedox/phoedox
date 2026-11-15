@@ -183,6 +183,8 @@ export class PhxHousehold extends LitElement {
       <p class="muted">${t("house.folder_hint")}</p>
       <form @submit=${this.printFolder}>${this.pagePicker(emergency)}
         <button style="margin-top:8px">${icon("FileText", 14)} ${t("house.folder_print")}</button></form>
+      <p class="muted" style="margin-top:14px">${t("offline.hint")}</p>
+      <a class="btn ghost" href=${`/api/v1/projects/${this.project}/offline`} download>${icon("HardDriveDownload", 14)} ${t("offline.download")}</a>
 
       <h2>${icon("Wifi", 17)} ${t("house.wifi_title")}</h2>
       <p class="muted">${t("house.wifi_hint")}</p>
