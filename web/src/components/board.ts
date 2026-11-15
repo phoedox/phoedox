@@ -48,6 +48,12 @@ export class PhxBoard extends LitElement {
     @media (hover: hover) and (pointer: fine) { .card:hover { border-color: var(--muted); } }
     .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
     .card.ghost { opacity: .4; }
+    /* Touch: hold a card, then drag it (no text selection or callout menu meanwhile). */
+    @media (pointer: coarse) { .card { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; } }
+    .lift { position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none; width: 240px; box-shadow: 0 12px 32px rgb(0 0 0 / .25);
+      border-color: var(--accent); transform-origin: 30% 30%; animation: lift var(--dur-fast, 150ms) cubic-bezier(0.23, 1, 0.32, 1) both; }
+    @keyframes lift { from { scale: 1; } to { scale: 1.03; } }
+    @media (prefers-reduced-motion: reduce) { .lift { animation: none; } }
     .card.before { box-shadow: 0 -3px 0 -1px var(--accent); }
     .card.done .title { color: var(--muted); text-decoration: line-through; }
     .card .cover { margin: -8px -10px 0; width: calc(100% + 20px); max-height: 140px; object-fit: cover; border-radius: 7px 7px 0 0; display: block; }
@@ -135,6 +141,7 @@ export class PhxBoard extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    this.endTouch();
     window.clearInterval(this.timer);
     document.removeEventListener("visibilitychange", this.onVisibility);
     this.events?.close();
@@ -213,6 +220,113 @@ export class PhxBoard extends LitElement {
   }
 
   /** Moves a card into a column before another card (or to the end). */
+  /** Touch drag (the HTML drag and drop of browsers does not work with fingers):
+   * hold a card for a moment, then it follows the finger. Moving before the
+   * hold ends is a normal scroll. */
+  private touch?: { id: number; task: Task; x0: number; y0: number; timer?: ReturnType<typeof setTimeout>; lifted: boolean; ghost?: HTMLElement; scroll?: number; x: number; y: number };
+  private justDropped = false;
+
+  private touchStart(e: TouchEvent, task: Task) {
+    if (!this.canEdit || e.touches.length !== 1 || this.touch) return;
+    const t0 = e.touches[0];
+    const card = e.currentTarget as HTMLElement;
+    this.touch = { id: t0.identifier, task, x0: t0.clientX, y0: t0.clientY, x: t0.clientX, y: t0.clientY, lifted: false };
+    this.touch.timer = setTimeout(() => this.lift(card), 350);
+    window.addEventListener("touchmove", this.touchMove, { passive: false });
+    window.addEventListener("touchend", this.touchEnd);
+    window.addEventListener("touchcancel", this.touchEnd);
+  }
+
+  private lift(card: HTMLElement) {
+    const tc = this.touch;
+    if (!tc) return;
+    tc.lifted = true;
+    this.dragging = tc.task;
+    navigator.vibrate?.(12);
+    const r = card.getBoundingClientRect();
+    const ghost = card.cloneNode(true) as HTMLElement;
+    ghost.classList.add("lift");
+    ghost.classList.remove("ghost", "before");
+    ghost.style.width = `${r.width}px`;
+    this.renderRoot.appendChild(ghost);
+    tc.ghost = ghost;
+    this.placeGhost(tc.x, tc.y);
+    // Scroll the columns while the finger stays near an edge.
+    const tick = () => {
+      if (!this.touch?.lifted) return;
+      this.edgeScroll(this.touch.x, this.touch.y);
+      this.touch.scroll = requestAnimationFrame(tick);
+    };
+    tc.scroll = requestAnimationFrame(tick);
+  }
+
+  private placeGhost(x: number, y: number) {
+    const g = this.touch?.ghost;
+    if (g) g.style.transform = `translate(${x - 30}px, ${y - 24}px)`;
+  }
+
+  private edgeScroll(x: number, y: number) {
+    const cols = this.renderRoot.querySelector<HTMLElement>(".cols");
+    if (cols) {
+      const r = cols.getBoundingClientRect();
+      if (x < r.left + 40) cols.scrollLeft -= 10;
+      else if (x > r.right - 40) cols.scrollLeft += 10;
+    }
+    const list = (this.renderRoot as ShadowRoot).elementFromPoint?.(x, y)?.closest<HTMLElement>(".list");
+    if (list) {
+      const r = list.getBoundingClientRect();
+      if (y < r.top + 30) list.scrollTop -= 8;
+      else if (y > r.bottom - 30) list.scrollTop += 8;
+    }
+  }
+
+  private touchMove = (e: TouchEvent) => {
+    const tc = this.touch;
+    const pt = tc && [...e.changedTouches].find((x) => x.identifier === tc.id);
+    if (!tc || !pt) return;
+    tc.x = pt.clientX;
+    tc.y = pt.clientY;
+    if (!tc.lifted) {
+      // Moved before the hold ended: it is a scroll, not a drag.
+      if (Math.hypot(tc.x - tc.x0, tc.y - tc.y0) > 8) this.endTouch();
+      return;
+    }
+    e.preventDefault();
+    this.placeGhost(tc.x, tc.y);
+    const el = (this.renderRoot as ShadowRoot).elementFromPoint?.(tc.x, tc.y);
+    const over = el?.closest<HTMLElement>(".card[data-id]");
+    const col = el?.closest<HTMLElement>("section[data-col]");
+    if (over && col && over.dataset.id !== tc.task.id) this.dropAt = { column: col.dataset.col!, before: over.dataset.id };
+    else if (col && !over) this.dropAt = { column: col.dataset.col! };
+  };
+
+  private touchEnd = () => {
+    const tc = this.touch;
+    if (tc?.lifted && this.dropAt) {
+      this.move(tc.task, this.dropAt.column, this.dropAt.before);
+      // The finger lifting must not also open the card.
+      this.justDropped = true;
+      setTimeout(() => (this.justDropped = false), 400);
+    }
+    this.endTouch();
+  };
+
+  private endTouch() {
+    const tc = this.touch;
+    if (!tc) return;
+    clearTimeout(tc.timer);
+    if (tc.scroll) cancelAnimationFrame(tc.scroll);
+    tc.ghost?.remove();
+    if (tc.lifted) {
+      this.dragging = undefined;
+      this.dropAt = undefined;
+    }
+    this.touch = undefined;
+    window.removeEventListener("touchmove", this.touchMove);
+    window.removeEventListener("touchend", this.touchEnd);
+    window.removeEventListener("touchcancel", this.touchEnd);
+  }
+
   private move(task: Task, column: string, beforeId?: string) {
     const cards = this.cardsOf(column).filter((x) => x.id !== task.id);
     const i = beforeId ? cards.findIndex((x) => x.id === beforeId) : cards.length;
@@ -383,9 +497,10 @@ export class PhxBoard extends LitElement {
     const late = task.due && !col.done && task.due < new Date().toISOString().slice(0, 10);
     const drop = this.dropAt?.before === task.id && this.dragging?.id !== task.id;
     return html`<div class=${["card", col.done ? "done" : "", this.dragging?.id === task.id ? "ghost" : "", drop ? "before" : ""].join(" ")}
-      data-id=${task.id} role="listitem" tabindex="0" draggable=${this.canEdit ? "true" : "false"}
+      data-id=${task.id} role="listitem" tabindex="0" draggable=${this.canEdit && !coarse() ? "true" : "false"}
+      @touchstart=${(e: TouchEvent) => this.touchStart(e, task)}
       aria-label=${task.title} aria-keyshortcuts=${this.canEdit ? "Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown" : ""}
-      @click=${() => this.show(task)} @keydown=${(e: KeyboardEvent) => this.onKey(e, task)}
+      @click=${() => { if (this.justDropped) return; this.show(task); }} @keydown=${(e: KeyboardEvent) => this.onKey(e, task)}
       @dragstart=${(e: DragEvent) => { this.dragging = task; e.dataTransfer!.effectAllowed = "move"; e.dataTransfer!.setData("text/plain", task.title); }}
       @dragend=${() => { this.dragging = undefined; this.dropAt = undefined; }}
       @dragover=${(e: DragEvent) => { if (!this.dragging) return; e.preventDefault(); e.stopPropagation(); this.dropAt = { column: col.id, before: task.id }; }}
@@ -405,7 +520,7 @@ export class PhxBoard extends LitElement {
   private column(col: BoardColumn) {
     const cards = this.cardsOf(col.id);
     const drop = this.dropAt?.column === col.id && !this.dropAt.before;
-    return html`<section class=${drop ? "col drop" : "col"} aria-label=${col.name}
+    return html`<section class=${drop ? "col drop" : "col"} aria-label=${col.name} data-col=${col.id}
       @dragover=${(e: DragEvent) => { if (!this.dragging) return; e.preventDefault(); this.dropAt = { column: col.id }; }}
       @drop=${(e: DragEvent) => { e.preventDefault(); if (this.dragging) this.move(this.dragging, col.id); this.dragging = undefined; this.dropAt = undefined; }}>
       <header>${col.done ? html`<span class="ok" title=${t("board.column_done")}>${icon("Check", 14)}</span>` : ""}<span>${col.name}</span><span class="n">${cards.length}</span></header>
@@ -468,8 +583,13 @@ export class PhxBoard extends LitElement {
       <div class="cols" @dragleave=${(e: DragEvent) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) this.dropAt = undefined; }}>
         ${cols.map((c) => this.column(c))}
       </div>
-      ${this.canEdit ? html`<p class="hint">${t("board.keys_hint")}</p>` : ""}
+      ${this.canEdit ? html`<p class="hint">${coarse() ? t("board.touch_hint") : t("board.keys_hint")}</p>` : ""}
       ${this.dialog()}`;
   }
 }
 customElements.define("phx-board", PhxBoard);
+
+/** Touch screens get the hold-and-drag of the board instead of HTML drag and drop. */
+function coarse() {
+  return typeof matchMedia !== "undefined" && matchMedia("(pointer: coarse)").matches;
+}

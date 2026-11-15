@@ -2298,4 +2298,5 @@ export const en: Record<keyof typeof de, string> = {
   "settings.role.sysadmin": "System admin",
   "projects.all_admin": "Show all projects of the instance",
   "projects.all_admin_hint": "As a system admin you can also open other people's projects. By default you only see your own.",
+  "board.touch_hint": "Hold a card for a moment, then drag it to another column or place. Tap to open it.",
 };
