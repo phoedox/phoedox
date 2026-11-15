@@ -414,6 +414,9 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/entities/{e}/traverse", a.traverse)
 			r.Get("/entities/{e}/readings", a.entityReadings)
 			r.Get("/entities/{e}/timeline", a.entityTimeline)
+			r.Get("/discovered", a.discovered)
+			r.Post("/discovered/{id}/adopt", a.adoptDiscovered)
+			r.Post("/discovered/{id}/dismiss", a.dismissDiscovered)
 			r.Post("/readings", a.recordReadings)
 			r.Get("/entities/{e}/device", a.device)
 			r.Put("/entities/{e}/device", a.setDevice)
@@ -621,6 +624,36 @@ func (a *api) trashedProjects(w http.ResponseWriter, r *http.Request) {
 func (a *api) restoreProject(w http.ResponseWriter, r *http.Request) {
 	p, err := a.core.RestoreProject(r.Context(), actorOf(r), chi.URLParam(r, "p"))
 	respond(w, p, err)
+}
+
+func (a *api) discovered(w http.ResponseWriter, r *http.Request) {
+	list, err := a.core.Discovered(r.Context(), actorOf(r), chi.URLParam(r, "p"), r.URL.Query().Get("all") == "1")
+	respond(w, list, err)
+}
+
+func (a *api) adoptDiscovered(w http.ResponseWriter, r *http.Request) {
+	var in core.AdoptInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	res, err := a.core.AdoptDiscovered(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), in)
+	respond(w, res, err)
+}
+
+func (a *api) dismissDiscovered(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Dismissed bool `json:"dismissed"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	if err := a.core.DismissDiscovered(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), in.Dismissed); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *api) entityTimeline(w http.ResponseWriter, r *http.Request) {

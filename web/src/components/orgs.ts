@@ -129,7 +129,7 @@ export class PhxOrg extends SignalWatcher(LitElement) {
   private save(e: SubmitEvent) {
     e.preventDefault();
     const f = new FormData(e.target as HTMLFormElement);
-    const body: Record<string, unknown> = { name: f.get("name"), aiEnabled: f.get("ai") === "on", quotaMb: Number(f.get("quota") || 0) };
+    const body: Record<string, unknown> = { name: f.get("name"), aiEnabled: f.get("ai") === "on", discoveryOff: f.get("discovery") !== "on", quotaMb: Number(f.get("quota") || 0) };
     if (currentUser.get()?.isAdmin) body.usageType = f.get("usage");
     this.run(() => api("PATCH", `/orgs/${this.slug}`, body), t("settings.saved"));
   }
@@ -192,6 +192,8 @@ export class PhxOrg extends SignalWatcher(LitElement) {
             <option value="noncommercial" ?selected=${o.usageType === "noncommercial"}>${t("orgs.usage.noncommercial")}</option></select></label>` : ""}
           <label class="switch"><input type="checkbox" name="ai" .checked=${o.aiEnabled}> ${t("orgs.ai")}</label>
           <p class="muted" style="margin:0;font-size:13px">${t("orgs.ai_hint")}</p>
+          <label class="switch"><input type="checkbox" name="discovery" .checked=${!o.discoveryOff}> ${t("orgs.discovery")}</label>
+          <p class="muted" style="margin:0;font-size:13px">${t("orgs.discovery_hint")}</p>
           <label class="field">${t("orgs.quota")}<input name="quota" type="number" min="0" .value=${String(o.quotaMb || "")} placeholder="∞" style="max-width:180px"></label>
           <div><button>${t("doc.save")}</button></div>
         </form>

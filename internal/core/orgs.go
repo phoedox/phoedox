@@ -11,12 +11,14 @@ import (
 
 // OrgInput creates or changes an organization.
 type OrgInput struct {
-	Name       string `json:"name,omitempty"`
-	Slug       string `json:"slug,omitempty"`
-	UsageType  string `json:"usageType,omitempty"`  // system admins only
-	AIEnabled  *bool  `json:"aiEnabled,omitempty"`  // org admins
-	QuotaMB    *int   `json:"quotaMb,omitempty"`    // org admins, below the instance limit
-	AdminEmail string `json:"adminEmail,omitempty"` // first admin when creating (default: creator)
+	Name      string `json:"name,omitempty"`
+	Slug      string `json:"slug,omitempty"`
+	UsageType string `json:"usageType,omitempty"` // system admins only
+	AIEnabled *bool  `json:"aiEnabled,omitempty"` // org admins
+	QuotaMB   *int   `json:"quotaMb,omitempty"`   // org admins, below the instance limit
+	// DiscoveryOff forbids network discovery in all projects (org admins).
+	DiscoveryOff *bool  `json:"discoveryOff,omitempty"`
+	AdminEmail   string `json:"adminEmail,omitempty"` // first admin when creating (default: creator)
 	// AI chat (ADR-0066): switch and budgets in cents per month; a negative
 	// budget goes back to the default. AIChatCap is for system admins.
 	AIChat           *bool `json:"aiChat,omitempty"`
@@ -163,6 +165,9 @@ func (s *Service) UpdateOrg(ctx context.Context, a Actor, ref string, in OrgInpu
 	}
 	if in.AIEnabled != nil {
 		o.AIEnabled = *in.AIEnabled
+	}
+	if in.DiscoveryOff != nil {
+		o.DiscoveryOff = *in.DiscoveryOff
 	}
 	if in.QuotaMB != nil {
 		max := s.instanceQuotaMB(ctx)

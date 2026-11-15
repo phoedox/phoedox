@@ -60,6 +60,7 @@ creates them:
 | Comments | `list_comments`, `add_comment` (on a page, a block via `anchor`, or a reply via `parent`) |
 | Files and links | `list_files` (no contents), `upload_image` (base64 picture → page, entry or task card), `set_project_image` (logo), `create_link`, `archive_link` |
 | Real devices | `list_agent_actions` → `prepare_agent_action`; plugin tools `plugin_*` (e.g. Home Assistant) |
+| Devices found in the network | `list_discovered` (agents with discovery on: IP, MAC, host name, mDNS services, suggested kind, matching entry) → `upsert_entities` for the ones people want documented |
 | Switches and routers without an agent | They come in over SNMP when an agent lists them under `snmp.targets` in its agent.yaml (read only): entries of kind switch/router, `wired_to` relations with the port from LLDP and the MAC table. Suggest that setup instead of typing ports by hand. |
 | Languages | `get_document(lang)`, `translate_document` |
 

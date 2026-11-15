@@ -108,6 +108,8 @@ type Report struct {
 	HomeAssistant *HAReport `json:"homeassistant,omitempty"`
 	// SNMP are switches and routers the agent polled (snmp in agent.yaml).
 	SNMP []SNMPDevice `json:"snmp,omitempty"`
+	// Discovered are devices seen in the agent's network (ADR-0072).
+	Discovered []DiscoveredIn `json:"discovered,omitempty"`
 }
 
 // HAReport is Home Assistant data an agent bridges: the device registry
@@ -195,6 +197,10 @@ func (s *Service) AgentReport(ctx context.Context, token string, r Report) error
 	}
 	if len(r.SNMP) > 0 {
 		s.bridgeSNMP(ctx, a, ag.ProjectID, r.SNMP)
+	}
+	if len(r.Discovered) > 0 {
+		s.saveDiscovered(ctx, ag, r.Discovered)
+		r.Discovered = nil // kept in their own table
 	}
 	raw, _ := json.Marshal(r)
 	return s.DB.SaveAgentReport(ctx, ag.ID, r.Hostname, host, r.Version, raw)

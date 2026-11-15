@@ -3,6 +3,7 @@ import "./graph-view";
 import "./topology-view";
 import "./ipam";
 import "./locations";
+import "./discovered";
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
 import { t } from "../i18n";
@@ -10,11 +11,11 @@ import { icon } from "../icon";
 import { currentProject } from "../state";
 import { base } from "./shared";
 
-export type KnowledgeView = "entries" | "map" | "topology" | "ipam" | "locations";
+export type KnowledgeView = "entries" | "map" | "topology" | "ipam" | "locations" | "discovered";
 
 /** Paths of the views below /p/<project>/ (the first is the landing view). */
 export const knowledgePaths: Record<KnowledgeView, string> = {
-  entries: "graph", map: "graph/map", topology: "topology", ipam: "ipam", locations: "locations",
+  entries: "graph", map: "graph/map", topology: "topology", ipam: "ipam", locations: "locations", discovered: "discovered",
 };
 
 const tabs: { view: KnowledgeView; icon: string; label: () => string }[] = [
@@ -23,6 +24,7 @@ const tabs: { view: KnowledgeView; icon: string; label: () => string }[] = [
   { view: "topology", icon: "Network", label: () => t("topo.title") },
   { view: "ipam", icon: "Binary", label: () => t("ipam.title") },
   { view: "locations", icon: "MapPin", label: () => t("loc.title") },
+  { view: "discovered", icon: "Radar", label: () => t("disc.title") },
 ];
 
 /** The knowledge graph of a project: the entries and their connections,
@@ -51,6 +53,7 @@ export class PhxKnowledge extends SignalWatcher(LitElement) {
       case "topology": return html`<phx-topology-view embedded .project=${p}></phx-topology-view>`;
       case "ipam": return html`<phx-ipam embedded .project=${p}></phx-ipam>`;
       case "locations": return html`<phx-locations embedded .project=${p}></phx-locations>`;
+      case "discovered": return html`<phx-discovered .project=${p}></phx-discovered>`;
       default: return html`<phx-entity-table embedded .project=${p}></phx-entity-table>`;
     }
   }
@@ -63,7 +66,7 @@ export class PhxKnowledge extends SignalWatcher(LitElement) {
         ${canEdit ? html`<a class="btn" href="/p/${this.project}/new-entity">${icon("Plus", 14)} ${t("entity.new")}</a>` : ""}
       </div>
       <nav class="tabs" aria-label=${t("kg.views")}>
-        ${tabs.map((x) => html`<a href="/p/${this.project}/${knowledgePaths[x.view]}" aria-current=${x.view === this.view ? "page" : "false"}>${icon(x.icon, 15)} ${x.label()}</a>`)}
+        ${tabs.filter((x) => x.view !== "discovered" || canEdit).map((x) => html`<a href="/p/${this.project}/${knowledgePaths[x.view]}" aria-current=${x.view === this.view ? "page" : "false"}>${icon(x.icon, 15)} ${x.label()}</a>`)}
       </nav>
       ${this.sub()}
     </div>`;

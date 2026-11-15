@@ -854,6 +854,9 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 			core.EntityDetail
 		}{pack, d}, nil
 	})
+	tool(s, "list_discovered", "Devices the project's agents saw in the network (neighbour table, mDNS) with IP, MAC, host name, announced services, a suggested kind and the entry they already match. Add the unknown ones you are asked to document with upsert_entities (keep ip, mac, hostname).", func(ctx context.Context, a core.Actor, in projectRef) (any, error) {
+		return svc.Discovered(ctx, a, in.Project, false)
+	})
 	tool(s, "entity_timeline", "What happened to an entry, newest first: changes (by people, AI, agents, plugins, with the changed fields), check failures and recoveries, switching actions, agent jobs, reviews, and comments and cards that mention it. Use it to answer \"what changed on the NAS lately?\" or \"when did the router last go down?\".", func(ctx context.Context, a core.Actor, in timelineIn) (any, error) {
 		return svc.EntityTimeline(ctx, a, in.Project, in.Entity, in.Limit)
 	})

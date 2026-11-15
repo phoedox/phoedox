@@ -31,7 +31,7 @@ import (
 var mcpTools = []string{
 	"search", "get_project", "list_documents", "get_document", "list_document_versions",
 	"list_decisions", "create_decision", "update_decision", "create_document",
-	"get_entity", "entity_timeline", "list_entities", "query_entities", "traverse", "software_tree", "diagnose",
+	"get_entity", "entity_timeline", "list_discovered", "list_entities", "query_entities", "traverse", "software_tree", "diagnose",
 	"get_data_model", "upsert_entity", "link_entities",
 	"list_tasks", "list_comments", "add_comment", "list_skills", "get_skill",
 	"change_summary", "find_documentation_gaps", "list_maintenance_plans",

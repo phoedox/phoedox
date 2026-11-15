@@ -193,6 +193,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "ipam", render: () => this.knowledge("ipam") },
     { path: "household", render: () => this.gated("household", html`<phx-household .project=${this.slug}></phx-household>`) },
     { path: "locations", render: () => this.knowledge("locations") },
+    { path: "discovered", render: () => this.knowledge("discovered") },
     { path: "e/:entity", render: ({ entity }) => html`<phx-entity-view .project=${this.slug} .entity=${entity!}></phx-entity-view>` },
     { path: "decisions", render: () => this.gated("decisions", html`<phx-decisions .project=${this.slug}></phx-decisions>`) },
     { path: "suggestions", render: () => html`<phx-suggestions .project=${this.slug}></phx-suggestions>` },
