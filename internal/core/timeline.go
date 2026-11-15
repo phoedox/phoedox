@@ -40,7 +40,7 @@ type TimelineItem struct {
 }
 
 // volatile fields change on every report and are left out of "changed".
-var volatileAttrs = map[string]bool{"checked_at": true, "last_seen": true, "uptime": true, "uptime_s": true, "reported_at": true, "updated_at": true, "load": true}
+var volatileAttrs = map[string]bool{"checked_at": true, "last_seen": true, "uptime": true, "uptime_s": true, "reported_at": true, "updated_at": true, "load": true, "agent_seen": true, "snmp_seen": true, "ports_up": true}
 
 // EntityTimeline returns the timeline of an entry, at most limit items.
 func (s *Service) EntityTimeline(ctx context.Context, a Actor, ref, entRef string, limit int) ([]TimelineItem, error) {

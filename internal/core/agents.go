@@ -106,6 +106,8 @@ type Report struct {
 	// HomeAssistant is what the agent read from a Home Assistant in its
 	// network (ADR-0053); the Home Assistant plugin turns it into entries.
 	HomeAssistant *HAReport `json:"homeassistant,omitempty"`
+	// SNMP are switches and routers the agent polled (snmp in agent.yaml).
+	SNMP []SNMPDevice `json:"snmp,omitempty"`
 }
 
 // HAReport is Home Assistant data an agent bridges: the device registry
@@ -190,6 +192,9 @@ func (s *Service) AgentReport(ctx context.Context, token string, r Report) error
 	if r.HomeAssistant != nil {
 		s.bridgeHomeAssistant(ctx, a, ag, r.HomeAssistant)
 		r.HomeAssistant.States = nil // the history keeps them; the report stays small
+	}
+	if len(r.SNMP) > 0 {
+		s.bridgeSNMP(ctx, a, ag.ProjectID, r.SNMP)
 	}
 	raw, _ := json.Marshal(r)
 	return s.DB.SaveAgentReport(ctx, ag.ID, r.Hostname, host, r.Version, raw)
