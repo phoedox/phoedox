@@ -29,7 +29,9 @@ func TestWriteOffline(t *testing.T) {
 		Edges: []store.Edge{{From: "e1", To: "e2", Rel: "located_in", FromSlug: "router", ToSlug: "keller", FromName: "Router", ToName: "Keller"}},
 		Files: []store.File{{ID: "F1", Name: "plan.png", EntityID: "e1"}},
 	}
-	open := func(context.Context, store.File) (io.ReadCloser, error) { return io.NopCloser(strings.NewReader("PNG")), nil }
+	open := func(context.Context, store.File) (io.ReadCloser, error) {
+		return io.NopCloser(strings.NewReader("PNG")), nil
+	}
 	var buf bytes.Buffer
 	if err := WriteOffline(context.Background(), &buf, d, open, "de", time.Date(2026, 11, 15, 12, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)

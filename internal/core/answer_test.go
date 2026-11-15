@@ -23,10 +23,10 @@ func TestAnswer(t *testing.T) {
 		t.Fatal(err)
 	}
 	for q, want := range map[string]string{
-		"Wo steht das NAS?":              "NAS ist hier: Keller.",
-		"Welche IP hat das NAS?":         "IP-Adresse von NAS: 192.168.1.20.",
-		"Where is the NAS?":              "NAS is here: Keller.",
-		"Hauptschalter":                  "Laut der Seite „Notfall“",
+		"Wo steht das NAS?":             "NAS ist hier: Keller.",
+		"Welche IP hat das NAS?":        "IP-Adresse von NAS: 192.168.1.20.",
+		"Where is the NAS?":             "NAS is here: Keller.",
+		"Hauptschalter":                 "Laut der Seite „Notfall“",
 		"Wie spät ist es auf dem Mond?": "nichts gefunden",
 	} {
 		lang := "de"

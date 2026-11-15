@@ -158,7 +158,9 @@ func WriteOffline(ctx context.Context, w io.Writer, d core.OfflineData, open fun
 	for k := range cats {
 		names = append(names, k)
 	}
-	sort.Slice(names, func(i, j int) bool { return names[i] != "" && (names[j] == "" || strings.ToLower(names[i]) < strings.ToLower(names[j])) })
+	sort.Slice(names, func(i, j int) bool {
+		return names[i] != "" && (names[j] == "" || strings.ToLower(names[i]) < strings.ToLower(names[j]))
+	})
 	for _, cat := range names {
 		title := cat
 		if title == "" {
@@ -166,7 +168,9 @@ func WriteOffline(ctx context.Context, w io.Writer, d core.OfflineData, open fun
 		}
 		fmt.Fprintf(&idx, `<h2>%s</h2><ul class="idx">`, template.HTMLEscapeString(title))
 		docs := cats[cat]
-		sort.Slice(docs, func(i, j int) bool { return docs[i].Position < docs[j].Position || (docs[i].Position == docs[j].Position && docs[i].Title < docs[j].Title) })
+		sort.Slice(docs, func(i, j int) bool {
+			return docs[i].Position < docs[j].Position || (docs[i].Position == docs[j].Position && docs[i].Title < docs[j].Title)
+		})
 		for _, doc := range docs {
 			fmt.Fprintf(&idx, `<li><a href="%s">%s</a></li>`, page(doc.Slug), template.HTMLEscapeString(doc.Title))
 		}
