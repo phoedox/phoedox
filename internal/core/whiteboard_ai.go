@@ -560,34 +560,63 @@ func layoutDiagram(wb *Whiteboard, in DiagramInput) []WBElement {
 	if down {
 		main = oy
 	}
-	// Cross size of each layer, to centre the layers on each other.
-	cross := make([]float64, len(layers))
-	for li, l := range layers {
-		for i, id := range l {
-			w, h := size(nodeBy[id])
-			if down {
-				cross[li] += w
-			} else {
-				cross[li] += h
-			}
-			if i > 0 {
-				cross[li] += gapCross
-			}
+	// Each group gets its own band across the layers, so the frames of
+	// different groups never overlap; within a band the layers are centred
+	// on each other. Without groups there is one band.
+	const bandGap = gapCross + 2*32.0 + 24
+	var bands []string
+	seenBand := map[string]bool{}
+	for _, n := range in.Nodes {
+		if !seenBand[n.Group] {
+			seenBand[n.Group] = true
+			bands = append(bands, n.Group)
 		}
 	}
-	widest := slices.Max(cross)
-	for li, l := range layers {
-		depth := 0.0
-		at := (widest - cross[li]) / 2
-		for _, id := range l {
+	extent := func(li int, g string) float64 {
+		total, k := 0.0, 0
+		for _, id := range layers[li] {
+			if nodeBy[id].Group != g {
+				continue
+			}
 			w, h := size(nodeBy[id])
 			if down {
-				boxes[id] = rect{ox + at, main, w, h}
-				at += w + gapCross
+				total += w
+			} else {
+				total += h
+			}
+			if k > 0 {
+				total += gapCross
+			}
+			k++
+		}
+		return total
+	}
+	bandStart := map[string]float64{}
+	bandSize := map[string]float64{}
+	at0 := 0.0
+	for _, g := range bands {
+		for li := range layers {
+			bandSize[g] = math.Max(bandSize[g], extent(li, g))
+		}
+		bandStart[g] = at0
+		at0 += bandSize[g] + bandGap
+	}
+	for li, l := range layers {
+		depth := 0.0
+		next := map[string]float64{}
+		for _, g := range bands {
+			next[g] = bandStart[g] + (bandSize[g]-extent(li, g))/2
+		}
+		for _, id := range l {
+			g := nodeBy[id].Group
+			w, h := size(nodeBy[id])
+			if down {
+				boxes[id] = rect{ox + next[g], main, w, h}
+				next[g] += w + gapCross
 				depth = math.Max(depth, h)
 			} else {
-				boxes[id] = rect{main, oy + at, w, h}
-				at += h + gapCross
+				boxes[id] = rect{main, oy + next[g], w, h}
+				next[g] += h + gapCross
 				depth = math.Max(depth, w)
 			}
 		}

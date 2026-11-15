@@ -288,3 +288,37 @@ func TestSubtasks(t *testing.T) {
 		t.Fatalf("clear: %+v", up.Subtasks)
 	}
 }
+
+// Frames of different groups must not overlap, even when the groups share
+// a layer (the backup example from the demo).
+func TestDiagramGroupsDoNotOverlap(t *testing.T) {
+	in := DiagramInput{
+		Groups: []DiagramGroup{{ID: "home", Label: "At home"}, {ID: "off", Label: "Off-site"}},
+		Nodes: []DiagramNode{{ID: "laptops", Text: "Laptops", Group: "home"}, {ID: "phones", Text: "Phones", Group: "home"}, {ID: "nas", Text: "NAS", Group: "home"},
+			{ID: "usb", Text: "USB disk", Group: "home"}, {ID: "box", Text: "Storage box", Group: "off"}, {ID: "note", Text: "Restore test"}},
+		Edges: []DiagramEdge{{From: "laptops", To: "nas"}, {From: "phones", To: "nas"}, {From: "nas", To: "usb"}, {From: "nas", To: "box"}, {From: "note", To: "box"}},
+	}
+	els := layoutDiagram(&Whiteboard{}, in)
+	var frames []WBElement
+	boxes := map[string]WBElement{}
+	for _, e := range els {
+		if e.Type == "frame" {
+			frames = append(frames, e)
+		}
+		boxes[e.ID] = e
+	}
+	if len(frames) != 2 {
+		t.Fatalf("frames: %+v", frames)
+	}
+	a, b := frames[0], frames[1]
+	if a.X < b.X+b.W && b.X < a.X+a.W && a.Y < b.Y+b.H && b.Y < a.Y+a.H {
+		t.Fatalf("frames overlap: %+v %+v", a, b)
+	}
+	// Nodes outside a group stay outside every frame.
+	n := boxes["n-note"]
+	for _, f := range frames {
+		if n.X < f.X+f.W && f.X < n.X+n.W && n.Y < f.Y+f.H && f.Y < n.Y+n.H {
+			t.Fatalf("ungrouped node inside frame %s", f.Text)
+		}
+	}
+}
