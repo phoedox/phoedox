@@ -34,7 +34,7 @@ func TestDecideOptions(t *testing.T) {
 		t.Fatalf("option without title: %v", err)
 	}
 	res, err := s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: "adr", Title: "Datenbank", ADR: &ADR{Status: "proposed", Context: "Wir brauchen eine DB.",
-		Options: []ADROption{{Title: "PostgreSQL", Description: "+ RLS"}, {Title: "SQLite", Description: "+ einfach"}, {Title: "  "}},
+		Options:   []ADROption{{Title: "PostgreSQL", Description: "+ RLS"}, {Title: "SQLite", Description: "+ einfach"}, {Title: "  "}},
 		Responses: []ADRResponse{{Choice: "o1", By: "Fake"}}, Chosen: "o1"}})
 	if err != nil {
 		t.Fatal(err)
