@@ -27,6 +27,9 @@ type api struct {
 	limiter *limiter
 	// regLimiter limits open OAuth client registrations per IP.
 	regLimiter *limiter
+	// signupIP and signupMail limit sign-ups per client address and per
+	// e-mail address (so nobody can flood someone's mailbox).
+	signupIP, signupMail *limiter
 	// runLimiter limits request block runs per user.
 	runLimiter *limiter
 	// root is the whole router (for the OpenAPI description).
@@ -51,7 +54,13 @@ func (a *api) routes(r chi.Router) {
 	// One-time secret links: POST so link previews cannot burn them.
 	r.Post("/secret-links/{id}/open", a.openSecretLink)
 	r.Get("/instance", func(w http.ResponseWriter, req *http.Request) {
-		info := map[string]any{"version": Version, "domain": a.cfg.Domain, "passwordReset": a.resetAvailable()}
+		info := map[string]any{"version": Version, "domain": a.cfg.Domain, "passwordReset": a.resetAvailable(), "signup": a.signupAvailable(req.Context())}
+		if a.cfg.TermsURL != "" {
+			info["termsUrl"] = a.cfg.TermsURL
+		}
+		if a.cfg.PrivacyURL != "" {
+			info["privacyUrl"] = a.cfg.PrivacyURL
+		}
 		// On an organization's own app domain the app shows its name.
 		if c := a.core.AppContextFor(req.Context(), req.Host); c.Org != nil {
 			info["org"] = c.Org
@@ -87,6 +96,7 @@ func (a *api) routes(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(requireHeader)
 		r.Post("/auth/reset-request", a.resetRequest)
+		r.Post("/auth/signup", a.signup)
 		r.Get("/auth/links/{token}", a.linkInfo)
 		r.Post("/auth/links/{token}", a.completeLink)
 		r.Post("/auth/login/totp", a.loginTOTP)

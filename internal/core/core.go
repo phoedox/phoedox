@@ -116,6 +116,8 @@ type Service struct {
 	// BackupDays: how long deleted data can still be found in backups
 	// (shown when deleting an account).
 	BackupDays int
+	// SignupDefault opens self sign-up unless an admin changed it (PHOEDOX_SIGNUP=open).
+	SignupDefault bool
 	// AgentReleases is the base URL of agent releases (…/download/<tag>/<asset>);
 	// AgentReleaseDir caches downloaded binaries.
 	AgentReleases   string

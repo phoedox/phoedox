@@ -46,6 +46,14 @@ type Config struct {
 	LegacyWebsite bool
 	// DefaultLocale is used for emails to users without a language ("de").
 	DefaultLocale string
+	// Signup is the default for self sign-up (PHOEDOX_SIGNUP): "invite"
+	// (only admins create accounts, the default) or "open" (anyone can
+	// register with a confirmed e-mail address). Admins can change it later
+	// in the instance settings.
+	Signup string
+	// TermsURL and PrivacyURL are shown on the sign-up page; when set, people
+	// must accept them (PHOEDOX_TERMS_URL, PHOEDOX_PRIVACY_URL).
+	TermsURL, PrivacyURL string
 	// RequestsPrivate lets request blocks reach private networks and
 	// localhost (PHOEDOX_REQUESTS_PRIVATE, default true; false when hosted).
 	RequestsPrivate bool
@@ -173,6 +181,9 @@ func FromEnv() (Config, error) {
 		BehindProxy:   os.Getenv("PHOEDOX_BEHIND_PROXY") == "true",
 		PublicURL:     strings.TrimRight(os.Getenv("PHOEDOX_PUBLIC_URL"), "/"),
 		DefaultLocale: getenv("PHOEDOX_DEFAULT_LOCALE", "de"),
+		Signup:        strings.ToLower(getenv("PHOEDOX_SIGNUP", "invite")),
+		TermsURL:      os.Getenv("PHOEDOX_TERMS_URL"),
+		PrivacyURL:    os.Getenv("PHOEDOX_PRIVACY_URL"),
 		LegacyWebsite: os.Getenv("PHOEDOX_WEBSITE_DOMAINS") != "",
 		MasterKey:     os.Getenv("PHOEDOX_MASTER_KEY"),
 		OIDC: OIDC{
@@ -274,6 +285,14 @@ func (c Config) Validate() error {
 	}
 	if c.PublicURL != "" && !strings.HasPrefix(c.PublicURL, "https://") && !strings.HasPrefix(c.PublicURL, "http://") {
 		return fmt.Errorf("PHOEDOX_PUBLIC_URL must start with https:// or http://")
+	}
+	if c.Signup != "" && c.Signup != "invite" && c.Signup != "open" {
+		return fmt.Errorf("PHOEDOX_SIGNUP: use invite or open")
+	}
+	for name, u := range map[string]string{"PHOEDOX_TERMS_URL": c.TermsURL, "PHOEDOX_PRIVACY_URL": c.PrivacyURL} {
+		if u != "" && !strings.HasPrefix(u, "https://") && !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "/") {
+			return fmt.Errorf("%s must be an http(s) address or a path", name)
+		}
 	}
 	if c.MultiTenant && c.DBDriver != DriverPostgres {
 		return fmt.Errorf("PHOEDOX_MULTI_TENANT requires PHOEDOX_DB_DRIVER=postgres")

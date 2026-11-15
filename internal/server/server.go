@@ -89,7 +89,7 @@ func New(d Deps) http.Handler {
 	})
 
 	if d.Core != nil && d.Auth != nil {
-		api := &api{core: d.Core, auth: d.Auth, cfg: d.Config, limiter: newLimiter(10, 5*time.Minute), regLimiter: newLimiter(30, time.Hour), runLimiter: newLimiter(30, time.Minute)}
+		api := &api{core: d.Core, auth: d.Auth, cfg: d.Config, limiter: newLimiter(10, 5*time.Minute), regLimiter: newLimiter(30, time.Hour), signupIP: newLimiter(5, time.Hour), signupMail: newLimiter(3, 24*time.Hour), runLimiter: newLimiter(30, time.Minute)}
 		r.Route("/api/v1", api.routes)
 		api.root = r
 		api.backups = d.Backups

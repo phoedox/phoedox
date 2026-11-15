@@ -48,6 +48,13 @@ spec:
             - { name: PHOEDOX_DOMAIN, value: {{ .Values.domain | quote }} }
             - { name: PHOEDOX_PUBLIC_URL, value: {{ printf "%s://%s" (ternary "https" "http" .Values.ingress.tls.enabled) .Values.domain | quote }} }
             - { name: PHOEDOX_DEFAULT_LOCALE, value: {{ .Values.locale | quote }} }
+            - { name: PHOEDOX_SIGNUP, value: {{ .Values.signup.mode | default "invite" | quote }} }
+            {{- with .Values.signup.termsUrl }}
+            - { name: PHOEDOX_TERMS_URL, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.signup.privacyUrl }}
+            - { name: PHOEDOX_PRIVACY_URL, value: {{ . | quote }} }
+            {{- end }}
             # Traefik sets X-Forwarded-For; trust it for client addresses (login limits).
             - { name: PHOEDOX_BEHIND_PROXY, value: "true" }
             {{- if not .Values.ingress.tls.enabled }}

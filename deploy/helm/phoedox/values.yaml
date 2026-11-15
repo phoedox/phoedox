@@ -21,6 +21,15 @@ domain: docs.example.org
 # Language of emails to users without a language (de or en).
 locale: de
 
+# Self sign-up (ADR-0057): "invite" = only admins create accounts (default),
+# "open" = anyone can register with a confirmed e-mail address (needs mail).
+# Admins can switch it later under Admin → Instance. When termsUrl or
+# privacyUrl is set, people must accept them on the sign-up page.
+signup:
+  mode: invite
+  termsUrl: ""
+  privacyUrl: ""
+
 ingress:
   enabled: true
   # k3s ships Traefik as ingress controller.

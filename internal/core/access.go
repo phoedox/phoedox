@@ -59,6 +59,8 @@ type InstanceSettings struct {
 	VulnCheck bool `json:"vulnCheck"`
 	// PluginBeta offers pre-release versions of store plugins.
 	PluginBeta bool `json:"pluginBeta"`
+	// Signup lets anyone register with a confirmed e-mail address (ADR-0057).
+	Signup bool `json:"signup"`
 	// Vault is the external vault for environment secrets.
 	Vault VaultConfig `json:"vault"`
 	// Tools tells which file tools were found (PDF previews, OCR, virus scan); read only.
@@ -71,12 +73,26 @@ type SettingsPatch struct {
 	QuotaProjectMB *int    `json:"quotaProjectMb,omitempty"`
 	VulnCheck      *bool   `json:"vulnCheck,omitempty"`
 	PluginBeta     *bool   `json:"pluginBeta,omitempty"`
+	Signup         *bool   `json:"signup,omitempty"`
 	VaultKind      *string `json:"vaultKind,omitempty"`
 	VaultURL       *string `json:"vaultUrl,omitempty"`
 	VaultToken     *string `json:"vaultToken,omitempty"` // write-only
 }
 
-const settingQuota = "quota_project_mb"
+const (
+	settingQuota  = "quota_project_mb"
+	settingSignup = "signup"
+)
+
+// SignupOpen tells whether anyone may register (instance setting; the
+// default comes from PHOEDOX_SIGNUP).
+func (s *Service) SignupOpen(ctx context.Context) bool {
+	v, err := s.DB.Setting(ctx, settingSignup, strconv.FormatBool(s.SignupDefault))
+	if err != nil {
+		return s.SignupDefault
+	}
+	return v == "true"
+}
 
 func (s *Service) instanceQuotaMB(ctx context.Context) int {
 	v, _ := s.DB.Setting(ctx, settingQuota, "0")
@@ -88,7 +104,7 @@ func (s *Service) settings(ctx context.Context) InstanceSettings {
 	tools := s.Preview.Available()
 	tools["virus_scan"] = s.Scanner != nil
 	vault, _ := s.vaultConfig(ctx)
-	return InstanceSettings{AIEnabled: s.AIEnabled(ctx), QuotaProjectMB: s.instanceQuotaMB(ctx), VulnCheck: s.vulnCheckOn(ctx), PluginBeta: s.pluginChannel(ctx) == "beta", Vault: vault, Tools: tools}
+	return InstanceSettings{AIEnabled: s.AIEnabled(ctx), QuotaProjectMB: s.instanceQuotaMB(ctx), VulnCheck: s.vulnCheckOn(ctx), PluginBeta: s.pluginChannel(ctx) == "beta", Signup: s.SignupOpen(ctx), Vault: vault, Tools: tools}
 }
 
 // Settings returns the instance settings (admins only).
@@ -119,6 +135,11 @@ func (s *Service) UpdateSettings(ctx context.Context, a Actor, in SettingsPatch)
 	}
 	if in.PluginBeta != nil {
 		if err := s.DB.SetSetting(ctx, settingPluginBeta, strconv.FormatBool(*in.PluginBeta), a.String()); err != nil {
+			return InstanceSettings{}, err
+		}
+	}
+	if in.Signup != nil {
+		if err := s.DB.SetSetting(ctx, settingSignup, strconv.FormatBool(*in.Signup), a.String()); err != nil {
 			return InstanceSettings{}, err
 		}
 	}

@@ -7,7 +7,7 @@ import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
-interface Settings { aiEnabled: boolean; quotaProjectMb: number; vulnCheck: boolean; pluginBeta: boolean; vault: { kind: string; url: string; connected: boolean }; tools?: Record<string, boolean> }
+interface Settings { aiEnabled: boolean; quotaProjectMb: number; vulnCheck: boolean; pluginBeta: boolean; signup: boolean; vault: { kind: string; url: string; connected: boolean }; tools?: Record<string, boolean> }
 
 /** Instance settings for system admins. */
 export class PhxAdminSettings extends SignalWatcher(LitElement) {
@@ -47,6 +47,8 @@ export class PhxAdminSettings extends SignalWatcher(LitElement) {
         <p class="muted">${t("admin.vuln_check_hint")}</p>
         <label class="switch"><input type="checkbox" .checked=${this.s.pluginBeta} @change=${(e: Event) => this.set({ pluginBeta: (e.target as HTMLInputElement).checked })} /> ${t("admin.plugin_beta")}</label>
         <p class="muted">${t("admin.plugin_beta_hint")}</p>
+        <label class="switch"><input type="checkbox" .checked=${this.s.signup} @change=${(e: Event) => this.set({ signup: (e.target as HTMLInputElement).checked })} /> ${t("admin.signup")}</label>
+        <p class="muted">${t("admin.signup_hint")}</p>
         <h2>${icon("Lock", 16)} ${t("admin.vault")}</h2>
         <p class="muted">${t("admin.vault_hint")}</p>
         <form style="display:grid;gap:8px;max-width:520px" @submit=${(e: SubmitEvent) => {

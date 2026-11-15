@@ -75,6 +75,8 @@ make build && ./bin/phoedox
 | `PHOEDOX_MASTER_KEY` | – | 32 bytes, base64 (`openssl rand -base64 32`). Encrypts secrets such as TOTP keys. Without the variable, Phoedox creates `<data>/master.key` – **back it up together with the database**; multiple server instances need the same key |
 | `PHOEDOX_PUBLIC_URL` | – | Public address, e.g. `https://docs.example.org` – for links in emails. Without it (or `PHOEDOX_DOMAIN`), there is no "forgot password" by email |
 | `PHOEDOX_DEFAULT_LOCALE` | `de` | Language for emails to users without their own language setting |
+| `PHOEDOX_SIGNUP` | `invite` | `open` lets anyone create an account with a confirmed e-mail address (needs mail); admins can switch it under Admin → Instance |
+| `PHOEDOX_TERMS_URL`, `PHOEDOX_PRIVACY_URL` | – | Terms of use and privacy policy shown on the sign-up page; when set, people must accept them |
 | `PHOEDOX_OIDC_ISSUER` | – | Sign-in through an OpenID Connect provider (Authentik, Keycloak, Entra ID, Google …), e.g. `https://auth.example.org/application/o/phoedox/`. Redirect URI at the provider: `<public URL>/api/v1/auth/oidc/callback` |
 | `PHOEDOX_HA_URL` | – | Sign-in with Home Assistant users: the address browsers use for Home Assistant, e.g. `http://homeassistant.local:8123`. Phoedox's public URL is the client ID. |
 | `PHOEDOX_HA_INTERNAL_URL` | `PHOEDOX_HA_URL` | Address the server uses for Home Assistant (token and WebSocket), e.g. `http://homeassistant:8123` in the add-on |

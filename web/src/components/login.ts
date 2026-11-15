@@ -50,7 +50,7 @@ export class PhxLogin extends LitElement {
     const key = new URLSearchParams(location.search).get("error");
     if (key && hasKey(key)) this.error = t(key as Key);
     if (new URLSearchParams(location.search).has("deleted")) toast(t("account.deleted"));
-    if (new URLSearchParams(location.search).has("signup")) toast(t("login.signup_closed"));
+    if (new URLSearchParams(location.search).has("signup") && !this.instance?.signup) toast(t("login.signup_closed"));
     this.instance = await api<Instance>("GET", "/instance").catch(() => undefined);
   }
 
@@ -158,7 +158,7 @@ export class PhxLogin extends LitElement {
       ${this.instance?.homeassistant ? html`<a class="btn ghost" rel="external" style="justify-content:center" href=${`/api/v1/auth/ha/start?return=${encodeURIComponent(nextPath())}`}>${icon("House", 15)} ${t("login.homeassistant")}</a>` : ""}
       ${this.instance?.oidc ? html`<a class="btn ghost" rel="external" style="justify-content:center" href=${`/api/v1/auth/oidc/start?return=${encodeURIComponent(nextPath())}`}>${icon("LogIn", 15)} ${t("login.oidc", { name: this.instance.oidc.name })}</a>` : ""}
       ${passkeysSupported() ? html`<button type="button" class="ghost" style="justify-content:center" ?disabled=${this.busy} @click=${this.passkeyLogin}>${icon("KeyRound", 15)} ${t("login.passkey")}</button>` : ""}
-      <div class="links"><a href="/forgot">${t("login.forgot")}</a></div>
+      <div class="links"><a href="/forgot">${t("login.forgot")}</a>${this.instance?.signup ? html`<a href="/signup">${t("signup.link")}</a>` : ""}</div>
     </form>`;
   }
 }

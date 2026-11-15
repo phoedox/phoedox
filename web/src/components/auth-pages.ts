@@ -1,6 +1,6 @@
-import { LitElement, html } from "lit";
+import { LitElement, css, html } from "lit";
 import { ApiError, api, minPasswordLength, type Instance, type LinkInfo, type User } from "../api";
-import { t } from "../i18n";
+import { locale, t } from "../i18n";
 import { navigate, signedIn } from "../state";
 import { authPage } from "./login";
 import { base } from "./shared";
@@ -55,6 +55,67 @@ export class PhxForgot extends LitElement {
   }
 }
 customElements.define("phx-forgot", PhxForgot);
+
+/** Self sign-up (ADR-0057): name and address; the account becomes active
+ * through the confirmation link sent by mail. */
+export class PhxSignup extends LitElement {
+  static properties = { instance: { state: true }, sent: { state: true }, error: { state: true }, busy: { state: true } };
+  static styles = [base, authPage, css`
+    label.accept { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: start; font-size: 14px; line-height: 1.45; }
+    label.accept input { width: auto; margin-top: 3px; }
+  `];
+  instance?: Instance;
+  sent = "";
+  error = "";
+  busy = false;
+
+  async connectedCallback() {
+    super.connectedCallback();
+    this.instance = await api<Instance>("GET", "/instance").catch(() => undefined);
+  }
+
+  private async submit(e: SubmitEvent) {
+    e.preventDefault();
+    const f = new FormData(e.target as HTMLFormElement);
+    this.busy = true;
+    this.error = "";
+    try {
+      const email = String(f.get("email") ?? "");
+      await api("POST", "/auth/signup", { email, name: String(f.get("name") ?? ""), locale: locale(), accept: f.get("accept") === "on" });
+      this.sent = email;
+    } catch (err) {
+      this.error = err instanceof ApiError ? err.text : t("error.unknown");
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  render() {
+    const back = html`<div class="links"><a href="/login">${t("signup.have_account")}</a></div>`;
+    const i = this.instance;
+    if (i && !i.signup) {
+      return html`<div class="card">${logo}<h1 style="font-size:20px">${t("signup.title")}</h1><p class="muted">${t("login.signup_closed")}</p>${back}</div>`;
+    }
+    if (this.sent) {
+      return html`<div class="card" role="status">${logo}<h1 style="font-size:20px">${t("signup.check_mail")}</h1>
+        <p>${t("signup.sent", { email: this.sent })}</p><p class="muted">${t("signup.sent_hint")}</p>${back}</div>`;
+    }
+    const legal = i?.termsUrl || i?.privacyUrl;
+    return html`<form class="card" @submit=${this.submit}>
+      ${logo}
+      <h1 style="font-size:20px">${t("signup.title")}</h1>
+      <p class="muted">${t("signup.intro")}</p>
+      <label class="field">${t("signup.name")}<input name="name" autocomplete="name" maxlength="100" /></label>
+      <label class="field">${t("login.email")}<input name="email" type="email" autocomplete="email" required /></label>
+      ${legal ? html`<label class="accept"><input type="checkbox" name="accept" required>
+        <span>${t("signup.accept_prefix")} ${i?.termsUrl ? html`<a href=${i.termsUrl} target="_blank" rel="noopener">${t("signup.terms")}</a>` : ""}${i?.termsUrl && i?.privacyUrl ? ` ${t("signup.and")} ` : ""}${i?.privacyUrl ? html`<a href=${i.privacyUrl} target="_blank" rel="noopener">${t("signup.privacy")}</a>` : ""}.</span></label>` : ""}
+      ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
+      <button type="submit" ?disabled=${this.busy || !i}>${t("signup.submit")}</button>
+      ${back}
+    </form>`;
+  }
+}
+customElements.define("phx-signup", PhxSignup);
 
 /** Sets a password from an invitation or reset link and signs in. */
 export class PhxSetPassword extends LitElement {

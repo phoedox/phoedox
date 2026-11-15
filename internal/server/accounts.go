@@ -1,11 +1,13 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -90,6 +92,41 @@ func (a *api) resetRequest(w http.ResponseWriter, r *http.Request) {
 	}
 	// Same answer whether or not the address exists.
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// signupAvailable: open sign-up needs the setting, working mail (the
+// confirmation link goes out by mail) and a trusted address for links.
+func (a *api) signupAvailable(ctx context.Context) bool {
+	return a.resetAvailable() && a.core.SignupOpen(ctx)
+}
+
+// signup registers an account (ADR-0057). The answer never tells whether the
+// address already has an account.
+func (a *api) signup(w http.ResponseWriter, r *http.Request) {
+	if !a.signupAvailable(r.Context()) {
+		writeJSON(w, http.StatusForbidden, errBody("signup_closed", "Sign-up is not open on this instance."))
+		return
+	}
+	if !a.signupIP.allow(clientIP(r)) {
+		writeJSON(w, http.StatusTooManyRequests, errBody("rate_limited", "Too many attempts. Please wait a few minutes."))
+		return
+	}
+	var in auth.SignupInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	if in.Locale == "" {
+		in.Locale = a.cfg.DefaultLocale
+	}
+	key := strings.ToLower(strings.TrimSpace(in.Email))
+	if a.signupMail.allow(key) {
+		if err := a.auth.Signup(r.Context(), in, a.trustedBase(), a.cfg.TermsURL != "" || a.cfg.PrivacyURL != ""); err != nil {
+			writeErr(w, err)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (a *api) linkInfo(w http.ResponseWriter, r *http.Request) {

@@ -113,6 +113,77 @@ func (a *Auth) Invite(ctx context.Context, actor core.Actor, in InviteInput, bas
 	return a.issueLink(ctx, actor, u, store.LinkInvite, InviteTTL, base)
 }
 
+// SignupInput is a self sign-up (ADR-0057).
+type SignupInput struct {
+	Email  string `json:"email"`
+	Name   string `json:"name"`
+	Locale string `json:"locale"`
+	// Accept confirms the terms and privacy policy when the instance names them.
+	Accept bool `json:"accept"`
+}
+
+// SignupTTL is how long the confirmation link of a sign-up stays valid.
+const SignupTTL = 48 * time.Hour
+
+// Signup registers an account with a confirmation link sent by mail. The
+// account has no password until the link is used, so an address cannot be
+// taken over by someone who does not receive its mail. The answer is the
+// same whether or not the address is known: a known address gets a reset
+// link (or, without a password yet, a new confirmation link) instead.
+// requireTerms is set when the instance names terms or a privacy policy.
+func (a *Auth) Signup(ctx context.Context, in SignupInput, base string, requireTerms bool) error {
+	email, err := normalizeEmail(in.Email)
+	if err != nil {
+		return err
+	}
+	if err := validLocale(in.Locale); err != nil {
+		return err
+	}
+	if requireTerms && !in.Accept {
+		return core.Invalid("validation.terms_required", nil, "accept the terms and the privacy policy")
+	}
+	name := strings.TrimSpace(in.Name)
+	if len([]rune(name)) > 100 {
+		return core.Invalid("validation.name_too_long", nil, "the name is too long")
+	}
+	if name == "" {
+		name, _, _ = strings.Cut(email, "@")
+	}
+	if u, err := a.DB.UserByEmail(ctx, email); err == nil {
+		return a.signupKnown(ctx, u, base)
+	} else if !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
+	u, err := a.DB.CreateUser(ctx, store.User{ID: string(graph.NewID()), Email: email, Name: name, Locale: in.Locale})
+	if errors.Is(err, store.ErrConflict) {
+		if u, err := a.DB.UserByEmail(ctx, email); err == nil {
+			return a.signupKnown(ctx, u, base)
+		}
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	self := core.Actor{User: u, Via: "web"}
+	_ = a.DB.AddEvent(ctx, self.String(), "user.signup", u.ID, map[string]any{"acceptedTerms": in.Accept})
+	_, err = a.issueLinkMail(ctx, self, u, store.LinkInvite, "signup", SignupTTL, base)
+	return err
+}
+
+// signupKnown answers a sign-up for an address that has an account.
+func (a *Auth) signupKnown(ctx context.Context, u store.User, base string) error {
+	if u.Disabled || u.Deleted {
+		return nil
+	}
+	self := core.Actor{User: u, Via: "web"}
+	if u.HasPassword {
+		_, err := a.issueLink(ctx, self, u, store.LinkReset, ResetTTL, base)
+		return err
+	}
+	_, err := a.issueLinkMail(ctx, self, u, store.LinkInvite, "signup", SignupTTL, base)
+	return err
+}
+
 // UserPatch changes an account; nil fields stay.
 type UserPatch struct {
 	Name     *string `json:"name,omitempty"`
@@ -200,6 +271,11 @@ func (a *Auth) RequestReset(ctx context.Context, email, base string) error {
 }
 
 func (a *Auth) issueLink(ctx context.Context, actor core.Actor, u store.User, purpose string, ttl time.Duration, base string) (LinkResult, error) {
+	return a.issueLinkMail(ctx, actor, u, purpose, purpose, ttl, base)
+}
+
+// issueLinkMail creates a link and mails it with the given template.
+func (a *Auth) issueLinkMail(ctx context.Context, actor core.Actor, u store.User, purpose, template string, ttl time.Duration, base string) (LinkResult, error) {
 	plain, hash := NewSecret("")
 	exp := store.Now()
 	exp.Time = exp.Time.Add(ttl)
@@ -213,7 +289,7 @@ func (a *Auth) issueLink(ctx context.Context, actor core.Actor, u store.User, pu
 			locale = a.DefaultLocale
 		}
 		inviter := actor.User.Name
-		subject, body, err := resources.Mail(purpose, locale, map[string]any{
+		subject, body, err := resources.Mail(template, locale, map[string]any{
 			"Name": u.Name, "Inviter": inviter, "Instance": hostOf(base), "Link": res.Link, "Hours": int(ttl.Hours()),
 		})
 		if err == nil {
@@ -225,7 +301,7 @@ func (a *Auth) issueLink(ctx context.Context, actor core.Actor, u store.User, pu
 			res.Mailed = true
 		}
 	}
-	_ = a.DB.AddEvent(ctx, actor.String(), "user.link", u.ID, map[string]any{"purpose": purpose, "mailed": res.Mailed})
+	_ = a.DB.AddEvent(ctx, actor.String(), "user.link", u.ID, map[string]any{"purpose": purpose, "template": template, "mailed": res.Mailed})
 	return res, nil
 }
 

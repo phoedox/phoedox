@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/jsonschema-go/jsonschema"
 
+	"github.com/phoedox/phoedox/internal/auth"
 	"github.com/phoedox/phoedox/internal/core"
 	"github.com/phoedox/phoedox/internal/plugins"
 	"github.com/phoedox/phoedox/internal/requests"
@@ -104,6 +105,7 @@ var apiDocs = map[string]op{
 	"POST /auth/passkey/begin":           {Tag: "auth", Summary: "Second step with a passkey: start.", Public: true},
 	"POST /auth/passkey/finish":          {Tag: "auth", Summary: "Second step with a passkey: finish.", Public: true},
 	"POST /auth/reset-request":           {Tag: "auth", Summary: "Send a password reset link.", In: emailIn{}, Public: true},
+	"POST /auth/signup":                  {Tag: "auth", Summary: "Self sign-up when the instance allows it: sends a confirmation link (202 whether or not the address is known).", In: auth.SignupInput{}, Public: true},
 	"GET /auth/links/{token}":            {Tag: "auth", Summary: "Read an invitation or reset link.", Public: true},
 	"POST /auth/links/{token}":           {Tag: "auth", Summary: "Set the password with an invitation or reset link.", Public: true},
 	"GET /auth/oidc/start":               {Tag: "auth", Summary: "Start single sign-on (redirect).", Public: true},

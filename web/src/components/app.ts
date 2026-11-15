@@ -69,10 +69,10 @@ export class PhxApp extends SignalWatcher(LitElement) {
 
   private router = new Router(this, [
     { path: "/login", render: () => html`<phx-login></phx-login>` },
-    // The website's "Start for free" links here. Self sign-up does not exist yet:
-    // signed-in people go to their projects, others to the sign-in page with a note.
+    // The website's "Start for free" links here; signed-in people go to their projects.
     { path: "/signup", render: () => {
-      queueMicrotask(() => navigate(currentUser.get() ? "/" : "/login?signup=1"));
+      if (!currentUser.get()) return html`<phx-signup></phx-signup>`;
+      queueMicrotask(() => navigate("/"));
       return html``;
     } },
     { path: "/", render: () => html`<phx-projects></phx-projects>` },
