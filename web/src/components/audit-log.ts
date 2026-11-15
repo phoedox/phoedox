@@ -2,7 +2,6 @@ import { LitElement, css, html } from "lit";
 import { ApiError, api } from "../api";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
-import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 
 interface AuditEntry { id: number; actor: string; kind: string; subject: string; projectId?: string; payload: unknown; createdAt: string; who: string; via: string; detail?: string }
@@ -12,7 +11,7 @@ const VIA_ICON: Record<string, string> = { web: "UserRound", mcp: "Bot", token: 
 /** Audit log of the instance (admins) or of one project (owners). */
 export class PhxAuditLog extends LitElement {
   static properties = { project: {}, page: { type: Boolean }, events: { state: true }, chain: { state: true }, more: { state: true }, error: { state: true }, open: { state: true } };
-  static styles = [base, settingsNavStyles, css`
+  static styles = [base, css`
     :host { display: block; }
     :host([page]) { max-width: 1000px; margin: 0 auto; padding: 28px 16px; }
     form { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0 12px; }
@@ -99,7 +98,7 @@ export class PhxAuditLog extends LitElement {
   render() {
     if (!this.page) return this.body();
     const c = this.chain;
-    return html`<div class="enter"><h1>${t("audit.title")}</h1>${settingsNav("audit")}<p class="muted">${t("audit.intro")}</p>
+    return html`<div class="enter"><h1>${t("audit.title")}</h1><p class="muted">${t("audit.intro")}</p>
       <div class="row" style="margin-bottom:12px;align-items:center;flex-wrap:wrap;gap:8px">
         <button class="ghost" @click=${this.verify}>${icon("ShieldCheck", 14)} ${t("audit.verify")}</button>
         ${c ? html`<span role="status" class=${c.ok ? "" : "error"}>${c.ok ? t("audit.chain_ok", { count: c.checked }) : t(`audit.chain_${c.reason}` as any, { seq: c.broken ?? 0 })}</span>

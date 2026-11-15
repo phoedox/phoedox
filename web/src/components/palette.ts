@@ -7,6 +7,7 @@ import { icon } from "../icon";
 import { contentLocale, currentProject, currentUser, focusMode, navigate, setFocusMode } from "../state";
 import { languageName, rememberLocale } from "../languages";
 import { pluginCommands } from "../plugin-host";
+import { areaGroups } from "./settings-shell";
 import { base } from "./shared";
 import { onShortcut } from "../shortcuts";
 import { recentHref, recentIcon, type RecentItem } from "../recent";
@@ -153,11 +154,9 @@ export class PhxPalette extends SignalWatcher(LitElement) {
     items.push({ id: "a-history", label: t("history_page.title"), icon: "History", href: "/history" });
     items.push({ id: "a-secret", label: t("secretlink.title"), icon: "Lock", href: "/secrets/new" });
     items.push({ id: "a-focus", label: t(focusMode.get() ? "focus.leave" : "focus.enter"), icon: focusMode.get() ? "Minimize2" : "Maximize2", href: "", run: () => setFocusMode(!focusMode.get()) });
-    items.push({ id: "a-profile", label: t("nav.profile"), icon: "UserRound", href: "/settings/profile" });
-    items.push({ id: "a-security", label: t("nav.security"), icon: "ShieldCheck", href: "/settings/security" });
-    items.push({ id: "a-tokens", label: t("nav.tokens"), icon: "KeyRound", href: "/settings/tokens" });
-    if (u?.isAdmin) items.push({ id: "a-users", label: t("users.title"), icon: "Users", href: "/admin/users" });
-    if (u?.isAdmin) items.push({ id: "a-plugins", label: t("plugins.title"), icon: "Puzzle", href: "/admin/plugins" });
+    // Every settings page (ADR-0070); administration pages carry the area's name.
+    for (const g of areaGroups("me")) for (const p of g.pages) items.push({ id: `a-me-${p.id}`, label: `${t("sx.me.title")} · ${p.label}`, icon: p.icon, href: p.href });
+    if (u?.isAdmin) for (const g of areaGroups("admin")) for (const p of g.pages) items.push({ id: `a-adm-${p.id}`, label: `${t("sx.admin.title")} · ${p.label}`, icon: p.icon, href: p.href });
     return items;
   }
 

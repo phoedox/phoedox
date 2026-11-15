@@ -1,25 +1,21 @@
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
-import { ApiError, api, minPasswordLength, type User } from "../api";
+import { ApiError, api, type User } from "../api";
 import { locale, t } from "../i18n";
-import { currentUser, signedIn } from "../state";
-import { settingsNav, settingsNavStyles } from "./settings-nav";
+import { currentUser, setTheme, setWideReading, signedIn, theme, wideReading, type Theme } from "../state";
+import { pageHead, scard, settingsUI, srow, sseg } from "./settings-ui";
 import { base } from "./shared";
 import { toast } from "./toasts";
 import "./picture-picker";
 import { userAvatar } from "../pictures";
 
-/** Own name, language and password. */
+/** Own picture, name, language and how the app looks (ADR-0070). */
 export class PhxProfile extends SignalWatcher(LitElement) {
-  static properties = { error: { state: true }, pwError: { state: true }, busy: { state: true } };
-  static styles = [base, settingsNavStyles, css`
-    :host { display: block; max-width: 760px; margin: 0 auto; padding: 28px 16px; }
-    h1 { margin-bottom: 16px; }
-    form { display: grid; gap: 12px; max-width: 460px; }
-    h2 { font-size: 17px; margin: 30px 0 12px; }
+  static properties = { error: { state: true }, busy: { state: true } };
+  static styles = [base, settingsUI, css`
+    form .foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); }
   `];
   error = "";
-  pwError = "";
   busy = false;
 
   private async save(e: SubmitEvent) {
@@ -41,57 +37,27 @@ export class PhxProfile extends SignalWatcher(LitElement) {
     }
   }
 
-  private async changePassword(e: SubmitEvent) {
-    e.preventDefault();
-    const form = e.target as HTMLFormElement;
-    const f = new FormData(form);
-    if (f.get("new") !== f.get("repeat")) {
-      this.pwError = t("setpw.mismatch");
-      return;
-    }
-    this.pwError = "";
-    try {
-      await api("POST", "/me/password", { current: f.get("current") ?? "", new: f.get("new") });
-      form.reset();
-      toast(t("profile.password_changed"));
-    } catch (err) {
-      this.pwError = err instanceof ApiError ? err.text : t("error.unknown");
-    }
-  }
-
   render() {
     const u = currentUser.get();
     if (!u) return "";
     return html`<div class="enter">
-      <h1>${t("profile.title")}</h1>
-      ${settingsNav("profile")}
-      <h2 style="margin-top:0">${t("picture.profile")}</h2>
-      <phx-picture-picker .has=${!!u.avatar} @changed=${(e: CustomEvent<string>) => signedIn({ ...u, avatar: e.detail })}>${userAvatar(u, 64)}</phx-picture-picker>
-      <h2>${t("profile.title")}</h2>
+      ${pageHead(t("nav.profile"), t("sx.me.profile_text"))}
       <form @submit=${this.save}>
-        <label class="field">${t("profile.email")}<input .value=${u.email} disabled /></label>
-        <label class="field">${t("profile.name")}<input name="name" .value=${u.name} required autocomplete="name" /></label>
-        <label class="field">${t("profile.language")}
-          <select name="locale">
+        ${scard(t("profile.title"), t("sx.me.profile_card"), html`
+          ${srow(t("picture.profile"), t("sx.me.picture_help"), html`<phx-picture-picker .has=${!!u.avatar} @changed=${(e: CustomEvent<string>) => signedIn({ ...u, avatar: e.detail })}>${userAvatar(u, 48)}</phx-picture-picker>`)}
+          ${srow(t("profile.name"), t("sx.me.name_help"), html`<input name="name" .value=${u.name} required autocomplete="name" aria-label=${t("profile.name")} />`)}
+          ${srow(t("profile.email"), t("sx.me.email_help"), html`<input .value=${u.email} disabled aria-label=${t("profile.email")} />`)}
+          ${srow(t("profile.language"), t("sx.me.language_help"), html`<select name="locale" aria-label=${t("profile.language")}>
             <option value="" ?selected=${!u.locale}>${t("profile.language_auto")}</option>
             <option value="de" ?selected=${u.locale === "de"} lang="de">Deutsch</option>
             <option value="en" ?selected=${u.locale === "en"} lang="en">English</option>
-          </select>
-        </label>
-        ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
-        <div><button type="submit" ?disabled=${this.busy}>${t("profile.save")}</button></div>
+          </select>`)}
+          ${this.error ? html`<p class="error" role="alert" style="padding:0 18px">${this.error}</p>` : ""}
+          <div class="foot"><button type="submit" ?disabled=${this.busy}>${t("profile.save")}</button></div>`)}
       </form>
-
-      <h2>${t("profile.password_title")}</h2>
-      <form @submit=${this.changePassword}>
-        <input type="email" name="username" autocomplete="username" .value=${u.email} hidden />
-        ${u.hasPassword ? html`<label class="field">${t("profile.password_current")}<input name="current" type="password" autocomplete="current-password" required /></label>` : ""}
-        <label class="field">${t("setpw.password")}<input name="new" type="password" autocomplete="new-password" minlength=${minPasswordLength} required /></label>
-        <label class="field">${t("setpw.repeat")}<input name="repeat" type="password" autocomplete="new-password" required /></label>
-        <span class="muted" style="font-size:12.5px">${t("setpw.hint", { min: minPasswordLength })}</span>
-        ${this.pwError ? html`<p class="error" role="alert">${this.pwError}</p>` : ""}
-        <div><button type="submit" class="ghost">${t("profile.password_submit")}</button></div>
-      </form>
+      ${scard(t("sx.me.appearance"), t("sx.me.appearance_text"), html`
+        ${srow(t("sx.me.theme"), t("sx.me.theme_help"), sseg<Theme>(t("sx.me.theme"), theme.get(), [["system", t("sx.me.theme_system")], ["light", t("sx.me.theme_light")], ["dark", t("sx.me.theme_dark")]], setTheme))}
+        ${srow(t("sx.me.width"), t("sx.me.width_help"), sseg(t("sx.me.width"), wideReading.get() ? "wide" : "column", [["column", t("sx.me.width_column")], ["wide", t("sx.me.width_wide")]], (v) => setWideReading(v === "wide")))}`)}
     </div>`;
   }
 }

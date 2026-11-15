@@ -30,6 +30,8 @@ import type { PhxPalette } from "./palette";
 import "./user-menu";
 import "./users";
 import "./admin-settings";
+import "./admin-overview";
+import "./settings-shell";
 import "./projects";
 import "./project";
 import "./tokens";
@@ -41,6 +43,12 @@ import "./shared-view";
 const projectView = (slug: string, root: boolean) => html`<phx-project .slug=${slug} .root=${root}></phx-project>`;
 
 /** Root element: top bar, session check and top-level routes. */
+/** A page of the personal settings or the administration in its frame. */
+const me = (active: string, page: unknown = "") => html`<phx-settings-shell area="me" active=${active}>${page}</phx-settings-shell>`;
+const adm = (active: string, page: unknown = "") => currentUser.get()?.isAdmin
+  ? html`<phx-settings-shell area="admin" active=${active}>${page}</phx-settings-shell>`
+  : html`<main class="notfound enter"><h1>${t("error.not_found")}</h1></main>`;
+
 export class PhxApp extends SignalWatcher(LitElement) {
   static properties = { ready: { state: true } };
   static styles = [base, css`
@@ -82,26 +90,39 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/forgot", render: () => html`<phx-forgot></phx-forgot>` },
     { path: "/invite/:token", render: ({ token }) => html`<phx-set-password .token=${token!}></phx-set-password>` },
     { path: "/reset/:token", render: ({ token }) => html`<phx-set-password .token=${token!}></phx-set-password>` },
-    { path: "/settings/profile", render: () => html`<phx-profile></phx-profile>` },
     { path: "/oauth/authorize", render: () => html`<phx-consent></phx-consent>` },
     { path: "/tasks", render: () => html`<phx-my-tasks></phx-my-tasks>` },
     { path: "/devices", render: () => html`<phx-shared-devices></phx-shared-devices>` },
     { path: "/history", render: () => html`<phx-recent-history></phx-recent-history>` },
     { path: "/secrets/new", render: () => html`<phx-secret-new></phx-secret-new>` },
     { path: "/secret/:id", render: ({ id }) => html`<phx-secret-open .id=${id!}></phx-secret-open>` },
-    { path: "/settings/shortcuts", render: () => html`<phx-shortcut-settings></phx-shortcut-settings>` },
-    { path: "/settings/notifications", render: () => html`<phx-notification-settings></phx-notification-settings>` },
-    { path: "/settings/security", render: () => html`<phx-security></phx-security>` },
-    { path: "/settings/account", render: () => html`<phx-account></phx-account>` },
-    { path: "/settings/tokens", render: () => html`<phx-tokens></phx-tokens>` },
-    { path: "/settings/publications", render: () => html`<phx-publications></phx-publications>` },
-    { path: "/admin/users", render: () => html`<phx-users></phx-users>` },
-    { path: "/admin/settings", render: () => html`<phx-admin-settings></phx-admin-settings>` },
-    { path: "/admin/backups", render: () => html`<phx-backups></phx-backups>` },
-    { path: "/admin/plugins", render: () => html`<phx-plugins-admin></phx-plugins-admin>` },
-    { path: "/admin/audit", render: () => html`<phx-audit-log page></phx-audit-log>` },
+    // Personal settings and administration share one frame (ADR-0070).
+    { path: "/settings", render: () => me("") },
+    { path: "/settings/profile", render: () => me("profile", html`<phx-profile></phx-profile>`) },
+    { path: "/settings/security", render: () => me("security", html`<phx-security></phx-security>`) },
+    { path: "/settings/notifications", render: () => me("notifications", html`<phx-notification-settings></phx-notification-settings>`) },
+    { path: "/settings/shortcuts", render: () => me("shortcuts", html`<phx-shortcut-settings></phx-shortcut-settings>`) },
+    { path: "/settings/tokens", render: () => me("tokens", html`<phx-tokens></phx-tokens>`) },
+    { path: "/settings/publications", render: () => me("publications", html`<phx-publications></phx-publications>`) },
+    { path: "/settings/account", render: () => me("account", html`<phx-account></phx-account>`) },
+    { path: "/admin", render: () => adm("") },
+    { path: "/admin/overview", render: () => adm("overview", html`<phx-admin-overview></phx-admin-overview>`) },
+    { path: "/admin/users", render: () => adm("users", html`<phx-users></phx-users>`) },
+    { path: "/admin/signup", render: () => adm("signup", html`<phx-admin-settings section="signup"></phx-admin-settings>`) },
+    { path: "/admin/ai", render: () => adm("ai", html`<phx-admin-settings section="ai"></phx-admin-settings>`) },
+    { path: "/admin/storage", render: () => adm("storage", html`<phx-admin-settings section="storage"></phx-admin-settings>`) },
+    { path: "/admin/security", render: () => adm("security", html`<phx-admin-settings section="security"></phx-admin-settings>`) },
+    // Old address of the instance settings.
+    { path: "/admin/settings", render: () => { queueMicrotask(() => { history.replaceState({}, "", "/admin/ai"); window.dispatchEvent(new PopStateEvent("popstate")); }); return html``; } },
+    { path: "/admin/backups", render: () => adm("backups", html`<phx-backups></phx-backups>`) },
+    { path: "/admin/plugins", render: () => adm("plugins", html`<phx-plugins-admin></phx-plugins-admin>`) },
+    { path: "/admin/audit", render: () => adm("audit", html`<phx-audit-log page></phx-audit-log>`) },
+    { path: "/admin/orgs", render: () => adm("orgs", html`<phx-orgs mode="list"></phx-orgs>`) },
+    { path: "/admin/orgs/new", render: () => adm("org-new", html`<phx-orgs mode="new"></phx-orgs>`) },
+    { path: "/admin/orgs/:slug", render: ({ slug }) => adm("orgs", html`<phx-org .slug=${slug!} inAdmin></phx-org>`) },
     { path: "/orgs", render: () => html`<phx-orgs></phx-orgs>` },
-    { path: "/orgs/:slug", render: ({ slug }) => html`<phx-org .slug=${slug!}></phx-org>` },
+    // Owners manage their organisation within their personal settings.
+    { path: "/orgs/:slug", render: ({ slug }) => me(`org:${slug}`, html`<phx-org .slug=${slug!}></phx-org>`) },
     { path: "/s/:token", render: ({ token }) => html`<phx-shared-view .token=${token!}></phx-shared-view>` },
     { path: "/s/:token/:doc", render: ({ token, doc }) => html`<phx-shared-view .token=${token!} .doc=${doc!}></phx-shared-view>` },
     // One template for both routes keeps the same element; root tells it to

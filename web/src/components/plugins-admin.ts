@@ -4,7 +4,7 @@ import { formatSize } from "../files";
 import { formatDate, locale, t } from "../i18n";
 import { icon } from "../icon";
 import { permLabel } from "../plugin-perms";
-import { settingsNav, settingsNavStyles } from "./settings-nav";
+import "./admin-settings";
 import { base } from "./shared";
 import { toast } from "./toasts";
 import { currentUser } from "../state";
@@ -19,7 +19,7 @@ export class PhxPluginsAdmin extends LitElement {
     confirming: { state: true }, logs: { state: true }, logsFor: { state: true }, removing: { state: true },
     request: { state: true }, requested: { state: true }, installedReq: { state: true }, ownProjects: { state: true },
   };
-  static styles = [base, settingsNavStyles, css`
+  static styles = [base, css`
     .req { display: grid; gap: 10px; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); margin-bottom: 18px; }
     .req .row { display: flex; gap: 8px; flex-wrap: wrap; }
     .req select { width: auto; margin-left: 6px; }
@@ -372,7 +372,7 @@ export class PhxPluginsAdmin extends LitElement {
     const l = this.list;
     return html`<div class="enter">
       <h1>${t("plugins.title")}</h1>
-      ${settingsNav("plugins")}
+      <phx-admin-settings section="plugins"></phx-admin-settings>
       ${this.requestCard()}
       ${this.error && !this.request ? html`<p class="error">${this.error}</p>` : ""}
       ${l ? html`

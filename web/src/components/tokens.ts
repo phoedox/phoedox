@@ -4,13 +4,12 @@ import "./scope-picker";
 import type { PhxScopePicker } from "./scope-picker";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
-import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
 export class PhxTokens extends LitElement {
   static properties = { tokens: { state: true }, grants: { state: true }, secret: { state: true }, copied: { state: true }, names: { state: true } };
-  static styles = [base, settingsNavStyles, css`
+  static styles = [base, css`
     :host { display: block; max-width: 760px; margin: 0 auto; padding: 28px 16px; }
     form.create { display: grid; gap: 12px; margin: 16px 0; padding: 16px; }
     form.create .row input { flex: 1; min-width: 200px; }
@@ -90,7 +89,6 @@ export class PhxTokens extends LitElement {
     const mcpUrl = `${location.origin}/mcp`;
     return html`<div class="enter">
       <h1 style="margin-bottom:16px">${t("tokens.title")}</h1>
-      ${settingsNav("tokens")}
       <p class="muted">${t("tokens.intro")}</p>
       <form class="create card" @submit=${this.create}>
         <div class="row"><input name="name" required placeholder=${t("tokens.name")} /><button type="submit">${icon("KeyRound", 14)} ${t("tokens.create")}</button></div>

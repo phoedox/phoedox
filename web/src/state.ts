@@ -33,6 +33,33 @@ export function setWideReading(on: boolean) {
   }
 }
 
+export type Theme = "system" | "light" | "dark";
+/** Colour scheme of this browser; "system" follows the operating system. */
+export const theme = signal<Theme>(readTheme());
+function readTheme(): Theme {
+  try {
+    const v = localStorage.getItem("phx.theme");
+    return v === "light" || v === "dark" ? v : "system";
+  } catch {
+    return "system";
+  }
+}
+function applyTheme(v: Theme) {
+  if (typeof document === "undefined") return;
+  if (v === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = v;
+}
+applyTheme(theme.get());
+export function setTheme(v: Theme) {
+  theme.set(v);
+  applyTheme(v);
+  try {
+    localStorage.setItem("phx.theme", v);
+  } catch {
+    /* private mode: only for this visit */
+  }
+}
+
 /** Navigates within the app (the router listens to popstate). */
 export function navigate(path: string) {
   if (location.pathname === path) return;

@@ -3,14 +3,13 @@ import { ApiError, api } from "../api";
 import { t } from "../i18n";
 import { icon } from "../icon";
 import { currentSubscription, disablePush, enablePush, pushSupported, type NotificationSettings } from "../notifications";
-import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
 /** Personal channels: mail mode, ntfy, web push and muted kinds. */
 export class PhxNotificationSettings extends LitElement {
   static properties = { s: { state: true }, pushOn: { state: true }, busy: { state: true }, error: { state: true } };
-  static styles = [base, settingsNavStyles, css`
+  static styles = [base, css`
     :host { display: block; max-width: 760px; margin: 0 auto; padding: 28px 16px; }
     h1 { margin-bottom: 16px; }
     h2 { font-size: 17px; margin: 28px 0 8px; }
@@ -91,7 +90,6 @@ export class PhxNotificationSettings extends LitElement {
     const s = this.s;
     return html`<div class="enter">
       <h1>${t("notif.title")}</h1>
-      ${settingsNav("notifications")}
       ${!s ? html`<p class="muted">${t("app.loading")}</p>` : html`
       <form @submit=${this.save}>
         <fieldset>

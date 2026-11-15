@@ -5,14 +5,13 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { SHORTCUT_ACTIONS, comboFor, comboLabel, comboOf, customShortcuts } from "../shortcuts";
 import { currentProject } from "../state";
-import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
 /** Personal keyboard shortcuts: press a new combination for an action. */
 export class PhxShortcutSettings extends SignalWatcher(LitElement) {
   static properties = { recording: { state: true }, error: { state: true } };
-  static styles = [base, settingsNavStyles, css`
+  static styles = [base, css`
     :host { display: block; max-width: 760px; margin: 0 auto; padding: 28px 16px 60px; }
     table { width: 100%; border-collapse: collapse; }
     td { padding: 8px 8px 8px 0; border-bottom: 1px solid var(--line); vertical-align: middle; }
@@ -81,7 +80,6 @@ export class PhxShortcutSettings extends SignalWatcher(LitElement) {
   render() {
     const custom = customShortcuts.get();
     return html`<div class="enter">
-      ${settingsNav("shortcuts")}
       <h1>${t("shortcut.title")}</h1>
       <p class="muted">${t("shortcut.intro")}</p>
       ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}

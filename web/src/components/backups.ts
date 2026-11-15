@@ -5,7 +5,6 @@ import { formatSize } from "../files";
 import { formatDate, locale, t } from "../i18n";
 import { icon } from "../icon";
 import { navigate, signedIn } from "../state";
-import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
@@ -15,7 +14,7 @@ interface Status { backups: Info[]; target: string; withFiles: boolean; keep: nu
 /** Backups for system admins: list, make now, download, upload, restore. */
 export class PhxBackups extends SignalWatcher(LitElement) {
   static properties = { s: { state: true }, restoring: { state: true }, busy: { state: true }, error: { state: true } };
-  static styles = [base, settingsNavStyles, css`
+  static styles = [base, css`
     :host { display: block; max-width: 860px; margin: 0 auto; padding: 28px 16px 60px; }
     h1 { margin-bottom: 16px; }
     p { line-height: 1.5; max-width: 680px; }
@@ -117,7 +116,6 @@ export class PhxBackups extends SignalWatcher(LitElement) {
     const s = this.s;
     return html`<div class="enter">
       <h1>${t("backups.title")}</h1>
-      ${settingsNav("backups")}
       ${this.error ? html`<p class="error">${this.error}</p>` : ""}
       ${s ? html`
         <p class="muted">${s.everyHours ? t("backups.schedule", { hours: s.everyHours, keep: s.keep || "∞", target: t(s.target === "s3" ? "backups.target_s3" : "backups.target_local") }) : t("backups.no_schedule")}

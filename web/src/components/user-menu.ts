@@ -113,11 +113,8 @@ export class PhxUserMenu extends SignalWatcher(LitElement) {
         <div class="head" role="presentation"><b>${u.name}</b><span>${u.email}</span></div>
         ${item("/tasks", "ListChecks", t("mytasks.title"))}
         ${item("/devices", "Power", t("device.shared_title"))}
-        ${item("/settings/profile", "UserRound", t("nav.profile"))}
-        ${item("/settings/security", "ShieldCheck", t("nav.security"))}
-        ${item("/settings/tokens", "KeyRound", t("nav.tokens"))}
-        ${item("/orgs", "Building2", t("nav.orgs"))}
-        ${u.isAdmin ? item("/admin/users", "Users", t("users.title")) : ""}
+        ${item("/settings/profile", "Settings", t("sx.me.title"))}
+        ${u.isAdmin ? item("/admin/overview", "Shield", t("sx.admin.title")) : item("/orgs", "Building2", t("nav.orgs"))}
         <hr role="separator" />
         <button role="menuitem" tabindex="-1" @click=${this.logout}>${icon("LogOut", 15)} ${t("nav.logout")}</button>
       </div>`;

@@ -4,14 +4,13 @@ import { ApiError, api, type LinkResult, type User } from "../api";
 import { formatDate, locale, t } from "../i18n";
 import { icon } from "../icon";
 import { currentUser } from "../state";
-import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
 /** Instance users for system admins: invite, links, admin flag, disable. */
 export class PhxUsers extends SignalWatcher(LitElement) {
   static properties = { users: { state: true }, result: { state: true }, error: { state: true }, confirming: { state: true }, resetting: { state: true }, busy: { state: true } };
-  static styles = [base, settingsNavStyles, css`
+  static styles = [base, css`
     :host { display: block; max-width: 900px; margin: 0 auto; padding: 28px 16px; }
     h1 { margin-bottom: 16px; }
     h2 { font-size: 17px; margin: 0 0 12px; }
@@ -155,7 +154,6 @@ export class PhxUsers extends SignalWatcher(LitElement) {
     const r = this.result;
     return html`<div class="enter">
       <h1>${t("users.title")}</h1>
-      ${settingsNav("users")}
       <p class="muted" style="margin-top:0">${t("users.intro")}</p>
       <form class="card" @submit=${this.invite}>
         <h2>${t("users.invite_title")}</h2>

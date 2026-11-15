@@ -3,7 +3,6 @@ import { ApiError, api } from "../api";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
 import { currentUser, navigate } from "../state";
-import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
@@ -20,7 +19,7 @@ export class PhxAccount extends LitElement {
   static properties = {
     exp: { state: true }, del: { state: true }, confirming: { state: true }, error: { state: true }, busy: { state: true },
   };
-  static styles = [base, settingsNavStyles, css`
+  static styles = [base, css`
     :host { display: block; max-width: 760px; margin: 0 auto; padding: 28px 16px; }
     h1 { margin-bottom: 16px; }
     section { margin-bottom: 34px; }
@@ -150,7 +149,6 @@ export class PhxAccount extends LitElement {
   render() {
     return html`
       <h1>${t("account.title")}</h1>
-      ${settingsNav("account")}
       <section aria-labelledby="exp"><h2 id="exp">${icon("FileArchive", 17)} ${t("account.export_title")}</h2>${this.exportSection()}</section>
       <section class="danger-zone" aria-labelledby="del"><h2 id="del">${icon("UserX", 17)} ${t("account.delete_title")}</h2>${this.deleteSection()}</section>`;
   }

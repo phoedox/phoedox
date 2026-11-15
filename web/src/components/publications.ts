@@ -2,7 +2,6 @@ import { LitElement, css, html } from "lit";
 import { ApiError, api, type Project } from "../api";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
-import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
@@ -17,7 +16,7 @@ interface Publication {
 /** Publications (ADR-0006): projects as a public or protected site. */
 export class PhxPublications extends LitElement {
   static properties = { list: { state: true }, projects: { state: true }, editing: { state: true }, error: { state: true }, busy: { state: true }, releases: { state: true } };
-  static styles = [base, settingsNavStyles, css`
+  static styles = [base, css`
     :host { display: block; max-width: 900px; margin: 0 auto; padding: 28px 16px; }
     .cards { display: grid; gap: 12px; margin: 16px 0 24px; }
     .card { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; background: var(--surface); display: grid; gap: 6px; }
@@ -144,7 +143,6 @@ export class PhxPublications extends LitElement {
   render() {
     return html`<div class="enter">
       <h1>${t("pub.title_page")}</h1>
-      ${settingsNav("publications")}
       <p class="muted">${t("pub.intro")}</p>
       ${!this.list ? html`<p class="muted">${t("app.loading")}</p>` : html`
         <div class="cards">${this.list.map((p) => html`<div class="card">

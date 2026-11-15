@@ -1,11 +1,11 @@
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
-import { ApiError, api } from "../api";
+import { ApiError, api, minPasswordLength } from "../api";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
 import { currentUser } from "../state";
 import { cancelled, creationOptions, credentialJSON, passkeysSupported } from "../webauthn";
-import { settingsNav, settingsNavStyles } from "./settings-nav";
+import { pageHead, settingsUI } from "./settings-ui";
 import { base } from "./shared";
 import "./signing-keys";
 import { toast } from "./toasts";
@@ -19,14 +19,13 @@ type Confirming = "" | "disable" | "codes";
 export class PhxSecurity extends SignalWatcher(LitElement) {
   static properties = {
     sec: { state: true }, setup: { state: true }, codes: { state: true }, confirming: { state: true },
-    adding: { state: true }, renaming: { state: true }, error: { state: true }, busy: { state: true },
+    adding: { state: true }, renaming: { state: true }, error: { state: true }, busy: { state: true }, pwError: { state: true },
   };
-  static styles = [base, settingsNavStyles, css`
-    :host { display: block; max-width: 760px; margin: 0 auto; padding: 28px 16px; }
-    h1 { margin-bottom: 16px; }
-    section { margin-bottom: 30px; }
-    h2 { font-size: 17px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
-    p { margin: 0 0 12px; line-height: 1.5; }
+  static styles = [base, settingsUI, css`
+    .scard > header h2 { display: flex; align-items: center; gap: 8px; }
+    .scard > .body p { margin: 0 0 12px; line-height: 1.5; }
+    .scard > .body > :last-child { margin-bottom: 0; }
+    form.pw { display: grid; gap: 12px; max-width: 460px; }
     .on { color: var(--good); font-size: 13px; font-weight: 600; }
     .setup { display: grid; grid-template-columns: 180px 1fr; gap: 18px; align-items: start; }
     .setup img { width: 180px; height: 180px; border-radius: 8px; background: #fff; }
@@ -54,6 +53,7 @@ export class PhxSecurity extends SignalWatcher(LitElement) {
   adding = false;
   renaming = "";
   error = "";
+  pwError = "";
   busy = false;
 
   async connectedCallback() {
@@ -76,6 +76,39 @@ export class PhxSecurity extends SignalWatcher(LitElement) {
     } finally {
       this.busy = false;
     }
+  }
+
+  private async changePassword(e: SubmitEvent) {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const f = new FormData(form);
+    if (f.get("new") !== f.get("repeat")) {
+      this.pwError = t("setpw.mismatch");
+      return;
+    }
+    this.pwError = "";
+    try {
+      await api("POST", "/me/password", { current: f.get("current") ?? "", new: f.get("new") });
+      form.reset();
+      toast(t("profile.password_changed"));
+    } catch (err) {
+      this.pwError = err instanceof ApiError ? err.text : t("error.unknown");
+    }
+  }
+
+  private passwordSection() {
+    const u = currentUser.get();
+    if (!u) return "";
+    return html`<section class="scard"><header><h2>${t("profile.password_title")}</h2><p>${t(u.hasPassword ? "sx.me.password_text" : "sx.me.password_none")}</p></header><div class="body">
+      <form class="pw" @submit=${this.changePassword}>
+        <input type="email" name="username" autocomplete="username" .value=${u.email} hidden />
+        ${u.hasPassword ? html`<label class="field">${t("profile.password_current")}<input name="current" type="password" autocomplete="current-password" required /></label>` : ""}
+        <label class="field">${t("setpw.password")}<input name="new" type="password" autocomplete="new-password" minlength=${minPasswordLength} required /></label>
+        <label class="field">${t("setpw.repeat")}<input name="repeat" type="password" autocomplete="new-password" required /></label>
+        <span class="muted" style="font-size:12.5px">${t("setpw.hint", { min: minPasswordLength })}</span>
+        ${this.pwError ? html`<p class="error" role="alert">${this.pwError}</p>` : ""}
+        <div><button type="submit" class="ghost">${t("profile.password_submit")}</button></div>
+      </form></div></section>`;
   }
 
   private startSetup = () => this.run(async () => {
@@ -166,9 +199,9 @@ export class PhxSecurity extends SignalWatcher(LitElement) {
 
   private totpSection(s: Security) {
     const setup = this.setup;
-    return html`<section>
-      <h2>${t("security.totp_title")} ${s.totp ? html`<span class="on">${icon("Check", 14)} ${t("security.enabled")}</span>` : ""}</h2>
-      <p class="muted">${t(s.totp ? "security.totp_on" : "security.totp_off")}</p>
+    return html`<section class="scard">
+      <header><h2>${t("security.totp_title")} ${s.totp ? html`<span class="on">${icon("Check", 14)} ${t("security.enabled")}</span>` : ""}</h2>
+      <p>${t(s.totp ? "security.totp_on" : "security.totp_off")}</p></header><div class="body">
       ${s.totp ? html`
         <p>${t("security.recovery_left", { count: s.recoveryCodes })}</p>
         ${this.confirming ? this.confirmForm() : html`<div class="row">
@@ -195,13 +228,12 @@ export class PhxSecurity extends SignalWatcher(LitElement) {
           <button @click=${() => (this.codes = [])}>${t("security.recovery_done")}</button>
         </div>
       </div>` : ""}
-    </section>`;
+    </div></section>`;
   }
 
   private passkeySection(s: Security) {
-    return html`<section>
-      <h2>${t("security.passkeys_title")}</h2>
-      <p class="muted">${t("security.passkeys_intro")}</p>
+    return html`<section class="scard">
+      <header><h2>${t("security.passkeys_title")}</h2><p>${t("security.passkeys_intro")}</p></header><div class="body">
       ${s.passkeys.length === 0 ? html`<p class="muted">${t("security.passkey_none")}</p>` : html`<ul class="pk">
         ${s.passkeys.map((p) => html`<li>
           ${this.renaming === p.id
@@ -221,17 +253,17 @@ export class PhxSecurity extends SignalWatcher(LitElement) {
             <button type="submit" ?disabled=${this.busy}>${t("security.passkey_add")}</button>
             <button type="button" class="ghost" @click=${() => (this.adding = false)}>${t("doc.cancel")}</button></form>`
         : html`<button class="ghost" @click=${() => (this.adding = true)}>${icon("Plus", 15)} ${t("security.passkey_add")}</button>`}
-    </section>`;
+    </div></section>`;
   }
 
   render() {
     const s = this.sec;
     return html`<div class="enter">
-      <h1>${t("security.title")}</h1>
-      ${settingsNav("security")}
+      ${pageHead(t("sx.me.security"), t("sx.me.security_text"))}
       ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
+      ${this.passwordSection()}
       ${s ? html`${this.totpSection(s)}${this.passkeySection(s)}
-        <section><h2>${t("signing.title")}</h2><phx-signing-keys></phx-signing-keys></section>` : html`<p class="muted">${t("app.loading")}</p>`}
+        <section class="scard"><header><h2>${t("signing.title")}</h2></header><div class="body"><phx-signing-keys></phx-signing-keys></div></section>` : html`<p class="muted">${t("app.loading")}</p>`}
     </div>`;
   }
 }

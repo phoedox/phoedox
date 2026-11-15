@@ -4,7 +4,7 @@ import { ApiError, api } from "../api";
 import { locale, t } from "../i18n";
 import { dollars } from "../ai-chat";
 import { icon } from "../icon";
-import { settingsNav, settingsNavStyles } from "./settings-nav";
+import { pageHead, scard, settingsUI, srow, sswitch } from "./settings-ui";
 import { base } from "./shared";
 import "./ai-providers";
 import type { AIProvider } from "./ai-providers";
@@ -13,15 +13,15 @@ import { toast } from "./toasts";
 interface AIChat { enabled: boolean; configured: boolean; defaultModel: string; orgBudget: number; userBudget: number; instanceCap: number; usedCents: number; chargedCents?: number }
 interface Settings { aiChat: AIChat; aiEnabled: boolean; quotaProjectMb: number; vulnCheck: boolean; pluginBeta: boolean; signup: boolean; vault: { kind: string; url: string; connected: boolean }; tools?: Record<string, boolean> }
 
-/** Instance settings for system admins. */
+/** Instance settings for system admins, one section per page of the
+ * administration (ADR-0070): sign-up, ai, storage, security, plugins. */
 export class PhxAdminSettings extends SignalWatcher(LitElement) {
-  static properties = { s: { state: true }, providers: { state: true } };
+  static properties = { s: { state: true }, providers: { state: true }, section: {} };
   providers: AIProvider[] = [];
-  static styles = [base, settingsNavStyles, css`
-    :host { display: block; max-width: 760px; margin: 0 auto; padding: 28px 16px; }
-    h1 { margin-bottom: 16px; }
-    label.switch { display: flex; gap: 10px; align-items: center; font-weight: 600; font-size: 15px; }
-    label.switch input { width: auto; }
+  section: "signup" | "ai" | "storage" | "security" | "plugins" = "ai";
+  static styles = [base, settingsUI, css`
+    :host { display: block; }
+    .scard .body p { margin: 0 0 10px; }
     p { max-width: 620px; line-height: 1.5; }
     h2 { font-size: 18px; margin: 28px 0 10px; }
     h3 { font-size: 15px; margin: 18px 0 6px; }
@@ -42,9 +42,9 @@ export class PhxAdminSettings extends SignalWatcher(LitElement) {
 
   private aiChat(c: AIChat) {
     const val = (cents: number) => (cents ? (cents / 100).toFixed(2) : "");
-    return html`<h2>${icon("BotMessageSquare", 16)} ${t("admin.ai_chat")}</h2>
-      <p class="muted">${t("admin.ai_chat_hint")}</p>
-      <h3>${t("ai_providers.title")}</h3>
+    return html`${scard(t("admin.ai_chat"), t("admin.ai_chat_hint"), html`
+      ${srow(t("admin.ai_chat_enabled"), c.configured ? "" : t("admin.ai_chat_not_configured"), sswitch(c.enabled, t("admin.ai_chat_enabled"), (on) => this.set({ aiChat: { enabled: on } } as any), !c.configured))}`)}
+      <section class="scard"><header><h2>${t("ai_providers.title")}</h2></header><div class="body">
       <p class="muted">${t("ai_providers.intro_instance")}</p>
       <phx-ai-providers @changed=${(e: CustomEvent<AIProvider[]>) => { this.providers = e.detail; void this.reloadSettings(); }}></phx-ai-providers>
       ${c.configured ? html`<label class="field" style="max-width:420px;margin-top:12px">${t("admin.ai_chat_default_model")}
@@ -53,9 +53,9 @@ export class PhxAdminSettings extends SignalWatcher(LitElement) {
             ${this.providers.filter((p) => p.enabled).flatMap((p) => p.models.map((m) => html`<option value=${`${p.id}/${m.id}`} ?selected=${c.defaultModel === `${p.id}/${m.id}`}>${p.name}: ${m.label || m.id}</option>`))}
           </select></label>`
         : html`<p class="muted">${icon("CircleAlert", 14)} ${t("admin.ai_chat_not_configured")}</p>`}
-      <label class="switch"><input type="checkbox" .checked=${c.enabled} ?disabled=${!c.configured}
-        @change=${(e: Event) => this.set({ aiChat: { enabled: (e.target as HTMLInputElement).checked } } as any)} /> ${t("admin.ai_chat_enabled")}</label>
-      <form style="display:grid;gap:8px;max-width:520px;margin-top:12px" @submit=${(e: SubmitEvent) => {
+      </div></section>
+      <section class="scard"><header><h2>${t("sx.admin.budgets")}</h2><p>${t("admin.ai_chat_budget_hint")}</p></header><div class="body">
+      <form style="display:grid;gap:8px;max-width:520px" @submit=${(e: SubmitEvent) => {
         e.preventDefault();
         const f = new FormData(e.target as HTMLFormElement);
         void this.set({ aiChat: { orgBudget: this.cents(f, "org"), userBudget: this.cents(f, "user"), instanceCap: this.cents(f, "cap") } } as any);
@@ -65,7 +65,7 @@ export class PhxAdminSettings extends SignalWatcher(LitElement) {
         <label class="field">${t("admin.ai_chat_cap")}<input name="cap" type="number" min="0" step="0.01" .value=${val(c.instanceCap)} placeholder="∞" style="max-width:180px"></label>
         <div><button>${t("profile.save")}</button></div>
       </form>
-      <p class="muted">${t("admin.ai_chat_used_cost", { cost: dollars(c.usedCents, locale()), charged: dollars(c.chargedCents ?? 0, locale()) })} ${t("admin.ai_chat_budget_hint")}</p>`;
+      <p class="muted" style="margin-top:10px">${t("admin.ai_chat_used_cost", { cost: dollars(c.usedCents, locale()), charged: dollars(c.chargedCents ?? 0, locale()) })}</p></div></section>`;
   }
 
   private async reloadSettings() {
@@ -81,45 +81,51 @@ export class PhxAdminSettings extends SignalWatcher(LitElement) {
     }
   }
 
+  private vault() {
+    const v = this.s!.vault;
+    return scard(t("admin.vault"), t("admin.vault_hint"), html`<div class="body"><form style="display:grid;gap:8px;max-width:520px" @submit=${(e: SubmitEvent) => {
+      e.preventDefault();
+      const f = new FormData(e.target as HTMLFormElement);
+      const token = String(f.get("vtoken") ?? "");
+      void this.set({ vaultKind: String(f.get("vkind") ?? ""), vaultUrl: String(f.get("vurl") ?? ""), ...(token ? { vaultToken: token } : {}) } as any);
+    }}>
+      <label class="field">${t("admin.vault_kind")}<select name="vkind">
+        <option value="" ?selected=${!v?.kind}>${t("admin.vault_none")}</option>
+        <option value="hashicorp" ?selected=${v?.kind === "hashicorp"}>HashiCorp Vault / OpenBao (KV)</option>
+        <option value="onepassword" ?selected=${v?.kind === "onepassword"}>1Password Connect</option></select></label>
+      <label class="field">${t("admin.vault_url")}<input name="vurl" type="url" .value=${v?.url ?? ""} placeholder="https://vault.example.org"></label>
+      <label class="field">${t("admin.vault_token")}<input name="vtoken" type="password" autocomplete="off" placeholder=${v?.connected ? t("notif.matrix_token_kept") : ""}></label>
+      <div><button>${t("profile.save")}</button></div>
+    </form></div>`);
+  }
+
+  private body() {
+    const s = this.s!;
+    switch (this.section) {
+      case "signup":
+        return html`${pageHead(t("sx.admin.signup"), t("sx.admin.signup_text"))}
+          ${scard(t("sx.admin.signup_card"), "", srow(t("admin.signup"), t("admin.signup_hint"), sswitch(s.signup, t("admin.signup"), (on) => this.set({ signup: on }))))}
+          ${scard(t("sx.admin.mail"), t("sx.admin.mail_text"), html`<div class="body"><code class="mono">phx admin test-mail --email you@example.org</code></div>`)}`;
+      case "ai":
+        return html`${pageHead(t("sx.admin.ai"), t("sx.admin.ai_text"))}
+          ${scard(t("sx.admin.ai_access"), "", srow(t("admin.ai"), t("admin.ai_hint"), sswitch(s.aiEnabled, t("admin.ai"), (on) => this.set({ aiEnabled: on }))))}
+          ${s.aiChat ? this.aiChat(s.aiChat) : ""}`;
+      case "storage":
+        return html`${pageHead(t("sx.admin.storage"), "")}
+          ${scard(t("admin.files"), "", html`${srow(t("admin.quota"), t("admin.quota_hint"), html`<form class="row" style="flex-wrap:nowrap" @submit=${(e: SubmitEvent) => { e.preventDefault(); this.set({ quotaProjectMb: Number(new FormData(e.target as HTMLFormElement).get("quota") || 0) }); }}>
+              <input name="quota" type="number" min="0" .value=${String(s.quotaProjectMb || "")} placeholder="∞" style="width:120px" aria-label=${t("admin.quota")}> MB <button class="ghost" type="submit">${t("doc.save")}</button></form>`)}
+            ${srow(t("sx.admin.tools"), t("admin.tools_hint"), html`<span class="row">${(["pdf", "ocr", "virus_scan"] as const).map((k) => html`<span class="chip">${icon(s.tools?.[k] ? "Check" : "X", 13)} ${t(`admin.tool.${k}`)}</span>`)}</span>`)}`)}`;
+      case "security":
+        return html`${pageHead(t("sx.admin.security"), "")}
+          ${scard(t("sx.admin.checks"), "", srow(t("admin.vuln_check"), t("admin.vuln_check_hint"), sswitch(s.vulnCheck, t("admin.vuln_check"), (on) => this.set({ vulnCheck: on }))))}
+          ${this.vault()}`;
+      case "plugins":
+        return scard(t("sx.admin.plugin_updates"), "", srow(t("admin.plugin_beta"), t("admin.plugin_beta_hint"), sswitch(s.pluginBeta, t("admin.plugin_beta"), (on) => this.set({ pluginBeta: on }))));
+    }
+  }
+
   render() {
-    return html`<div class="enter">
-      <h1>${t("admin.title")}</h1>
-      ${settingsNav("instance")}
-      ${this.s ? html`<label class="switch"><input type="checkbox" .checked=${this.s.aiEnabled} @change=${(e: Event) => this.set({ aiEnabled: (e.target as HTMLInputElement).checked })} /> ${t("admin.ai")}</label>
-        <p class="muted">${t("admin.ai_hint")}</p>
-        ${this.s.aiChat ? this.aiChat(this.s.aiChat) : ""}
-        <label class="switch"><input type="checkbox" .checked=${this.s.vulnCheck} @change=${(e: Event) => this.set({ vulnCheck: (e.target as HTMLInputElement).checked })} /> ${t("admin.vuln_check")}</label>
-        <p class="muted">${t("admin.vuln_check_hint")}</p>
-        <label class="switch"><input type="checkbox" .checked=${this.s.pluginBeta} @change=${(e: Event) => this.set({ pluginBeta: (e.target as HTMLInputElement).checked })} /> ${t("admin.plugin_beta")}</label>
-        <p class="muted">${t("admin.plugin_beta_hint")}</p>
-        <label class="switch"><input type="checkbox" .checked=${this.s.signup} @change=${(e: Event) => this.set({ signup: (e.target as HTMLInputElement).checked })} /> ${t("admin.signup")}</label>
-        <p class="muted">${t("admin.signup_hint")}</p>
-        <h2>${icon("Lock", 16)} ${t("admin.vault")}</h2>
-        <p class="muted">${t("admin.vault_hint")}</p>
-        <form style="display:grid;gap:8px;max-width:520px" @submit=${(e: SubmitEvent) => {
-          e.preventDefault();
-          const f = new FormData(e.target as HTMLFormElement);
-          const token = String(f.get("vtoken") ?? "");
-          void this.set({ vaultKind: String(f.get("vkind") ?? ""), vaultUrl: String(f.get("vurl") ?? ""), ...(token ? { vaultToken: token } : {}) } as any);
-        }}>
-          <label class="field">${t("admin.vault_kind")}<select name="vkind">
-            <option value="" ?selected=${!this.s.vault?.kind}>${t("admin.vault_none")}</option>
-            <option value="hashicorp" ?selected=${this.s.vault?.kind === "hashicorp"}>HashiCorp Vault / OpenBao (KV)</option>
-            <option value="onepassword" ?selected=${this.s.vault?.kind === "onepassword"}>1Password Connect</option></select></label>
-          <label class="field">${t("admin.vault_url")}<input name="vurl" type="url" .value=${this.s.vault?.url ?? ""} placeholder="https://vault.example.org"></label>
-          <label class="field">${t("admin.vault_token")}<input name="vtoken" type="password" autocomplete="off" placeholder=${this.s.vault?.connected ? t("notif.matrix_token_kept") : ""}></label>
-          <div><button>${t("profile.save")}</button></div>
-        </form>
-        <h2>${t("admin.files")}</h2>
-        <form @submit=${(e: SubmitEvent) => { e.preventDefault(); this.set({ quotaProjectMb: Number(new FormData(e.target as HTMLFormElement).get("quota") || 0) }); }}>
-          <label class="field">${t("admin.quota")}
-            <span class="row"><input name="quota" type="number" min="0" .value=${String(this.s.quotaProjectMb || "")} placeholder="∞" style="width:160px"> MB
-            <button class="ghost" type="submit">${t("doc.save")}</button></span></label>
-        </form>
-        <p class="muted">${t("admin.quota_hint")}</p>
-        <ul class="tools">${(["pdf", "ocr", "virus_scan"] as const).map((k) => html`<li>${icon(this.s!.tools?.[k] ? "Check" : "X", 14)} ${t(`admin.tool.${k}`)}</li>`)}</ul>
-        <p class="muted">${t("admin.tools_hint")}</p>` : html`<p class="muted">${t("app.loading")}</p>`}
-    </div>`;
+    return html`<div class="enter">${this.s ? this.body() : html`<p class="muted">${t("app.loading")}</p>`}</div>`;
   }
 }
 customElements.define("phx-admin-settings", PhxAdminSettings);

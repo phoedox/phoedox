@@ -36,10 +36,12 @@ const pageStyles = css`
 
 /** Organizations of the user; system admins create them here. */
 export class PhxOrgs extends SignalWatcher(LitElement) {
-  static properties = { orgs: { state: true }, error: { state: true } };
+  static properties = { orgs: { state: true }, error: { state: true }, mode: {} };
   static styles = [base, pageStyles];
   orgs?: Org[];
   error = "";
+  /** In the administration (ADR-0070): "list" of all organisations or "new". */
+  mode: "" | "list" | "new" = "";
 
   async connectedCallback() {
     super.connectedCallback();
@@ -52,7 +54,7 @@ export class PhxOrgs extends SignalWatcher(LitElement) {
     const f = new FormData(e.target as HTMLFormElement);
     try {
       const o = await api<Org>("POST", "/orgs", { name: f.get("name"), usageType: f.get("usage"), adminEmail: f.get("admin") || undefined });
-      navigate(`/orgs/${o.slug}`);
+      navigate(this.mode ? `/admin/orgs/${o.slug}` : `/orgs/${o.slug}`);
     } catch (err) {
       this.error = err instanceof ApiError ? err.text : t("error.unknown");
     }
@@ -60,30 +62,40 @@ export class PhxOrgs extends SignalWatcher(LitElement) {
 
   render() {
     const admin = currentUser.get()?.isAdmin;
+    if (this.mode === "new") {
+      return html`<div class="enter"><h1>${t("orgs.new")}</h1><p class="muted">${t("sx.admin.org_new_text")}</p>${admin ? this.form() : ""}</div>`;
+    }
+    const base = this.mode ? "/admin/orgs" : "/orgs";
     return html`<div class="enter">
-      <h1>${t("orgs.title")}</h1>
+      <h1>${t(this.mode ? "sx.admin.orgs" : "orgs.title")}</h1>
       <p class="muted">${t("orgs.intro")}</p>
-      ${this.orgs?.length ? html`<div class="grid">${this.orgs.map((o) => html`<a class="org card" href="/orgs/${o.slug}">
+      ${this.orgs?.length ? html`<div class="grid">${this.orgs.map((o) => html`<a class="org card" href="${base}/${o.slug}">
         ${icon("Building2", 22)}<span><b>${o.name}</b><br><span class="muted" style="font-size:13px">${t(o.role === "admin" ? "orgs.role.admin" : "orgs.role.member")} · ${t(`orgs.usage.${o.usageType}`)}</span></span></a>`)}</div>`
         : html`<p class="muted">${t(this.orgs ? "orgs.empty" : "app.loading")}</p>`}
-      ${admin ? html`<h2>${icon("Plus", 16)} ${t("orgs.new")}</h2>
-        <form @submit=${this.create} style="display:grid;gap:10px;max-width:480px">
+      ${admin && this.mode === "list" ? html`<p><a class="btn" href="/admin/orgs/new">${icon("Plus", 15)} ${t("orgs.new")}</a></p>` : ""}
+      ${admin && !this.mode ? html`<h2>${icon("Plus", 16)} ${t("orgs.new")}</h2>${this.form()}` : ""}
+    </div>`;
+  }
+
+  private form() {
+    return html`<form @submit=${this.create} style="display:grid;gap:10px;max-width:480px">
           <label class="field">${t("orgs.name")}<input name="name" required maxlength="100"></label>
           <label class="field">${t("orgs.usage")}<select name="usage"><option value="commercial">${t("orgs.usage.commercial")}</option><option value="noncommercial">${t("orgs.usage.noncommercial")}</option></select></label>
           <label class="field">${t("orgs.first_admin")}<input name="admin" type="email" placeholder=${currentUser.get()?.email ?? ""}></label>
           ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
           <div><button>${t("orgs.create")}</button></div>
-        </form>` : ""}
-    </div>`;
+        </form>`;
   }
 }
 customElements.define("phx-orgs", PhxOrgs);
 
 /** One organization: settings, members and groups (admins edit). */
 export class PhxOrg extends SignalWatcher(LitElement) {
-  static properties = { slug: {}, o: { state: true }, error: { state: true } };
+  static properties = { slug: {}, inAdmin: { type: Boolean }, o: { state: true }, error: { state: true } };
   static styles = [base, pageStyles];
   slug = "";
+  /** Shown in the administration (no link back to the own list). */
+  inAdmin = false;
   o?: OrgDetail;
   error = "";
   private loaded = "";
@@ -168,7 +180,7 @@ export class PhxOrg extends SignalWatcher(LitElement) {
     const sys = currentUser.get()?.isAdmin;
     const me = currentUser.get()?.id;
     return html`<div class="enter">
-      <p class="muted" style="margin:0"><a href="/orgs">${t("orgs.title")}</a></p>
+      ${this.inAdmin ? "" : html`<p class="muted" style="margin:0"><a href="/orgs">${t("orgs.title")}</a></p>`}
       <h1>${o.name}</h1>
       <p class="row"><span class="chip">${t(`orgs.usage.${o.usageType}`)}</span><span class="chip">${t(admin ? "orgs.role.admin" : "orgs.role.member")}</span></p>
 
