@@ -3115,4 +3115,7 @@ export const en: Record<keyof typeof de, string> = {
   "block.raw_hint": "The editor cannot show this part as blocks (for example HTML or footnotes), so it is edited as Markdown. The rest of the page stays as it is. Leave it empty to remove the block.",
   "block.raw_source": "Markdown",
   "block.mermaid_error": "This diagram has an error. Edit the block to fix it.",
+  "wb.menu.delete_point": "Delete point",
+  "wb.menu.delete_arrow": "Delete whole arrow",
+  "wb.menu.delete_line": "Delete whole line",
 };

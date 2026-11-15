@@ -7,7 +7,7 @@ import {
   MousePointer2, PenTool, MapPin, Ruler, ImageUp, ZoomIn, ZoomOut, Maximize, LandPlot,
   CircleDashed, RefreshCw, Keyboard, Camera, BrickWall, Import, DoorClosed, Rotate3d,
   HardDrive, Mail, ChevronLeft, GitMerge, Terminal, Radar, AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal, AlignHorizontalSpaceAround, AlignVerticalSpaceAround, Group, Ungroup, Grid3x3, Braces, Activity, Reply, MessageSquare, MessageSquarePlus, Bell, BellOff, BellRing, AtSign, SquareCheckBig, CalendarClock, CircleArrowUp, ShieldAlert, FileArchive, ArrowRightLeft, Loader, PackageOpen, UserX, PanelLeftClose, PanelLeftOpen, Binary, Rows3, HardDriveDownload, MonitorPlay, FileSignature, Pause, FlaskConical, Gift, SquarePen, FolderInput, ChevronsDownUp, ChevronsUpDown, GitCommitHorizontal, GitPullRequest, Circle, BotMessageSquare,
-  Hand, Square, Diamond, MoveUpRight, StickyNote, Wand, Eraser, Video, BookOpen, Spline, BringToFront, SendToBack, Presentation, Scissors, ClipboardPaste, SquareDashedMousePointer, CopyPlus,
+  Hand, Square, Diamond, MoveUpRight, StickyNote, Wand, Eraser, Video, BookOpen, Spline, BringToFront, SendToBack, Presentation, Scissors, ClipboardPaste, SquareDashedMousePointer, CopyPlus, CircleMinus,
 } from "lucide";
 
 type Node = [string, Record<string, string | number>][];
@@ -20,7 +20,7 @@ const icons: Record<string, Node> = {
   MousePointer2, PenTool, MapPin, Ruler, ImageUp, ZoomIn, ZoomOut, Maximize, LandPlot,
   CircleDashed, RefreshCw, Keyboard, Camera, BrickWall, Import, DoorClosed, Rotate3d,
   HardDrive, Mail, ChevronLeft, GitMerge, Terminal, Radar, AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal, AlignHorizontalSpaceAround, AlignVerticalSpaceAround, Group, Ungroup, Grid3x3, Braces, Activity, Reply, MessageSquare, MessageSquarePlus, Bell, BellOff, BellRing, AtSign, SquareCheckBig, CalendarClock, CircleArrowUp, ShieldAlert, FileArchive, ArrowRightLeft, Loader, PackageOpen, UserX, PanelLeftClose, PanelLeftOpen, Binary, Rows3, HardDriveDownload, MonitorPlay, FileSignature, Pause, FlaskConical, Gift, SquarePen, FolderInput, ChevronsDownUp, ChevronsUpDown, GitCommitHorizontal, GitPullRequest, Circle, BotMessageSquare,
-  Hand, Square, Diamond, MoveUpRight, StickyNote, Wand, Eraser, Video, BookOpen, Spline, BringToFront, SendToBack, Presentation, Scissors, ClipboardPaste, SquareDashedMousePointer, CopyPlus,
+  Hand, Square, Diamond, MoveUpRight, StickyNote, Wand, Eraser, Video, BookOpen, Spline, BringToFront, SendToBack, Presentation, Scissors, ClipboardPaste, SquareDashedMousePointer, CopyPlus, CircleMinus,
 } as unknown as Record<string, Node>;
 
 /** Renders a Lucide icon by its PascalCase name. */

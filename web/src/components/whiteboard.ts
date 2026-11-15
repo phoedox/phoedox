@@ -232,6 +232,8 @@ export class PhxWhiteboard extends LitElement {
   private painted = false;
   private lastDown = { t: 0, x: 0, y: 0, tool: "" };
   private longPress?: { timer: number; x: number; y: number };
+  /** A clicked point of the selected line or arrow (Delete removes it). */
+  private selPt: { id: string; i: number } | null = null;
   private menuFocus = false;
   private resize?: ResizeObserver;
   private readOnly = true;
@@ -361,6 +363,7 @@ export class PhxWhiteboard extends LitElement {
     this.changed();
   }
   private select(id: string | null) {
+    if (this.selPt?.id !== id) this.selPt = null;
     this.selId = id;
     this.sel = id ? [id] : [];
     this.live?.setSelection(id ?? undefined);
@@ -375,6 +378,7 @@ export class PhxWhiteboard extends LitElement {
       return;
     }
     this.selId = null;
+    this.selPt = null;
     this.sel = uniq;
     this.live?.setSelection(uniq[0]);
     this.paint();
@@ -712,6 +716,14 @@ export class PhxWhiteboard extends LitElement {
         const b = i === 0 ? e.start : i === pts.length - 1 ? e.end : undefined;
         const h = this.handle(g, p[0], p[1], { "data-pt": i, cursor: "move" }, true);
         if (b) h.style.fill = "var(--accent)";
+        if (this.selPt?.id === e.id && this.selPt.i === i) {
+          // The chosen point: larger, with a ring.
+          h.setAttribute("r", String(7 / this.view.z));
+          h.style.fill = "var(--accent)";
+          h.style.stroke = "var(--surface)";
+          const ring = mk("circle", { cx: p[0], cy: p[1], r: 10 / this.view.z }, g);
+          ring.style.cssText = `fill:none;stroke:var(--accent);stroke-width:${1.5 / this.view.z};pointer-events:none`;
+        }
       });
       return;
     }
@@ -1068,13 +1080,17 @@ export class PhxWhiteboard extends LitElement {
         return;
       }
       if (e && pEl) {
+        this.selPt = { id: e.id, i: Number(pEl.dataset.pt) };
         this.drag = { mode: "point", id: e.id, i: Number(pEl.dataset.pt) };
+        this.paint();
+        this.requestUpdate();
         return;
       }
       if (e && mEl) {
         const i = Number(mEl.dataset.mid), pts = linePts(e, this.byId);
         e.points = e.points!.map((p, k) => (k === 0 || k === e.points!.length - 1 ? pts[k] : p));
         e.points.splice(i, 0, [x, y]);
+        this.selPt = { id: e.id, i };
         this.drag = { mode: "point", id: e.id, i };
         this.changed();
         return;
@@ -1460,6 +1476,11 @@ export class PhxWhiteboard extends LitElement {
       this.pop = null;
       this.select(null);
       this.setTool("select");
+      return;
+    }
+    if ((ev.key === "Delete" || ev.key === "Backspace") && this.selPt && this.selId === this.selPt.id && !this.readOnly) {
+      ev.preventDefault();
+      if (!this.removePoint()) this.removeMany(this.selection().filter((e) => !e.locked).map((e) => e.id));
       return;
     }
     if ((ev.key === "Delete" || ev.key === "Backspace") && this.sel.length && !this.readOnly) {
@@ -1968,6 +1989,7 @@ export class PhxWhiteboard extends LitElement {
         <button class="ghost" title=${t("wb.back")} aria-label=${t("wb.back")} @click=${() => set({ order: backKey(this.els()) })}>${icon("SendToBack", 14)}</button>
         <button class="ghost" title=${t("wb.duplicate")} aria-label=${t("wb.duplicate")} @click=${() => this.duplicate()}>${icon("Copy", 14)}</button>
         <button class="ghost" title=${t(e.locked ? "wb.unlock" : "wb.lock")} aria-label=${t(e.locked ? "wb.unlock" : "wb.lock")} aria-pressed=${e.locked ? "true" : "false"} @click=${() => set({ locked: e.locked ? undefined : true })}>${icon("Lock", 14)}</button>
+        ${lin && this.selPt?.id === e.id ? html`<button class="ghost danger" title=${t("wb.menu.delete_point")} aria-label=${t("wb.menu.delete_point")} ?disabled=${(e.points?.length ?? 0) <= 2 || e.locked} @click=${() => this.removePoint()}>${icon("CircleMinus", 14)}</button>` : nothing}
         <button class="ghost danger" title=${t("wb.delete")} aria-label=${t("wb.delete")} @click=${() => this.removeEl(e.id)}>${icon("Trash2", 14)}</button>
         ${e.entity ? html`<a class="btn ghost" style="height:28px;padding:0 8px;font-size:12px" href="/p/${this.project}/e/${e.entity}" @click=${(ev: MouseEvent) => { if (!ev.ctrlKey && !ev.metaKey && ev.button === 0) { ev.preventDefault(); navigate(`/p/${this.project}/e/${e.entity}`); } }}>${icon("ExternalLink", 13)} ${t("wb.open_entry")}</a>` : nothing}
       </div>
@@ -2121,7 +2143,13 @@ export class PhxWhiteboard extends LitElement {
   private onContextMenu = (ev: MouseEvent) => {
     ev.preventDefault();
     if (this.present >= 0) return;
+    const pt = (ev.composedPath()[0] as Element).closest?.("[data-pt]") as HTMLElement | null;
+    const keep = pt && this.selId ? { id: this.selId, i: Number(pt.dataset.pt) } : null;
     this.openMenu(ev.clientX, ev.clientY);
+    if (keep && this.selId === keep.id) {
+      this.selPt = keep;
+      this.paint();
+    }
   };
 
   private onOutside = (ev: PointerEvent) => {
@@ -2206,6 +2234,21 @@ export class PhxWhiteboard extends LitElement {
       this.menu = null;
       this.svgEl.focus();
     }
+  }
+
+  /** Removes the chosen point of a line; false when only two points are left. */
+  private removePoint(): boolean {
+    const p = this.selPt, e = p ? this.byId(p.id) : undefined;
+    if (!p || !e?.points || e.locked || e.points.length <= 2) return false;
+    const n = e.points.length;
+    // Bound ends: the end that loses its point also loses its binding.
+    e.points = linePts(e, this.byId).map((q, k) => (k === 0 || k === n - 1 ? q : e.points![k]));
+    if (p.i === 0) delete e.start;
+    if (p.i === n - 1) delete e.end;
+    e.points.splice(p.i, 1);
+    this.selPt = { id: e.id, i: Math.min(p.i, e.points.length - 1) };
+    this.changed();
+    return true;
   }
 
   /** Applies a change to every selected element that is not locked. */
@@ -2296,7 +2339,8 @@ export class PhxWhiteboard extends LitElement {
         ${item(allLocked ? "LockOpen" : "Lock", t(allLocked ? "wb.unlock" : "wb.lock"), () => { for (const e of sel) e.locked = allLocked ? undefined : true; this.changed(); })}
         ${item("MessageSquarePlus", t("wb.menu.add_comment"), () => (this.pop = { kind: "newcomment", x: m.wx, y: m.wy, element: one && one.type !== "frame" ? one.id : undefined }))}
         ${sep}
-        ${item("Trash2", t("wb.menu.delete"), () => this.removeMany(free.map((e) => e.id)), { key: t("wb.key_del"), danger: true, dis: !free.length })}
+        ${one && this.selPt?.id === one.id ? item("CircleMinus", t("wb.menu.delete_point"), () => this.removePoint(), { key: t("wb.key_del"), danger: true, dis: one.locked || (one.points?.length ?? 0) <= 2 }) : nothing}
+        ${item("Trash2", one && this.selPt?.id === one.id ? t(one.type === "arrow" ? "wb.menu.delete_arrow" : "wb.menu.delete_line") : t("wb.menu.delete"), () => this.removeMany(free.map((e) => e.id)), { key: one && this.selPt?.id === one.id ? undefined : t("wb.key_del"), danger: true, dis: !free.length })}
         ${free.length < sel.length ? html`<div class="note">${t("wb.menu.locked")}</div>` : nothing}`}`;
     }
     return html`<div class="menu" role="menu" aria-label=${t("wb.menu")} style="left:${m.x}px;top:${m.y}px" @keydown=${(e: KeyboardEvent) => this.menuKey(e)} @contextmenu=${(e: Event) => e.preventDefault()}>${body}</div>`;

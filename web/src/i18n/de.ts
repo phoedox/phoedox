@@ -3113,4 +3113,7 @@ export const de = {
   "block.raw_hint": "Diesen Teil kann der Editor nicht als Blöcke zeigen (zum Beispiel HTML oder Fußnoten), daher wird er als Markdown bearbeitet. Der Rest der Seite bleibt, wie er ist. Leer lassen, um den Block zu entfernen.",
   "block.raw_source": "Markdown",
   "block.mermaid_error": "Dieses Diagramm enthält einen Fehler. Bearbeite den Block, um ihn zu beheben.",
+  "wb.menu.delete_point": "Punkt löschen",
+  "wb.menu.delete_arrow": "Ganzen Pfeil löschen",
+  "wb.menu.delete_line": "Ganze Linie löschen",
 } as const;
