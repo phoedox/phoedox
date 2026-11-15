@@ -23,6 +23,7 @@ export interface ChatModel {
   model: string;
   label: string;
   own?: boolean;
+  price?: { input: number; output: number };
 }
 
 export interface ChatModels {
@@ -69,7 +70,7 @@ export interface ChatView extends Chat {
 }
 
 export interface ChatEvent {
-  type: "text" | "tool" | "tool_done" | "proposal" | "notice" | "done" | "error";
+  type: "text" | "tool" | "tool_done" | "proposal" | "question" | "notice" | "done" | "error";
   text?: string;
   tool?: string;
   ok?: boolean;
@@ -103,7 +104,7 @@ export function parseSSE(buf: string): { events: ChatEvent[]; rest: string } {
 }
 
 /** Sends a message and calls onEvent for each event of the answer. */
-export async function sendMessage(project: string, chat: string, body: { text: string; document?: string; language?: string; model?: string },
+export async function sendMessage(project: string, chat: string, body: { text: string; document?: string; language?: string; model?: string; answers?: Record<string, string> },
   onEvent: (e: ChatEvent) => void, signal?: AbortSignal): Promise<void> {
   let res: Response;
   try {

@@ -55,7 +55,8 @@ type AIUsage struct {
 	OutputTokens int64
 	CacheRead    int64
 	CacheWrite   int64
-	CostMicros   int64 // US dollars × 10⁶
+	CostMicros   int64 // what the provider charges, US dollars × 10⁶
+	ChargeMicros int64 // what counts against budgets (in-app price)
 	CreatedAt    Time
 }
 
@@ -196,17 +197,18 @@ func (d *DB) AIProposals(ctx context.Context, chatID string) (map[string]AIPropo
 
 // AddAIUsage writes one entry of the usage ledger.
 func (d *DB) AddAIUsage(ctx context.Context, u AIUsage) error {
-	_, err := d.Exec(ctx, `INSERT INTO ai_usage (id, tenant_id, org_id, user_id, project_id, chat_id, provider_id, own_key, model, input_tokens, output_tokens, cache_read, cache_write, cost_micros, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, TenantOf(ctx), u.OrgID, u.UserID, u.ProjectID, u.ChatID, u.ProviderID, u.OwnKey, u.Model, u.InputTokens, u.OutputTokens, u.CacheRead, u.CacheWrite, u.CostMicros, u.CreatedAt)
+	_, err := d.Exec(ctx, `INSERT INTO ai_usage (id, tenant_id, org_id, user_id, project_id, chat_id, provider_id, own_key, model, input_tokens, output_tokens, cache_read, cache_write, cost_micros, charge_micros, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, TenantOf(ctx), u.OrgID, u.UserID, u.ProjectID, u.ChatID, u.ProviderID, u.OwnKey, u.Model, u.InputTokens, u.OutputTokens, u.CacheRead, u.CacheWrite, u.CostMicros, u.ChargeMicros, u.CreatedAt)
 	return err
 }
 
-// AIUsageSince sums the cost (micro-dollars) since a time, for an
-// organization ("" = projects outside organizations) and optionally one user;
-// instanceOnly leaves out calls paid with the organization's own keys.
+// AIUsageSince sums the charged amount (micro-dollars, in-app prices) since
+// a time, for an organization ("" = projects outside organizations) and
+// optionally one user; instanceOnly leaves out calls paid with the
+// organization's own keys.
 func (d *DB) AIUsageSince(ctx context.Context, orgID, userID string, since time.Time, instanceOnly bool) (int64, error) {
-	q := `SELECT COALESCE(SUM(cost_micros), 0) FROM ai_usage WHERE org_id = ? AND created_at >= ?`
+	q := `SELECT COALESCE(SUM(charge_micros), 0) FROM ai_usage WHERE org_id = ? AND created_at >= ?`
 	args := []any{orgID, Time{since}}
 	if instanceOnly {
 		q += ` AND own_key = ?`
@@ -229,11 +231,29 @@ func (d *DB) AIUsageTotalSince(ctx context.Context, since time.Time) (int64, err
 	return n, err
 }
 
+// AIChargedTotalSince sums what was charged on the instance's models since
+// a time (in-app prices).
+func (d *DB) AIChargedTotalSince(ctx context.Context, since time.Time) (int64, error) {
+	var n int64
+	err := d.QueryRow(ctx, `SELECT COALESCE(SUM(charge_micros), 0) FROM ai_usage WHERE created_at >= ? AND own_key = ?`, Time{since}, false).Scan(&n)
+	return n, err
+}
+
 // AIModel is a model of a provider with its prices in US dollars per
-// million tokens (0 = free, e.g. a local model).
+// million tokens (0 = free, e.g. a local model): what the provider charges,
+// and optionally an own price in Phoedox (Charge, nil = the provider's).
 type AIModel struct {
-	ID         string  `json:"id"`
-	Label      string  `json:"label,omitempty"`
+	ID         string   `json:"id"`
+	Label      string   `json:"label,omitempty"`
+	Input      float64  `json:"input"`
+	Output     float64  `json:"output"`
+	CacheRead  float64  `json:"cacheRead"`
+	CacheWrite float64  `json:"cacheWrite"`
+	Charge     *AIPrice `json:"charge,omitempty"`
+}
+
+// AIPrice is a price in US dollars per million tokens.
+type AIPrice struct {
 	Input      float64 `json:"input"`
 	Output     float64 `json:"output"`
 	CacheRead  float64 `json:"cacheRead"`

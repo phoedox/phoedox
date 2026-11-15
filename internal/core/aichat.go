@@ -36,8 +36,10 @@ type AIChatSettings struct {
 	OrgBudget   int `json:"orgBudget"`
 	UserBudget  int `json:"userBudget"`
 	InstanceCap int `json:"instanceCap"`
-	// UsedCents is the cost of this month (read only).
-	UsedCents int64 `json:"usedCents"`
+	// UsedCents is what the providers cost this month, ChargedCents what
+	// people were charged (in-app prices; read only).
+	UsedCents    int64 `json:"usedCents"`
+	ChargedCents int64 `json:"chargedCents"`
 }
 
 // AIChatPatch changes the instance settings of the AI chat.
@@ -79,6 +81,8 @@ func (s *Service) aiChatSettings(ctx context.Context) AIChatSettings {
 		InstanceCap: s.intSetting(ctx, settingAIChatCap, 0),
 		UsedCents:   centsOf(used),
 	}
+	charged, _ := s.DB.AIChargedTotalSince(ctx, monthStart(time.Now()))
+	out.ChargedCents = centsOf(charged)
 	return out
 }
 
@@ -317,14 +321,15 @@ func (s *Service) ChatStatus(ctx context.Context, a Actor, ref string) (ChatStat
 	return cs, nil
 }
 
-// RecordAIUsage writes a model call to the usage ledger and returns its
-// cost in micro-dollars.
+// RecordAIUsage writes a model call to the usage ledger and returns the
+// charged amount in micro-dollars (the in-app price).
 func (s *Service) RecordAIUsage(ctx context.Context, a Actor, cs ChatStatus, chatID string, m ChatModel, u ai.Usage) int64 {
-	cost := ai.CostMicros(u, m.price)
+	cost := ai.CostMicros(u, m.cost)
+	charge := ai.CostMicros(u, m.charge)
 	_ = s.DB.AddAIUsage(ctx, store.AIUsage{ID: newID(), OrgID: cs.OrgID, UserID: a.User.ID, ProjectID: cs.ProjectID, ChatID: chatID,
 		ProviderID: m.ProviderID, OwnKey: m.Own, Model: u.Model,
-		InputTokens: u.Input, OutputTokens: u.Output, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite, CostMicros: cost, CreatedAt: store.Now()})
-	return cost
+		InputTokens: u.Input, OutputTokens: u.Output, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite, CostMicros: cost, ChargeMicros: charge, CreatedAt: store.Now()})
+	return charge
 }
 
 // AIDraftEdit lets the AI chat write a page into its draft: the draft is

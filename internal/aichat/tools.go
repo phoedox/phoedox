@@ -240,3 +240,79 @@ func firstNonEmpty(v ...string) string {
 	}
 	return ""
 }
+
+var askUserTool = ai.Tool{
+	Name: "ask_user",
+	Description: "Ask the person one to four questions with suggested answers, shown as buttons in the chat. Use it when you need a decision or " +
+		"information and a few answers are likely; the person can always answer in their own words. Your turn ends here and continues with " +
+		"the answers. Do not call other tools in the same turn.",
+	Schema: json.RawMessage(`{
+  "type": "object",
+  "properties": {
+    "questions": {"type": "array", "minItems": 1, "maxItems": 4, "items": {
+      "type": "object",
+      "properties": {
+        "question": {"type": "string", "description": "the full question, ending with a question mark"},
+        "header": {"type": "string", "description": "a short label of at most 20 characters, e.g. \"Audience\""},
+        "options": {"type": "array", "minItems": 2, "maxItems": 6, "items": {
+          "type": "object",
+          "properties": {
+            "label": {"type": "string", "description": "1 to 6 words"},
+            "description": {"type": "string", "description": "what this choice means or implies"}
+          },
+          "required": ["label"]
+        }},
+        "multiSelect": {"type": "boolean", "description": "true if several options can be chosen"}
+      },
+      "required": ["question", "options"]
+    }}
+  },
+  "required": ["questions"]
+}`),
+}
+
+// Questions is the input of ask_user.
+type Questions struct {
+	Questions []struct {
+		Question string `json:"question"`
+		Header   string `json:"header"`
+		Options  []struct {
+			Label       string `json:"label"`
+			Description string `json:"description"`
+		} `json:"options"`
+		MultiSelect bool `json:"multiSelect"`
+	} `json:"questions"`
+}
+
+func validQuestions(raw json.RawMessage) error {
+	var q Questions
+	if err := json.Unmarshal(raw, &q); err != nil {
+		return core.Invalid("validation.ai_tool_input", nil, "invalid questions: %v", err)
+	}
+	if len(q.Questions) == 0 || len(q.Questions) > 4 {
+		return core.Invalid("validation.ai_tool_input", nil, "ask one to four questions")
+	}
+	for i, x := range q.Questions {
+		if strings.TrimSpace(x.Question) == "" || len(x.Question) > 1000 {
+			return core.Invalid("validation.ai_tool_input", nil, "question %d is empty or too long", i+1)
+		}
+		if len(x.Options) < 2 || len(x.Options) > 6 {
+			return core.Invalid("validation.ai_tool_input", nil, "question %d needs two to six options", i+1)
+		}
+		for j, o := range x.Options {
+			if strings.TrimSpace(o.Label) == "" || len(o.Label) > 200 || len(o.Description) > 1000 {
+				return core.Invalid("validation.ai_tool_input", nil, "option %d of question %d has no label or is too long", j+1, i+1)
+			}
+		}
+	}
+	return nil
+}
+
+// askUser only runs when the questions could not be shown (an invalid
+// question call in the same turn); valid questions pause the turn instead.
+func (s *Service) askUser(_ context.Context, _ core.Actor, raw json.RawMessage) (any, error) {
+	if err := validQuestions(raw); err != nil {
+		return nil, err
+	}
+	return nil, core.Invalid("validation.ai_tool_input", nil, "not shown: another question call in this turn was invalid; ask again")
+}

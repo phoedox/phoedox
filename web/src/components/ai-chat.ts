@@ -9,6 +9,9 @@ import { docsVersion } from "../state";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
+interface Choice { picked: number[]; other: string }
+interface AskInput { questions: { question: string; header?: string; options: { label: string; description?: string }[]; multiSelect?: boolean }[] }
+
 /** What is streaming in while the model answers. */
 interface Live {
   text: string;
@@ -23,7 +26,7 @@ const tr = (key: string, vars: Record<string, unknown> = {}) => (hasKey(key) ? t
 export class PhxAIChat extends LitElement {
   static properties = {
     project: {}, doc: {}, status: { state: true }, chats: { state: true }, view: { state: true }, draft: { state: true }, busy: { state: true },
-    live: { state: true }, picks: { state: true }, error: { state: true }, pending: { state: true }, models: { state: true }, model: { state: true },
+    live: { state: true }, picks: { state: true }, choices: { state: true }, error: { state: true }, pending: { state: true }, models: { state: true }, model: { state: true },
   };
   static styles = [base, css`
     :host { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--surface); border-left: 1px solid var(--line); }
@@ -51,6 +54,17 @@ export class PhxAIChat extends LitElement {
     .proposal .desc { color: var(--muted); font-size: 12px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
     .proposal .done { font-size: 13px; }
     .proposal .done ul { margin: 4px 0 0; padding-left: 18px; }
+    .ask { border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 10px; background: var(--bg); }
+    .ask fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 6px; min-width: 0; }
+    .ask legend { font-size: 14px; font-weight: 600; padding: 0; margin-bottom: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .ask .opts { display: grid; gap: 4px; }
+    .ask .opt { display: grid; gap: 2px; justify-items: start; text-align: left; font-weight: 400; background: var(--surface); color: var(--fg); border-color: var(--line); padding: 7px 10px; }
+    .ask .opt span { font-size: 12px; color: var(--muted); }
+    .ask .opt.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+    .ask input { font-size: 13px; padding: 6px 8px; }
+    .ask .hint { font-size: 11px; color: var(--muted); }
+    .ask .answered { margin: 0; font-size: 13px; white-space: pre-wrap; color: var(--muted); display: flex; gap: 6px; }
+    .ask fieldset:disabled .opt { cursor: default; opacity: 0.85; }
     .notice { font-size: 13px; color: var(--muted); border-left: 3px solid var(--warn, var(--accent)); padding: 4px 10px; }
     .empty { margin: auto 0; display: grid; gap: 10px; color: var(--muted); font-size: 14px; }
     .empty .starters { display: grid; gap: 6px; }
@@ -81,6 +95,8 @@ export class PhxAIChat extends LitElement {
   live?: Live;
   /** Chosen cards per proposal (indexes). */
   picks: Record<string, Set<number>> = {};
+  /** Answers being chosen, by ask_user call id and question index. */
+  choices: Record<string, Record<number, Choice>> = {};
   error = "";
   /** The message being sent, shown until the chat reloads. */
   pending = "";
@@ -140,10 +156,11 @@ export class PhxAIChat extends LitElement {
     if (log) log.scrollTop = log.scrollHeight;
   }
 
-  private async send(e?: Event) {
+  private async send(e?: Event, answers?: Record<string, string>) {
     e?.preventDefault();
     const text = this.draft.trim();
-    if (!text || this.busy) return;
+    // Typed text answers open questions in the person's own words.
+    if ((!text && !answers) || this.busy) return;
     this.busy = true;
     this.error = "";
     try {
@@ -155,11 +172,11 @@ export class PhxAIChat extends LitElement {
         this.view = chat;
       }
       this.draft = "";
-      this.pending = text;
+      this.pending = text || Object.values(answers ?? {}).join("\n\n");
       this.live = { text: "", tools: [] };
       this.abort = new AbortController();
       let wrote = false;
-      await sendMessage(this.project, chat.id, { text, document: this.doc || undefined, language: locale(), model: this.model || undefined }, (ev) => {
+      await sendMessage(this.project, chat.id, { text, document: this.doc || undefined, language: locale(), model: this.model || undefined, answers }, (ev) => {
         wrote = this.onEvent(ev) || wrote;
       }, this.abort.signal);
       if (wrote) docsVersion.set(docsVersion.get() + 1);
@@ -225,6 +242,63 @@ export class PhxAIChat extends LitElement {
     }
   }
 
+  /** Chosen options and own words per question of an open ask_user call. */
+  private choiceOf(id: string, q: number): Choice {
+    return this.choices[id]?.[q] ?? { picked: [], other: "" };
+  }
+
+  private setChoice(id: string, q: number, c: Choice) {
+    this.choices = { ...this.choices, [id]: { ...(this.choices[id] ?? {}), [q]: c } };
+  }
+
+  private pick(id: string, q: number, i: number, multi: boolean) {
+    const c = this.choiceOf(id, q);
+    const picked = multi ? (c.picked.includes(i) ? c.picked.filter((x) => x !== i) : [...c.picked, i]) : [i];
+    this.setChoice(id, q, { ...c, picked });
+  }
+
+  private answer(p: Part) {
+    const qs = (p.input as AskInput | undefined)?.questions ?? [];
+    const id = p.id ?? "";
+    const parts = qs.map((q, k) => {
+      const c = this.choiceOf(id, k);
+      const labels = c.picked.map((i) => q.options[i]?.label).filter(Boolean);
+      const own = c.other.trim();
+      const a = [labels.join(", "), own ? `${t("ai_chat.ask_own")}: ${own}` : ""].filter(Boolean).join(" – ");
+      return a ? `${q.question}\n${a}` : "";
+    });
+    if (parts.some((x) => !x)) {
+      toast(t("ai_chat.ask_incomplete"), "error");
+      return;
+    }
+    void this.send(undefined, { [id]: parts.join("\n\n") });
+  }
+
+  /** Questions of the model with suggested answers (ask_user). */
+  private questions(p: Part, results: Map<string, Part>) {
+    const id = p.id ?? "";
+    const qs = (p.input as AskInput | undefined)?.questions ?? [];
+    const res = results.get(id);
+    if (res?.isError) return this.toolChip(p, results);
+    const open = !res && !this.busy;
+    return html`<div class="ask" role="group" aria-label=${t("ai_chat.ask")}>
+      ${qs.map((q, k) => {
+        const c = this.choiceOf(id, k);
+        return html`<fieldset ?disabled=${!open}>
+          <legend>${q.header ? html`<span class="chip">${q.header}</span>` : nothing} ${q.question}</legend>
+          <div class="opts">${q.options.map((o, i) => html`<button type="button" class=${c.picked.includes(i) ? "opt on" : "opt"} aria-pressed=${c.picked.includes(i) ? "true" : "false"}
+            @click=${() => this.pick(id, k, i, !!q.multiSelect)}><strong>${o.label}</strong>${o.description ? html`<span>${o.description}</span>` : nothing}</button>`)}</div>
+          ${open ? html`<input .value=${c.other} placeholder=${t("ai_chat.ask_other")} aria-label=${t("ai_chat.ask_other")}
+            @input=${(e: Event) => this.setChoice(id, k, { ...c, other: (e.target as HTMLInputElement).value })}
+            @keydown=${(e: KeyboardEvent) => e.key === "Enter" && (e.preventDefault(), this.answer(p))}>` : nothing}
+        </fieldset>`;
+      })}
+      ${open ? html`<div class="row"><button @click=${() => this.answer(p)}>${icon("Send", 14)} ${t("ai_chat.ask_send")}</button>
+        <span class="hint">${t("ai_chat.ask_hint")}</span></div>`
+      : res ? html`<p class="answered">${icon("CircleCheck", 14)} ${(res.text ?? "").replace(/^The person answered:\n/, "").replace(/^The person did not pick an answer; their message follows\.$/, t("ai_chat.ask_free"))}</p>` : nothing}
+    </div>`;
+  }
+
   private toggle(id: string, i: number, count: number) {
     const set = new Set(this.picks[id] ?? Array.from({ length: count }, (_, k) => k));
     if (set.has(i)) set.delete(i);
@@ -288,6 +362,7 @@ export class PhxAIChat extends LitElement {
     return m.parts.map((p) => {
       if (p.type === "text" && p.text?.trim()) return html`<div class="msg ai">${unsafeHTML(renderMarkdown(p.text, this.project))}</div>`;
       if (p.type === "tool_use" && p.name === "propose_cards") return this.proposal(p, results);
+      if (p.type === "tool_use" && p.name === "ask_user") return this.questions(p, results);
       if (p.type === "tool_use") return this.toolChip(p, results);
       return nothing;
     });
@@ -301,7 +376,7 @@ export class PhxAIChat extends LitElement {
     const ms = this.models?.models ?? [];
     return html`<div class="budget" aria-label=${t("ai_chat.budget")}>
       ${ms.length > 1 ? html`<select class="model" aria-label=${t("ai_chat.model")} @change=${(e: Event) => (this.model = (e.target as HTMLSelectElement).value)}>
-        ${ms.map((m) => html`<option value=${m.ref} ?selected=${m.ref === this.model} ?disabled=${!m.own && s.instanceBlocked}>${m.label} · ${m.provider}${m.own ? ` (${t("ai_chat.own_key")})` : ""}</option>`)}
+        ${ms.map((m) => html`<option value=${m.ref} ?selected=${m.ref === this.model} ?disabled=${!m.own && s.instanceBlocked}>${m.label} · ${m.provider}${m.own ? ` (${t("ai_chat.own_key")})` : ""}${m.price && (m.price.input || m.price.output) ? ` · ${t("ai_chat.model_price", { in: m.price.input, out: m.price.output })}` : ""}</option>`)}
       </select>` : ms.length === 1 ? html`<span>${ms[0].label}</span>` : nothing}
       ${part(t("ai_chat.budget_you"), s.userUsed, s.userLimit)}
       ${s.orgLimit || s.orgUsed ? part(t("ai_chat.budget_org"), s.orgUsed, s.orgLimit) : nothing}

@@ -16,6 +16,16 @@ the rules for AI clients apply to everything you change.
   where they help. Link pages with their `url` from tool results.
 - Spend tool calls carefully: every call costs from the person's AI budget.
 
+## Asking the person
+
+- When you need a decision or information and a few answers are likely, use
+  `ask_user` instead of a question in prose: one to four questions, each with
+  two to six short options (add a description where the choice is not
+  obvious). The person can always answer in their own words.
+- Put the option you recommend first and say so in its description.
+- Call no other tool in the same turn; you continue once the answers arrive.
+- Do not ask what you can find out yourself with the tools.
+
 ## Writing into pages (live)
 
 - `edit_page` writes into the page's draft. People who edit the page see your

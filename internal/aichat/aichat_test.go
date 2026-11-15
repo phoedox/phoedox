@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -409,5 +410,88 @@ func TestOrgOwnProvider(t *testing.T) {
 	v, _ := s.Get(ctx, a, p.Slug, chat.ID)
 	if v.Model != models.Models[0].Ref {
 		t.Fatalf("chat model: %q", v.Model)
+	}
+}
+
+// The model asks with suggested answers: the turn pauses, the person's
+// answer goes back as the tool result, and the model continues.
+func TestAskUserPausesAndAnswers(t *testing.T) {
+	ctx := context.Background()
+	s, f, a, p := setup(t)
+	chat, _ := s.Create(ctx, a, p.Slug, "")
+	ask := call("q1", "ask_user", `{"questions":[{"question":"Who reads the concept?","header":"Audience","options":[{"label":"Family"},{"label":"Admins","description":"technical"}]}]}`)
+	f.turns = []ai.Turn{turn("One question first.", ask)}
+	var events []string
+	if err := s.Send(ctx, a, p.Slug, chat.ID, Input{Text: "Write a backup concept"}, func(e Event) { events = append(events, e.Type) }); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(events, "question") || len(f.reqs) != 1 {
+		t.Fatalf("the turn must pause: %v %d", events, len(f.reqs))
+	}
+	// Only answers, no text: allowed.
+	f.turns = []ai.Turn{turn("Then for the family.")}
+	if err := s.Send(ctx, a, p.Slug, chat.ID, Input{Answers: map[string]string{"q1": "Who reads the concept?\nFamily"}}, func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	last := string(f.reqs[1].History[len(f.reqs[1].History)-1].Raw)
+	if !strings.Contains(last, `"tool_use_id":"q1"`) || !strings.Contains(last, "The person answered") || !strings.Contains(last, "Family") {
+		t.Fatalf("answer: %s", last)
+	}
+	v, _ := s.Get(ctx, a, p.Slug, chat.ID)
+	if v.Title != "Write a backup concept" {
+		t.Fatalf("title: %q", v.Title)
+	}
+
+	// An invalid question goes back as an error and the model can fix it.
+	bad := call("q2", "ask_user", `{"questions":[{"question":"Pick?","options":[{"label":"only one"}]}]}`)
+	f.turns = []ai.Turn{turn("", bad), turn("Fixed.")}
+	var failed bool
+	if err := s.Send(ctx, a, p.Slug, chat.ID, Input{Text: "more"}, func(e Event) { failed = failed || (e.Type == "tool_done" && !e.OK) }); err != nil {
+		t.Fatal(err)
+	}
+	if !failed || len(f.reqs) != 4 {
+		t.Fatalf("invalid question: %v %d", failed, len(f.reqs))
+	}
+}
+
+// Models can have their own price in Phoedox; budgets count it, the
+// instance's cap counts the provider's cost.
+func TestInAppPrices(t *testing.T) {
+	ctx := context.Background()
+	s, _, a, p := setup(t)
+	admin := a
+	admin.User.IsAdmin = true
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1000,\"completion_tokens\":100}}\n\ndata: [DONE]\n\n")
+	}))
+	defer srv.Close()
+	prov, err := s.Core.SaveAIProvider(ctx, admin, "", "", core.AIProviderInput{Name: "Gateway", Kind: "openai", BaseURL: srv.URL,
+		Models: []store.AIModel{{ID: "m1", Input: 1, Output: 2, Charge: &store.AIPrice{Input: 3, Output: 10}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ms, _ := s.Core.ProjectChatModels(ctx, a, p.Slug)
+	var ref string
+	for _, m := range ms.Models {
+		if m.ProviderID == prov.ID {
+			ref = m.Ref
+			if m.Price.Input != 3 || m.Price.Output != 10 {
+				t.Fatalf("price shown: %+v", m.Price)
+			}
+		}
+	}
+	chat, _ := s.Create(ctx, a, p.Slug, "")
+	if err := s.Send(ctx, a, p.Slug, chat.ID, Input{Text: "Hi", Model: ref}, func(Event) {}); err != nil {
+		t.Fatal(err)
+	}
+	charged, _ := s.Core.DB.AIUsageSince(ctx, "", a.User.ID, monthStartForTest(), false)
+	cost, _ := s.Core.DB.AIUsageTotalSince(ctx, monthStartForTest())
+	if charged != 1000*3+100*10 || cost != 1000*1+100*2 {
+		t.Fatalf("charged %d, cost %d", charged, cost)
+	}
+	st, _ := s.Core.Settings(ctx, admin)
+	if st.AIChat.ChargedCents != 1 || st.AIChat.UsedCents != 1 {
+		t.Fatalf("settings: %+v", st.AIChat)
 	}
 }

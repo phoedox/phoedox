@@ -64,6 +64,7 @@ func New(c *core.Service) *Service {
 	}
 	s.add(editPageTool, s.editPage)
 	s.add(proposeCardsTool, s.proposeCards)
+	s.add(askUserTool, s.askUser)
 	return s
 }
 
@@ -198,6 +199,8 @@ type Input struct {
 	Language string `json:"language,omitempty"`
 	// Model is the model ref to use ("" = the chat's last model or the default).
 	Model string `json:"model,omitempty"`
+	// Answers to open questions of the model (ask_user), by tool call id.
+	Answers map[string]string `json:"answers,omitempty"`
 }
 
 // Send adds a message of the person and lets the model answer, calling
@@ -208,8 +211,13 @@ func (s *Service) Send(ctx context.Context, a core.Actor, ref, id string, in Inp
 		return err
 	}
 	in.Text = strings.TrimSpace(in.Text)
-	if in.Text == "" {
+	if in.Text == "" && len(in.Answers) == 0 {
 		return core.Invalid("validation.ai_chat_empty", nil, "the message is empty")
+	}
+	for _, ans := range in.Answers {
+		if len(ans) > 20_000 {
+			return core.Invalid("validation.ai_chat_too_long", nil, "the answer is too long")
+		}
 	}
 	if len(in.Text) > 100_000 {
 		return core.Invalid("validation.ai_chat_too_long", nil, "the message is too long")
@@ -246,12 +254,11 @@ func (s *Service) Send(ctx context.Context, a core.Actor, ref, id string, in Inp
 	for _, m := range msgs {
 		history = append(history, ai.Message{Raw: m.Content, Model: m.Model})
 	}
-	// Calls left open (an aborted turn or a limit) are answered first.
+	// Calls left open are answered first: questions with the person's
+	// answers, other calls as not run (an aborted turn or a limit).
 	var open []ai.ToolResult
 	if n := len(msgs); n > 0 && msgs[n-1].Role == "assistant" {
-		for _, call := range ai.OpenCalls(msgs[n-1].Content) {
-			open = append(open, ai.ToolResult{ID: call.ID, Content: "Not run: the turn ended before this call ran.", IsError: true})
-		}
+		open = openResults(ai.OpenCalls(msgs[n-1].Content), in)
 	}
 	text := in.Text
 	if notes := s.proposalNotes(ctx, c.ID, msgs); notes != "" {
@@ -262,7 +269,7 @@ func (s *Service) Send(ctx context.Context, a core.Actor, ref, id string, in Inp
 		return err
 	}
 	history = append(history, ai.Message{Raw: user})
-	if c.Title == "" {
+	if c.Title == "" && in.Text != "" {
 		_ = s.Core.DB.RenameAIChat(ctx, c.ID, core.ChatTitle(in.Text))
 	}
 
@@ -308,6 +315,10 @@ func (s *Service) Send(ctx context.Context, a core.Actor, ref, id string, in Inp
 			emit(Event{Type: "notice", Key: "ai_chat.notice.cut_off"})
 			return nil
 		case len(turn.Calls) == 0:
+			return nil
+		case asksValid(turn.Calls):
+			// The turn pauses until the person answers.
+			emit(Event{Type: "question"})
 			return nil
 		case step == maxSteps-1:
 			emit(Event{Type: "notice", Key: "ai_chat.notice.step_limit"})
@@ -502,4 +513,42 @@ func hasText(raw json.RawMessage) bool {
 		}
 	}
 	return false
+}
+
+// asksValid reports whether the model asked questions that can be shown:
+// at least one ask_user call and all of them valid.
+func asksValid(calls []ai.ToolCall) bool {
+	asked := false
+	for _, c := range calls {
+		if c.Name == askUserTool.Name {
+			if validQuestions(c.Input) != nil {
+				return false
+			}
+			asked = true
+		}
+	}
+	return asked
+}
+
+// openResults answers the calls of the last assistant message that were
+// left open: questions with the person's answers, the rest as not run.
+func openResults(calls []ai.ToolCall, in Input) []ai.ToolResult {
+	paused := false
+	for _, c := range calls {
+		paused = paused || c.Name == askUserTool.Name
+	}
+	out := make([]ai.ToolResult, 0, len(calls))
+	for _, c := range calls {
+		switch {
+		case c.Name == askUserTool.Name && strings.TrimSpace(in.Answers[c.ID]) != "":
+			out = append(out, ai.ToolResult{ID: c.ID, Content: "The person answered:\n" + strings.TrimSpace(in.Answers[c.ID])})
+		case c.Name == askUserTool.Name:
+			out = append(out, ai.ToolResult{ID: c.ID, Content: "The person did not pick an answer; their message follows."})
+		case paused:
+			out = append(out, ai.ToolResult{ID: c.ID, Content: "Not run: the turn paused for the person's answers. Call it again if still needed.", IsError: true})
+		default:
+			out = append(out, ai.ToolResult{ID: c.ID, Content: "Not run: the turn ended before this call ran.", IsError: true})
+		}
+	}
+	return out
 }

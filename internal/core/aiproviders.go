@@ -31,8 +31,11 @@ type ChatModel struct {
 	Model      string `json:"model"`
 	Label      string `json:"label"`
 	// Own: the organization's own provider (its key pays).
-	Own    bool     `json:"own,omitempty"`
-	price  ai.Price `json:"-"`
+	Own bool `json:"own,omitempty"`
+	// Price is what people are charged (US dollars per million tokens).
+	Price  store.AIPrice `json:"price"`
+	cost   ai.Price
+	charge ai.Price
 	source store.AIProvider
 }
 
@@ -64,8 +67,14 @@ func modelsOf(ps []store.AIProvider, own bool) []ChatModel {
 			continue
 		}
 		for _, m := range p.Models {
+			cost := ai.Price{Input: m.Input, Output: m.Output, CacheRead: m.CacheRead, CacheWrite: m.CacheWrite}
+			charge := cost
+			if m.Charge != nil {
+				charge = ai.Price{Input: m.Charge.Input, Output: m.Charge.Output, CacheRead: m.Charge.CacheRead, CacheWrite: m.Charge.CacheWrite}
+			}
 			cm := ChatModel{Ref: p.ID + "/" + m.ID, ProviderID: p.ID, Provider: p.Name, Model: m.ID, Label: m.Label, Own: own,
-				price: ai.Price{Input: m.Input, Output: m.Output, CacheRead: m.CacheRead, CacheWrite: m.CacheWrite}, source: p}
+				Price: store.AIPrice{Input: charge.Input, Output: charge.Output, CacheRead: charge.CacheRead, CacheWrite: charge.CacheWrite},
+				cost:  cost, charge: charge, source: p}
 			cm.Label = cm.name()
 			out = append(out, cm)
 		}
@@ -267,7 +276,11 @@ func validProvider(in AIProviderInput) error {
 			return invalid("validation.ai_model_id", nil, "every model needs its own id")
 		}
 		seen[id] = true
-		for _, p := range []float64{m.Input, m.Output, m.CacheRead, m.CacheWrite} {
+		prices := []float64{m.Input, m.Output, m.CacheRead, m.CacheWrite}
+		if m.Charge != nil {
+			prices = append(prices, m.Charge.Input, m.Charge.Output, m.Charge.CacheRead, m.Charge.CacheWrite)
+		}
+		for _, p := range prices {
 			if p < 0 || p > 10_000 {
 				return invalid("validation.ai_model_price", nil, "prices must be between 0 and 10000 dollars per million tokens")
 			}

@@ -5,7 +5,10 @@ import { icon } from "../icon";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
-export interface AIModel { id: string; label?: string; input: number; output: number; cacheRead: number; cacheWrite: number }
+export interface AIPrice { input: number; output: number; cacheRead: number; cacheWrite: number }
+export interface AIModel extends AIPrice { id: string; label?: string; charge?: AIPrice }
+type PriceKey = keyof AIPrice;
+const PRICE_LABEL = { input: "ai_providers.price_in", output: "ai_providers.price_out", cacheRead: "ai_providers.price_cache_read", cacheWrite: "ai_providers.price_cache_write" } as const;
 export interface AIProvider {
   id: string; orgId?: string; name: string; kind: "anthropic" | "openai"; baseUrl: string; hasKey: boolean; builtIn?: boolean;
   effort?: string; models: AIModel[]; enabled: boolean;
@@ -43,18 +46,20 @@ export class PhxAIProviders extends LitElement {
     .models { display: flex; gap: 4px; flex-wrap: wrap; }
     form { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 10px; background: var(--surface); }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    table { border-collapse: collapse; width: 100%; font-size: 13px; }
-    th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 2px 4px; }
-    td { padding: 2px 4px; }
-    td input { padding: 5px 6px; font-size: 13px; }
-    td.num input { width: 76px; }
-    td button { padding: 4px 6px; }
+    .model { border: 1px solid var(--line); border-radius: 8px; padding: 8px; display: grid; gap: 6px; background: var(--bg); }
+    .model .head { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; }
+    .model input { padding: 5px 6px; font-size: 13px; }
+    .model button { padding: 4px 6px; }
+    .prices { display: grid; grid-template-columns: 110px repeat(4, minmax(0, 1fr)); gap: 6px; align-items: end; }
+    .prices .what { font-size: 12px; color: var(--muted); align-self: center; }
+    label.price { display: grid; gap: 2px; font-size: 11px; color: var(--muted); }
+    label.switch.small { font-size: 13px; }
+    @media (max-width: 600px) { .prices { grid-template-columns: repeat(2, minmax(0, 1fr)); } .prices .what { grid-column: 1 / -1; } .model .head { grid-template-columns: 1fr auto; } }
     .found { display: flex; gap: 4px; flex-wrap: wrap; }
     .found button { font-weight: 400; font-size: 12px; padding: 3px 8px; }
     label.switch { display: flex; gap: 8px; align-items: center; font-size: 14px; }
     label.switch input { width: auto; }
     p.hint { margin: 0; font-size: 12px; color: var(--muted); }
-    .tablewrap { overflow-x: auto; }
     @media (max-width: 600px) { .grid2 { grid-template-columns: 1fr; } }
   `];
   org = "";
@@ -156,6 +161,29 @@ export class PhxAIProviders extends LitElement {
     return Number.isFinite(n) && n >= 0 ? n : 0;
   }
 
+  private priceInputs(p: { input: number; output: number; cacheRead: number; cacheWrite: number } | undefined, base: AIModel, set: (k: PriceKey, v: number) => void) {
+    return (["input", "output", "cacheRead", "cacheWrite"] as const).map((k) => html`<label class="price">${t(PRICE_LABEL[k])}
+      <input type="number" min="0" step="0.001" .value=${p ? String(p[k]) : ""} placeholder=${p ? "" : String(base[k])}
+        @input=${(e: Event) => set(k, this.num((e.target as HTMLInputElement).value))}></label>`);
+  }
+
+  private modelRow(m: AIModel, i: number) {
+    const d = this.draft!;
+    const charge = m.charge;
+    return html`<div class="model">
+      <div class="head">
+        <input required .value=${m.id} placeholder=${t("ai_providers.model_id")} aria-label=${t("ai_providers.model_id")} @input=${(e: Event) => this.setModel(i, { id: (e.target as HTMLInputElement).value })}>
+        <input .value=${m.label ?? ""} placeholder=${t("ai_providers.model_label")} aria-label=${t("ai_providers.model_label")} @input=${(e: Event) => this.setModel(i, { label: (e.target as HTMLInputElement).value })}>
+        <button type="button" class="ghost" aria-label=${t("ai_providers.remove_model")} @click=${() => (this.draft = { ...d, models: d.models.filter((_, k) => k !== i) })}>${icon("X", 13)}</button>
+      </div>
+      <div class="prices"><span class="what">${t("ai_providers.cost")}</span>${this.priceInputs(m, m, (k, v) => this.setModel(i, { [k]: v }))}</div>
+      <label class="switch small"><input type="checkbox" .checked=${!!charge}
+        @change=${(e: Event) => this.setModel(i, { charge: (e.target as HTMLInputElement).checked ? { input: m.input, output: m.output, cacheRead: m.cacheRead, cacheWrite: m.cacheWrite } : undefined })}>
+        ${t("ai_providers.own_price")}</label>
+      ${charge ? html`<div class="prices"><span class="what">${t("ai_providers.charge")}</span>${this.priceInputs(charge, m, (k, v) => this.setModel(i, { charge: { ...charge, [k]: v } }))}</div>` : nothing}
+    </div>`;
+  }
+
   private form() {
     const d = this.draft!;
     const set = (patch: Partial<Draft>) => (this.draft = { ...d, ...patch });
@@ -177,18 +205,7 @@ export class PhxAIProviders extends LitElement {
 
       <strong>${t("ai_providers.models")}</strong>
       <p class="hint">${t("ai_providers.prices_hint")}</p>
-      <div class="tablewrap"><table>
-        <thead><tr><th>${t("ai_providers.model_id")}</th><th>${t("ai_providers.model_label")}</th><th>${t("ai_providers.price_in")}</th><th>${t("ai_providers.price_out")}</th>
-          <th>${t("ai_providers.price_cache_read")}</th><th>${t("ai_providers.price_cache_write")}</th><th></th></tr></thead>
-        <tbody>${d.models.map((m, i) => html`<tr>
-          <td><input required .value=${m.id} aria-label=${t("ai_providers.model_id")} @input=${(e: Event) => this.setModel(i, { id: (e.target as HTMLInputElement).value })}></td>
-          <td><input .value=${m.label ?? ""} aria-label=${t("ai_providers.model_label")} @input=${(e: Event) => this.setModel(i, { label: (e.target as HTMLInputElement).value })}></td>
-          ${(["input", "output", "cacheRead", "cacheWrite"] as const).map((k) => html`<td class="num"><input type="number" min="0" step="0.001" .value=${String(m[k])}
-            aria-label=${t(`ai_providers.price_${k === "input" ? "in" : k === "output" ? "out" : k === "cacheRead" ? "cache_read" : "cache_write"}`)}
-            @input=${(e: Event) => this.setModel(i, { [k]: this.num((e.target as HTMLInputElement).value) })}></td>`)}
-          <td><button type="button" class="ghost" aria-label=${t("ai_providers.remove_model")} @click=${() => (this.draft = { ...d, models: d.models.filter((_, k) => k !== i) })}>${icon("X", 13)}</button></td>
-        </tr>`)}</tbody>
-      </table></div>
+      ${d.models.map((m, i) => this.modelRow(m, i))}
       <div class="row">
         <button type="button" class="ghost" @click=${() => (this.draft = { ...d, models: [...d.models, emptyModel()] })}>${icon("Plus", 13)} ${t("ai_providers.add_model")}</button>
         ${d.id ? html`<button type="button" class="ghost" ?disabled=${this.busy} @click=${this.discover}>${icon("RefreshCw", 13)} ${t("ai_providers.discover")}</button>` : html`<span class="hint">${t("ai_providers.discover_after_save")}</span>`}
@@ -214,7 +231,7 @@ export class PhxAIProviders extends LitElement {
             <button class="danger" aria-label=${t("ai_providers.delete", { name: p.name })} @click=${() => this.removeProvider(p)}>${icon("Trash2", 13)}</button>`}
         </header>
         <div class="meta">${p.baseUrl || (p.kind === "anthropic" ? "api.anthropic.com" : "")} · ${p.hasKey ? t("ai_providers.key_set") : t("ai_providers.key_missing")}</div>
-        <div class="models">${p.models.length ? p.models.map((m) => html`<span class="chip" title=${t("ai_providers.price_title", { in: m.input, out: m.output })}>${m.label || m.id}</span>`)
+        <div class="models">${p.models.length ? p.models.map((m) => html`<span class="chip" title=${t("ai_providers.price_title", { in: (m.charge ?? m).input, out: (m.charge ?? m).output })}>${m.label || m.id}${m.charge ? html` ${icon("Tag", 11)}` : nothing}</span>`)
           : html`<span class="meta">${t("ai_providers.no_models")}</span>`}</div>
       </div>`)}
       ${this.draft ? this.form() : html`<div class="row">
