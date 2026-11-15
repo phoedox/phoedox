@@ -16,7 +16,11 @@ func (a *api) identityRequest(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"clientId": c.ID, "name": c.Name, "host": hostOnly(c.Redirect)})
+	if c.App {
+		writeJSON(w, http.StatusOK, map[string]any{"clientId": c.ID, "name": c.Name, "app": true})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"clientId": c.ID, "name": c.Name, "host": hostOnly(c.Redirect)})
 }
 
 func hostOnly(u string) string {
@@ -66,4 +70,28 @@ func (a *api) identityToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, id)
+}
+
+// appToken finishes the sign-in of the mobile app (ADR-0065): code and
+// PKCE verifier become a personal API token for the device.
+func (a *api) appToken(w http.ResponseWriter, r *http.Request) {
+	if !a.regLimiter.allow("identity:" + clientIP(r)) {
+		writeJSON(w, http.StatusTooManyRequests, errBody("rate_limited", "Too many attempts. Please wait a few minutes."))
+		return
+	}
+	var in struct {
+		Code         string `json:"code"`
+		CodeVerifier string `json:"code_verifier"`
+		Device       string `json:"device"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	token, id, err := a.auth.RedeemApp(r.Context(), in.Code, in.CodeVerifier, in.Device)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"token": token, "name": id.Name, "email": id.Email})
 }

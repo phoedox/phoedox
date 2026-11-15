@@ -34,6 +34,9 @@ type Task struct {
 	// CodeLinks are the commits, releases and pull requests of the card
 	// (filled by the core when listing tasks; ADR-0063).
 	CodeLinks []TaskCodeLink `json:"codeLinks,omitempty"`
+	// Documents are the pages, decisions and other documents linked to the
+	// card (filled by the core; ADR-0064).
+	Documents []TaskDoc `json:"documents,omitempty"`
 }
 
 const taskCols = `t.id, t.project_id, t.board_id, t.column_id, t.position, t.title, t.description, COALESCE(t.assignee_id, ''), t.assignee_text, t.due, t.priority, t.labels,

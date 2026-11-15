@@ -30,6 +30,7 @@ import (
 // origin of a request (used for the resource metadata URL).
 func Handler(svc *core.Service, a *phxauth.Auth, version string, baseURL func(*http.Request) string) http.Handler {
 	servers := &serverCache{byTenant: map[string]cachedServer{}}
+	linkSvc = svc
 	build := func(ctx context.Context) *sdk.Server {
 		server := sdk.NewServer(&sdk.Implementation{Name: "phoedox", Title: "Phoedox", Version: version}, &sdk.ServerOptions{Instructions: resources.Prompt("mcp-instructions")})
 		registerTools(server, svc)
@@ -173,7 +174,7 @@ func tool[In any](s *sdk.Server, name, desc string, fn func(ctx context.Context,
 		if err != nil {
 			return nil, nil, friendly(err)
 		}
-		return result(v), nil, nil
+		return result(withURLs(ctx, v)), nil, nil
 	})
 }
 

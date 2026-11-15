@@ -51,6 +51,7 @@ func (a *api) routes(r chi.Router) {
 	r.Post("/auth/login", a.login)
 	// Server-to-server: a service redeems a sign-in code (ADR-0058).
 	r.Post("/identity/token", a.identityToken)
+	r.Post("/app/token", a.appToken)
 	r.Post("/auth/logout", a.logout)
 	r.Get("/status/{token}", a.publicStatus)
 	// One-time secret links: POST so link previews cannot burn them.
@@ -266,6 +267,7 @@ func (a *api) routes(r chi.Router) {
 			r.Patch("/documents/{d}", a.updateDocument)
 			r.Delete("/documents/{d}", a.deleteDocument)
 			r.Post("/documents/{d}/decide", a.decideDocument)
+			r.Get("/documents/{d}/tasks", a.documentTasks)
 			r.Get("/documents/{d}/versions", a.listVersions)
 			r.Get("/documents/{d}/translations/{lang}", a.getTranslation)
 			r.Put("/documents/{d}/translations/{lang}", a.saveTranslation)
@@ -939,6 +941,11 @@ func (a *api) updateDocument(w http.ResponseWriter, r *http.Request) {
 func (a *api) deleteDocument(w http.ResponseWriter, r *http.Request) {
 	res, err := a.core.DeleteDocument(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"))
 	respond(w, res, err)
+}
+
+func (a *api) documentTasks(w http.ResponseWriter, r *http.Request) {
+	ts, err := a.core.DocumentTasks(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"))
+	respond(w, ts, err)
 }
 
 func (a *api) decideDocument(w http.ResponseWriter, r *http.Request) {

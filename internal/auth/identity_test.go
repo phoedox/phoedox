@@ -66,3 +66,45 @@ func TestIdentity(t *testing.T) {
 		t.Fatal("code used twice")
 	}
 }
+
+func TestAppSignIn(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, store.SQLite, filepath.Join(t.TempDir(), "a.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	a := &Auth{DB: db} // no configured services: the app client is built in
+	u, _ := a.CreateUser(ctx, "jan@example.org", "Jan", "sehr-geheimes-passwort", false)
+	web := core.Actor{User: u, Via: "web"}
+	verifier := "app-verifier-that-is-long-enough-for-pkce-0123456789"
+	sum := sha256.Sum256([]byte(verifier))
+	challenge := base64.RawURLEncoding.EncodeToString(sum[:])
+
+	if c, err := a.IdentityRequest("phoedox-app", "phoedox://signin"); err != nil || !c.App {
+		t.Fatalf("app client: %+v %v", c, err)
+	}
+	if _, err := a.IdentityRequest("phoedox-app", "https://evil.example/cb"); err == nil {
+		t.Fatal("app client with another redirect")
+	}
+	redirect, err := a.ApproveIdentity(ctx, web, "phoedox-app", "phoedox://signin", "st", challenge)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ru, _ := url.Parse(redirect)
+	code := ru.Query().Get("code")
+	if ru.Scheme != "phoedox" || ru.Query().Get("state") != "st" || code == "" {
+		t.Fatalf("redirect: %s", redirect)
+	}
+	token, id, err := a.RedeemApp(ctx, code, verifier, "Pixel 9")
+	if err != nil || token == "" || id.Email != "jan@example.org" {
+		t.Fatalf("redeem: %q %+v %v", token, id, err)
+	}
+	// The token works for the REST API and is listed under the device's name.
+	if _, tok, err := db.UserByToken(ctx, HashSecret(token)); err != nil || tok.Name != "Phoedox app (Pixel 9)" || tok.Access != "write" {
+		t.Fatalf("token: %+v %v", tok, err)
+	}
+	if _, _, err := a.RedeemApp(ctx, code, verifier, "x"); err == nil {
+		t.Fatal("app code reused")
+	}
+}

@@ -115,7 +115,10 @@ export interface Task {
   createdBy: string; createdAt: string; updatedAt: string; doneAt?: string; boardSlug?: string; boardTitle?: string;
   /** Commits, pull requests and releases of the card (ADR-0063). */
   codeLinks?: CodeLink[];
+  /** Pages, decisions and other documents linked to the card (ADR-0064). */
+  documents?: TaskDoc[];
 }
+export interface TaskDoc { id: string; slug: string; title: string; type: Doc["type"]; number?: number }
 /** A GitHub or Gitea/Forgejo repository connected to a project. */
 export interface CodeRepo { id: string; provider: "github" | "gitea"; webUrl: string; owner: string; name: string; tokenVar?: string; lastCheck?: string; lastError?: string }
 export interface CodeLink { id: string; taskId: string; repoId: string; repo: string; kind: "commit" | "release" | "pull"; ref: string; title?: string; url?: string; at?: string; auto?: boolean }

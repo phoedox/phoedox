@@ -125,6 +125,9 @@ type TaskInput struct {
 	Due         string   `json:"due,omitempty"`      // YYYY-MM-DD
 	Priority    int      `json:"priority,omitempty"` // 0 none … 3 high
 	Labels      []string `json:"labels,omitempty"`
+	// Documents are pages, decisions or other documents to link: slugs, ids
+	// or decision numbers like ADR-0003 (ADR-0064).
+	Documents []string `json:"documents,omitempty"`
 }
 
 type TaskPatch struct {
@@ -137,6 +140,9 @@ type TaskPatch struct {
 	Priority    *int      `json:"priority,omitempty"`
 	Labels      *[]string `json:"labels,omitempty"`
 	Board       *string   `json:"board,omitempty"` // move to another board of the project
+	// Documents replaces the linked documents (slugs, ids or ADR-0003);
+	// an empty list removes them all.
+	Documents *[]string `json:"documents,omitempty" jsonschema:"replaces the linked pages and decisions (slugs, ids or ADR-0003); an empty list removes them"`
 }
 
 // boardAccess loads a board document with the needed role.
@@ -264,6 +270,7 @@ func (s *Service) Tasks(ctx context.Context, a Actor, ref string, boardRef, colu
 		}
 	}
 	s.attachCodeLinks(ctx, p.ID, out)
+	s.attachTaskDocs(ctx, a, p, out)
 	return out, nil
 }
 
@@ -302,13 +309,23 @@ func (s *Service) CreateTask(ctx context.Context, a Actor, ref, boardRef string,
 	if col.Done {
 		t.DoneAt = now
 	}
+	docIDs, err := s.resolveTaskDocs(ctx, a, p, in.Documents)
+	if err != nil {
+		return t, err
+	}
 	if err := s.DB.SaveTask(ctx, t); err != nil {
 		return t, err
 	}
-	s.event(ctx, a, "task.create", t.ID, map[string]any{"board": doc.ID, "title": t.Title, "column": t.Column})
+	if len(docIDs) > 0 {
+		if err := s.DB.SetTaskDocs(ctx, p.ID, t.ID, docIDs, a.String()); err != nil {
+			return t, err
+		}
+	}
+	s.event(ctx, a, "task.create", t.ID, map[string]any{"board": doc.ID, "title": t.Title, "column": t.Column, "documents": docIDs})
 	s.taskChanged(ctx, a, p, doc, t, "task.create")
 	s.notifyAssignee(ctx, a, p, doc, t)
-	return s.DB.GetTask(ctx, p.ID, t.ID)
+	t, err = s.DB.GetTask(ctx, p.ID, t.ID)
+	return s.withTaskExtras(ctx, a, p, t), err
 }
 
 // UpdateTask changes or moves a card.
@@ -388,9 +405,32 @@ func (s *Service) UpdateTask(ctx context.Context, a Actor, ref, id string, patch
 	if patch.Labels != nil {
 		t.Labels = cleanLabels(*patch.Labels)
 	}
+	var docIDs []string
+	if patch.Documents != nil {
+		if docIDs, err = s.resolveTaskDocs(ctx, a, p, *patch.Documents); err != nil {
+			return t, err
+		}
+	}
 	t.UpdatedAt = store.Now()
 	if err := s.DB.SaveTask(ctx, t); err != nil {
 		return t, err
+	}
+	if patch.Documents != nil {
+		// Documents the actor cannot see stay linked.
+		see, err := s.docFilter(ctx, a, p)
+		if err != nil {
+			return t, err
+		}
+		if cur, err := s.DB.TaskDocs(ctx, p.ID, t.ID); err == nil {
+			for _, d := range cur {
+				if !see(d.ID, d.Restricted) && !slices.Contains(docIDs, d.ID) {
+					docIDs = append(docIDs, d.ID)
+				}
+			}
+		}
+		if err := s.DB.SetTaskDocs(ctx, p.ID, t.ID, docIDs, a.String()); err != nil {
+			return t, err
+		}
 	}
 	s.event(ctx, a, "task.update", t.ID, map[string]any{"board": t.BoardID, "column": t.Column, "patch": patch})
 	s.taskChanged(ctx, a, p, doc, t, "task.update")
@@ -401,7 +441,8 @@ func (s *Service) UpdateTask(ctx context.Context, a Actor, ref, id string, patch
 	if t.AssigneeID != "" && t.AssigneeID != oldAssignee {
 		s.notifyAssignee(ctx, a, p, doc, t)
 	}
-	return s.DB.GetTask(ctx, p.ID, t.ID)
+	t, err = s.DB.GetTask(ctx, p.ID, t.ID)
+	return s.withTaskExtras(ctx, a, p, t), err
 }
 
 // DeleteTask removes a card.

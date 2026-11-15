@@ -61,7 +61,9 @@ allowed to decide), do not pick one yourself:
 ## Plan work on a board
 
 1. `list_tasks` (optionally `board`, `column`, `assignee`) to avoid duplicates.
-2. `create_task` with a clear title, Markdown description, labels, priority, due date.
+2. `create_task` with a clear title, Markdown description, labels, priority, due date,
+   and `documents` for the pages and decisions the card belongs to (e.g.
+   `["auth-concept", "ADR-0012"]`); `update_task` with `documents` replaces the list.
 3. `update_task` to move cards; moving to the done column completes them.
    `my_tasks` lists what is assigned to the token owner.
 4. When a card is about code and the project has repositories (`list_code_repos`):

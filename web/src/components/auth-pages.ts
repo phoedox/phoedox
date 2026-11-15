@@ -127,7 +127,7 @@ export class PhxIdentify extends SignalWatcher(LitElement) {
     .who b { display: block; }
     ul { margin: 0; padding-left: 20px; line-height: 1.6; }
   `];
-  client?: { clientId: string; name: string; host: string };
+  client?: { clientId: string; name: string; host?: string; app?: boolean };
   error = "";
   busy = false;
   private q = new URLSearchParams(location.search);
@@ -163,6 +163,15 @@ export class PhxIdentify extends SignalWatcher(LitElement) {
     const u = currentUser.get();
     if (this.error) return html`<div class="card">${logo}<h1 style="font-size:20px">${t("identify.title")}</h1><p class="error" role="alert">${this.error}</p></div>`;
     if (!this.client || !u) return html`<div class="card">${logo}<p class="muted">${t("app.loading")}</p></div>`;
+    if (this.client.app) return html`<div class="card">
+      ${logo}
+      <h1 style="font-size:20px">${t("appsignin.title")}</h1>
+      <p class="muted">${t("appsignin.intro")}</p>
+      <div class="who"><span><b>${u.name}</b><span class="muted">${u.email}</span></span></div>
+      <ul class="muted"><li>${t("appsignin.gets")}</li><li>${t("appsignin.revoke")}</li></ul>
+      <button ?disabled=${this.busy} @click=${this.approve}>${t("appsignin.allow")}</button>
+      <div class="links"><a href="#" @click=${(e: Event) => { e.preventDefault(); void this.other(); }}>${t("identify.other")}</a></div>
+    </div>`;
     return html`<div class="card">
       ${logo}
       <h1 style="font-size:20px">${t("identify.title_for", { name: this.client.name })}</h1>

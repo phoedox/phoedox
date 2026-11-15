@@ -38,6 +38,7 @@ func TestMCPTools(t *testing.T) {
 	u, _ := a.CreateUser(ctx, "admin@coph.dev", "Admin", "sehr-geheimes-passwort", false)
 	_, token, _ := a.CreateToken(ctx, u.ID, "Claude", "write", nil)
 	svc := core.New(db)
+	svc.PublicURL = "https://docs.example.org"
 	if _, err := svc.CreateProject(ctx, core.Actor{User: u, Via: "web"}, core.ProjectInput{Name: "Phoedox", AIWriteMode: "direct"}); err != nil {
 		t.Fatal(err)
 	}
@@ -90,6 +91,9 @@ func TestMCPTools(t *testing.T) {
 	if !strings.Contains(out, `"applied": true`) {
 		t.Fatalf("decision not applied: %s", out)
 	}
+	if !strings.Contains(out, `"url": "https://docs.example.org/p/phoedox/d/go-version"`) {
+		t.Fatalf("decision without url: %s", out)
+	}
 	call("update_decision", map[string]any{"project": "phoedox", "document": "go-version", "consequences": "Dockerfile und CI mitziehen."})
 	doc := call("get_document", map[string]any{"project": "phoedox", "document": "go-version"})
 	if !strings.Contains(doc, "Dockerfile und CI mitziehen.") || !strings.Contains(doc, "Immer die aktuelle stabile") || !strings.Contains(doc, `"version": 2`) {
@@ -137,7 +141,11 @@ func TestMCPTools(t *testing.T) {
 		t.Fatalf("update link: %s", l)
 	}
 	call("create_board", map[string]any{"project": "phoedox", "title": "Plan"})
-	call("create_task", map[string]any{"project": "phoedox", "board": "plan", "title": "Erste Karte"})
+	card := call("create_task", map[string]any{"project": "phoedox", "board": "plan", "title": "Erste Karte", "documents": []string{"ADR-0001", "go-version"}})
+	if !strings.Contains(card, `"url": "https://docs.example.org/p/phoedox/d/plan?task=`) || strings.Count(card, `"slug": "go-version"`) != 1 ||
+		!strings.Contains(card, `"url": "https://docs.example.org/p/phoedox/d/go-version"`) {
+		t.Fatalf("card with documents: %s", card)
+	}
 	if _, err := session.CallTool(ctx, &sdk.CallToolParams{Name: "update_board", Arguments: map[string]any{"project": "phoedox", "board": "plan",
 		"columns": []map[string]any{{"id": "doing", "name": "Doing"}, {"id": "done", "name": "Done", "done": true}}}}); err != nil {
 		t.Fatal(err)

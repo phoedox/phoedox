@@ -47,7 +47,7 @@ creates them:
 | Decisions | `list_decisions` first, then `create_decision` / `update_decision`; a replacing decision sets `supersedes`, one that replaces only part of an older decision also `supersedes_partly` and `supersedes_scope` (the older one becomes `partially_superseded`); an open question for people is a `proposed` decision with `options` – they pick one or answer "nothing fits" in Phoedox, and `needsOptions` in `list_decisions` asks for new options |
 | Entries and relations | `get_data_model` first, then `upsert_entity` (one) or `upsert_entities` (up to 200 in one call, e.g. a whole network), `link_entities` (one relation per call), `unlink_entities`, `delete_entity` (to the trash), `define_kind` if no kind fits |
 | Lists over entries | `query_entities` (field and relation conditions), `list_saved_queries`, `run_saved_query`, `list_entities` |
-| Tasks | `list_tasks`, `my_tasks`, `create_task`, `update_task` (move to the done column to finish), `create_board`, `update_board` |
+| Tasks | `list_tasks`, `my_tasks`, `create_task`, `update_task` (move to the done column to finish; `documents` links pages and decisions to the card, several at once), `create_board`, `update_board` |
 | Code on task cards | `list_code_repos` (GitHub or Gitea repositories of the project), `search_commits` (by SHA or message), `link_task_code` (commit, pull request or release on a card; the first release containing a linked commit is added by Phoedox) |
 | Floor plans | create room and device entries first, then `save_floorplan` with the whole plan (read it first when changing) |
 | Quality | `find_documentation_gaps`, `list_duplicates`, `merge_entities`, `change_summary` |
@@ -58,6 +58,13 @@ creates them:
 | Files and links | `list_files` (no contents), `upload_image` (base64 picture → page, entry or task card), `set_project_image` (logo), `create_link`, `archive_link` |
 | Real devices | `list_agent_actions` → `prepare_agent_action`; plugin tools `plugin_*` (e.g. Home Assistant) |
 | Languages | `get_document(lang)`, `translate_document` |
+
+## Links for the user
+
+Every result carries `url` fields: the address of each project, page, decision,
+card (`…/d/<board>?task=<id>`) and entry in Phoedox, and of the suggestions page
+when a write became a suggestion. After creating or changing something, give the
+user that link so they can open it directly.
 
 ## Rules for writing
 

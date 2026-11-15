@@ -12,7 +12,8 @@ import { base } from "./shared";
 import { userAvatar } from "../pictures";
 import { toast } from "./toasts";
 import "./task-code";
-import type { CodeLink } from "../api";
+import "./task-docs";
+import type { CodeLink, TaskDoc } from "../api";
 
 /** Fallback poll; changes normally arrive at once through the event stream. */
 const REFRESH = 60000;
@@ -511,8 +512,9 @@ export class PhxBoard extends LitElement {
       @drop=${(e: DragEvent) => { e.preventDefault(); e.stopPropagation(); if (this.dragging) this.move(this.dragging, col.id, task.id); this.dragging = undefined; this.dropAt = undefined; }}>
       ${coverImage(task.description) ? html`<img class="cover" src=${coverImage(task.description)!} alt="" loading="lazy" draggable="false">` : ""}
       <span class="title">${task.title}</span>
-      ${task.labels.length || task.due || task.priority || task.assigneeName || task.assigneeText || task.codeLinks?.length ? html`<span class="meta">
+      ${task.labels.length || task.due || task.priority || task.assigneeName || task.assigneeText || task.codeLinks?.length || task.documents?.length ? html`<span class="meta">
         ${task.labels.map((l) => html`<span class="label">${l}</span>`)}
+        ${task.documents?.length ? html`<span class="code" title=${task.documents.map((d) => d.title).join(", ")}>${icon("Link", 12)} ${task.documents.length}</span>` : ""}
         ${this.codeBadges(task)}
         ${task.priority ? html`<span class="prio p${task.priority}" title=${t(`board.priority.${task.priority}` as any)}>${icon("Flag", 12)}</span>` : ""}
         ${task.due ? html`<span class=${late ? "late" : ""} title=${t("board.due")}>${icon("CalendarDays", 12)} ${formatDay(task.due)}</span>` : ""}
@@ -573,6 +575,8 @@ export class PhxBoard extends LitElement {
           <label class="field">${t("board.priority")}<select name="priority" ?disabled=${!edit}>${[0, 1, 2, 3].map((p) => html`<option value=${p} ?selected=${p === task.priority}>${t(`board.priority.${p}` as any)}</option>`)}</select></label>
         </div>
         <label class="field">${t("board.labels")}<input name="labels" .value=${task.labels.join(", ")} ?disabled=${!edit} placeholder=${t("board.labels_hint")}></label>
+        <phx-task-docs .project=${this.project} .task=${task.id} .docs=${task.documents ?? []} ?canEdit=${edit}
+          @changed=${(e: CustomEvent<TaskDoc[]>) => { e.stopPropagation(); this.tasks = this.tasks?.map((x) => (x.id === task.id ? { ...x, documents: e.detail } : x)); if (this.open) this.open = { ...this.open, documents: e.detail }; }}></phx-task-docs>
         <phx-task-code .project=${this.project} .task=${task.id} ?canEdit=${edit}
           @changed=${(e: CustomEvent<CodeLink[]>) => { this.tasks = this.tasks?.map((x) => (x.id === task.id ? { ...x, codeLinks: e.detail } : x)); }}></phx-task-code>
         <p class="hint">${t("board.created", { date: formatDate(task.createdAt) })}${task.doneAt ? ` · ${t("board.done_at", { date: formatDate(task.doneAt) })}` : ""}</p>

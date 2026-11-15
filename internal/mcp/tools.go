@@ -41,6 +41,7 @@ type createTaskIn struct {
 	Due         string   `json:"due,omitempty" jsonschema:"YYYY-MM-DD"`
 	Priority    int      `json:"priority,omitempty" jsonschema:"0 none, 1 low, 2 medium, 3 high"`
 	Labels      []string `json:"labels,omitempty"`
+	Documents   []string `json:"documents,omitempty" jsonschema:"pages, decisions or other documents to link to the card: slugs, ids or decision numbers like ADR-0003"`
 }
 
 type linkCodeIn struct {
@@ -567,7 +568,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocBoard, Title: in.Title, Category: in.Category, Board: &core.Board{Description: in.Description, Columns: in.Columns}})
 	})
 	tool(s, "create_task", "Add a task to a board. Check list_tasks first to avoid duplicates.", func(ctx context.Context, a core.Actor, in createTaskIn) (any, error) {
-		return svc.CreateTask(ctx, a, in.Project, in.Board, core.TaskInput{Title: in.Title, Description: in.Description, Column: in.Column, Assignee: in.Assignee, Due: in.Due, Priority: in.Priority, Labels: in.Labels})
+		return svc.CreateTask(ctx, a, in.Project, in.Board, core.TaskInput{Title: in.Title, Description: in.Description, Column: in.Column, Assignee: in.Assignee, Due: in.Due, Priority: in.Priority, Labels: in.Labels, Documents: in.Documents})
 	})
 	tool(s, "update_task", "Change a task or move it to another column (e.g. the done column) or board. Only given fields change.", func(ctx context.Context, a core.Actor, in updateTaskIn) (any, error) {
 		return svc.UpdateTask(ctx, a, in.Project, in.Task, in.TaskPatch)
