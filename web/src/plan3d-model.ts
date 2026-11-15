@@ -12,9 +12,8 @@ export const SLAB = 200; // between storeys
 export const RACK_UNIT = 44.45;
 const RACK_WIDTH = 600;
 
-/** Materials: building parts, racks, and the parts of device models
- * (body = light casing or furniture, dark = device, lamp = light shade). */
-export type Solid = "wall" | "glass" | "rack" | "unit" | "body" | "dark" | "lamp";
+/** Materials: building parts and racks with their units. */
+export type Solid = "wall" | "glass" | "rack" | "unit";
 /** A box: centre and size in metres, turned by rot around the vertical axis.
  * level is the index of the storey it belongs to. */
 export interface Box {
@@ -25,7 +24,7 @@ export interface Box {
 export interface Slab { id: string; slug?: string; name: string; color: string; y: number; points: [number, number][]; area: number; level: number }
 export interface Label { text: string; x: number; y: number; z: number; slug?: string; kind: "room" | "level"; level: number }
 /** A device marker above its model: a round badge with the kind's icon. */
-export interface Pin { slug: string; name: string; kind: string; x: number; y: number; z: number; level: number }
+export interface Pin { slug: string; name: string; kind: string; x: number; y: number; z: number; level: number; foot: number }
 /** A cable route in metres (y up), coloured by kind. */
 export interface Cable3D { kind: string; slug?: string; name: string; points: [number, number, number][]; level: number }
 export interface Scene3D { boxes: Box[]; slabs: Slab[]; labels: Label[]; pins: Pin[]; cables: Cable3D[]; min: [number, number, number]; max: [number, number, number] }
@@ -93,43 +92,30 @@ export function wallPieces(plan: Floorplan, wallId: string, height: number, cut?
   return out.filter((p) => p.to - p.from > 1 && p.top - p.bottom > 1);
 }
 
-type Part = [kind: Solid, w: number, h: number, d: number, bottom: number, dx?: number, dz?: number];
-
-/** A simple model of a device by its kind, in metres: parts stand on the
- * floor (bottom = height above it); ceiling devices hang from the ceiling.
- * Returns the parts and the height of the model's top (for the pin). */
-export function deviceModel(kind: string, ceiling: number): { parts: Part[]; top: number } {
-  const c = ceiling;
+/** How high a device sits above the floor (metres), by kind: ceiling access
+ * points and lights at the ceiling, sockets low on the wall, desk devices at
+ * table height, the rest on the floor. Only the pin shows the device for
+ * now; real models (glTF) are planned. */
+export function mountHeight(kind: string, ceiling: number): number {
   switch (kind) {
-    case "router":
-    case "modem":
-      // On a sideboard, with antennas.
-      return { parts: [["body", 0.6, 0.7, 0.4, 0], ["dark", 0.3, 0.05, 0.2, 0.7], ...[-0.09, 0, 0.09].map((dx): Part => ["dark", 0.012, 0.16, 0.012, 0.75, dx, -0.07])], top: 0.91 };
     case "access_point":
-      return { parts: [["body", 0.24, 0.04, 0.24, c - 0.04]], top: c };
     case "light":
-      return { parts: [["dark", 0.01, 0.45, 0.01, c - 0.45], ["lamp", 0.32, 0.14, 0.32, c - 0.59]], top: c };
+      return Math.max(0.5, ceiling - 0.1);
     case "lan_port":
     case "outlet":
     case "tae":
     case "smart_plug":
     case "repeater":
-      // Low on the wall.
-      return { parts: [["body", 0.09, 0.09, 0.04, 0.26]], top: 0.35 };
-    case "client_device":
-      // A screen on a low cabinet.
-      return { parts: [["body", 0.9, 0.42, 0.35, 0], ["dark", 0.08, 0.06, 0.08, 0.42], ["dark", 1.0, 0.58, 0.04, 0.48]], top: 1.06 };
-    case "phone":
-      return { parts: [["body", 0.45, 0.7, 0.35, 0], ["dark", 0.18, 0.06, 0.2, 0.7]], top: 0.76 };
+      return 0.3;
+    case "router":
+    case "modem":
     case "switch":
     case "patch_panel":
-      return { parts: [["body", 0.6, 0.7, 0.4, 0], ["dark", 0.44, 0.045, 0.3, 0.7]], top: 0.745 };
-    case "server":
-    case "nas":
-    case "ups":
-      return { parts: [["dark", 0.22, 0.38, 0.42, 0]], top: 0.38 };
+    case "phone":
+    case "client_device":
+      return 0.75;
     default:
-      return { parts: [["body", 0.32, 0.28, 0.3, 0]], top: 0.28 };
+      return 0.2;
   }
 }
 
@@ -178,14 +164,11 @@ export function buildScene(levels: Level[], entries: Map<string, EntryInfo>, mou
           boxes.push({ kind: "unit", slug: u.slug, name: u.name, rot: 0, level, x: m(d.x), z: m(d.y + depth / 2 + 10 - ud / 2), y: m(base + bottom + (u.height * RACK_UNIT) / 2),
             w: m(RACK_WIDTH - 120), h: m(u.height * RACK_UNIT - 4), d: m(ud) });
         }
-        pins.push({ slug: e.slug, name: e.name, kind: e.kind, x: m(d.x), y: m(base + h) + 0.3, z: m(d.y), level });
+        pins.push({ slug: e.slug, name: e.name, kind: e.kind, x: m(d.x), y: m(base + h) + 0.3, z: m(d.y), level, foot: m(base + h) });
       } else {
         const slug = e?.slug ?? d.entity, name = e?.name ?? d.entity;
-        const model = deviceModel(e?.kind ?? "", m(lv.wallHeight));
-        for (const [kind, w, h, dd, bottom, dx = 0, dz = 0] of model.parts) {
-          boxes.push({ kind, slug, name, rot: 0, level, x: m(d.x) + dx, z: m(d.y) + dz, y: m(base) + bottom + h / 2, w, h, d: dd });
-        }
-        pins.push({ slug, name, kind: e?.kind ?? "", x: m(d.x), y: m(base) + model.top + 0.28, z: m(d.y), level });
+        // A pin on a thin stem from the floor marks the device.
+        pins.push({ slug, name, kind: e?.kind ?? "", x: m(d.x), y: m(base) + mountHeight(e?.kind ?? "", m(lv.wallHeight)) + 0.3, z: m(d.y), level, foot: m(base) });
       }
     }
     for (const c of p.cables ?? []) {

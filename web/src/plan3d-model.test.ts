@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { normalizePlan } from "./floorplan";
-import { RACK_UNIT, SLAB, buildScene, deviceModel, mountedByRack, stackLevels, wallPieces } from "./plan3d-model";
+import { RACK_UNIT, SLAB, buildScene, mountHeight, mountedByRack, stackLevels, wallPieces } from "./plan3d-model";
 
 const plan = normalizePlan({
   walls: [{ id: "w1", a: [0, 0], b: [5000, 0], thickness: 200 }, { id: "w2", a: [5000, 0], b: [5000, 4000], thickness: 100, height: 3000 }],
@@ -55,14 +55,13 @@ describe("3D model", () => {
     const units = s.boxes.filter((b) => b.kind === "unit");
     expect(units.map((b) => b.slug)).toEqual(["sw"]);
     expect(units[0].z + units[0].d / 2).toBeCloseTo(rack.z + rack.d / 2 + 0.01); // flush with the front, 1 cm out
-    // The printer gets a default model standing on the floor, with a pin above it.
-    const printer = s.boxes.filter((b) => b.slug === "printer");
-    expect(printer).toHaveLength(1);
-    expect(printer[0].y - printer[0].h / 2).toBeCloseTo(0);
+    // Devices are pins only (no box models), on a stem from the floor.
+    expect(s.boxes.filter((b) => b.slug === "printer")).toHaveLength(0);
     expect(s.slabs[0]).toMatchObject({ slug: "kitchen", color: "green", y: 0, area: 20, level: 0 });
     expect(s.labels.map((l) => l.text)).toEqual(["Kitchen"]);
     expect(s.pins.map((p) => [p.slug, p.kind])).toEqual([["rack1", "rack"], ["printer", "device"]]);
-    expect(s.pins[1].y).toBeCloseTo(0.28 + 0.28);
+    expect(s.pins[1].y).toBeCloseTo(0.2 + 0.3);
+    expect(s.pins[1].foot).toBe(0);
     expect(s.pins[0].y).toBeGreaterThan(rack.y + rack.h / 2);
     expect(s.cables).toEqual([{ kind: "network", slug: "rack1", name: "Patch 4", points: [[4, 0.3, 3], [1, 2.4, 3], [1, 2.4, 2]], level: 0 }]);
     expect(s.min[0]).toBeCloseTo(0);
@@ -85,18 +84,10 @@ describe("3D model", () => {
     expect(new Set(s.boxes.map((b) => b.level))).toEqual(new Set([0, 1]));
   });
 
-  test("device models: ceiling devices hang from the ceiling, sockets sit low", () => {
-    const ap = deviceModel("access_point", 2.5);
-    expect(ap.parts[0][4] + ap.parts[0][2]).toBeCloseTo(2.5);
-    expect(ap.top).toBe(2.5);
-    const port = deviceModel("lan_port", 2.5);
-    expect(port.top).toBeLessThan(0.5);
-    // Every part of every model stays between floor and ceiling.
-    for (const k of ["router", "light", "client_device", "phone", "switch", "server", "anything"]) {
-      for (const [, , h, , bottom] of deviceModel(k, 2.5).parts) {
-        expect(bottom).toBeGreaterThanOrEqual(0);
-        expect(bottom + h).toBeLessThanOrEqual(2.5 + 1e-9);
-      }
-    }
+  test("pins mark devices at their height; no device models", () => {
+    expect(mountHeight("access_point", 2.5)).toBeCloseTo(2.4);
+    expect(mountHeight("lan_port", 2.5)).toBeLessThan(0.5);
+    expect(mountHeight("anything", 2.5)).toBeLessThan(0.5);
   });
+
 });

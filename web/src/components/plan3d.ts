@@ -1,7 +1,7 @@
 // 3D view of floor plans with three.js (loaded only when someone opens it).
-// Walls with doors and windows, room floors in their colours, simple device
-// models with a pin each (kind icon in the colour of the kind's group) and
-// racks with their mounted units. One storey is shown at a time and the
+// Walls with doors and windows, room floors in their colours, devices as
+// pins on a stem from the floor (kind icon in the colour of the kind's
+// group; real device models come later) and racks with their mounted units. One storey is shown at a time and the
 // switch between storeys is animated; "All" stacks them. A click on an
 // element opens a small info panel with a link to the entry.
 
@@ -377,10 +377,9 @@ export class PhxPlan3D extends LitElement {
       glass: mat(this.token("--wire", "#36c"), { transparent: true, opacity: 0.28, roughness: 0.1 }),
       rack: mat(this.token("--fg", "#222")),
       unit: mat(this.token("--muted", "#666")),
-      body: mat(this.token("--line", "#ddd")),
-      dark: mat(this.token("--fg", "#222"), { roughness: 0.6 }),
-      lamp: mat(this.token("--signal", "#c90"), { roughness: 0.5 }),
       edge: new THREE.LineBasicMaterial({ color: new THREE.Color(this.token("--muted", "#666")) }),
+      stem: new THREE.LineBasicMaterial({ color: new THREE.Color(this.token("--muted", "#666")) }),
+      dot: mat(this.token("--accent", "#c50"), { transparent: true, opacity: 0.55 }),
     }));
     this.pickable = [];
     this.bySlug.clear();
@@ -438,6 +437,16 @@ export class PhxPlan3D extends LitElement {
     }
     for (const p of data.pins) {
       const k = findKind(this.model, p.kind);
+      // A thin stem from the floor and a dot where the device stands.
+      const pal = palettes[p.level] ?? palettes[0];
+      if (p.y - 0.14 > p.foot) {
+        const stem = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(p.x, p.foot, p.z), new THREE.Vector3(p.x, p.y - 0.14, p.z)]), pal.stem);
+        group(p.level).add(stem);
+      }
+      const dot = new THREE.Mesh(new THREE.CircleGeometry(0.07, 20), pal.dot);
+      dot.rotation.x = -Math.PI / 2;
+      dot.position.set(p.x, p.foot + 0.004, p.z);
+      group(p.level).add(dot);
       const wrap = document.createElement("div");
       wrap.className = "pinw";
       const btn = document.createElement("button");
