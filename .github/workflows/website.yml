@@ -6,6 +6,11 @@ on:
     branches: [main]
     paths: ["website/**", "cmd/phoedox-website/**", "internal/website/**", "internal/publish/**", ".github/workflows/website.yml"]
   workflow_dispatch:
+# Builds of the same branch never overlap: a newer push cancels the older
+# build, so an older image can never overwrite a newer tag (main, main-full).
+concurrency:
+  group: website-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
   packages: write

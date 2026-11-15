@@ -10,6 +10,11 @@ on:
   workflow_call:
     inputs:
       tag: { type: string, required: true }
+# Builds of the same branch never overlap: a newer push cancels the older
+# build, so an older image can never overwrite a newer tag (main, main-full).
+concurrency:
+  group: docker-${{ inputs.tag || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
   packages: write
