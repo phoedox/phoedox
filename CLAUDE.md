@@ -35,6 +35,7 @@ den Nutzer fragen. `docs/decisions.md` ist nur noch ein Verweis (ADR-0026). Der 
 ## Regeln
 
 - **Dokumentation und Aufgaben auf Englisch:** README, `docs/`, Phoedox-Seiten, Entscheidungen (ADRs) und Karten auf dem Board „Roadmap“ immer auf Englisch schreiben; Deutsch nur als Übersetzung (Projekt `phoedox` hat Englisch als Hauptsprache).
+- **Aufgaben aus dem Chat sofort auf die Roadmap:** Was Jan im Chat als Aufgabe oder Wunsch nennt, gleich als Karte auf dem Board „Roadmap“ im Projekt `phoedox` anlegen (vorher `list_tasks` gegen Doppelte), beim Start nach „In progress“ schieben und beim Abschluss nach „Done“.
 - Code, Bezeichner und Kommentare auf Englisch; Oberflächentexte nur über i18n (`web/src/i18n`, Deutsch + Englisch, beide Tabellen pflegen). Nach Änderungen an `kind.*`/`rel.*`/`attr.*`/`opt.*` `go run ./internal/publish/labelsgen` ausführen (Server-Seiten wie die Notfallkopie nutzen sie; ein Test prüft es).
 - **Fehlermeldungen übersetzen:** Validierungsfehler mit Schlüssel (`invalid("validation.xyz", params, …)`), die API liefert `key` + `params`; jeder Schlüssel braucht Einträge in beiden i18n-Tabellen. Server-Texte (`error`) nie direkt im Web anzeigen.
 - Immer die aktuelle stabile Go-Version und aktuelle Abhängigkeiten verwenden.
