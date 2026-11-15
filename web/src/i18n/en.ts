@@ -3111,4 +3111,8 @@ export const en: Record<keyof typeof de, string> = {
   "wb.key_ctrl": "Ctrl",
   "wb.key_del": "Del",
   "wb.key_shift": "Shift",
+  "block.raw_title": "Markdown block",
+  "block.raw_hint": "The editor cannot show this part as blocks (for example HTML or footnotes), so it is edited as Markdown. The rest of the page stays as it is. Leave it empty to remove the block.",
+  "block.raw_source": "Markdown",
+  "block.mermaid_error": "This diagram has an error. Edit the block to fix it.",
 };

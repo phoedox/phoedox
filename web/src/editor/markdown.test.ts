@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { importedTypes, lossless, roundTrip } from "./markdown";
+import { forEditor, importedTypes, lossless, mdBlocks, roundTrip } from "./markdown";
 
 const TABLE = `| Bereich | Stand | Hinweis |
 |---|---|---|
@@ -79,4 +79,41 @@ test("building blocks become editor nodes", () => {
   expect(importedTypes("a $x^2$ b")).toContain("imath");
   expect(importedTypes('a <time datetime="2026-12-24">x</time> b')).toContain("phxtime");
   expect(importedTypes("a [rot]{color=red} b").filter((t) => t === "text").length).toBe(3);
+});
+
+describe("page links and brackets", () => {
+  test("[[links]] keep the rich editor and save unchanged", () => {
+    for (const md of ["see [[ADR-0004]] and [[proj/page|the page]].", "> [!tip]\n> see [[foo]] and `[[code]]`", "| a | b |\n|---|---|\n| [[x]] | y |"]) {
+      expect({ md, ok: lossless(md), out: roundTrip(md) }).toEqual({ md, ok: true, out: md });
+    }
+    expect(importedTypes("see [[foo]]")).toContain("pagelink");
+  });
+  test("plain brackets are not saved as entities", () => {
+    expect(roundTrip("Ports [1-24] here")).toBe("Ports [1-24] here");
+    expect(roundTrip("- [ ] todo\n- [x] done")).toBe("- [ ] todo\n- [x] done");
+    // Escaped text that would turn into a link or a task box stays escaped.
+    expect(roundTrip("text \\[a\\](b)")).not.toContain("[a](b)");
+    expect(roundTrip("- \\[ ] literal")).not.toContain("- [ ]");
+  });
+});
+
+describe("raw blocks", () => {
+  test("only the block the editor cannot show becomes source", () => {
+    const md = "# Title\n\nSome **text** with [[a-page]].\n\n<details><summary>More</summary>\n\nHidden\n\n</details>\n\nText[^1] after.\n\n[^1]: A footnote\n\n- a list\n- b";
+    expect(lossless(md)).toBe(false);
+    const rich = forEditor(md);
+    expect(rich).not.toBeNull();
+    expect(importedTypes(rich!)).toContain("rawmd");
+    expect(importedTypes(rich!)).toContain("heading");
+    expect(roundTrip(rich!)).not.toContain("phx-raw");
+  });
+  test("mdBlocks keeps fences with blank lines together", () => {
+    expect(mdBlocks("a\n\n```js\nx\n\ny\n```\n\nb")).toEqual(["a", "```js\nx\n\ny\n```", "b"]);
+  });
+});
+
+test("an HTML block with blank lines is one raw block", () => {
+  expect(mdBlocks("a\n\n<details><summary>x</summary>\n\nHidden\n\n</details>\n\nb")).toEqual(["a", "<details><summary>x</summary>\n\nHidden\n\n</details>", "b"]);
+  const rich = forEditor("a\n\n<details><summary>x</summary>\n\nHidden\n\n</details>\n\nb")!;
+  expect(importedTypes(rich).filter((t) => t === "rawmd").length).toBe(1);
 });

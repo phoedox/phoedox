@@ -67,14 +67,22 @@ export class PhxMermaid extends HTMLElement {
     if (this.done === key) return;
     this.done = key;
     const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
+    const id = `phx-mermaid-${++mermaidSeq}`;
     try {
       const mermaid = (await import("mermaid")).default;
-      mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: dark ? "dark" : "neutral", fontFamily: "inherit" });
-      const { svg } = await mermaid.render(`phx-mermaid-${++mermaidSeq}`, src);
+      // suppressErrorRendering: on a syntax error Mermaid would otherwise
+      // draw its error picture at the end of the page body.
+      mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: dark ? "dark" : "neutral", fontFamily: "inherit", suppressErrorRendering: true });
+      const { svg } = await mermaid.render(id, src);
       root.innerHTML = `<style>:host{display:block;margin:.8em 0;overflow-x:auto}svg{max-width:100%;height:auto}</style>${svg}`;
     } catch (e) {
       const msg = (e instanceof Error ? e.message : String(e)).replace(/</g, "&lt;");
-      root.innerHTML = `<style>:host{display:block}pre{white-space:pre-wrap;font-size:12px;color:var(--bad)}</style><pre>${msg}</pre><pre>${src.replace(/</g, "&lt;")}</pre>`;
+      root.innerHTML = `<style>:host{display:block;margin:.8em 0}.err{border:1px solid var(--line);border-left:3px solid var(--bad);border-radius:8px;padding:8px 12px;background:var(--surface)}
+        b{display:block;font-size:13px;color:var(--bad);margin-bottom:4px}pre{margin:0;white-space:pre-wrap;font:12px/1.45 var(--font-mono);color:var(--muted)}</style>
+        <div class="err" role="alert"><b>${t("block.mermaid_error").replace(/</g, "&lt;")}</b><pre>${msg}</pre></div>`;
+    } finally {
+      // Mermaid measures in temporary elements in <body>; remove what is left.
+      for (const sel of [`#${id}`, `#d${id}`, `#i${id}`]) document.querySelectorAll(sel).forEach((n) => { if (!this.shadowRoot?.contains(n)) n.remove(); });
     }
   }
 }

@@ -7,7 +7,7 @@ import { $deleteTableColumnAtSelection, $deleteTableRowAtSelection, $insertTable
 import { $createHorizontalRuleNode } from "@lexical/extension";
 import { $insertNodeToNearestRoot } from "@lexical/utils";
 import { $createParagraphNode, $getRoot, $getNodeByKey, $getSelection, $isRangeSelection, $setSelection, COMMAND_PRIORITY_CRITICAL, FORMAT_TEXT_COMMAND, KEY_DOWN_COMMAND, REDO_COMMAND, UNDO_COMMAND, type BaseSelection } from "lexical";
-import { $isFenceNode, InlineMathNode, TimeNode } from "../editor/blocks";
+import { $isFenceNode, $isRawNode, InlineMathNode, TimeNode } from "../editor/blocks";
 import {
   $applyColors, $currentColors, $insertCallout, $insertDivider, $insertFence, $insertInlineMath, $insertRequest, $insertTime, $removeSlash, $selectedCallout, $setBlock,
   runFormat, runList, runTable, SLASH_ITEMS, type SlashItem,
@@ -18,7 +18,7 @@ import { LitElement, css, html, unsafeCSS } from "lit";
 import { ApiError, api, type Doc, type DraftInfo } from "../api";
 import { userColor } from "../collab";
 import { createLiveEditor, type LiveEditor, type Peer, type Status } from "../editor/editor";
-import { lossless } from "../editor/markdown";
+import { forEditor } from "../editor/markdown";
 import { t } from "../i18n";
 import { icon } from "../icon";
 import { currentUser, docsVersion, navigate, wideReading } from "../state";
@@ -99,6 +99,9 @@ export class PhxLiveEditor extends LitElement {
     .ed-fence-edit:focus-visible { opacity: 1; }
     @media (hover: none) { .ed-fence-edit { opacity: 1; } }
     .ed-imath, .ed-time { cursor: pointer; }
+    .ed-raw { padding: 2px 0; }
+    .ed-raw .ed-fence-edit { font-family: var(--font-body); }
+    .ed-pagelink { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); text-underline-offset: 2px; }
     .slash { position: absolute; z-index: 20; width: 260px; max-height: 320px; overflow-y: auto; padding: 4px; background: var(--surface); border: 1px solid var(--line);
       border-radius: 10px; box-shadow: 0 14px 34px rgb(0 0 0 / .18); transform-origin: top left;
       transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); @starting-style { opacity: 0; transform: scale(.97); } }
@@ -186,8 +189,10 @@ export class PhxLiveEditor extends LitElement {
       this.error = e instanceof ApiError ? e.text : t("error.unknown");
       return;
     }
-    // Content the rich editor cannot show exactly is edited as Markdown source.
-    this.source = !lossless(this.draft.markdown);
+    // Blocks the rich editor cannot show exactly are edited as Markdown source
+    // on their own; only if the page still would change, all of it is source.
+    const rich = forEditor(this.draft.markdown);
+    this.source = rich === null;
     await this.updateComplete;
     if (this.source) return;
     const u = currentUser.get()!;
@@ -196,7 +201,7 @@ export class PhxLiveEditor extends LitElement {
     this.live = createLiveEditor({
       element, cursors: this.renderRoot.querySelector<HTMLElement>(".cursors")!,
       url: `${proto}//${location.host}/rt/doc/${this.project}`, docId: this.doc.id, project: this.project,
-      markdown: this.draft.markdown, user: { name: u.name, color: userColor(u.id) }, editable: true,
+      markdown: rich ?? this.draft.markdown, user: { name: u.name, color: userColor(u.id) }, editable: true,
       onSave: (markdown) => this.saveDraft({ markdown }),
       onStatus: (s) => (this.status = s),
       onSaving: (s) => (this.saving = s),
@@ -367,6 +372,7 @@ export class PhxLiveEditor extends LitElement {
       const target = e.target as HTMLElement;
       const fence = target.closest<HTMLElement>(".ed-fence-edit");
       if (fence?.dataset.key) return void this.editFence(fence.dataset.key);
+      if (fence?.dataset.raw) return void this.editRaw(fence.dataset.raw);
       const inline = target.closest<HTMLElement>(".ed-imath, .ed-time");
       if (inline) {
         const key = ed.getEditorState().read(() => {
@@ -569,6 +575,25 @@ export class PhxLiveEditor extends LitElement {
     ed.update(() => {
       const n = $getNodeByKey(key);
       if ($isFenceNode(n)) n.setSource(src);
+    });
+  }
+
+  /** A raw block: its Markdown source in a dialog. */
+  private async editRaw(key: string) {
+    const ed = this.live!.editor;
+    const cur = ed.getEditorState().read(() => {
+      const n = $getNodeByKey(key);
+      return $isRawNode(n) ? n.getSource() : undefined;
+    });
+    if (cur === undefined) return;
+    const v = await this.askForm({ title: t("block.raw_title"), hint: t("block.raw_hint"), fields: [{ name: "v", label: t("block.raw_source"), type: "textarea", value: cur }] });
+    if (!v) return;
+    this.live!.markInput();
+    ed.update(() => {
+      const n = $getNodeByKey(key);
+      if (!$isRawNode(n)) return;
+      if (v.v.trim()) n.setSource(v.v.replace(/\s+$/, ""));
+      else n.remove();
     });
   }
 

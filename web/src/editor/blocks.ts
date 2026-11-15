@@ -7,6 +7,7 @@ import {
   type SerializedElementNode, type SerializedLexicalNode, type Spread,
 } from "lexical";
 import { iconSVG } from "../icon";
+import { renderMarkdown } from "../md";
 import {
   CALLOUT_START, COLOR_SPAN, colorAttrs, calloutHead, isColor, parseCallout, parseColorAttrs, type CalloutAttrs, type Color, FENCES, type FenceKind, type TimeKind,
 } from "../syntax";
@@ -223,6 +224,86 @@ export const FENCE: MultilineElementTransformer = {
   },
 };
 
+// ---------- Raw Markdown ----------
+
+type SerializedRaw = Spread<{ source: string }, SerializedLexicalNode>;
+
+/** Markdown the editor cannot represent (HTML, footnotes, …): shown as in
+ * the page, edited as source, saved exactly as it was. Only this block is
+ * source; the rest of the page stays rich. */
+export class RawNode extends DecoratorNode<null> {
+  __source: string;
+  static getType() { return "rawmd"; }
+  static clone(n: RawNode) { return new RawNode(n.__source, n.__key); }
+  static importJSON(j: SerializedRaw) { return $createRawNode(j.source); }
+
+  constructor(source = "", key?: NodeKey) {
+    super(key);
+    this.__source = source;
+  }
+
+  exportJSON(): SerializedRaw {
+    return { ...super.exportJSON(), type: "rawmd", version: 1, source: this.__source };
+  }
+
+  createDOM(config: EditorConfig): HTMLElement {
+    const div = document.createElement("div");
+    div.className = "ed-fence ed-raw";
+    div.contentEditable = "false";
+    this.fill(div, config);
+    return div;
+  }
+
+  private fill(div: HTMLElement, config: EditorConfig) {
+    const project = (config.theme as { project?: string }).project ?? "";
+    const body = document.createElement("div");
+    body.className = "ed-raw-body";
+    body.innerHTML = renderMarkdown(this.__source, project); // sanitized like pages
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "ed-fence-edit";
+    edit.textContent = "</> Markdown";
+    edit.dataset.raw = this.getKey();
+    div.replaceChildren(body, edit);
+  }
+
+  updateDOM(prev: RawNode, dom: HTMLElement, config: EditorConfig): boolean {
+    if (prev.__source !== this.__source) this.fill(dom, config);
+    return false;
+  }
+
+  getSource() { return this.getLatest().__source; }
+  setSource(s: string) {
+    this.getWritable().__source = s;
+  }
+  getTextContent() { return this.__source; }
+  isInline() { return false; }
+  decorate() { return null; }
+}
+
+export function $createRawNode(source: string) {
+  return $applyNodeReplacement(new RawNode(source));
+}
+export const $isRawNode = (n: LexicalNode | null | undefined): n is RawNode => n instanceof RawNode;
+
+/** Marker lines around raw blocks; they exist only while a page is imported. */
+export const RAW_OPEN = "<!--phx-raw-->", RAW_CLOSE = "<!--/phx-raw-->";
+
+export const RAW: MultilineElementTransformer = {
+  dependencies: [RawNode],
+  type: "multiline-element",
+  regExpStart: /^<!--phx-raw-->$/,
+  regExpEnd: /^<!--\/phx-raw-->$/,
+  replace(rootNode, _children, _start, _end, linesInBetween, isImport) {
+    const node = $createRawNode((linesInBetween ?? []).join("\n"));
+    if (isImport) rootNode.append(node);
+    else rootNode.replace(node);
+  },
+  export(node) {
+    return $isRawNode(node) ? node.getSource() : null;
+  },
+};
+
 // ---------- Inline: date/time and math ----------
 
 type SerializedTime = Spread<{ datetime: string; kind: TimeKind; text: string }, SerializedLexicalNode>;
@@ -400,4 +481,68 @@ export function setInlineTransformers(t: Transformer[]) {
   INLINE = t;
 }
 
-export const BLOCK_NODES = [CalloutNode, FenceNode, TimeNode, InlineMathNode];
+// ---------- Page links [[ref]] / [[ref|label]] ----------
+
+type SerializedPageLink = Spread<{ ref: string; label: string }, SerializedLexicalNode>;
+
+/** A link to a page or decision; kept as one piece so it saves as [[ref]]. */
+export class PageLinkNode extends DecoratorNode<null> {
+  __ref: string;
+  __label: string;
+  static getType() { return "pagelink"; }
+  static clone(n: PageLinkNode) { return new PageLinkNode(n.__ref, n.__label, n.__key); }
+  static importJSON(j: SerializedPageLink) { return $createPageLinkNode(j.ref, j.label); }
+
+  constructor(ref = "", label = "", key?: NodeKey) {
+    super(key);
+    this.__ref = ref;
+    this.__label = label;
+  }
+
+  exportJSON(): SerializedPageLink {
+    return { ...super.exportJSON(), type: "pagelink", version: 1, ref: this.__ref, label: this.__label };
+  }
+
+  createDOM(): HTMLElement {
+    const span = document.createElement("span");
+    span.className = "ed-pagelink";
+    span.title = this.__ref;
+    span.textContent = this.__label || this.__ref;
+    return span;
+  }
+
+  updateDOM(prev: PageLinkNode): boolean {
+    return prev.__ref !== this.__ref || prev.__label !== this.__label;
+  }
+
+  markdown() {
+    const n = this.getLatest();
+    return n.__label ? `[[${n.__ref}|${n.__label}]]` : `[[${n.__ref}]]`;
+  }
+
+  getTextContent() { return this.__label || this.__ref; }
+  isInline() { return true; }
+  decorate() { return null; }
+}
+
+export function $createPageLinkNode(ref: string, label = "") {
+  return $applyNodeReplacement(new PageLinkNode(ref.trim(), label.trim()));
+}
+
+const PAGELINK_RE = /\[\[([^\]|\n]+?)(?:\|([^\]\n]+))?\]\]/;
+
+export const PAGELINK_MATCH: TextMatchTransformer = {
+  dependencies: [PageLinkNode],
+  type: "text-match",
+  importRegExp: PAGELINK_RE,
+  regExp: new RegExp(PAGELINK_RE.source + "$"),
+  trigger: "]",
+  replace(node, m) {
+    node.replace($createPageLinkNode(m[1], m[2] ?? ""));
+  },
+  export(node) {
+    return node instanceof PageLinkNode ? node.markdown() : null;
+  },
+};
+
+export const BLOCK_NODES = [CalloutNode, FenceNode, RawNode, TimeNode, InlineMathNode, PageLinkNode];

@@ -3109,4 +3109,8 @@ export const de = {
   "wb.key_ctrl": "Strg",
   "wb.key_del": "Entf",
   "wb.key_shift": "Umschalt",
+  "block.raw_title": "Markdown-Block",
+  "block.raw_hint": "Diesen Teil kann der Editor nicht als Blöcke zeigen (zum Beispiel HTML oder Fußnoten), daher wird er als Markdown bearbeitet. Der Rest der Seite bleibt, wie er ist. Leer lassen, um den Block zu entfernen.",
+  "block.raw_source": "Markdown",
+  "block.mermaid_error": "Dieses Diagramm enthält einen Fehler. Bearbeite den Block, um ihn zu beheben.",
 } as const;

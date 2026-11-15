@@ -69,6 +69,10 @@ Each is a fenced code block with this info string:
 | ```dbmodel | SQL `CREATE TABLE` statements | an entity-relationship diagram |
 | ```embed | a URL | an embedded video or page (e.g. YouTube) |
 
+Mermaid ids must not be Mermaid keywords: in a `sequenceDiagram`, a participant called
+`Off`, `End`, `Loop`, `Alt` or `Note` breaks the diagram (`participant Remote as Off-site`
+works). Pages show such an error in the block; check the page after writing a diagram.
+
 ## Images and files
 
 Images are files of the project: `![alt](/api/v1/files/<id>)`. `list_files` shows what

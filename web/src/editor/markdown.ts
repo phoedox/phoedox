@@ -16,7 +16,7 @@ import { ListItemNode, ListNode } from "@lexical/list";
 import { HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { $isParagraphNode, $isTextNode, createEditor, type ElementNode, type LexicalNode } from "lexical";
 import { markdownHTML } from "../md";
-import { BLOCK_NODES, CALLOUT, COLOR_MATCH, FENCE, IMATH_MATCH, TIME_MATCH, UNDERLINE_FORMAT, setInlineTransformers, setInnerTransformers } from "./blocks";
+import { BLOCK_NODES, CALLOUT, COLOR_MATCH, FENCE, IMATH_MATCH, PAGELINK_MATCH, RAW, RAW_CLOSE, RAW_OPEN, TIME_MATCH, UNDERLINE_FORMAT, setInlineTransformers, setInnerTransformers } from "./blocks";
 import { IMAGE, ImageNode } from "./image";
 
 export const NODES = [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, AutoLinkNode, CodeNode, CodeHighlightNode, ImageNode,
@@ -100,20 +100,34 @@ const TABLE: ElementTransformer = {
 };
 
 /** Inline-only transformers (table cells, colored text). Colors before links: [a]{color=x} is no link. */
-const CELL_TRANSFORMERS: Transformer[] = [UNDERLINE_FORMAT, TIME_MATCH, IMATH_MATCH, COLOR_MATCH, IMAGE,
+const CELL_TRANSFORMERS: Transformer[] = [PAGELINK_MATCH, UNDERLINE_FORMAT, TIME_MATCH, IMATH_MATCH, COLOR_MATCH, IMAGE,
   ...BASE.filter((t) => t.type === "text-format" || t.type === "text-match")];
 
 /** Images before links: ![a](b) must not become a link; our fences and callouts before code and quotes. */
-export const TRANSFORMERS: Transformer[] = [CALLOUT, FENCE, TABLE, HR, CHECK_LIST, UNDERLINE_FORMAT, TIME_MATCH, IMATH_MATCH, COLOR_MATCH, IMAGE, ...BASE];
+export const TRANSFORMERS: Transformer[] = [RAW, CALLOUT, FENCE, TABLE, HR, CHECK_LIST, PAGELINK_MATCH, UNDERLINE_FORMAT, TIME_MATCH, IMATH_MATCH, COLOR_MATCH, IMAGE, ...BASE];
 setInnerTransformers(TRANSFORMERS);
 setInlineTransformers(CELL_TRANSFORMERS);
+
+/**
+ * Lexical writes literal brackets as &#91; and &#93;. Turn them back into
+ * brackets where that cannot change the meaning: not before "(", "[", "{" or
+ * ":" (links, references, colours) and not as a task box after a list marker.
+ */
+export function tidyBrackets(md: string): string {
+  return md.replace(/&#91;((?:(?!&#9[13];)[^\n])*)&#93;(?![([{:])/g, (all, inner: string, at: number, src: string) => {
+    const line = src.slice(src.lastIndexOf("\n", at - 1) + 1, at);
+    if (/^\s*(?:[-*+]|\d+[.)])\s+$/.test(line) && /^[ xX]?$/.test(inner)) return all;
+    if (line.endsWith("!") || line.endsWith("\\")) return all;
+    return `[${inner}]`;
+  });
+}
 
 /** Converts Markdown to Markdown through the editor (as a save would). */
 export function roundTrip(md: string): string {
   const editor = createEditor({ namespace: "check", nodes: NODES, onError: (e) => { throw e; } });
   let out = "";
   editor.update(() => $convertFromMarkdownString(md, TRANSFORMERS), { discrete: true });
-  editor.getEditorState().read(() => { out = $convertToMarkdownString(TRANSFORMERS); });
+  editor.getEditorState().read(() => { out = tidyBrackets($convertToMarkdownString(TRANSFORMERS)); });
   return out;
 }
 
@@ -134,6 +148,57 @@ export function lossless(md: string): boolean {
     return shows(roundTrip(md)) === shows(md);
   } catch {
     return false;
+  }
+}
+
+/** Splits Markdown into top-level blocks at blank lines outside code fences. */
+export function mdBlocks(md: string): string[] {
+  const out: string[] = [];
+  let cur: string[] = [], fence = "";
+  for (const line of md.split("\n")) {
+    const f = /^\s*(`{3,}|~{3,})/.exec(line);
+    if (f) {
+      if (!fence) fence = f[1];
+      else if (line.trim().startsWith(fence) && line.trim().replace(/[`~]/g, "") === "") fence = "";
+    }
+    if (!fence && !line.trim() && !f) {
+      if (cur.length) out.push(cur.join("\n"));
+      cur = [];
+      continue;
+    }
+    cur.push(line);
+  }
+  if (cur.length) out.push(cur.join("\n"));
+  // An HTML block with blank lines inside (<details> …) stays one block.
+  const merged: string[] = [];
+  for (let i = 0; i < out.length; i++) {
+    const tag = /^<([a-z][\w-]*)[\s>]/i.exec(out[i])?.[1];
+    let block = out[i];
+    if (tag && !new RegExp(`</${tag}>`, "i").test(block)) {
+      let j = i + 1;
+      while (j < out.length && !new RegExp(`</${tag}>`, "i").test(out[j])) j++;
+      if (j < out.length) {
+        block = out.slice(i, j + 1).join("\n\n");
+        i = j;
+      }
+    }
+    merged.push(block);
+  }
+  return merged;
+}
+
+/**
+ * Markdown ready for the rich editor: blocks it cannot represent are marked
+ * as raw blocks (shown as in the page, edited as source). Returns null when
+ * the page as a whole would still change; it then opens as source.
+ */
+export function forEditor(md: string): string | null {
+  if (lossless(md)) return md;
+  const marked = mdBlocks(md).map((b) => (lossless(b) ? b : `${RAW_OPEN}\n${b}\n${RAW_CLOSE}`)).join("\n\n");
+  try {
+    return shows(roundTrip(marked)) === shows(md) ? marked : null;
+  } catch {
+    return null;
   }
 }
 

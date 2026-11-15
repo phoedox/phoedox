@@ -17,7 +17,7 @@ import {
 import { $createLinkNode } from "@lexical/link";
 import { $insertNodeToNearestRoot } from "@lexical/utils";
 import { $createImageNode } from "./image";
-import { NODES, TRANSFORMERS } from "./markdown";
+import { NODES, TRANSFORMERS, tidyBrackets } from "./markdown";
 import { MSG_CONTROL, MSG_SNAPSHOT } from "../collab";
 import * as decoding from "lib0/decoding";
 import * as encoding from "lib0/encoding";
@@ -84,7 +84,7 @@ const theme = {
 const SAVE_DELAY = 1500;
 
 export function markdownOf(editor: LexicalEditor): string {
-  return editor.getEditorState().read(() => $convertToMarkdownString(TRANSFORMERS));
+  return editor.getEditorState().read(() => tidyBrackets($convertToMarkdownString(TRANSFORMERS)));
 }
 
 export function createLiveEditor(o: LiveEditorOptions): LiveEditor {
