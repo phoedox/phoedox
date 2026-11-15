@@ -39,7 +39,7 @@ export const prose = `
 `;
 
 export class PhxDocView extends SignalWatcher(LitElement) {
-  static properties = { project: {}, docSlug: {}, zoom: { state: true }, doc: { state: true }, draft: { state: true }, showDiff: { state: true }, lang: { state: true }, mainDiff: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true }, archiving: { state: true } };
+  static properties = { project: {}, docSlug: {}, kiosk: { type: Boolean }, zoom: { state: true }, doc: { state: true }, draft: { state: true }, showDiff: { state: true }, lang: { state: true }, mainDiff: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true }, archiving: { state: true } };
   static styles = [base, unsafeCSS(prose), css`
     /* Centred reading column; "full width" lifts the limit. */
     article { max-width: var(--reading-width, 820px); margin-inline: auto; }
@@ -106,13 +106,15 @@ export class PhxDocView extends SignalWatcher(LitElement) {
   /** Open comment threads, to mark the blocks they are about. */
   private threads: CommentThread[] = [];
   private hovered?: HTMLElement;
+  /** Wall display: only title and content, never the live editor. */
+  kiosk = false;
 
   /** Loads the page again in place (after its access changed); open dialogs stay. */
   async reload() {
     const doc = await api<Doc>("GET", `/projects/${this.project}/documents/${this.docSlug}${this.lang ? `?lang=${this.lang}` : ""}`).catch(() => undefined);
     if (doc) {
       // A draft may have been opened, published or discarded meanwhile.
-      this.draft = (doc.type === "markdown" || doc.type === "floorplan") && ["editor", "owner"].includes(doc.role ?? currentProject.get()?.role ?? "")
+      this.draft = !this.kiosk && (doc.type === "markdown" || doc.type === "floorplan") && ["editor", "owner"].includes(doc.role ?? currentProject.get()?.role ?? "")
         ? await api<DraftInfo>("GET", `/projects/${this.project}/documents/${doc.id}/draft`).catch(() => undefined)
         : undefined;
       this.doc = doc;
@@ -162,7 +164,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         }
         this.draft = undefined;
         this.showDiff = false;
-        if ((doc.type === "markdown" || doc.type === "floorplan") && ["editor", "owner"].includes(doc.role ?? currentProject.get()?.role ?? "")) {
+        if (!this.kiosk && (doc.type === "markdown" || doc.type === "floorplan") && ["editor", "owner"].includes(doc.role ?? currentProject.get()?.role ?? "")) {
           this.draft = await api<DraftInfo>("GET", `/projects/${this.project}/documents/${doc.id}/draft`).catch(() => undefined);
         }
         if (this.loaded !== key) return; // a newer load started meanwhile
@@ -435,6 +437,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     // The role for this page can differ from the project role (restricted or shared pages).
     const canEdit = ["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "");
     const wide = wideReading.get();
+    if (this.kiosk) return html`<article class="enter wide kiosk"><header><div><h1>${d.title}</h1></div></header>${this.body(d)}${this.zoomDialog()}</article>`;
     // Boards need the room of the whole page.
     return html`<article class=${wide || d.type === "board" || d.type === "floorplan" ? "enter wide" : "enter"} @click=${this.onClick}
       @mouseover=${this.onHover} @mouseout=${this.hideGutter} @comments-changed=${this.onComments} @show-block=${this.showBlock}>
@@ -459,6 +462,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
           ${d.type === "board" || d.type === "floorplan" ? "" : html`<button class="ghost icon" aria-pressed=${wide ? "true" : "false"} title=${t(wide ? "doc.narrow" : "doc.wide")} aria-label=${t(wide ? "doc.narrow" : "doc.wide")}
             @click=${() => setWideReading(!wide)}>${icon(wide ? "Minimize2" : "Maximize2", 15)}</button>`}
           <a class="btn ghost" href="/p/${this.project}/d/${d.slug}/history">${icon("History", 14)} ${t("doc.history")}</a>
+          ${d.type === "link" ? "" : html`<a class="btn ghost icon" href="/kiosk/${this.project}/${d.slug}" target="_blank" rel="noopener" title=${t("kiosk.open")} aria-label=${t("kiosk.open")}>${icon("MonitorPlay", 15)}</a>`}
           ${canEdit ? html`<button class="ghost" @click=${() => this.renderRoot.querySelector<PhxDocShare>("phx-doc-share")!.open()}>${icon("Share2", 14)} ${t("share.button")}</button>
           ${this.translateButton(d)}
           ${this.draft && d.type !== "floorplan" ? "" : html`<a class="btn ghost" href="/p/${this.project}/d/${d.slug}/edit">${icon("Pencil", 14)} ${t("doc.edit")}</a>`}

@@ -2302,4 +2302,7 @@ export const en: Record<keyof typeof de, string> = {
   "offline.title": "Emergency copy",
   "offline.download": "Download emergency copy (HTML)",
   "offline.hint": "All pages, decisions, boards, entries and images as a ZIP of plain HTML pages. They open in a browser without a server or internet – for a USB stick or the NAS, in case Phoedox itself is down. Contains only what you may read and no secrets of the project environment. Keep it safe.",
+  "kiosk.open": "Open as wall display (full screen, updates itself)",
+  "kiosk.leave": "Leave wall display",
+  "kiosk.as_of": "As of {date}",
 };

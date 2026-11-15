@@ -2300,4 +2300,7 @@ export const de = {
   "offline.title": "Notfallkopie",
   "offline.download": "Notfallkopie herunterladen (HTML)",
   "offline.hint": "Alle Seiten, Entscheidungen, Boards, Einträge und Bilder als ZIP mit einfachen HTML-Seiten. Sie öffnen sich im Browser ohne Server und ohne Internet – für den USB-Stick oder das NAS, falls Phoedox selbst ausfällt. Enthält nur, was du lesen darfst, aber keine Geheimnisse der Projektumgebung. Sicher aufbewahren.",
+  "kiosk.open": "Als Wanddisplay öffnen (Vollbild, aktualisiert sich selbst)",
+  "kiosk.leave": "Wanddisplay verlassen",
+  "kiosk.as_of": "Stand {date}",
 } as const;
