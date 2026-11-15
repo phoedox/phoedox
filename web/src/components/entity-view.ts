@@ -9,6 +9,7 @@ import { allowedRels, attrLabel, findKind, formatValue, groupColor, groupName, k
 import { currentProject, docsVersion, navigate } from "../state";
 import { pluginViews } from "../plugin-host";
 import { unsafeStatic, html as shtml } from "lit/static-html.js";
+import "./entity-timeline";
 import { base } from "./shared";
 import "./attachments";
 import "./maintenance";
@@ -344,6 +345,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
           ${edit ? this.relForm(e) : ""}
         </section>
       </div>
+      <phx-entity-timeline .project=${this.project} .entity=${e.slug} .labels=${Object.fromEntries((k?.attrs ?? []).map((a) => [a.name, attrLabel(a)]))}></phx-entity-timeline>
     </article>`;
   }
 }

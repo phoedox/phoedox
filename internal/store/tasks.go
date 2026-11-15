@@ -82,6 +82,8 @@ type TaskFilter struct {
 	// AssigneeText filters free-text assignees (case-insensitive).
 	AssigneeText string
 	Open         bool // only tasks not done
+	// Mentions keeps cards whose title or description contains this text (e.g. "@nas").
+	Mentions string
 }
 
 // ListTasks returns tasks ordered by board, column and position.
@@ -106,6 +108,11 @@ func (d *DB) ListTasks(ctx context.Context, projectID string, f TaskFilter) ([]T
 	}
 	if f.Open {
 		q += ` AND t.done_at IS NULL`
+	}
+	if f.Mentions != "" {
+		q += ` AND (t.title LIKE ? ESCAPE '\' OR t.description LIKE ? ESCAPE '\')`
+		like := "%" + likeEscape(f.Mentions) + "%"
+		args = append(args, like, like)
 	}
 	rows, err := d.Query(ctx, q+` ORDER BY d.title, t.column_id, t.position, t.created_at`, args...)
 	if err != nil {

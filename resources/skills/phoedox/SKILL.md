@@ -42,6 +42,7 @@ creates them:
 | Need | Tools |
 |---|---|
 | Answer a question about a device or service | `search` → `get_entity` (its `context` is a ready summary: values, status, network path, relations, page snippets, what runs on it) |
+| What changed on a device, when it last failed | `entity_timeline` (changes with the changed fields, check failures/recoveries, switching actions, agent jobs, mentioning comments and cards; newest first) |
 | Something does not work | `diagnose` (network path with status per station), `traverse` (e.g. `uplink` to the internet, `depends_on`), `software_tree`, `get_readings` |
 | Projects | `list_projects`, `get_project`, `create_project` (you become owner), `update_project_settings` (owners: name, AI write mode, languages, tabs) |
 | Read or write pages | `list_documents`, `get_document`, `create_document`, `update_document` (markdown replaces the whole text – read first), `delete_document` (to the trash), `list_document_versions`, `get_document_version`, `restore_document_version` |

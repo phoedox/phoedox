@@ -282,7 +282,9 @@ func (d *DB) Events(ctx context.Context, f EventFilter) ([]Event, error) {
 }
 
 // likePrefix escapes LIKE wildcards and appends %.
-func likePrefix(s string) string {
-	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
-	return r.Replace(s) + "%"
+func likePrefix(s string) string { return likeEscape(s) + "%" }
+
+// likeEscape escapes LIKE wildcards (use with ESCAPE '\').
+func likeEscape(s string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }

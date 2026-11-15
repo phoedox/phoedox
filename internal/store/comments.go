@@ -121,3 +121,33 @@ func (d *DB) OpenCommentCounts(ctx context.Context, projectID string) (map[strin
 	}
 	return out, rows.Err()
 }
+
+// CommentDoc is a comment with the page it belongs to.
+type CommentDoc struct {
+	Comment
+	DocSlug  string `json:"docSlug"`
+	DocTitle string `json:"docTitle"`
+}
+
+// CommentsContaining lists comments of a project whose text contains
+// text (e.g. "@nas"), newest first.
+func (d *DB) CommentsContaining(ctx context.Context, projectID, text string, limit int) ([]CommentDoc, error) {
+	rows, err := d.Query(ctx, `SELECT `+commentCols+`, dd.slug, dd.title`+commentFrom+` JOIN documents dd ON dd.id = c.document_id
+		WHERE c.project_id = ? AND c.deleted_at IS NULL AND dd.deleted_at IS NULL AND c.body LIKE ? ESCAPE '\' ORDER BY c.created_at DESC LIMIT ?`,
+		projectID, "%"+likeEscape(text)+"%", limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []CommentDoc{}
+	for rows.Next() {
+		var c CommentDoc
+		cm, err := scanComment(withExtra{rows, []any{&c.DocSlug, &c.DocTitle}})
+		if err != nil {
+			return nil, err
+		}
+		c.Comment = cm
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}

@@ -346,6 +346,12 @@ type listEntitiesIn struct {
 	Kind    string `json:"kind,omitempty"`
 }
 
+type timelineIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Entity  string `json:"entity" jsonschema:"entity slug or id"`
+	Limit   int    `json:"limit,omitempty" jsonschema:"at most this many items (default 100, max 300)"`
+}
+
 type entityRef struct {
 	Project string `json:"project" jsonschema:"project slug"`
 	Entity  string `json:"entity" jsonschema:"entity slug or id"`
@@ -847,6 +853,9 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 			Context string `json:"context"`
 			core.EntityDetail
 		}{pack, d}, nil
+	})
+	tool(s, "entity_timeline", "What happened to an entry, newest first: changes (by people, AI, agents, plugins, with the changed fields), check failures and recoveries, switching actions, agent jobs, reviews, and comments and cards that mention it. Use it to answer \"what changed on the NAS lately?\" or \"when did the router last go down?\".", func(ctx context.Context, a core.Actor, in timelineIn) (any, error) {
+		return svc.EntityTimeline(ctx, a, in.Project, in.Entity, in.Limit)
 	})
 	tool(s, "upsert_entity", "Create an entity or update it if the slug exists.", func(ctx context.Context, a core.Actor, in upsertEntityIn) (any, error) {
 		return svc.UpsertEntity(ctx, a, in.Project, core.EntityInput{Kind: in.Kind, Name: in.Name, Slug: in.Slug, Attrs: in.Attrs})

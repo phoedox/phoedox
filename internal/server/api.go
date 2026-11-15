@@ -413,6 +413,7 @@ func (a *api) routes(r chi.Router) {
 			r.Delete("/entities/{e}", a.deleteEntity)
 			r.Get("/entities/{e}/traverse", a.traverse)
 			r.Get("/entities/{e}/readings", a.entityReadings)
+			r.Get("/entities/{e}/timeline", a.entityTimeline)
 			r.Post("/readings", a.recordReadings)
 			r.Get("/entities/{e}/device", a.device)
 			r.Put("/entities/{e}/device", a.setDevice)
@@ -620,6 +621,12 @@ func (a *api) trashedProjects(w http.ResponseWriter, r *http.Request) {
 func (a *api) restoreProject(w http.ResponseWriter, r *http.Request) {
 	p, err := a.core.RestoreProject(r.Context(), actorOf(r), chi.URLParam(r, "p"))
 	respond(w, p, err)
+}
+
+func (a *api) entityTimeline(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	items, err := a.core.EntityTimeline(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "e"), limit)
+	respond(w, items, err)
 }
 
 func (a *api) listMembers(w http.ResponseWriter, r *http.Request) {
