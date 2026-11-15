@@ -97,6 +97,28 @@ Ids are your own short names (letters, digits, `-`, `_`); room points run clockw
 Colors: gray, red, orange, yellow, green, blue, purple, pink. Cable points are
 `[x, y, height above the floor]`; kinds are network, power, coax and other.
 
+## Move existing documentation into Phoedox
+
+1. Read the whole source first and draft the target structure before writing
+   anything: top-level categories (e.g. Architecture, Guides, Operations, Legal,
+   Plans, Archive) and, where a category would get more than about eight pages,
+   sub-folders by topic with `/` (`Architecture/Backend`, `Architecture/Apps`,
+   `Architecture/Data & sync`, `Architecture/AI & integrations`).
+2. Show the user the structure (categories, folders, page titles) and wait for an
+   answer before creating pages – moving many pages later is tedious.
+3. Strip prefixes that only repeat the folder: "Architecture: auth concept" in
+   `Architecture` becomes "Auth concept"; "Moderation – plan" in `Plans`
+   becomes "Moderation". Keep words that carry meaning ("API overview").
+4. Put plans and ideas into `Plans`, outdated or replaced pages into `Archive`
+   (or mark them as superseded decisions), not between current pages.
+5. Decisions go through `create_decision` (keep old numbers in the title, e.g.
+   "D-321: …", so `[[D-321]]` keeps working), tasks onto a board, devices and
+   services into entries – not as plain pages.
+6. Rewrite internal links to `[[slug]]`, keep external links, and upload images
+   with `upload_image` instead of linking to the old system.
+7. Finish with `get_project` and check the sidebar: no folder with a single page,
+   no category that differs only in spelling, no title starting with its folder name.
+
 ## Keep documentation healthy
 
 - `find_documentation_gaps`: failing checks, broken mentions, devices without a

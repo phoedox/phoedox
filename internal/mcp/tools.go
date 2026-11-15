@@ -206,7 +206,7 @@ type createDocIn struct {
 	Project  string `json:"project" jsonschema:"project slug"`
 	Title    string `json:"title"`
 	Markdown string `json:"markdown" jsonschema:"page content in Markdown; mention entities with @slug"`
-	Category string `json:"category,omitempty" jsonschema:"sidebar group, e.g. Architektur"`
+	Category string `json:"category,omitempty" jsonschema:"sidebar group; a / makes sub-folders, e.g. Architecture/Backend. Titles should not repeat the folder name"`
 	Slug     string `json:"slug,omitempty" jsonschema:"optional, derived from title"`
 	Position int    `json:"position,omitempty" jsonschema:"order within the category"`
 }
