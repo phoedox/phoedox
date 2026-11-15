@@ -2,24 +2,32 @@
   "generic": ["related_to", "depends_on"],
   "kinds": [
     {"id": "person", "group": "general", "icon": "UserRound", "attrs": [
-      {"name": "email", "type": "text"}, {"name": "role", "type": "text"}],
-      "relations": [{"rel": "responsible_for", "to": ["*"]}]},
+      {"name": "email", "type": "text"}, {"name": "phone", "type": "text"}, {"name": "role", "type": "text"}],
+      "relations": [{"rel": "responsible_for", "to": ["*"]}, {"rel": "works_for", "to": ["company"]}]},
+    {"id": "company", "group": "general", "icon": "Building2", "attrs": [
+      {"name": "website", "type": "url"}, {"name": "phone", "type": "text"}, {"name": "email", "type": "text"},
+      {"name": "support", "type": "text"}, {"name": "customer_number", "type": "text"}, {"name": "address", "type": "text"}]},
+    {"id": "contract", "group": "general", "icon": "FileSignature", "attrs": [
+      {"name": "contract_number", "type": "text"}, {"name": "start", "type": "date"}, {"name": "end", "type": "date"},
+      {"name": "cancel_by", "type": "date"}, {"name": "notice_period", "type": "text"},
+      {"name": "cost", "type": "number", "unit": "€"}, {"name": "billing", "type": "select", "options": ["monthly", "quarterly", "yearly", "once"]}],
+      "relations": [{"rel": "with", "to": ["company"]}, {"rel": "covers", "to": ["*"]}]},
     {"id": "device", "group": "general", "icon": "Cpu", "attrs": [
       {"name": "manufacturer", "type": "text"}, {"name": "model", "type": "text"}, {"name": "serial", "type": "text"},
       {"name": "ip", "type": "ip"}, {"name": "mac", "type": "text"},
       {"name": "purchase_date", "type": "date"}, {"name": "price", "type": "number", "unit": "€"}, {"name": "warranty_until", "type": "date"}, {"name": "vendor", "type": "text"}],
-      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}, {"rel": "wired_to", "to": ["switch", "router", "lan_port"]}, {"rel": "uplink", "to": ["router", "repeater", "access_point"]}]},
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}, {"rel": "wired_to", "to": ["switch", "router", "lan_port"]}, {"rel": "uplink", "to": ["router", "repeater", "access_point"]}, {"rel": "supplied_by", "to": ["company"]}, {"rel": "supported_by", "to": ["company", "person"]}]},
 
     {"id": "appliance", "group": "general", "icon": "WashingMachine", "attrs": [
       {"name": "manufacturer", "type": "text"}, {"name": "model", "type": "text"}, {"name": "serial", "type": "text"},
       {"name": "purchase_date", "type": "date"}, {"name": "price", "type": "number", "unit": "€"}, {"name": "vendor", "type": "text"},
       {"name": "warranty_until", "type": "date"}, {"name": "power", "type": "number", "unit": "W"}, {"name": "standby", "type": "number", "unit": "W"},
       {"name": "hours_per_day", "type": "number", "unit": "h"}],
-      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}]},
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}, {"rel": "supplied_by", "to": ["company"]}, {"rel": "supported_by", "to": ["company", "person"]}]},
     {"id": "part", "group": "general", "icon": "Wrench", "attrs": [
       {"name": "part_number", "type": "text"}, {"name": "supplier", "type": "text"}, {"name": "url", "type": "url"},
       {"name": "price", "type": "number", "unit": "€"}, {"name": "stock", "type": "number"}],
-      "relations": [{"rel": "fits", "to": ["*"]}, {"rel": "located_in", "to": ["room"]}]},
+      "relations": [{"rel": "fits", "to": ["*"]}, {"rel": "located_in", "to": ["room"]}, {"rel": "supplied_by", "to": ["company"]}, {"rel": "supported_by", "to": ["company", "person"]}]},
     {"id": "site", "group": "building", "icon": "MapPin", "attrs": [
       {"name": "address", "type": "text"}, {"name": "lat", "type": "number"}, {"name": "lng", "type": "number"}]},
     {"id": "building", "group": "building", "icon": "Building2", "attrs": [
@@ -39,16 +47,16 @@
     {"id": "router", "group": "network", "icon": "Router", "attrs": [
       {"name": "model", "type": "text"}, {"name": "ip", "type": "ip"},
       {"name": "uplink", "type": "select", "options": ["vdsl", "fiber", "cable", "lte", "other"]}, {"name": "firmware", "type": "text"}],
-      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}]},
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}, {"rel": "supplied_by", "to": ["company"]}, {"rel": "supported_by", "to": ["company", "person"]}]},
     {"id": "repeater", "group": "network", "icon": "RadioTower", "attrs": [
       {"name": "model", "type": "text"}, {"name": "uplink_type", "type": "select", "options": ["wifi", "lan"]}, {"name": "signal", "type": "number", "unit": "dBm"}],
       "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "uplink", "to": ["router", "repeater", "access_point"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}]},
     {"id": "access_point", "group": "network", "icon": "Wifi", "attrs": [
       {"name": "model", "type": "text"}, {"name": "ip", "type": "ip"}, {"name": "poe", "type": "bool"}],
-      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "wired_to", "to": ["switch", "router", "lan_port"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug", "switch"]}]},
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "wired_to", "to": ["switch", "router", "lan_port"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug", "switch"]}, {"rel": "supplied_by", "to": ["company"]}, {"rel": "supported_by", "to": ["company", "person"]}]},
     {"id": "switch", "group": "network", "icon": "Network", "attrs": [
       {"name": "ports", "type": "number"}, {"name": "managed", "type": "bool"}, {"name": "ip", "type": "ip"}],
-      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "wired_to", "to": ["router", "switch"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}]},
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "wired_to", "to": ["router", "switch"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}, {"rel": "supplied_by", "to": ["company"]}, {"rel": "supported_by", "to": ["company", "person"]}]},
     {"id": "lan_port", "group": "network", "icon": "EthernetPort", "attrs": [
       {"name": "label", "type": "text"}, {"name": "cable", "type": "text"}, {"name": "in_use", "type": "bool"}, {"name": "tested", "type": "date"}],
       "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "wired_to", "to": ["patch_panel", "switch", "router"]}]},
@@ -61,7 +69,7 @@
       "relations": [{"rel": "located_in", "to": ["room"]}]},
     {"id": "server", "group": "infrastructure", "icon": "Server", "attrs": [
       {"name": "hostname", "type": "text"}, {"name": "ip", "type": "ip"}, {"name": "os", "type": "text"}, {"name": "height_units", "type": "number", "unit": "U"}],
-      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "wired_to", "to": ["switch", "router", "patch_panel"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}]},
+      "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "wired_to", "to": ["switch", "router", "patch_panel"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}, {"rel": "supplied_by", "to": ["company"]}, {"rel": "supported_by", "to": ["company", "person"]}]},
     {"id": "patch_panel", "group": "infrastructure", "icon": "Cable", "attrs": [
       {"name": "ports", "type": "number", "required": true}, {"name": "category", "type": "select", "options": ["cat5e", "cat6", "cat6a", "cat7", "cat8"]}],
       "relations": [{"rel": "mounted_in", "to": ["rack"]}, {"rel": "wired_to", "to": ["switch"]}]},
@@ -78,10 +86,10 @@
 
     {"id": "software", "group": "software", "icon": "Package", "attrs": [
       {"name": "version", "type": "text"}, {"name": "type", "type": "select", "options": ["os", "hypervisor", "container_platform", "application"]}],
-      "relations": [{"rel": "installed_on", "to": ["server", "vm", "lxc", "device"]}]},
+      "relations": [{"rel": "installed_on", "to": ["server", "vm", "lxc", "device"]}, {"rel": "supplied_by", "to": ["company"]}, {"rel": "supported_by", "to": ["company", "person"]}]},
     {"id": "service", "group": "software", "icon": "Workflow", "attrs": [
       {"name": "url", "type": "url"}, {"name": "port", "type": "number"}, {"name": "version", "type": "text"}],
-      "relations": [{"rel": "runs_on", "to": ["server", "vm", "lxc", "container"]}, {"rel": "uses", "to": ["database", "service"]}]},
+      "relations": [{"rel": "runs_on", "to": ["server", "vm", "lxc", "container"]}, {"rel": "uses", "to": ["database", "service"]}, {"rel": "supplied_by", "to": ["company"]}, {"rel": "supported_by", "to": ["company", "person"]}]},
     {"id": "database", "group": "software", "icon": "Database", "attrs": [
       {"name": "engine", "type": "select", "options": ["postgres", "mysql", "mariadb", "sqlite", "mongodb", "redis", "other"]}, {"name": "version", "type": "text"}, {"name": "host", "type": "text"}],
       "relations": [{"rel": "runs_on", "to": ["server", "vm", "lxc", "container"]}]},
