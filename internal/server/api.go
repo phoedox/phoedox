@@ -252,9 +252,12 @@ func (a *api) routes(r chi.Router) {
 		r.Post("/projects/import", a.importProject)
 		r.Post("/projects/import-remote", a.importRemote)
 		r.Post("/projects/import-remote/list", a.remoteProjects)
+		r.Get("/trashed-projects", a.trashedProjects)
+		r.With(requireFull).Post("/trashed-projects/{p}/restore", a.restoreProject)
 		r.Route("/projects/{p}", func(r chi.Router) {
 			r.Get("/", a.getProject)
 			r.Patch("/", a.updateProject)
+			r.With(requireFull).Delete("/", a.deleteProject)
 			r.Get("/members", a.listMembers)
 			r.Put("/members", a.setMember)
 			r.Delete("/members/{user}", a.removeMember)
@@ -582,6 +585,40 @@ func (a *api) updateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p, err := a.core.UpdateProject(r.Context(), actorOf(r), chi.URLParam(r, "p"), in)
+	respond(w, p, err)
+}
+
+// deleteProject moves a project to the trash after the owner typed its
+// address and confirmed with the password (or an authenticator code).
+func (a *api) deleteProject(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Confirm  string `json:"confirm"`
+		Password string `json:"password"`
+		Code     string `json:"code"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	actor := actorOf(r)
+	if err := a.auth.ConfirmIdentity(r.Context(), actor, in.Password, in.Code); err != nil {
+		writeErr(w, err)
+		return
+	}
+	if err := a.core.DeleteProject(r.Context(), actor, chi.URLParam(r, "p"), in.Confirm); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (a *api) trashedProjects(w http.ResponseWriter, r *http.Request) {
+	list, err := a.core.TrashedProjects(r.Context(), actorOf(r))
+	respond(w, list, err)
+}
+
+func (a *api) restoreProject(w http.ResponseWriter, r *http.Request) {
+	p, err := a.core.RestoreProject(r.Context(), actorOf(r), chi.URLParam(r, "p"))
 	respond(w, p, err)
 }
 

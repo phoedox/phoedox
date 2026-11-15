@@ -265,6 +265,21 @@ func (a *Auth) confirmIdentity(ctx context.Context, actor core.Actor, password, 
 	return a.checkTOTP(ctx, u.ID, code, false)
 }
 
+// ConfirmIdentity checks the password (or, without one, a current
+// authenticator code) before a destructive action such as deleting a
+// project. Accounts with neither (sign-in only through OIDC) rely on the
+// session and the typed confirmation.
+func (a *Auth) ConfirmIdentity(ctx context.Context, actor core.Actor, password, code string) error {
+	u, err := a.DB.UserByID(ctx, actor.User.ID)
+	if err != nil {
+		return err
+	}
+	if !u.HasPassword && !a.totpActive(ctx, u.ID) {
+		return nil
+	}
+	return a.confirmIdentity(ctx, actor, password, code)
+}
+
 // DisableTOTP turns two-factor authentication off and drops recovery codes.
 func (a *Auth) DisableTOTP(ctx context.Context, actor core.Actor, password, code string) error {
 	if err := a.confirmIdentity(ctx, actor, password, code); err != nil {

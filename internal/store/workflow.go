@@ -185,7 +185,7 @@ func (d *DB) DeleteMaintenancePlan(ctx context.Context, projectID, id string) er
 // MaintenancePlans lists the plans of a project, of one entry, or (both
 // empty, System context) of all tenants.
 func (d *DB) MaintenancePlans(ctx context.Context, projectID, entityID string) ([]MaintenancePlan, error) {
-	q := `SELECT ` + planCols + planFrom + ` WHERE e.deleted_at IS NULL AND b.deleted_at IS NULL`
+	q := `SELECT ` + planCols + planFrom + ` WHERE e.deleted_at IS NULL AND b.deleted_at IS NULL AND m.` + liveProject
 	args := []any{}
 	if projectID != "" {
 		q += ` AND m.project_id = ?`

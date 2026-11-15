@@ -76,7 +76,7 @@ func (d *DB) CreateAgent(ctx context.Context, a Agent) error {
 
 // AgentByToken finds a not revoked agent across tenants.
 func (d *DB) AgentByToken(ctx context.Context, tokenHash string) (Agent, error) {
-	return scanAgent(d.QueryRow(System(ctx), `SELECT `+agentCols+` FROM agents WHERE token_hash = ? AND revoked_at IS NULL`, tokenHash))
+	return scanAgent(d.QueryRow(System(ctx), `SELECT `+agentCols+` FROM agents WHERE token_hash = ? AND revoked_at IS NULL AND `+liveProject, tokenHash))
 }
 
 // SaveAgentReport stores the last report.

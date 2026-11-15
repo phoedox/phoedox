@@ -122,6 +122,7 @@ func Open(ctx context.Context) (*App, error) {
 	svc.HashPassword, svc.VerifyPassword = auth.HashPassword, auth.VerifyPassword
 	svc.PublicURL = cfg.PublicURL
 	svc.BackupDays = (cfg.BackupKeep*cfg.BackupHours + 23) / 24
+	svc.TrashDays = cfg.TrashDays
 	svc.SignupDefault = cfg.Signup == "open"
 	svc.PaidFeatures = cfg.PaidFeatures
 	if cfg.AI.Enabled() {

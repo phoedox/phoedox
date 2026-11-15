@@ -119,6 +119,8 @@ type Service struct {
 	// BackupDays: how long deleted data can still be found in backups
 	// (shown when deleting an account).
 	BackupDays int
+	// TrashDays: how long deleted pages and projects stay restorable (0 = forever).
+	TrashDays int
 	// PaidFeatures maps paid features to the date they become paid
 	// (PHOEDOX_PAID_FEATURES, ADR-0061); empty = everything free.
 	PaidFeatures map[string]time.Time

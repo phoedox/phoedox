@@ -203,7 +203,7 @@ func (d *DB) SetProjectStatusToken(ctx context.Context, projectID, token string)
 
 // ProjectByStatusToken finds the project of a public status page (system context).
 func (d *DB) ProjectByStatusToken(ctx context.Context, token string) (projectID, tenantID string, err error) {
-	err = d.QueryRow(ctx, `SELECT id, tenant_id FROM projects WHERE status_token = ?`, token).Scan(&projectID, &tenantID)
+	err = d.QueryRow(ctx, `SELECT id, tenant_id FROM projects WHERE status_token = ? AND deleted_at IS NULL`, token).Scan(&projectID, &tenantID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = ErrNotFound
 	}

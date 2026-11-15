@@ -35,7 +35,7 @@ export function areaGroups(area: Area, orgs: OrgLite[] = [], ctx?: ProjectCtx): 
       { label: t("sx.group.project"), pages: [...pg("general", "Settings", t("settings.general")), ...pg("people", "Users", t("sx.p.people"))] },
       { label: t("sx.group.workflow"), pages: [...pg("ai", "Bot", t("sx.p.ai")), ...pg("rules", "Zap", t("sx.p.auto"), ctx.canEdit), ...pg("model", "Shapes", t("kg.model"), ctx.withModel)] },
       { label: t("sx.group.connections"), pages: [...pg("env", "Braces", t("sx.p.env")), ...pg("code", "GitBranch", t("sx.p.code"), ctx.canEdit), ...pg("integrations", "Plug", t("sx.p.int"), ctx.owner)] },
-      { label: t("sx.group.data"), pages: [...pg("data", "HardDrive", t("sx.p.data")), ...pg("activity", "ScrollText", t("audit.project_title"), ctx.owner), ...pg("transfer", "ArrowRightLeft", t("sx.p.transfer"), ctx.owner)] },
+      { label: t("sx.group.data"), pages: [...pg("data", "HardDrive", t("sx.p.data")), ...pg("activity", "ScrollText", t("audit.project_title"), ctx.owner), ...pg("transfer", "TriangleAlert", t("sx.p.transfer"), ctx.owner)] },
     ].filter((g) => g.pages.length);
   }
   if (area === "admin") {

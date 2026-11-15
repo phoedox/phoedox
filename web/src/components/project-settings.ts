@@ -3,7 +3,7 @@ import { ApiError, api, hasFeature, projectFeatures, shareURL, type Member, type
 import { applyProjectColor } from "../color";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
-import { currentProject, docsVersion } from "../state";
+import { currentProject, currentUser, docsVersion, navigate } from "../state";
 import { base } from "./shared";
 import { pageHead, scard, settingsUI, srow, sswitch } from "./settings-ui";
 import "./settings-shell";
@@ -28,7 +28,7 @@ type EnvVar = { name: string; value?: string; secret: boolean; vaultRef?: string
 export class PhxProjectSettings extends LitElement {
   static properties = {
     project: {}, section: {}, p: { state: true }, members: { state: true }, env: { state: true }, storage: { state: true }, error: { state: true },
-    groups: { state: true }, orgGroups: { state: true }, orgs: { state: true }, links: { state: true }, newLink: { state: true }, mainDraft: { state: true }, approval: { state: true },
+    deleting: { state: true }, groups: { state: true }, orgGroups: { state: true }, orgs: { state: true }, links: { state: true }, newLink: { state: true }, mainDraft: { state: true }, approval: { state: true },
   };
   static styles = [base, storageStyles, settingsUI, css`
     :host { display: block; }
@@ -36,6 +36,8 @@ export class PhxProjectSettings extends LitElement {
     .scard table { max-width: none; }
     .scard .foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); }
     form.grid { display: grid; gap: 12px; max-width: 560px; }
+    form.danger-form { padding: 4px 18px 18px; }
+    form.danger-form p { margin: 0; }
     .color { display: flex; gap: 8px; align-items: center; } .color input[type=color] { width: 48px; padding: 2px; height: 38px; }
     table { border-collapse: collapse; width: 100%; max-width: 760px; } td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); }
     .chip.bad { color: var(--bad); }
@@ -63,6 +65,8 @@ export class PhxProjectSettings extends LitElement {
   links: ShareLink[] = [];
   /** A link just created: its token is shown once. */
   newLink?: ShareLink;
+  /** Deleting the project: "" closed, "open" asks to confirm, "busy" while it runs. */
+  deleting: "" | "open" | "busy" = "";
   /** Page changes need an owner's approval (ADR-0042). */
   approval = false;
 
@@ -359,9 +363,40 @@ export class PhxProjectSettings extends LitElement {
           ${owner ? srow(t("transfer.settings_title"), t("transfer.export_hint"), html`<a class="btn ghost" href="/api/v1/projects/${this.project}/export" download>${icon("Download", 14)} ${t("transfer.export")}</a>`) : ""}`)}`;
       case "activity": return owner ? html`${pageHead(t("audit.project_title"), t("sx.p.activity_text"))}
         ${card(t("audit.project_title"), "", html`<phx-audit-log .project=${this.project}></phx-audit-log>`)}` : "";
-      case "transfer": return owner ? html`${pageHead(t("sx.p.transfer"), "")}${this.orgSection()}` : "";
+      case "transfer": return owner ? html`${pageHead(t("sx.p.transfer"), "")}${this.orgSection()}${this.deleteSection()}` : "";
     }
     return "";
+  }
+
+  /** Danger zone: delete the project (ADR-0071). */
+  private deleteSection() {
+    const p = this.p!;
+    const u = currentUser.get();
+    const days = this.deleting === "open";
+    return scard(t("ptrash.danger"), "", html`${srow(t("ptrash.delete"), t("ptrash.delete_help"), days ? "" : html`<button class="danger" @click=${() => (this.deleting = "open")}>${icon("Trash2", 14)} ${t("ptrash.delete")}…</button>`)}
+      ${days ? html`<form class="grid danger-form" @submit=${this.deleteProject}>
+        <p>${t("ptrash.confirm_text", { slug: p.slug })}</p>
+        <label class="field">${t("ptrash.confirm_label")}<input name="confirm" required autocomplete="off" spellcheck="false" placeholder=${p.slug} /></label>
+        ${u?.hasPassword ? html`<label class="field">${t("security.confirm_password")}<input name="password" type="password" autocomplete="current-password" required /></label>`
+          : u?.secondFactor ? html`<label class="field">${t("security.confirm_code")}<input name="code" inputmode="numeric" autocomplete="one-time-code" required /></label>` : ""}
+        <div class="row"><button type="submit" class="danger" ?disabled=${this.deleting === "busy"}>${icon("Trash2", 14)} ${t("ptrash.delete_final")}</button>
+          <button type="button" class="ghost" @click=${() => (this.deleting = "")}>${t("doc.cancel")}</button></div>
+      </form>` : ""}`, "danger");
+  }
+
+  private async deleteProject(e: SubmitEvent) {
+    e.preventDefault();
+    const f = new FormData(e.target as HTMLFormElement);
+    this.deleting = "busy";
+    try {
+      await api("DELETE", `/projects/${this.project}`, { confirm: f.get("confirm"), password: f.get("password") ?? "", code: f.get("code") ?? "" });
+      currentProject.set(null);
+      toast(t("ptrash.deleted_toast", { name: this.p!.name }));
+      navigate("/");
+    } catch (err) {
+      this.deleting = "open";
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+    }
   }
 
   render() {

@@ -490,7 +490,7 @@ func (d *DB) ShareLinks(ctx context.Context, projectID string) ([]ShareLink, err
 // ShareLinkByHash returns a valid (not revoked, not expired) link and marks it used.
 func (d *DB) ShareLinkByHash(ctx context.Context, hash string) (ShareLink, error) {
 	now := Now()
-	l, err := scanShare(d.QueryRow(ctx, `SELECT `+shareCols+` FROM share_links WHERE token_hash = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)`, hash, now))
+	l, err := scanShare(d.QueryRow(ctx, `SELECT `+shareCols+` FROM share_links WHERE token_hash = ? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?) AND `+liveProject, hash, now))
 	if err == nil {
 		_, _ = d.Exec(ctx, `UPDATE share_links SET last_used_at = ? WHERE id = ?`, now, l.ID)
 	}

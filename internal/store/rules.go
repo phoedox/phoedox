@@ -56,7 +56,7 @@ func (d *DB) SaveRule(ctx context.Context, x Rule) error {
 
 // Rules lists the rules of a project (all projects with projectID "").
 func (d *DB) Rules(ctx context.Context, projectID string) ([]Rule, error) {
-	q, args := `SELECT `+ruleCols+` FROM automation_rules ORDER BY created_at`, []any{}
+	q, args := `SELECT `+ruleCols+` FROM automation_rules WHERE `+liveProject+` ORDER BY created_at`, []any{}
 	if projectID != "" {
 		q, args = `SELECT `+ruleCols+` FROM automation_rules WHERE project_id = ? ORDER BY created_at`, []any{projectID}
 	}

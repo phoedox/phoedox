@@ -30,6 +30,8 @@ Admin commands (run on the server, same environment as phoedox):
   phx admin reset-password --email E [--password P]
   phx admin reset-2fa --email E                    Remove TOTP, recovery codes and passkeys
   phx admin delete-user --email E --yes            Delete and anonymise an account (like Settings → Account)
+  phx admin deleted-projects                       List deleted projects (in the trash) and when they go for good
+  phx admin restore-project --project SLUG         Restore a deleted project
   phx admin entitle --feature F (--org O | --email E) [--revoke] [--note N]
                                                    Grant (or revoke) a paid feature (PHOEDOX_PAID_FEATURES)
   phx admin test-mail --email E                    Send a test mail with the SMTP settings (PHOEDOX_SMTP_*)
@@ -84,12 +86,13 @@ func admin(args []string) error {
 	orgRef := fs.String("org", "", "organization id or slug (entitle)")
 	revoke := fs.Bool("revoke", false, "revoke instead of grant (entitle)")
 	note := fs.String("note", "", "note stored with the grant (entitle)")
+	projectRef := fs.String("project", "", "project id or slug (restore-project)")
 	var domains multi
 	fs.Var(&domains, "domain", "domain of the tenant (repeatable)")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
-	if *email == "" && args[0] != "reindex" && args[0] != "entitle" && args[0] != "create-tenant" && args[0] != "tenants" && args[0] != "backup" && args[0] != "restore" {
+	if *email == "" && args[0] != "reindex" && args[0] != "entitle" && args[0] != "create-tenant" && args[0] != "tenants" && args[0] != "backup" && args[0] != "restore" && args[0] != "deleted-projects" && args[0] != "restore-project" {
 		return errors.New("--email is required")
 	}
 	ctx := context.Background()
@@ -104,6 +107,29 @@ func admin(args []string) error {
 	}
 
 	switch args[0] {
+	case "deleted-projects":
+		cli := core.Actor{User: store.User{ID: "cli", IsAdmin: true}, Via: "cli"}
+		list, err := a.Core.TrashedProjects(ctx, cli)
+		if err != nil {
+			return err
+		}
+		for _, t := range list {
+			until := "kept until restored"
+			if t.PurgeAt != nil {
+				until = "deleted for good on " + t.PurgeAt.Format("2006-01-02")
+			}
+			fmt.Printf("%s\t%s\tdeleted %s\t%s\n", t.Slug, t.Name, t.DeletedAt.Time.Format("2006-01-02 15:04"), until)
+		}
+	case "restore-project":
+		if *projectRef == "" {
+			return errors.New("--project is required")
+		}
+		cli := core.Actor{User: store.User{ID: "cli", IsAdmin: true}, Via: "cli"}
+		p, err := a.Core.RestoreProject(ctx, cli, *projectRef)
+		if err != nil {
+			return fmt.Errorf("project %s: %w", *projectRef, err)
+		}
+		fmt.Printf("restored %s (%s)\n", p.Slug, p.Name)
 	case "backup":
 		if *file != "" {
 			f, err := os.Create(*file)

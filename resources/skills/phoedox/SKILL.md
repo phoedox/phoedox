@@ -126,6 +126,9 @@ instead of rebuilding them in pages:
   notify people or send a request (e.g. open a ticket).
 - **Emergency copy** (project settings → Storage & export): the project as static HTML in a ZIP that
   opens without a server – for the household folder or a USB stick.
+- **Deleting a project** (project settings → Transfer & delete): only owners, in the
+  browser; the project stays in the trash for 30 days and can be restored from the
+  project list. AI clients cannot delete or restore projects – point people there.
 - **Wall display** (kiosk mode) for a page, and **voice questions** through Home
   Assistant Assist ("Where is the NAS?").
 - **Publishing** a project as a website, **share links**, sharing single pages.

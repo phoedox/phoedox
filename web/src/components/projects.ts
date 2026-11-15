@@ -5,6 +5,7 @@ import { continueTiles, matchProjects, relativeTime, type Tile } from "../home";
 import { locale, t } from "../i18n";
 import { icon } from "../icon";
 import { appOrg, currentProject, currentUser, navigate, projectsPath, roleKey, setShowAllProjects, showAllProjects } from "../state";
+import "./trashed-projects";
 import { base } from "./shared";
 import { projectBadge } from "../pictures";
 import "./project-transfer";
@@ -312,6 +313,7 @@ export class PhxProjects extends SignalWatcher(LitElement) {
       ${main.map(([name, slug, ps]) => this.section(name ? html`${icon(slug ? "Building2" : "UserRound", 13)} ${slug ? html`<a href="/orgs/${slug}">${name}</a>` : name}` : pinnedList.length || this.recent.length ? t("projects.all") : "", ps))}
       ${other.length ? html`<details style="margin-top:18px"><summary style="cursor:pointer;font-weight:600">${t("projects.other")}</summary>
         ${other.map(([name, slug, ps]) => this.section(html`${icon("Building2", 13)} <a href="/orgs/${slug}">${name}</a>`, ps))}</details>` : ""}
+      <phx-trashed-projects></phx-trashed-projects>
       ${this.dialog()}
     </div>`;
   }

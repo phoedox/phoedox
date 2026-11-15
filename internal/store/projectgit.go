@@ -65,7 +65,7 @@ func (d *DB) DeleteProjectGit(ctx context.Context, projectID string) error {
 
 // EnabledProjectGits lists the enabled Git syncs of all tenants (system context).
 func (d *DB) EnabledProjectGits(ctx context.Context) ([]ProjectGit, error) {
-	rows, err := d.Query(ctx, `SELECT `+gitCols+` FROM project_git WHERE enabled = ?`, true)
+	rows, err := d.Query(ctx, `SELECT `+gitCols+` FROM project_git WHERE enabled = ? AND `+liveProject, true)
 	if err != nil {
 		return nil, err
 	}

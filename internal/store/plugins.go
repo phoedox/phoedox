@@ -159,7 +159,7 @@ func (d *DB) PluginProjects(ctx context.Context, pluginID string) ([]ProjectPlug
 // AllProjectPlugins lists every enablement visible in the context (the
 // scheduler uses a System context and reads tenant_id separately).
 func (d *DB) AllProjectPlugins(ctx context.Context) ([]TenantProjectPlugin, error) {
-	rows, err := d.Query(ctx, `SELECT tenant_id, `+ppCols+` FROM project_plugins ORDER BY tenant_id, project_id`)
+	rows, err := d.Query(ctx, `SELECT tenant_id, `+ppCols+` FROM project_plugins WHERE `+liveProject+` ORDER BY tenant_id, project_id`)
 	if err != nil {
 		return nil, err
 	}

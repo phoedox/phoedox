@@ -111,7 +111,7 @@ func (d *DB) DocumentChecks(ctx context.Context, documentID string) ([]Check, er
 
 // EnabledChecks lists the switched-on checks of all tenants (system context).
 func (d *DB) EnabledChecks(ctx context.Context) ([]Check, error) {
-	return d.queryChecks(ctx, `WHERE enabled = ? ORDER BY last_run`, true)
+	return d.queryChecks(ctx, `WHERE enabled = ? AND `+liveProject+` ORDER BY last_run`, true)
 }
 
 // DeleteCheck removes a check.

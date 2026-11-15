@@ -123,6 +123,7 @@ func main() {
 			sys := store.System(ctx) // housekeeping covers all tenants
 			a.Core.GrandfatherFeatures(sys)
 			a.Core.PurgeExpiredTrash(sys, a.Config.TrashDays)
+			a.Core.PurgeDeletedProjects(sys, time.Now())
 			a.Core.CleanupUploads(sys)
 			a.Core.RemindDrafts(sys, time.Now())
 			_, _ = a.DB.PruneJobs(sys, store.Time{Time: time.Now().Add(-7 * 24 * time.Hour)})
