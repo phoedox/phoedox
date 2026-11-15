@@ -149,6 +149,9 @@ func (s *Service) upsertEntity(ctx context.Context, a Actor, p store.Project, in
 	}
 	s.event(ctx, a, "entity.upsert", e.ID, in)
 	s.indexEntity(ctx, e)
+	if created {
+		s.ruleEntityCreated(ctx, a, p, e)
+	}
 	return EntityResult{Applied: true, Created: created, Entity: &e}, nil
 }
 

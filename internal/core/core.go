@@ -76,6 +76,8 @@ func (a Actor) String() string {
 		return "cli"
 	case "agent":
 		return "agent:" + a.TokenID
+	case "rule":
+		return "rule:" + a.TokenID
 	default:
 		return "user:" + a.User.ID
 	}

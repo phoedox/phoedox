@@ -384,6 +384,7 @@ func (s *Service) checkChanged(ctx context.Context, c store.Check, prev string) 
 	}
 	s.checkIncident(ctx, a, c)
 	s.event(ctx, a, kind, c.ID, payload)
+	s.ruleCheck(ctx, a, c, kind)
 	s.mailCheck(ctx, u, c)
 }
 

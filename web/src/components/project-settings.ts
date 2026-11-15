@@ -14,6 +14,7 @@ import "./checks";
 import "./project-transfer";
 import "./project-plugins";
 import "./data-model";
+import "./rules";
 import { toast } from "./toasts";
 import { contentLocales, languageName } from "../languages";
 import "./picture-picker";
@@ -292,9 +293,13 @@ export class PhxProjectSettings extends LitElement {
     const withModel = hasFeature(p, "graph") || hasFeature(p, "model");
     const tabs = html`<h1 style="margin-bottom:12px">${t("settings.title")}</h1>
       ${withModel ? html`<nav class="tabs" aria-label=${t("settings.sections")}>
-        <a href="/p/${this.project}/settings" aria-current=${this.section === "model" ? "false" : "page"}>${icon("Settings", 15)} ${t("settings.general")}</a>
+        <a href="/p/${this.project}/settings" aria-current=${this.section ? "false" : "page"}>${icon("Settings", 15)} ${t("settings.general")}</a>
         <a href="/p/${this.project}/settings/model" aria-current=${this.section === "model" ? "page" : "false"}>${icon("Shapes", 15)} ${t("kg.model")}</a>
-      </nav>` : ""}`;
+        ${canEdit ? html`<a href="/p/${this.project}/settings/rules" aria-current=${this.section === "rules" ? "page" : "false"}>${icon("Zap", 15)} ${t("auto.title")}</a>` : ""}
+      </nav>` : canEdit ? html`<nav class="tabs" aria-label=${t("settings.sections")}>
+        <a href="/p/${this.project}/settings" aria-current=${this.section ? "false" : "page"}>${icon("Settings", 15)} ${t("settings.general")}</a>
+        <a href="/p/${this.project}/settings/rules" aria-current=${this.section === "rules" ? "page" : "false"}>${icon("Zap", 15)} ${t("auto.title")}</a></nav>` : ""}`;
+    if (this.section === "rules" && canEdit) return html`<div class="enter">${tabs}<phx-rules .project=${this.project} ?owner=${owner}></phx-rules></div>`;
     if (this.section === "model" && withModel) return html`<div class="enter">${tabs}<phx-data-model .project=${this.project}></phx-data-model></div>`;
     return html`<div class="enter">
       ${tabs}
