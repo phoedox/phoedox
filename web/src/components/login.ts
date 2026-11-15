@@ -50,6 +50,7 @@ export class PhxLogin extends LitElement {
     const key = new URLSearchParams(location.search).get("error");
     if (key && hasKey(key)) this.error = t(key as Key);
     if (new URLSearchParams(location.search).has("deleted")) toast(t("account.deleted"));
+    if (new URLSearchParams(location.search).has("signup")) toast(t("login.signup_closed"));
     this.instance = await api<Instance>("GET", "/instance").catch(() => undefined);
   }
 

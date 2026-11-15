@@ -2261,4 +2261,5 @@ export const de = {
   "dm.overview_note": "Zeigt die Arten mit Einträgen und wie ihre Einträge tatsächlich verbunden sind; die Pfeile zeigen die Richtung, die Zahl die Anzahl der Verbindungen. Klick auf eine Art öffnet ihren Steckbrief.",
   "entity.no_kind_fits": "Keine passende Art? Neue Art anlegen",
   "dm.col_field": "Feld",
+  "login.signup_closed": "Eine Registrierung gibt es hier noch nicht. Melde dich an oder bitte eine Administratorin bzw. einen Administrator um eine Einladung.",
 } as const;

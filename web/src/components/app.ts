@@ -43,6 +43,7 @@ const projectView = (slug: string, root: boolean) => html`<phx-project .slug=${s
 export class PhxApp extends SignalWatcher(LitElement) {
   static properties = { ready: { state: true } };
   static styles = [base, css`
+    .notfound { max-width: 560px; margin: 60px auto; padding: 0 16px; display: grid; gap: 14px; }
     :host { display: block; min-height: 100vh; }
     header { display: flex; align-items: center; gap: 14px; height: var(--header-h); padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; z-index: 10; }
     .brand { font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--fg); text-decoration: none; display: flex; align-items: center; gap: 8px; }
@@ -68,6 +69,12 @@ export class PhxApp extends SignalWatcher(LitElement) {
 
   private router = new Router(this, [
     { path: "/login", render: () => html`<phx-login></phx-login>` },
+    // The website's "Start for free" links here. Self sign-up does not exist yet:
+    // signed-in people go to their projects, others to the sign-in page with a note.
+    { path: "/signup", render: () => {
+      queueMicrotask(() => navigate(currentUser.get() ? "/" : "/login?signup=1"));
+      return html``;
+    } },
     { path: "/", render: () => html`<phx-projects></phx-projects>` },
     { path: "/forgot", render: () => html`<phx-forgot></phx-forgot>` },
     { path: "/invite/:token", render: ({ token }) => html`<phx-set-password .token=${token!}></phx-set-password>` },
@@ -98,7 +105,8 @@ export class PhxApp extends SignalWatcher(LitElement) {
     // show the overview (the root route has no tail for the child routes).
     { path: "/p/:project/*", render: ({ project }) => projectView(project!, false) },
     { path: "/p/:project", render: ({ project }) => projectView(project!, true) },
-  ]);
+  ], { fallback: { render: () => html`<main class="notfound enter"><h1>${t("error.not_found")}</h1>
+    <p><a class="btn" href="/">${icon("FolderOpen", 14)} ${t("nav.projects")}</a></p></main>` } });
 
   async connectedCallback() {
     super.connectedCallback();

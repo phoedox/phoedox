@@ -2263,4 +2263,5 @@ export const en: Record<keyof typeof de, string> = {
   "dm.overview_note": "Shows the kinds with entries and how their entries are actually connected; arrows show the direction, the number how many connections there are. Click a kind to open its sheet.",
   "entity.no_kind_fits": "No kind fits? Create a new kind",
   "dm.col_field": "Field",
+  "login.signup_closed": "Sign-up is not open here yet. Sign in, or ask an administrator for an invitation.",
 };
