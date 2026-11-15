@@ -14,6 +14,8 @@ export class PhxEntityForm extends LitElement {
   static properties = { project: {}, entity: {}, kind: {}, model: { state: true }, current: { state: true }, error: { state: true }, badAttr: { state: true }, busy: { state: true } };
   static styles = [base, css`
     form { display: grid; gap: 12px; max-width: 720px; }
+    a.hint { display: inline-flex; gap: 4px; align-items: center; font-size: 12.5px; font-weight: 400; color: var(--muted); margin-top: 2px; width: fit-content; }
+    @media (hover: hover) and (pointer: fine) { a.hint:hover { color: var(--fg); } }
     .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .attrs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .unit { display: flex; align-items: center; gap: 6px; }
@@ -100,7 +102,7 @@ export class PhxEntityForm extends LitElement {
       const r = await api<EntityResult>("POST", `/projects/${this.project}/entities`, body);
       if (!r.applied) {
         toast(t("suggestion.created"));
-        navigate(this.current ? `/p/${this.project}/e/${this.current.slug}` : `/p/${this.project}/model?kind=${this.kind}&view=entries`);
+        navigate(this.current ? `/p/${this.project}/e/${this.current.slug}` : `/p/${this.project}/graph?kind=${this.kind}`);
         return;
       }
       navigate(`/p/${this.project}/e/${r.entity!.slug}`);
@@ -128,7 +130,7 @@ export class PhxEntityForm extends LitElement {
           <label class="field">${t("entity.kind")}<select name="kind" @change=${(e: Event) => (this.kind = (e.target as HTMLSelectElement).value)}>
             ${groups.map((g) => html`<optgroup label=${groupName(g)}>
               ${this.model!.kinds.filter((x) => x.group === g).map((x) => html`<option value=${x.id} ?selected=${x.id === this.kind}>${kindName(x)}</option>`)}</optgroup>`)}
-          </select></label>
+          </select>${!this.current ? html`<a class="hint" href="/p/${this.project}/settings/model?new=1">${icon("Plus", 12)} ${t("entity.no_kind_fits")}</a>` : ""}</label>
           <label class="field">${t("entity.name")}<input name="name" required maxlength="200" .value=${this.current?.name ?? ""} autocomplete="off"></label>
         </div>
         ${k?.attrs.length ? html`<div class="attrs">${k.attrs.map((a) => this.field(a, this.current?.attrs?.[a.name]))}</div>` : ""}
@@ -136,7 +138,7 @@ export class PhxEntityForm extends LitElement {
         ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
         <div class="row">
           <button ?disabled=${this.busy}>${icon("Check", 14)} ${t("entity.save")}</button>
-          <a class="btn ghost" href=${this.current ? `/p/${this.project}/e/${this.current.slug}` : `/p/${this.project}/model`}>${t("doc.cancel")}</a>
+          <a class="btn ghost" href=${this.current ? `/p/${this.project}/e/${this.current.slug}` : `/p/${this.project}/graph`}>${t("doc.cancel")}</a>
         </div>
       </form>
     </div>`;

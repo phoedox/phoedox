@@ -12,7 +12,9 @@ export interface Kind {
   rules?: KindRules;
 }
 export interface KindRules { location?: boolean; page?: boolean; owner?: boolean; fields?: string[]; reviewDays?: number }
-export interface Model { kinds: Kind[]; generic: string[]; unknown?: Record<string, number> }
+/** How often a relation occurs between two kinds in the project's entries. */
+export interface RelUse { from: string; rel: string; to: string; count: number }
+export interface Model { kinds: Kind[]; generic: string[]; unknown?: Record<string, number>; used?: RelUse[] }
 export interface KindInput { name?: string; description?: string; icon?: string; attrs?: Attr[]; relations?: Relation[] }
 
 /** Icons a project may pick for own kinds (same list as the server). */

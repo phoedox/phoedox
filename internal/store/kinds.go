@@ -66,6 +66,36 @@ func (d *DB) CountEntitiesByKind(ctx context.Context, projectID string) (map[str
 	return out, rows.Err()
 }
 
+// RelationCount is how often a relation is used between two kinds.
+type RelationCount struct {
+	From  string `json:"from"`
+	Rel   string `json:"rel"`
+	To    string `json:"to"`
+	Count int    `json:"count"`
+}
+
+// CountRelationsByKind counts the live edges of a project per source kind,
+// relation and target kind.
+func (d *DB) CountRelationsByKind(ctx context.Context, projectID string) ([]RelationCount, error) {
+	rows, err := d.Query(ctx, `SELECT f.kind, e.rel, t.kind, COUNT(*)
+		FROM edges e JOIN entities f ON f.id = e.from_id JOIN entities t ON t.id = e.to_id
+		WHERE f.project_id = ? AND e.deleted_at IS NULL AND f.deleted_at IS NULL AND t.deleted_at IS NULL
+		GROUP BY f.kind, e.rel, t.kind ORDER BY f.kind, e.rel, t.kind`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []RelationCount
+	for rows.Next() {
+		var c RelationCount
+		if err := rows.Scan(&c.From, &c.Rel, &c.To, &c.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
 // EdgesOfProject lists all live edges between live entities of a project.
 func (d *DB) EdgesOfProject(ctx context.Context, projectID string) ([]Edge, error) {
 	return d.queryEdges(ctx, `f.project_id = ?`, `e.created_at`, projectID)

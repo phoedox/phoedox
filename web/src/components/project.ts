@@ -25,8 +25,8 @@ import "./translate";
 import "./trash";
 import "./entity-view";
 import "./entity-form";
-import "./data-model";
-import "./graph-view";
+import "./knowledge";
+import type { KnowledgeView } from "./knowledge";
 import "./project-files";
 import "./suggestions";
 import "./monitoring";
@@ -155,21 +155,24 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "new/:type", render: ({ type }) => html`<phx-doc-form .project=${this.slug} .type=${type!}></phx-doc-form>` },
     { path: "e/:entity/edit", render: ({ entity }) => html`<phx-entity-form .project=${this.slug} .entity=${entity!}></phx-entity-form>` },
     { path: "new-entity", render: () => html`<phx-entity-form .project=${this.slug}></phx-entity-form>` },
-    { path: "model", render: () => this.gated("model", html`<phx-data-model .project=${this.slug}></phx-data-model>`) },
+    // The data model moved to the project settings and the table into the knowledge graph area (ADR-0056).
+    { path: "model", render: () => this.redirect("settings/model") },
+    { path: "table", render: () => this.redirect("graph") },
     { path: "files", render: () => this.gated("files", html`<phx-project-files .project=${this.slug}></phx-project-files>`) },
-    { path: "graph", render: () => this.gated("graph", html`<phx-graph-view .project=${this.slug}></phx-graph-view>`) },
+    { path: "graph", render: () => this.knowledge("entries") },
+    { path: "graph/map", render: () => this.knowledge("map") },
     { path: "import", render: () => html`<phx-import-view .project=${this.slug}></phx-import-view>` },
-    { path: "topology", render: () => this.gated("graph", html`<phx-topology-view .project=${this.slug}></phx-topology-view>`) },
-    { path: "table", render: () => this.gated("graph", html`<phx-entity-table .project=${this.slug}></phx-entity-table>`) },
-    { path: "ipam", render: () => this.gated("graph", html`<phx-ipam .project=${this.slug}></phx-ipam>`) },
+    { path: "topology", render: () => this.knowledge("topology") },
+    { path: "ipam", render: () => this.knowledge("ipam") },
     { path: "household", render: () => this.gated("household", html`<phx-household .project=${this.slug}></phx-household>`) },
-    { path: "locations", render: () => this.gated("graph", html`<phx-locations .project=${this.slug}></phx-locations>`) },
+    { path: "locations", render: () => this.knowledge("locations") },
     { path: "e/:entity", render: ({ entity }) => html`<phx-entity-view .project=${this.slug} .entity=${entity!}></phx-entity-view>` },
     { path: "decisions", render: () => this.gated("decisions", html`<phx-decisions .project=${this.slug}></phx-decisions>`) },
     { path: "suggestions", render: () => html`<phx-suggestions .project=${this.slug}></phx-suggestions>` },
     { path: "insights", render: () => html`<phx-insights .project=${this.slug}></phx-insights>` },
     { path: "monitoring", render: () => html`<phx-monitoring .project=${this.slug}></phx-monitoring>` },
     { path: "settings", render: () => html`<phx-project-settings .project=${this.slug}></phx-project-settings>` },
+    { path: "settings/model", render: () => html`<phx-project-settings .project=${this.slug} section="model"></phx-project-settings>` },
   ], { fallback: { render: () => this.overview() } });
 
   async willUpdate(changed: Map<string, unknown>) {
@@ -345,14 +348,33 @@ export class PhxProject extends SignalWatcher(LitElement) {
     </div>`;
   }
 
+  /** The knowledge graph area: its views and the entry pages. */
+  private inKnowledge(here: string) {
+    const p = `/p/${this.slug}/`;
+    return ["graph", "graph/map", "topology", "ipam", "locations", "new-entity"].some((x) => here === p + x) || here.startsWith(`${p}e/`);
+  }
+
+  private knowledge(view: KnowledgeView) {
+    return this.gated("graph", html`<phx-knowledge .project=${this.slug} .view=${view}></phx-knowledge>`);
+  }
+
+  /** Replaces an old address by its new place, keeping the query. */
+  private redirect(path: string) {
+    const to = `/p/${this.slug}/${path}${location.search}`;
+    queueMicrotask(() => {
+      history.replaceState(history.state, "", to);
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    return html``;
+  }
+
   /** Label of the current page for the mobile bar. */
   private where(here: string) {
     const doc = this.docs.find((d) => here.startsWith(`/p/${this.slug}/d/${d.slug}`));
     if (doc) return doc.title;
     if (here.endsWith("/decisions")) return t("nav.decisions");
     if (here.endsWith("/trash")) return t("nav.trash");
-    if (here.endsWith("/graph")) return t("nav.graph");
-    if (here.endsWith("/model")) return t("nav.model");
+    if (this.inKnowledge(here)) return t("nav.graph");
     if (here.endsWith("/files")) return t("nav.files");
     if (here.endsWith("/new-entity")) return t("entity.new");
     if (here.endsWith("/suggestions")) return t("nav.suggestions");
@@ -483,12 +505,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
           <div class="grp"><a href="/p/${this.slug}" class=${here === `/p/${this.slug}` ? "on" : ""}>${icon("House", 15)} ${t("project.overview")}</a>
             ${!hasFeature(proj, "decisions") ? "" : html`<a href="/p/${this.slug}/decisions" class=${here === `/p/${this.slug}/decisions` || this.docs.some((d) => d.type === "adr" && here.startsWith(`/p/${this.slug}/d/${d.slug}`)) ? "on" : ""}>${icon("ListChecks", 15)} ${t("nav.decisions")}
               ${decisions ? html`<span class="num">${decisions}</span>` : ""}</a>`}
-            ${docOnly || !hasFeature(proj, "graph") ? "" : html`<a href="/p/${this.slug}/graph" class=${here === `/p/${this.slug}/graph` || here.startsWith(`/p/${this.slug}/e/`) ? "on" : ""}>${icon("Waypoints", 15)} ${t("nav.graph")}</a>
-              <a href="/p/${this.slug}/topology" class=${here === `/p/${this.slug}/topology` ? "on" : ""}>${icon("Network", 15)} ${t("topo.title")}</a>
-              <a href="/p/${this.slug}/ipam" class=${here === `/p/${this.slug}/ipam` ? "on" : ""}>${icon("Network", 15)} ${t("ipam.title")}</a>
-              <a href="/p/${this.slug}/table" class=${here === `/p/${this.slug}/table` ? "on" : ""}>${icon("Table", 15)} ${t("table.title")}</a>
-              <a href="/p/${this.slug}/locations" class=${here === `/p/${this.slug}/locations` ? "on" : ""}>${icon("MapPin", 15)} ${t("loc.title")}</a>`}
-            ${docOnly || !hasFeature(proj, "model") ? "" : html`<a href="/p/${this.slug}/model" class=${here === `/p/${this.slug}/model` ? "on" : ""}>${icon("Shapes", 15)} ${t("nav.model")}</a>`}
+            ${docOnly || !hasFeature(proj, "graph") ? "" : html`<a href="/p/${this.slug}/graph" class=${this.inKnowledge(here) ? "on" : ""}>${icon("Waypoints", 15)} ${t("nav.graph")}</a>`}
             ${docOnly || !hasFeature(proj, "files") ? "" : html`<a href="/p/${this.slug}/files" class=${here === `/p/${this.slug}/files` ? "on" : ""}>${icon("Paperclip", 15)} ${t("nav.files")}</a>`}</div>
           ${this.tree(here, canEdit)}
         </div>

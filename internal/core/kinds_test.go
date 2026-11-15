@@ -92,6 +92,17 @@ func TestKinds(t *testing.T) {
 	if _, err := s.Link(ctx, editor, p.Slug, EdgeInput{From: "balkon", Rel: "located_in", To: "keller"}); err != nil {
 		t.Fatalf("own relation: %v", err)
 	}
+	// The model counts how the entries are connected, per kind and relation.
+	m, _ = s.DataModel(ctx, reader, p.Slug)
+	found := false
+	for _, u := range m.Used {
+		if u.From == "solar" && u.Rel == "located_in" && u.Count == 1 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("relation counts: %+v", m.Used)
+	}
 	if err := s.DeleteKind(ctx, editor, p.Slug, "solar"); invalidKey(err) != "validation.kind_in_use" {
 		t.Fatalf("delete used kind: %v", err)
 	}

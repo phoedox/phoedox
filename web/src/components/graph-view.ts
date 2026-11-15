@@ -13,7 +13,7 @@ type Graph = { entities: Entity[]; edges: Edge[] };
 /** The whole knowledge graph of a project: filter by kind, search, pan and zoom. */
 export class PhxGraphView extends LitElement {
   static properties = {
-    project: {}, g: { state: true }, model: { state: true }, off: { state: true }, query: { state: true },
+    project: {}, embedded: { type: Boolean, reflect: true }, g: { state: true }, model: { state: true }, off: { state: true }, query: { state: true },
     sel: { state: true }, view: { state: true }, error: { state: true },
   };
   static styles = [base, css`
@@ -52,6 +52,7 @@ export class PhxGraphView extends LitElement {
     @media (prefers-reduced-motion: reduce) { .card { transition: opacity var(--dur) ease; @starting-style { opacity: 0; transform: none; } } }
   `];
   project = "";
+  embedded = false;
   g?: Graph;
   model?: Model;
   /** Kinds switched off in the filter. */
@@ -155,8 +156,7 @@ export class PhxGraphView extends LitElement {
     if (this.error) return html`<p class="error">${this.error}</p>`;
     if (!this.g || !this.model) return html`<p class="muted">${t("app.loading")}</p>`;
     const { entities, edges } = this.g;
-    const head = html`<div class="head"><h1>${t("graph.title")}</h1>
-      <a class="btn ghost" href="/p/${this.project}/model">${icon("Shapes", 14)} ${t("nav.model")}</a></div>`;
+    const head = this.embedded ? "" : html`<div class="head"><h1>${t("graph.title")}</h1></div>`;
     if (!entities.length) {
       return html`<div class="enter">${head}<div class="stage empty"><p class="muted">${t("graph.empty")}</p>
         <a class="btn" href="/p/${this.project}/new-entity">${icon("Plus", 14)} ${t("entity.new")}</a></div></div>`;

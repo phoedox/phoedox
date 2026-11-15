@@ -20,9 +20,10 @@ const coords = (n: Node): [number, number] | undefined => {
 
 /** Location hierarchy site → building → floor → room with a map of the sites. */
 export class PhxLocations extends LitElement {
-  static properties = { project: {}, roots: { state: true }, mapOn: { state: true }, placing: { state: true } };
+  static properties = { project: {}, embedded: { type: Boolean, reflect: true }, roots: { state: true }, mapOn: { state: true }, placing: { state: true } };
   static styles = [base, unsafeCSS(leafletCSS), css`
     :host { display: block; max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
+    :host([embedded]) { max-width: none; padding: 0; }
     ul { list-style: none; margin: 0; padding: 0 0 0 18px; }
     ul.root { padding: 0; }
     li { margin: 3px 0; }
@@ -34,6 +35,7 @@ export class PhxLocations extends LitElement {
     .placing { font-size: 14px; }
   `];
   project = "";
+  embedded = false;
   roots?: Node[];
   mapOn = false;
   /** Site that gets its position from the next click on the map. */
@@ -134,7 +136,7 @@ export class PhxLocations extends LitElement {
   render() {
     const roots = this.roots;
     return html`
-      <h1>${t("loc.title")}</h1>
+      ${this.embedded ? "" : html`<h1>${t("loc.title")}</h1>`}
       <p class="muted">${t("loc.hint")}</p>
       ${this.sites().length ? this.mapOn
         ? html`${this.placing ? html`<p class="placing" role="status">${icon("Crosshair", 14)} ${t("loc.click_map", { name: this.placing.name })}

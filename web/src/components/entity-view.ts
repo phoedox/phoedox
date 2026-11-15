@@ -183,7 +183,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
         this.confirming = false;
         return;
       }
-      navigate(`/p/${project}/model?kind=${e.kind}&view=entries`);
+      navigate(`/p/${project}/graph?kind=${e.kind}`);
       toast(t("entity.trashed", { name: e.name }), "ok", {
         label: t("doc.undo"),
         run: async () => {
@@ -299,7 +299,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
         <span class="kic" style="--c:${groupColor[k?.group ?? "custom"]}">${icon(k?.icon ?? "CircleAlert", 22)}</span>
         <div class="title"><h1>${e.name}</h1>
           <p class="row" style="margin:6px 0 0">
-            <a class="chip" href="/p/${this.project}/model?kind=${e.kind}">${kindName(k, e.kind)}${k ? ` · ${groupName(k.group)}` : ""}</a>
+            <a class="chip" href="/p/${this.project}/settings/model?kind=${e.kind}">${kindName(k, e.kind)}${k ? ` · ${groupName(k.group)}` : ""}</a>
             <span class="chip mono" title=${t("entity.mention_hint")}>@${e.slug}</span></p></div>
         ${edit ? html`<div class="row">
           <a class="btn ghost" href="/p/${this.project}/e/${e.slug}/edit">${icon("Pencil", 14)} ${t("entity.edit")}</a>

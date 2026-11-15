@@ -1,5 +1,5 @@
 import { LitElement, css, html } from "lit";
-import { ApiError, api, projectFeatures, shareURL, type Member, type Org, type Project, type ProjectGroup, type Group, type OrgDetail, type ShareLink } from "../api";
+import { ApiError, api, hasFeature, projectFeatures, shareURL, type Member, type Org, type Project, type ProjectGroup, type Group, type OrgDetail, type ShareLink } from "../api";
 import { applyProjectColor } from "../color";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
@@ -13,6 +13,7 @@ import "./audit-log";
 import "./checks";
 import "./project-transfer";
 import "./project-plugins";
+import "./data-model";
 import { toast } from "./toasts";
 import { contentLocales, languageName } from "../languages";
 import "./picture-picker";
@@ -22,7 +23,7 @@ type EnvVar = { name: string; value?: string; secret: boolean; vaultRef?: string
 
 export class PhxProjectSettings extends LitElement {
   static properties = {
-    project: {}, p: { state: true }, members: { state: true }, env: { state: true }, storage: { state: true }, error: { state: true },
+    project: {}, section: {}, p: { state: true }, members: { state: true }, env: { state: true }, storage: { state: true }, error: { state: true },
     groups: { state: true }, orgGroups: { state: true }, orgs: { state: true }, links: { state: true }, newLink: { state: true }, mainDraft: { state: true }, approval: { state: true },
   };
   static styles = [base, storageStyles, css`
@@ -36,8 +37,16 @@ export class PhxProjectSettings extends LitElement {
     fieldset.langs p { margin: 0; font-size: 13px; }
     .checks { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 4px; }
     .checks label { display: inline-flex; gap: 6px; align-items: center; font-weight: 400; white-space: nowrap; }
+    nav.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 20px; overflow-x: auto; scrollbar-width: none; }
+    nav.tabs a { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; color: var(--muted); text-decoration: none; font-size: 14px;
+      border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; transition: color var(--dur-fast) ease; }
+    nav.tabs a[aria-current="page"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
+    nav.tabs a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+    @media (hover: hover) and (pointer: fine) { nav.tabs a:hover { color: var(--fg); } }
   `];
   project = "";
+  /** "" = general settings, "model" = kinds and fields of the knowledge graph. */
+  section = "";
   p?: Project;
   /** Main language chosen in the form before saving. */
   mainDraft?: string;
@@ -280,8 +289,15 @@ export class PhxProjectSettings extends LitElement {
     if (!p) return html`<p class="muted">${t("app.loading")}</p>`;
     const owner = p.role === "owner";
     const canEdit = owner || p.role === "editor";
+    const withModel = hasFeature(p, "graph") || hasFeature(p, "model");
+    const tabs = html`<h1 style="margin-bottom:12px">${t("settings.title")}</h1>
+      ${withModel ? html`<nav class="tabs" aria-label=${t("settings.sections")}>
+        <a href="/p/${this.project}/settings" aria-current=${this.section === "model" ? "false" : "page"}>${icon("Settings", 15)} ${t("settings.general")}</a>
+        <a href="/p/${this.project}/settings/model" aria-current=${this.section === "model" ? "page" : "false"}>${icon("Shapes", 15)} ${t("kg.model")}</a>
+      </nav>` : ""}`;
+    if (this.section === "model" && withModel) return html`<div class="enter">${tabs}<phx-data-model .project=${this.project}></phx-data-model></div>`;
     return html`<div class="enter">
-      <h1 style="margin-bottom:16px">${t("settings.title")}</h1>
+      ${tabs}
       ${owner ? html`<h2 style="font-size:18px;margin:0 0 8px">${t("picture.project")}</h2>
         <phx-picture-picker style="margin-bottom:20px" .project=${p.slug} .has=${!!p.image}
           @changed=${(e: CustomEvent<string>) => { this.p = { ...p, image: e.detail || undefined }; currentProject.set(this.p); }}>${projectBadge(p, 64)}</phx-picture-picker>` : ""}
@@ -301,7 +317,7 @@ export class PhxProjectSettings extends LitElement {
         <fieldset class="langs" ?disabled=${!owner}>
           <legend>${t("settings.features")}</legend>
           <p class="muted">${t("settings.features_hint")}</p>
-          <div class="checks">${projectFeatures.map((x) => html`<label><input type="checkbox" name="features" value=${x} ?checked=${p.features.includes(x)}> ${t(`feature.${x}` as any)}</label>`)}</div>
+          <div class="checks">${projectFeatures.filter((x) => x !== "model").map((x) => html`<label><input type="checkbox" name="features" value=${x} ?checked=${p.features.includes(x)}> ${t(`feature.${x}` as any)}</label>`)}</div>
         </fieldset>
         <fieldset class="langs" ?disabled=${!owner}>
           <legend>${t("settings.languages")}</legend>

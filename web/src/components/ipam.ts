@@ -11,9 +11,10 @@ interface Report { subnets: Subnet[]; conflicts: Addr[]; outside: Addr[] }
 
 /** IP address management: subnets with used and free addresses, conflicts. */
 export class PhxIpam extends LitElement {
-  static properties = { project: {}, r: { state: true } };
+  static properties = { project: {}, embedded: { type: Boolean, reflect: true }, r: { state: true } };
   static styles = [base, css`
     :host { display: block; max-width: 1050px; margin: 0 auto; padding: 24px 16px 60px; }
+    :host([embedded]) { max-width: none; padding: 0; }
     .card { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--surface); margin-bottom: 12px; }
     .card header { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
     .card header b { font-size: 16px; }
@@ -26,6 +27,7 @@ export class PhxIpam extends LitElement {
     details summary { cursor: pointer; color: var(--muted); font-size: 13.5px; }
   `];
   project = "";
+  embedded = false;
   r?: Report;
 
   connectedCallback() {
@@ -45,7 +47,7 @@ export class PhxIpam extends LitElement {
     const r = this.r;
     if (!r) return html`<p class="muted">${t("app.loading")}</p>`;
     return html`
-      <h1>${t("ipam.title")}</h1>
+      ${this.embedded ? "" : html`<h1>${t("ipam.title")}</h1>`}
       ${r.conflicts.length ? html`<div class="card warn" role="alert"><header>${icon("TriangleAlert", 16)} <b>${t("ipam.conflicts", { n: r.conflicts.length })}</b></header>${this.rows(r.conflicts)}</div>` : ""}
       ${r.subnets.length ? "" : html`<p class="muted">${t("ipam.none")}</p>`}
       ${r.subnets.map((s) => html`<div class="card">

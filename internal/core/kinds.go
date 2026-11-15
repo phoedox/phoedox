@@ -64,6 +64,9 @@ type Model struct {
 	Kinds   []Kind         `json:"kinds"`
 	Generic []string       `json:"generic"`           // relations allowed between any kinds
 	Unknown map[string]int `json:"unknown,omitempty"` // entity kinds without definition (older data)
+	// Used counts how often each relation occurs between two kinds in the
+	// project's entries (the bridge between the data model and the graph).
+	Used []store.RelationCount `json:"used"`
 }
 
 // KindInput defines an own kind or extends a core kind (then only attrs and
@@ -154,6 +157,12 @@ func (s *Service) DataModel(ctx context.Context, a Actor, ref string) (Model, er
 	}
 	if len(counts) > 0 {
 		m.Unknown = counts
+	}
+	if m.Used, err = s.DB.CountRelationsByKind(ctx, p.ID); err != nil {
+		return m, err
+	}
+	if m.Used == nil {
+		m.Used = []store.RelationCount{}
 	}
 	return m, nil
 }

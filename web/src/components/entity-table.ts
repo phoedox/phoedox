@@ -4,7 +4,7 @@ import { ApiError, api } from "../api";
 import { parseCSV, toCSV } from "../csv";
 import { hasKey, t } from "../i18n";
 import { icon } from "../icon";
-import { attrLabel, findKind, formatValue, kindName, loadModel, relLabel, type Kind, type Model } from "../model";
+import { attrLabel, findKind, formatValue, groupColor, groupName, kindName, loadModel, relLabel, type Kind, type Model } from "../model";
 import { currentProject } from "../state";
 import { base } from "./shared";
 import { toast } from "./toasts";
@@ -24,11 +24,31 @@ const errText = (e: { key: string; params?: Record<string, unknown> }) => (hasKe
 /** Entries of one kind as a table: filters, saved queries, inline and bulk editing, CSV export and import. */
 export class PhxEntityTable extends LitElement {
   static properties = {
-    project: {}, model: { state: true }, query: { state: true }, result: { state: true }, saved: { state: true }, selected: { state: true },
+    project: {}, embedded: { type: Boolean, reflect: true }, model: { state: true }, query: { state: true }, result: { state: true }, saved: { state: true }, selected: { state: true },
     importRows: { state: true }, busy: { state: true },
   };
   static styles = [base, css`
     :host { display: block; padding: 24px 16px 60px; }
+    :host([embedded]) { padding: 0; }
+    .split { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 20px; align-items: start; }
+    nav.kinds { display: flex; flex-direction: column; gap: 10px; position: sticky; top: calc(var(--header-h, 56px) + 12px); }
+    nav.kinds .lbl { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 0 8px 3px; }
+    nav.kinds button { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 8px; border-radius: 6px;
+      font-size: 14px; color: var(--muted); cursor: pointer; transition: background-color var(--dur-fast) ease, color var(--dur-fast) ease; }
+    nav.kinds button small { margin-left: auto; font-family: var(--font-mono); font-size: 11px; }
+    nav.kinds button[aria-current="true"] { background: var(--accent-soft); color: var(--fg); }
+    nav.kinds button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+    @media (hover: hover) and (pointer: fine) { nav.kinds button:hover { background: var(--surface2); color: var(--fg); } }
+    .kic { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; flex: none; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
+    .empty { border: 1px dashed var(--line); border-radius: 12px; padding: 28px 20px; text-align: center; display: grid; gap: 10px; justify-items: center; }
+    @media (max-width: 860px) {
+      .split { grid-template-columns: 1fr; }
+      nav.kinds { position: static; flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 6px; scrollbar-width: thin; }
+      nav.kinds > div { display: contents; }
+      nav.kinds .lbl { display: none; }
+      nav.kinds button { width: auto; flex: none; white-space: nowrap; border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; }
+      nav.kinds button small { margin-left: 4px; }
+    }
     .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin-bottom: 10px; }
     .bar select, .bar input { width: auto; }
     .cond { display: inline-flex; gap: 4px; align-items: center; border: 1px solid var(--line); border-radius: 8px; padding: 2px 4px 2px 8px; background: var(--surface); font-size: 13px; }
@@ -44,6 +64,8 @@ export class PhxEntityTable extends LitElement {
     .imp { border: 1px dashed var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; display: grid; gap: 6px; }
   `];
   project = "";
+  /** Shown inside the knowledge graph area: kinds as a list on the left. */
+  embedded = false;
   model?: Model;
   query: GraphQuery = { kind: "" };
   result?: QueryResult;
@@ -93,8 +115,26 @@ export class PhxEntityTable extends LitElement {
   }
 
   private setQuery(q: GraphQuery) {
+    if (this.embedded && q.kind !== this.query.kind) {
+      const u = new URLSearchParams(location.search);
+      u.set("kind", q.kind);
+      u.delete("query");
+      history.replaceState(history.state, "", `${location.pathname}?${u}`);
+    }
     this.query = q;
     this.run();
+  }
+
+  /** Kinds with entries, grouped like in the data model. */
+  private kindNav(m: Model) {
+    const used = m.kinds.filter((x) => x.count > 0 || x.id === this.query.kind);
+    const groups = [...new Set(used.map((x) => x.group))];
+    return html`<nav class="kinds" aria-label=${t("kg.kinds")}>
+      ${groups.map((g) => html`<div><div class="lbl">${groupName(g)}</div>
+        ${used.filter((x) => x.group === g).map((x) => html`<button aria-current=${x.id === this.query.kind ? "true" : "false"} @click=${() => this.setQuery({ kind: x.id })}>
+          <span class="kic" style="--c:${groupColor[x.group] ?? "var(--accent)"}">${icon(x.icon, 13)}</span><span>${kindName(x)}</span><small>${x.count}</small></button>`)}
+      </div>`)}
+    </nav>`;
   }
 
   private addCond(e: Event) {
@@ -246,11 +286,20 @@ export class PhxEntityTable extends LitElement {
     const rels = [...new Set([...(k?.relations ?? []).map((x) => x.rel), "located_in", "depends_on"])];
     const edit = this.canEdit;
     const sortBy = (c: string) => this.setQuery({ ...this.query, sort: this.query.sort === c ? `-${c}` : c });
+    if (this.embedded && !m.kinds.some((x) => x.count > 0)) {
+      return html`<div class="empty"><p class="muted">${t("graph.empty")}</p>
+        ${edit ? html`<a class="btn" href="/p/${this.project}/new-entity">${icon("Plus", 14)} ${t("entity.new")}</a>` : ""}</div>`;
+    }
+    const body = this.tableBody(m, k, r, fields, label, rels, edit, sortBy);
+    return this.embedded ? html`<div class="split">${this.kindNav(m)}<div>${body}</div></div>` : html`<h1>${t("table.title")}</h1>${body}`;
+  }
+
+  private tableBody(m: Model, k: Kind | undefined, r: QueryResult | undefined, fields: { name: string; label: string }[], label: (f: string) => string,
+    rels: string[], edit: boolean, sortBy: (c: string) => void) {
     return html`
-      <h1>${t("table.title")}</h1>
       <div class="bar">
-        <label>${t("table.kind")} <select @change=${(e: Event) => this.setQuery({ kind: (e.target as HTMLSelectElement).value })}>
-          ${m.kinds.filter((x) => x.count > 0 || x.id === this.query.kind).map((x) => html`<option value=${x.id} ?selected=${x.id === this.query.kind}>${kindName(x)} (${x.count})</option>`)}</select></label>
+        ${this.embedded ? "" : html`<label>${t("table.kind")} <select @change=${(e: Event) => this.setQuery({ kind: (e.target as HTMLSelectElement).value })}>
+          ${m.kinds.filter((x) => x.count > 0 || x.id === this.query.kind).map((x) => html`<option value=${x.id} ?selected=${x.id === this.query.kind}>${kindName(x)} (${x.count})</option>`)}</select></label>`}
         ${this.saved.length ? html`<label>${t("table.saved_queries")} <select @change=${(e: Event) => { const s = this.saved.find((x) => x.id === (e.target as HTMLSelectElement).value); if (s) this.setQuery(s.def); }}>
           <option value="">–</option>${this.saved.map((s) => html`<option value=${s.id}>${s.name}</option>`)}</select></label>` : ""}
         <form class="row" @submit=${this.addCond}>

@@ -6,7 +6,7 @@ Concepts:
 - Decisions are numbered per project (ADR-0001, ADR-0002, …). The number is assigned by Phoedox and never reused; you can use it wherever a document is expected.
 - Documents have a category; the sidebar groups documents by category. Reuse existing categories (see get_project) instead of inventing similar ones.
 - Entities are things like services, servers, routers, rooms or people (kind + name + attrs). Edges connect them with a relation such as depends_on, runs_on, located_in, uplink.
-- The data model (get_data_model) lists the kinds of a project, their attributes as JSON schema and which relations are allowed between which kinds. related_to and depends_on are allowed between any kinds. If no kind fits, propose one with define_kind instead of misusing another kind.
+- The data model (get_data_model) lists the kinds of a project, their attributes as JSON schema and which relations are allowed between which kinds. related_to and depends_on are allowed between any kinds. If no kind fits, propose one with define_kind instead of misusing another kind. People see and edit the data model in Phoedox under project settings → "Kinds & fields"; the entries themselves are under "Knowledge graph".
 - Mention entities in markdown with @slug (same project) or @project/slug. Mentions become links in the graph.
 
 Working rules:

@@ -9,7 +9,7 @@ import { base } from "./shared";
 
 /** The network plan, drawn from uplink, wired_to and runs_on. */
 export class PhxTopologyView extends LitElement {
-  static properties = { project: {}, layout: { state: true }, model: { state: true }, error: { state: true } };
+  static properties = { project: {}, embedded: { type: Boolean, reflect: true }, layout: { state: true }, model: { state: true }, error: { state: true } };
   static styles = [base, css`
     :host { display: block; }
     .wrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); max-height: calc(100dvh - 220px); }
@@ -33,6 +33,7 @@ export class PhxTopologyView extends LitElement {
     @media (max-width: 700px) { ul.list { columns: 1; } }
   `];
   project = "";
+  embedded = false;
   layout?: Layout;
   model?: Model;
   error = "";
@@ -60,11 +61,11 @@ export class PhxTopologyView extends LitElement {
     if (this.error) return html`<p class="error">${this.error}</p>`;
     const l = this.layout;
     if (!l) return html`<p class="muted">${t("app.loading")}</p>`;
-    if (!l.edges.length) return html`<h1>${t("topo.title")}</h1><p class="muted">${t("topo.empty")}</p>`;
+    if (!l.edges.length) return html`${this.embedded ? "" : html`<h1>${t("topo.title")}</h1>`}<p class="muted">${t("topo.empty")}</p>`;
     const at = new Map(l.nodes.map((n) => [n.slug, n]));
     const pad = 20;
     const legendLine = (cls: string) => svg`<svg width="34" height="8"><line class=${cls} x1="2" y1="4" x2="32" y2="4"/></svg>`;
-    return html`<h1>${t("topo.title")}</h1>
+    return html`${this.embedded ? "" : html`<h1>${t("topo.title")}</h1>`}
       <p class="muted">${t("topo.intro")}</p>
       <div class="legend">
         <span>${legendLine("wired_to")} ${relLabel("wired_to")}</span><span>${legendLine("uplink")} ${relLabel("uplink")}</span><span>${legendLine("runs_on")} ${relLabel("runs_on")}</span>

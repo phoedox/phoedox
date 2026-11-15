@@ -528,7 +528,7 @@ export class PhxQueryBlock extends LitElement {
       <thead><tr><th>${t("entity.name")}</th>${cols.map((c) => html`<th>${attrLabel({ name: c, type: "text" })}</th>`)}</tr></thead>
       <tbody>${r.rows.slice(0, 200).map((x) => html`<tr><td><a href="/p/${this.project}/e/${x.slug}">${x.name}</a></td>${cols.map((c) => html`<td>${cell(x.attrs[c])}</td>`)}</tr>`)}</tbody>
     </table></div>
-    <p class="foot muted">${icon("Table", 12)} ${t("block.query_count", { n: r.total })} · <a href="/p/${this.project}/table?query=${encodeURIComponent(this.query.trim())}">${t("block.query_open")}</a></p>`;
+    <p class="foot muted">${icon("Table", 12)} ${t("block.query_count", { n: r.total })} · <a href="/p/${this.project}/graph?query=${encodeURIComponent(this.query.trim())}">${t("block.query_open")}</a></p>`;
   }
 }
 customElements.get("phx-query-block") || customElements.define("phx-query-block", PhxQueryBlock);
