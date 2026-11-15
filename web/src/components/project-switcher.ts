@@ -27,7 +27,10 @@ export class PhxProjectSwitcher extends SignalWatcher(LitElement) {
       transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
       @starting-style { opacity: 0; transform: scale(.97); } }
     ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 300px; overflow: auto; }
-    li { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+    li { border-radius: 6px; }
+    /* Entries are real links: middle-click, Ctrl/Cmd-click and the context
+       menu open a project in a new tab; a plain click switches in place. */
+    li a { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 8px; border-radius: 6px; color: inherit; text-decoration: none; }
     li.act { background: var(--surface2); }
     li[aria-selected="true"] .n { color: var(--accent); }
     .n { font-weight: 500; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -78,6 +81,17 @@ export class PhxProjectSwitcher extends SignalWatcher(LitElement) {
     return q ? all.filter((p) => `${p.name} ${p.slug} ${p.short} ${p.description} ${p.orgName ?? ""}`.toLowerCase().includes(q)) : all;
   }
 
+  /** A plain click switches in place; with a modifier key the browser opens
+   * the link itself (new tab or window), and the switcher closes. */
+  private follow(e: MouseEvent, p: Project) {
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) {
+      this.open = false;
+      return;
+    }
+    e.preventDefault();
+    this.go(p);
+  }
+
   private go(p: Project) {
     this.open = false;
     navigate(`/p/${p.slug}`);
@@ -93,7 +107,13 @@ export class PhxProjectSwitcher extends SignalWatcher(LitElement) {
       this.updateComplete.then(() => this.renderRoot.querySelector("li.act")?.scrollIntoView({ block: "nearest" }));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (list[this.active]) this.go(list[this.active]);
+      const p = list[this.active];
+      if (!p) return;
+      // Ctrl/Cmd+Enter opens the project in a new tab, like a link.
+      if (e.ctrlKey || e.metaKey) {
+        window.open(`/p/${p.slug}`, "_blank", "noopener");
+        this.open = false;
+      } else this.go(p);
     } else if (e.key === "Escape") {
       this.open = false;
       this.renderRoot.querySelector<HTMLButtonElement>(".btn")?.focus();
@@ -117,10 +137,12 @@ export class PhxProjectSwitcher extends SignalWatcher(LitElement) {
         ${!this.projects ? html`<div class="empty">${t("app.loading")}</div>`
           : list.length ? html`<ul id="pp-list" role="listbox" aria-label=${t("nav.projects")}>${list.map((p, i) => html`
             <li id="pp-${p.slug}" role="option" aria-selected=${p.slug === cur?.slug ? "true" : "false"} class=${i === this.active ? "act" : ""}
-              @pointerenter=${() => (this.active = i)} @click=${() => this.go(p)}>
-              ${projectBadge(p, 24)}
-              <span><div class="n">${p.name}</div>${p.description || p.orgName ? html`<div class="s">${p.orgName ? `${p.orgName} · ` : ""}${p.description}</div>` : ""}</span>
-              <span class="k">${t(roleKey(p) as any)}</span>
+              @pointerenter=${() => (this.active = i)}>
+              <a href="/p/${p.slug}" tabindex="-1" @click=${(e: MouseEvent) => this.follow(e, p)}>
+                ${projectBadge(p, 24)}
+                <span><div class="n">${p.name}</div>${p.description || p.orgName ? html`<div class="s">${p.orgName ? `${p.orgName} · ` : ""}${p.description}</div>` : ""}</span>
+                <span class="k">${t(roleKey(p) as any)}</span>
+              </a>
             </li>`)}</ul>`
           : html`<div class="empty">${t("switcher.none")}</div>`}
         <div class="foot"><a href="/" @click=${() => (this.open = false)}>${t("switcher.all")}</a><span>${t("switcher.keys")}</span></div>
