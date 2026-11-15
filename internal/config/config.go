@@ -62,6 +62,8 @@ type Config struct {
 	// ADR-0061). Organizations and users created before that date keep the
 	// feature for free. Empty (the default) means every feature is free.
 	PaidFeatures map[string]time.Time
+	// AI configures the model provider of the AI chat (ADR-0066).
+	AI AIConfig
 	// TermsURL and PrivacyURL are shown on the sign-up page; when set, people
 	// must accept them (PHOEDOX_TERMS_URL, PHOEDOX_PRIVACY_URL).
 	TermsURL, PrivacyURL string
@@ -278,6 +280,9 @@ func FromEnv() (Config, error) {
 	if c.PaidFeatures, err = ParsePaidFeatures(os.Getenv("PHOEDOX_PAID_FEATURES")); err != nil {
 		return c, err
 	}
+	if c.AI, err = aiFromEnv(); err != nil {
+		return c, err
+	}
 	return c, c.Validate()
 }
 
@@ -351,4 +356,54 @@ func ParsePaidFeatures(v string) (map[string]time.Time, error) {
 		out[name] = d.UTC()
 	}
 	return out, nil
+}
+
+// AIConfig is the model provider of the AI chat. Without a provider and
+// key the chat is not offered.
+type AIConfig struct {
+	Provider string // PHOEDOX_AI_PROVIDER: "anthropic" or "" (off)
+	APIKey   string // PHOEDOX_AI_API_KEY (never logged or shown)
+	BaseURL  string // PHOEDOX_AI_BASE_URL, e.g. a gateway; empty = the provider's API
+	Model    string // PHOEDOX_AI_MODEL, default claude-opus-5-5
+	Effort   string // PHOEDOX_AI_EFFORT: low, medium (default), high, xhigh, max
+	// Price overrides the built-in price of the model in US dollars per
+	// million tokens (PHOEDOX_AI_PRICE "input,output,cache read,cache write"),
+	// e.g. for a gateway with its own prices.
+	Price []float64
+}
+
+// Enabled reports whether a provider is configured.
+func (a AIConfig) Enabled() bool { return a.Provider != "" && a.APIKey != "" }
+
+func aiFromEnv() (AIConfig, error) {
+	a := AIConfig{
+		Provider: strings.ToLower(strings.TrimSpace(os.Getenv("PHOEDOX_AI_PROVIDER"))),
+		APIKey:   strings.TrimSpace(os.Getenv("PHOEDOX_AI_API_KEY")),
+		BaseURL:  strings.TrimSpace(os.Getenv("PHOEDOX_AI_BASE_URL")),
+		Model:    strings.TrimSpace(os.Getenv("PHOEDOX_AI_MODEL")),
+		Effort:   strings.ToLower(strings.TrimSpace(os.Getenv("PHOEDOX_AI_EFFORT"))),
+	}
+	switch a.Provider {
+	case "", "anthropic":
+	default:
+		return a, fmt.Errorf("PHOEDOX_AI_PROVIDER: unknown provider %q (use anthropic)", a.Provider)
+	}
+	switch a.Effort {
+	case "", "low", "medium", "high", "xhigh", "max":
+	default:
+		return a, fmt.Errorf("PHOEDOX_AI_EFFORT: use low, medium, high, xhigh or max")
+	}
+	if v := strings.TrimSpace(os.Getenv("PHOEDOX_AI_PRICE")); v != "" {
+		for _, f := range strings.Split(v, ",") {
+			n, err := strconv.ParseFloat(strings.TrimSpace(f), 64)
+			if err != nil || n < 0 {
+				return a, fmt.Errorf("PHOEDOX_AI_PRICE: %q is not a price", f)
+			}
+			a.Price = append(a.Price, n)
+		}
+		if len(a.Price) != 4 {
+			return a, fmt.Errorf("PHOEDOX_AI_PRICE: give four prices: input,output,cache read,cache write")
+		}
+	}
+	return a, nil
 }

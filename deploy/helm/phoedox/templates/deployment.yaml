@@ -121,6 +121,23 @@ spec:
               valueFrom: { secretKeyRef: { name: {{ .Values.mail.existingSecret }}, key: password } }
             {{- end }}
             {{- end }}
+            {{- if .Values.ai.enabled }}
+            - { name: PHOEDOX_AI_PROVIDER, value: {{ .Values.ai.provider | quote }} }
+            - name: PHOEDOX_AI_API_KEY
+              valueFrom: { secretKeyRef: { name: {{ required "ai.existingSecret is required" .Values.ai.existingSecret }}, key: api-key } }
+            {{- with .Values.ai.model }}
+            - { name: PHOEDOX_AI_MODEL, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.ai.effort }}
+            - { name: PHOEDOX_AI_EFFORT, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.ai.baseUrl }}
+            - { name: PHOEDOX_AI_BASE_URL, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.ai.price }}
+            - { name: PHOEDOX_AI_PRICE, value: {{ . | quote }} }
+            {{- end }}
+            {{- end }}
             {{- if .Values.oidc.enabled }}
             - { name: PHOEDOX_OIDC_NAME, value: {{ .Values.oidc.name | quote }} }
             - { name: PHOEDOX_OIDC_ISSUER, value: {{ required "oidc.issuer is required" .Values.oidc.issuer | quote }} }

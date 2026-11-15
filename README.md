@@ -110,6 +110,10 @@ make build && ./bin/phoedox
 | `PHOEDOX_PLUGINS_ALLOW_UNSIGNED` | `false` | Allow unsigned packages – only for plugin development |
 | `PHOEDOX_WORKERS` | `2` | Parallel background jobs (previews, text); `0` = none in this process |
 | `PHOEDOX_S3_ENDPOINT`, `_BUCKET`, `_REGION`, `_ACCESS_KEY`, `_SECRET_KEY`, `_PREFIX` | – | Files in an S3-compatible bucket instead of under `<data>/files` |
+| `PHOEDOX_AI_PROVIDER`, `PHOEDOX_AI_API_KEY` | – | AI chat in projects (ADR-0066): `anthropic` and an API key from the Claude Console. Without both, the chat is not offered. Admins switch it and set monthly budgets under Admin → Instance; organization admins on their organization's page |
+| `PHOEDOX_AI_MODEL`, `PHOEDOX_AI_EFFORT` | `claude-opus-5-5`, `medium` | Model and effort (`low` … `max`) of the AI chat |
+| `PHOEDOX_AI_BASE_URL` | – | Another address for the provider's API, e.g. a gateway |
+| `PHOEDOX_AI_PRICE` | – | Prices for budgets in US dollars per million tokens, `input,output,cache read,cache write`; only needed for models or gateways Phoedox does not know |
 | `PHOEDOX_PROMPTS_DIR` | – | Folder with your own AI prompts, see [`resources/prompts`](resources/prompts) |
 | `PHOEDOX_MAIL_DIR` | – | Folder with your own email templates, see [`resources/mail`](resources/mail) |
 

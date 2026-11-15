@@ -10,3 +10,6 @@ embedded ones by name.
 | File | Used by |
 |---|---|
 | `mcp-instructions.md` | MCP server instructions sent to every AI client on connect |
+| `chat-system.md` | AI chat in projects (ADR-0066): instructions, the same for every chat |
+| `chat-context.md` | AI chat: the situation (date, person, project); placeholders `{{…}}` |
+| `chat-page.md` | AI chat: the page that is open, added to `chat-context.md` as `{{page}}` |

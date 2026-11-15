@@ -63,20 +63,23 @@ type InstanceSettings struct {
 	Signup bool `json:"signup"`
 	// Vault is the external vault for environment secrets.
 	Vault VaultConfig `json:"vault"`
+	// AIChat holds switch and budgets of the AI chat (ADR-0066).
+	AIChat AIChatSettings `json:"aiChat"`
 	// Tools tells which file tools were found (PDF previews, OCR, virus scan); read only.
 	Tools map[string]bool `json:"tools,omitempty"`
 }
 
 // SettingsPatch changes some instance settings.
 type SettingsPatch struct {
-	AIEnabled      *bool   `json:"aiEnabled,omitempty"`
-	QuotaProjectMB *int    `json:"quotaProjectMb,omitempty"`
-	VulnCheck      *bool   `json:"vulnCheck,omitempty"`
-	PluginBeta     *bool   `json:"pluginBeta,omitempty"`
-	Signup         *bool   `json:"signup,omitempty"`
-	VaultKind      *string `json:"vaultKind,omitempty"`
-	VaultURL       *string `json:"vaultUrl,omitempty"`
-	VaultToken     *string `json:"vaultToken,omitempty"` // write-only
+	AIEnabled      *bool        `json:"aiEnabled,omitempty"`
+	QuotaProjectMB *int         `json:"quotaProjectMb,omitempty"`
+	VulnCheck      *bool        `json:"vulnCheck,omitempty"`
+	PluginBeta     *bool        `json:"pluginBeta,omitempty"`
+	Signup         *bool        `json:"signup,omitempty"`
+	VaultKind      *string      `json:"vaultKind,omitempty"`
+	VaultURL       *string      `json:"vaultUrl,omitempty"`
+	VaultToken     *string      `json:"vaultToken,omitempty"` // write-only
+	AIChat         *AIChatPatch `json:"aiChat,omitempty"`
 }
 
 const (
@@ -104,7 +107,7 @@ func (s *Service) settings(ctx context.Context) InstanceSettings {
 	tools := s.Preview.Available()
 	tools["virus_scan"] = s.Scanner != nil
 	vault, _ := s.vaultConfig(ctx)
-	return InstanceSettings{AIEnabled: s.AIEnabled(ctx), QuotaProjectMB: s.instanceQuotaMB(ctx), VulnCheck: s.vulnCheckOn(ctx), PluginBeta: s.pluginChannel(ctx) == "beta", Signup: s.SignupOpen(ctx), Vault: vault, Tools: tools}
+	return InstanceSettings{AIEnabled: s.AIEnabled(ctx), QuotaProjectMB: s.instanceQuotaMB(ctx), VulnCheck: s.vulnCheckOn(ctx), PluginBeta: s.pluginChannel(ctx) == "beta", Signup: s.SignupOpen(ctx), Vault: vault, AIChat: s.aiChatSettings(ctx), Tools: tools}
 }
 
 // Settings returns the instance settings (admins only).
@@ -122,6 +125,9 @@ func (s *Service) UpdateSettings(ctx context.Context, a Actor, in SettingsPatch)
 	}
 	if in.QuotaProjectMB != nil && (*in.QuotaProjectMB < 0 || *in.QuotaProjectMB > 100_000_000) {
 		return InstanceSettings{}, invalid("validation.quota", nil, "quota must be between 0 and 100000000 MB")
+	}
+	if err := s.saveAIChatSettings(ctx, a, in.AIChat); err != nil {
+		return InstanceSettings{}, err
 	}
 	if in.AIEnabled != nil {
 		if err := s.DB.SetSetting(ctx, settingAI, strconv.FormatBool(*in.AIEnabled), a.String()); err != nil {

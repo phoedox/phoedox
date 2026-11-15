@@ -165,6 +165,7 @@ func result(v any) *sdk.CallToolResult {
 
 // tool registers a handler that receives the authenticated actor.
 func tool[In any](s *sdk.Server, name, desc string, fn func(ctx context.Context, a core.Actor, in In) (any, error)) {
+	registerChatTool(name, desc, fn)
 	sdk.AddTool(s, &sdk.Tool{Name: name, Description: desc}, func(ctx context.Context, req *sdk.CallToolRequest, in In) (*sdk.CallToolResult, any, error) {
 		a, err := actorFrom(req)
 		if err != nil {

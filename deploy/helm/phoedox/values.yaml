@@ -150,6 +150,21 @@ mail:
   # self-signed certificate; added to the system roots.
   caSecret: ""
 
+# AI chat in projects (ADR-0066). Budgets and switches are set in the app
+# (Admin → Instance, organization pages). The provider receives what people
+# send in the chat and the pages the AI reads: it is a sub-processor.
+ai:
+  enabled: false
+  provider: anthropic
+  # Secret with key api-key.
+  existingSecret: ""
+  model: ""   # default claude-opus-5-5
+  effort: ""  # low, medium (default), high, xhigh, max
+  baseUrl: ""
+  # US dollars per million tokens "input,output,cache read,cache write";
+  # only for models or gateways Phoedox does not know.
+  price: ""
+
 oidc:
   enabled: false
   name: SSO

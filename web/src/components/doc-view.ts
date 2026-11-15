@@ -149,7 +149,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
   connectedCallback() {
     super.connectedCallback();
     // Someone else published, restored or deleted this page: show it at once.
-    this.unlive = onProjectChange(/^document\.(update|draft_publish|restore_version|translation|archive|delete|restrict)$/, (cs) => {
+    this.unlive = onProjectChange(/^document\.(update|draft_start|draft_write|draft_publish|restore_version|translation|archive|delete|restrict)$/, (cs) => {
       const mine = cs.filter((c) => c.subject === this.doc?.id);
       if (!mine.length) return;
       if (mine.some((c) => c.kind === "document.delete")) {
@@ -396,7 +396,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     const dr = this.draft;
     // Drafts belong to the main language; floor plans show their own note.
     if (!dr || d.translation || d.type === "floorplan") return "";
-    const names = dr.participants.map((p) => p.name).join(", ");
+    const names = dr.participants.map((p) => (p.ai ? t("draft.ai_participant", { name: p.name }) : p.name)).join(", ");
     let hunks: Hunk[] = [];
     if (this.showDiff) {
       const lines = (title: string, md: string) => [`${t("history.title_label")}: ${title}`, "", ...md.replace(/\n$/, "").split("\n")];

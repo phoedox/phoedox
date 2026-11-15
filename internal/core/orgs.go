@@ -17,6 +17,12 @@ type OrgInput struct {
 	AIEnabled  *bool  `json:"aiEnabled,omitempty"`  // org admins
 	QuotaMB    *int   `json:"quotaMb,omitempty"`    // org admins, below the instance limit
 	AdminEmail string `json:"adminEmail,omitempty"` // first admin when creating (default: creator)
+	// AI chat (ADR-0066): switch and budgets in cents per month; a negative
+	// budget goes back to the default. AIChatCap is for system admins.
+	AIChat           *bool `json:"aiChat,omitempty"`
+	AIChatBudget     *int  `json:"aiChatBudget,omitempty"`
+	AIChatUserBudget *int  `json:"aiChatUserBudget,omitempty"`
+	AIChatCap        *int  `json:"aiChatCap,omitempty"`
 }
 
 // OrgDetail is an organization with members and groups (for its members).
@@ -162,6 +168,9 @@ func (s *Service) UpdateOrg(ctx context.Context, a Actor, ref string, in OrgInpu
 			return o, invalid("validation.quota_above_max", map[string]any{"max": max}, "the quota must be between 0 and %d MB", max)
 		}
 		o.QuotaMB = *in.QuotaMB
+	}
+	if err := s.applyOrgAIChat(ctx, a, &o, in); err != nil {
+		return o, err
 	}
 	if err := s.DB.UpdateOrg(ctx, o); err != nil {
 		return o, err

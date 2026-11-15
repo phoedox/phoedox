@@ -1,3 +1,4 @@
+import "./org-ai-chat";
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
 import { ApiError, api, type Group, type Org, type OrgDetail } from "../api";
@@ -182,6 +183,8 @@ export class PhxOrg extends SignalWatcher(LitElement) {
           <label class="field">${t("orgs.quota")}<input name="quota" type="number" min="0" .value=${String(o.quotaMb || "")} placeholder="∞" style="max-width:180px"></label>
           <div><button>${t("doc.save")}</button></div>
         </form>
+        <h2>${icon("BotMessageSquare", 16)} ${t("orgs.ai_chat_title")}</h2>
+        <phx-org-ai-chat .org=${this.slug} .cap=${(o as { aiChatCap?: number | null }).aiChatCap ?? null}></phx-org-ai-chat>
         <h2>${icon("Globe", 16)} ${t("orgdomain.title")}</h2>
         <phx-org-domain .org=${this.slug}></phx-org-domain>` : ""}
 

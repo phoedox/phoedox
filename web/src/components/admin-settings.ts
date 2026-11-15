@@ -1,13 +1,15 @@
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
 import { ApiError, api } from "../api";
-import { t } from "../i18n";
+import { locale, t } from "../i18n";
+import { dollars } from "../ai-chat";
 import { icon } from "../icon";
 import { settingsNav, settingsNavStyles } from "./settings-nav";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
-interface Settings { aiEnabled: boolean; quotaProjectMb: number; vulnCheck: boolean; pluginBeta: boolean; signup: boolean; vault: { kind: string; url: string; connected: boolean }; tools?: Record<string, boolean> }
+interface AIChat { enabled: boolean; configured: boolean; model?: string; orgBudget: number; userBudget: number; instanceCap: number; usedCents: number }
+interface Settings { aiChat: AIChat; aiEnabled: boolean; quotaProjectMb: number; vulnCheck: boolean; pluginBeta: boolean; signup: boolean; vault: { kind: string; url: string; connected: boolean }; tools?: Record<string, boolean> }
 
 /** Instance settings for system admins. */
 export class PhxAdminSettings extends SignalWatcher(LitElement) {
@@ -28,6 +30,33 @@ export class PhxAdminSettings extends SignalWatcher(LitElement) {
     this.s = await api<Settings>("GET", "/admin/settings").catch(() => undefined);
   }
 
+  /** Cents from a dollar input; empty means no limit (0). */
+  private cents(f: FormData, name: string): number {
+    const v = Number(String(f.get(name) ?? "").replace(",", "."));
+    return Number.isFinite(v) && v > 0 ? Math.round(v * 100) : 0;
+  }
+
+  private aiChat(c: AIChat) {
+    const val = (cents: number) => (cents ? (cents / 100).toFixed(2) : "");
+    return html`<h2>${icon("BotMessageSquare", 16)} ${t("admin.ai_chat")}</h2>
+      <p class="muted">${t("admin.ai_chat_hint")}</p>
+      ${c.configured ? html`<p class="muted">${t("admin.ai_chat_model", { model: c.model ?? "" })}</p>`
+        : html`<p class="muted">${icon("CircleAlert", 14)} ${t("admin.ai_chat_not_configured")}</p>`}
+      <label class="switch"><input type="checkbox" .checked=${c.enabled} ?disabled=${!c.configured}
+        @change=${(e: Event) => this.set({ aiChat: { enabled: (e.target as HTMLInputElement).checked } } as any)} /> ${t("admin.ai_chat_enabled")}</label>
+      <form style="display:grid;gap:8px;max-width:520px;margin-top:12px" @submit=${(e: SubmitEvent) => {
+        e.preventDefault();
+        const f = new FormData(e.target as HTMLFormElement);
+        void this.set({ aiChat: { orgBudget: this.cents(f, "org"), userBudget: this.cents(f, "user"), instanceCap: this.cents(f, "cap") } } as any);
+      }}>
+        <label class="field">${t("admin.ai_chat_org_budget")}<input name="org" type="number" min="0" step="0.01" .value=${val(c.orgBudget)} placeholder="∞" style="max-width:180px"></label>
+        <label class="field">${t("admin.ai_chat_user_budget")}<input name="user" type="number" min="0" step="0.01" .value=${val(c.userBudget)} placeholder="∞" style="max-width:180px"></label>
+        <label class="field">${t("admin.ai_chat_cap")}<input name="cap" type="number" min="0" step="0.01" .value=${val(c.instanceCap)} placeholder="∞" style="max-width:180px"></label>
+        <div><button>${t("profile.save")}</button></div>
+      </form>
+      <p class="muted">${t("admin.ai_chat_used", { used: dollars(c.usedCents, locale()) })} ${t("admin.ai_chat_budget_hint")}</p>`;
+  }
+
   private async set(patch: Partial<Settings>) {
     try {
       this.s = await api<Settings>("PUT", "/admin/settings", patch);
@@ -43,6 +72,7 @@ export class PhxAdminSettings extends SignalWatcher(LitElement) {
       ${settingsNav("instance")}
       ${this.s ? html`<label class="switch"><input type="checkbox" .checked=${this.s.aiEnabled} @change=${(e: Event) => this.set({ aiEnabled: (e.target as HTMLInputElement).checked })} /> ${t("admin.ai")}</label>
         <p class="muted">${t("admin.ai_hint")}</p>
+        ${this.s.aiChat ? this.aiChat(this.s.aiChat) : ""}
         <label class="switch"><input type="checkbox" .checked=${this.s.vulnCheck} @change=${(e: Event) => this.set({ vulnCheck: (e.target as HTMLInputElement).checked })} /> ${t("admin.vuln_check")}</label>
         <p class="muted">${t("admin.vuln_check_hint")}</p>
         <label class="switch"><input type="checkbox" .checked=${this.s.pluginBeta} @change=${(e: Event) => this.set({ pluginBeta: (e.target as HTMLInputElement).checked })} /> ${t("admin.plugin_beta")}</label>

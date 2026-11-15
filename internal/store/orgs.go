@@ -20,16 +20,23 @@ type Org struct {
 	UsageType string `json:"usageType"` // commercial | noncommercial (set by system admins)
 	AIEnabled bool   `json:"aiEnabled"`
 	QuotaMB   int    `json:"quotaMb"`
-	CreatedAt Time   `json:"createdAt"`
-	Role      string `json:"role,omitempty"` // role of the requesting user
+	// AI chat (ADR-0066): switch and budgets in cents per month; nil means
+	// the instance default. Cap is set by system admins and bounds Budget.
+	AIChat           bool   `json:"aiChat"`
+	AIChatBudget     *int   `json:"aiChatBudget"`
+	AIChatCap        *int   `json:"aiChatCap"`
+	AIChatUserBudget *int   `json:"aiChatUserBudget"`
+	CreatedAt        Time   `json:"createdAt"`
+	Role             string `json:"role,omitempty"` // role of the requesting user
 }
 
-const orgCols = `o.id, o.slug, o.name, o.usage_type, o.ai_enabled, o.quota_mb, o.created_at`
+const orgCols = `o.id, o.slug, o.name, o.usage_type, o.ai_enabled, o.quota_mb, o.ai_chat_enabled, o.ai_chat_budget_cents, o.ai_chat_cap_cents, o.ai_chat_user_budget_cents, o.created_at`
 
 func scanOrg(r interface{ Scan(...any) error }, withRole bool) (Org, error) {
 	var o Org
 	var role sql.NullString
-	dest := []any{&o.ID, &o.Slug, &o.Name, &o.UsageType, &o.AIEnabled, &o.QuotaMB, &o.CreatedAt}
+	var budget, cap, user sql.NullInt64
+	dest := []any{&o.ID, &o.Slug, &o.Name, &o.UsageType, &o.AIEnabled, &o.QuotaMB, &o.AIChat, &budget, &cap, &user, &o.CreatedAt}
 	if withRole {
 		dest = append(dest, &role)
 	}
@@ -38,7 +45,23 @@ func scanOrg(r interface{ Scan(...any) error }, withRole bool) (Org, error) {
 		return o, ErrNotFound
 	}
 	o.Role = role.String
+	o.AIChatBudget, o.AIChatCap, o.AIChatUserBudget = nullInt(budget), nullInt(cap), nullInt(user)
 	return o, err
+}
+
+func nullInt(v sql.NullInt64) *int {
+	if !v.Valid {
+		return nil
+	}
+	n := int(v.Int64)
+	return &n
+}
+
+func intOrNull(p *int) any {
+	if p == nil {
+		return nil
+	}
+	return *p
 }
 
 // CreateOrg creates an organization with its first admin.
@@ -52,7 +75,7 @@ func (d *DB) CreateOrg(ctx context.Context, o Org, adminID string) (Org, error) 
 		_, err := tx.Exec(ctx, `INSERT INTO org_members (org_id, user_id, tenant_id, role, created_at) VALUES (?, ?, ?, 'admin', ?)`, o.ID, adminID, TenantOf(ctx), o.CreatedAt)
 		return err
 	})
-	o.AIEnabled, o.Role = true, OrgAdmin
+	o.AIEnabled, o.AIChat, o.Role = true, true, OrgAdmin
 	return o, err
 }
 
@@ -87,7 +110,8 @@ func (d *DB) ListOrgs(ctx context.Context, userID string, all bool) ([]Org, erro
 
 // UpdateOrg stores name, usage type, AI switch and quota.
 func (d *DB) UpdateOrg(ctx context.Context, o Org) error {
-	res, err := d.Exec(ctx, `UPDATE organizations SET name = ?, usage_type = ?, ai_enabled = ?, quota_mb = ? WHERE id = ?`, o.Name, o.UsageType, o.AIEnabled, o.QuotaMB, o.ID)
+	res, err := d.Exec(ctx, `UPDATE organizations SET name = ?, usage_type = ?, ai_enabled = ?, quota_mb = ?, ai_chat_enabled = ?, ai_chat_budget_cents = ?, ai_chat_cap_cents = ?, ai_chat_user_budget_cents = ? WHERE id = ?`,
+		o.Name, o.UsageType, o.AIEnabled, o.QuotaMB, o.AIChat, intOrNull(o.AIChatBudget), intOrNull(o.AIChatCap), intOrNull(o.AIChatUserBudget), o.ID)
 	return affected(res, err)
 }
 

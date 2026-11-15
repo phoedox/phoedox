@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"github.com/phoedox/phoedox/internal/aichat"
 	"github.com/phoedox/phoedox/internal/backup"
 	"net/http"
 	"reflect"
@@ -233,6 +234,13 @@ var apiDocs = map[string]op{
 	"GET /projects/{p}/code/repos/{id}/commits":              {Tag: "projects", Summary: "Recent commits of a repository; q is a SHA or words of the message (editors).", Out: []core.CodeItem{}},
 	"GET /projects/{p}/code/repos/{id}/releases":             {Tag: "projects", Summary: "Latest releases of a repository (editors).", Out: []core.CodeItem{}},
 	"DELETE /projects/{p}/documents/{d}":                     {Tag: "documents", Summary: "Move to the trash.", Out: core.DocResult{}},
+	"GET /projects/{p}/ai/status":                            {Tag: "ai", Summary: "Whether the person can use the AI chat in this project: switches, budgets and usage of this month (ADR-0066).", Out: core.ChatStatus{}},
+	"GET /projects/{p}/ai/chats":                             {Tag: "ai", Summary: "The person's AI chats in this project, newest first.", Out: []store.AIChat{}},
+	"POST /projects/{p}/ai/chats":                            {Tag: "ai", Summary: "Start an AI chat, optionally about a page ({\"document\": slug}).", Out: store.AIChat{}},
+	"GET /projects/{p}/ai/chats/{c}":                         {Tag: "ai", Summary: "An AI chat with its messages and card proposals.", Out: aichat.View{}},
+	"DELETE /projects/{p}/ai/chats/{c}":                      {Tag: "ai", Summary: "Delete an AI chat (its costs stay in the usage ledger)."},
+	"POST /projects/{p}/ai/chats/{c}/messages":               {Tag: "ai", Summary: "Send a message ({text, document, language}); the answer streams as server-sent events: text, tool, tool_done, proposal, notice, error, done. Web sessions only."},
+	"POST /projects/{p}/ai/chats/{c}/proposals/{tool}":       {Tag: "ai", Summary: "Create the chosen cards of a card proposal ({accept, cards: [index]}) or reject it; the person creates them.", Out: []store.Task{}},
 	"GET /projects/{p}/documents/{d}/tasks":                  {Tag: "documents", Summary: "Task cards that link this page or decision (ADR-0064).", Out: []store.Task{}},
 	"POST /projects/{p}/documents/{d}/decide":                {Tag: "documents", Summary: "Answer a proposed decision with options (ADR-0062): choice is an option id (accepts the decision) or none (nothing fits, stays proposed), with an optional comment. Editors; not for AI clients.", In: core.DecideInput{}, Out: core.DocResult{}},
 	"GET /projects/{p}/drafts":                               {Tag: "documents", Summary: "Open drafts of the project (editors; others get an empty list).", Out: []core.DraftInfo{}},
@@ -318,6 +326,7 @@ var apiDocs = map[string]op{
 	"POST /me/notifications/test":                            {Tag: "notifications", Summary: "Send a test notification on all channels."},
 	"GET /projects/{p}/status":                               {Tag: "monitoring", Summary: "State of entries (?e=<slug>, repeatable) and checks (?check=<name> or ?check=*) for dashboards.", Out: core.StatusBoard{}},
 	"GET /orgs/{o}/domain":                                   {Tag: "orgs", Summary: "The organization's own app domain and the DNS TXT record proving it (org admins); access tells whether custom domains are paid and why the org may use them."},
+	"GET /orgs/{o}/ai-chat":                                  {Tag: "orgs", Summary: "AI chat of the organization: switch, budgets, limit from system admins and usage of this month (ADR-0066). Org admins.", Out: core.OrgAIChat{}},
 	"GET /orgs/{o}/features":                                 {Tag: "orgs", Summary: "Paid features of this instance and the organization's access (free, grandfathered, plan, grant or none; ADR-0061). Org admins.", Out: []core.FeatureAccess{}},
 	"GET /me/features":                                       {Tag: "account", Summary: "Paid features of this instance and your access for personal projects (ADR-0061).", Out: []core.FeatureAccess{}},
 	"PUT /orgs/{o}/domain":                                   {Tag: "orgs", Summary: "Choose an app domain ({domain}; empty removes it). It is used once verified."},

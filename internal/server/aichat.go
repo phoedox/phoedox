@@ -1,0 +1,150 @@
+package server
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+
+	"github.com/phoedox/phoedox/internal/aichat"
+	"github.com/phoedox/phoedox/internal/core"
+)
+
+// AI chat (ADR-0066). Only signed-in people in the web app chat; tokens
+// and AI clients cannot spend the budget.
+
+func (a *api) chatActor(w http.ResponseWriter, r *http.Request) (core.Actor, bool) {
+	act := actorOf(r)
+	if act.Via != "web" || a.chat == nil {
+		writeErr(w, core.ErrForbidden)
+		return act, false
+	}
+	return act, true
+}
+
+func (a *api) chatStatus(w http.ResponseWriter, r *http.Request) {
+	act, ok := a.chatActor(w, r)
+	if !ok {
+		return
+	}
+	st, err := a.chat.Status(r.Context(), act, chi.URLParam(r, "p"))
+	respond(w, st, err)
+}
+
+func (a *api) listChats(w http.ResponseWriter, r *http.Request) {
+	act, ok := a.chatActor(w, r)
+	if !ok {
+		return
+	}
+	cs, err := a.chat.Chats(r.Context(), act, chi.URLParam(r, "p"))
+	respond(w, cs, err)
+}
+
+func (a *api) createChat(w http.ResponseWriter, r *http.Request) {
+	act, ok := a.chatActor(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Document string `json:"document"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	c, err := a.chat.Create(r.Context(), act, chi.URLParam(r, "p"), in.Document)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, c)
+}
+
+func (a *api) getChat(w http.ResponseWriter, r *http.Request) {
+	act, ok := a.chatActor(w, r)
+	if !ok {
+		return
+	}
+	v, err := a.chat.Get(r.Context(), act, chi.URLParam(r, "p"), chi.URLParam(r, "c"))
+	respond(w, v, err)
+}
+
+func (a *api) deleteChat(w http.ResponseWriter, r *http.Request) {
+	act, ok := a.chatActor(w, r)
+	if !ok {
+		return
+	}
+	if err := a.chat.Delete(r.Context(), act, chi.URLParam(r, "p"), chi.URLParam(r, "c")); err != nil {
+		writeErr(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// sendChat streams the answer as server-sent events: text pieces, tool
+// calls, proposals and notices, then "done"; an "error" event carries a
+// translated error key.
+func (a *api) sendChat(w http.ResponseWriter, r *http.Request) {
+	act, ok := a.chatActor(w, r)
+	if !ok {
+		return
+	}
+	var in aichat.Input
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	fl, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming not supported", http.StatusInternalServerError)
+		return
+	}
+	h := w.Header()
+	h.Set("Content-Type", "text/event-stream")
+	h.Set("Cache-Control", "no-store")
+	h.Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	send := func(name string, v any) {
+		b, _ := json.Marshal(v)
+		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", name, b)
+		fl.Flush()
+	}
+	err := a.chat.Send(r.Context(), act, chi.URLParam(r, "p"), chi.URLParam(r, "c"), in, func(e aichat.Event) { send(e.Type, e) })
+	if err != nil && r.Context().Err() == nil {
+		var inv *core.InvalidError
+		body := errBody("internal", "Internal error.")
+		switch {
+		case asInvalid(err, &inv):
+			body = apiError{Error: inv.Msg, Code: "invalid", Key: inv.Key, Params: inv.Params}
+		case err == core.ErrForbidden:
+			body = errBody("forbidden", "You do not have permission for this.")
+		}
+		send("error", body)
+	}
+}
+
+func (a *api) decideChatProposal(w http.ResponseWriter, r *http.Request) {
+	act, ok := a.chatActor(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Accept bool  `json:"accept"`
+		Cards  []int `json:"cards"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	ts, err := a.chat.Decide(r.Context(), act, chi.URLParam(r, "p"), chi.URLParam(r, "c"), chi.URLParam(r, "tool"), in.Accept, in.Cards)
+	respond(w, ts, err)
+}
+
+func (a *api) orgAIChat(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.OrgAIChatInfo(r.Context(), actorOf(r), chi.URLParam(r, "o"))
+	respond(w, v, err)
+}
+
+func asInvalid(err error, target **core.InvalidError) bool { return errors.As(err, target) }

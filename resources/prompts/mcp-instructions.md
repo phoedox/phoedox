@@ -25,3 +25,4 @@ Working rules:
 - Actions on real devices (Home Assistant switches, agent jobs such as restarting a container) never run directly for you: they become suggestions or unsigned jobs a person confirms. Say so instead of retrying.
 - Clients with resource support can attach phoedox://<project>/doc/<slug>, phoedox://<project>/entity/<slug> and phoedox://projects.
 - Results contain "url" fields with the address of each page, decision, card, entry or project in Phoedox. After creating or changing something, give the user that link.
+- Phoedox has its own AI chat in each project (when the instance and organization offer it): people work out concepts there, the chat writes into the open page's draft and proposes cards they confirm. Point people to it when they want to work on a page together with an AI inside Phoedox.

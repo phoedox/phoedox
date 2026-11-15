@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"github.com/phoedox/phoedox/internal/aichat"
 	"github.com/phoedox/phoedox/internal/backup"
 	"io"
 	"net"
@@ -22,6 +23,7 @@ import (
 
 type api struct {
 	core    *core.Service
+	chat    *aichat.Service
 	auth    *auth.Auth
 	cfg     config.Config
 	limiter *limiter
@@ -212,6 +214,7 @@ func (a *api) routes(r chi.Router) {
 			r.Put("/{o}/members", a.setOrgMember)
 			r.Get("/{o}/domain", a.orgDomain)
 			r.Get("/{o}/features", a.orgFeatures)
+			r.Get("/{o}/ai-chat", a.orgAIChat)
 			r.Put("/{o}/domain", a.setOrgDomain)
 			r.Post("/{o}/domain/verify", a.verifyOrgDomain)
 			r.Delete("/{o}/members/{user}", a.removeOrgMember)
@@ -353,6 +356,13 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/tasks", a.listTasks)
 			r.Get("/boards/{d}/events", a.boardEvents)
 			r.Get("/live", a.projectLive)
+			r.Get("/ai/status", a.chatStatus)
+			r.Get("/ai/chats", a.listChats)
+			r.Post("/ai/chats", a.createChat)
+			r.Get("/ai/chats/{c}", a.getChat)
+			r.Delete("/ai/chats/{c}", a.deleteChat)
+			r.Post("/ai/chats/{c}/messages", a.sendChat)
+			r.Post("/ai/chats/{c}/proposals/{tool}", a.decideChatProposal)
 			r.Post("/boards/{d}/tasks", a.createTask)
 			r.Patch("/tasks/{id}", a.updateTask)
 			r.Delete("/tasks/{id}", a.deleteTask)

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/phoedox/phoedox/internal/ai"
 	"github.com/phoedox/phoedox/internal/blob"
 	"github.com/phoedox/phoedox/internal/jobs"
 	"github.com/phoedox/phoedox/internal/mail"
@@ -121,6 +122,10 @@ type Service struct {
 	// PaidFeatures maps paid features to the date they become paid
 	// (PHOEDOX_PAID_FEATURES, ADR-0061); empty = everything free.
 	PaidFeatures map[string]time.Time
+	// AI is the model provider of the AI chat (nil = not configured);
+	// AIPrice overrides the built-in price of its model (ADR-0066).
+	AI      ai.Provider
+	AIPrice *ai.Price
 	// SignupDefault opens self sign-up unless an admin changed it (PHOEDOX_SIGNUP=open).
 	SignupDefault bool
 	// AgentReleases is the base URL of agent releases (…/download/<tag>/<asset>);

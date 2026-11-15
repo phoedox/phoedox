@@ -127,6 +127,10 @@ instead of rebuilding them in pages:
 - **Wall display** (kiosk mode) for a page, and **voice questions** through Home
   Assistant Assist ("Where is the NAS?").
 - **Publishing** a project as a website, **share links**, sharing single pages.
+- **AI chat** in a project (if the instance and organization offer it, with a
+  monthly budget): working out a concept next to the page, live edits in the
+  page's draft, and card proposals people confirm. Suggest it when someone wants
+  to work on a page together with an AI inside Phoedox.
 
 ## Typical flows
 

@@ -251,6 +251,31 @@ kubectl -n phoedox exec deploy/phoedox -- phx admin test-mail --email you@exampl
 | `helo` | Name in EHLO, defaults to `domain`. |
 | `caSecret` | Adds your CA to the system roots for the mail connection only; other connections are unchanged. |
 
+## AI chat
+
+People can chat with an AI in their projects: work out concepts, let it write into a page's draft, and
+turn a concept into cards (ADR-0066). It needs an API key of the model provider (today Anthropic,
+from the Claude Console). Without a key the chat is not offered.
+
+```yaml
+ai:
+  enabled: true
+  existingSecret: phoedox-ai   # key: api-key
+  # model: claude-opus-5-5     # default
+  # effort: medium             # low, medium, high, xhigh, max
+```
+
+```bash
+read -rsp "API key: " KEY; echo
+kubectl -n phoedox create secret generic phoedox-ai --from-literal=api-key="$KEY"; unset KEY
+```
+
+After `helm upgrade`, set the budgets under Admin → Instance → AI chat: a default per organization and
+per person per month, and optionally a limit for the whole instance. Organization admins can switch the
+chat off for their organization and set a lower budget. The provider receives what people write in the
+chat and the pages the AI reads, so name it as a sub-processor in your privacy policy and data
+processing agreement.
+
 ## Product website (phoedox.com)
 
 The marketing website is its own service, separate from the app (ADR-0054): image

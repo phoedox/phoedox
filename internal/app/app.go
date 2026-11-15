@@ -5,6 +5,8 @@ package app
 import (
 	"context"
 	"fmt"
+	"github.com/phoedox/phoedox/internal/ai"
+	"github.com/phoedox/phoedox/internal/ai/anthropic"
 	"github.com/phoedox/phoedox/internal/backup"
 	"github.com/phoedox/phoedox/internal/blob"
 	"github.com/phoedox/phoedox/internal/jobs"
@@ -122,6 +124,12 @@ func Open(ctx context.Context) (*App, error) {
 	svc.BackupDays = (cfg.BackupKeep*cfg.BackupHours + 23) / 24
 	svc.SignupDefault = cfg.Signup == "open"
 	svc.PaidFeatures = cfg.PaidFeatures
+	if cfg.AI.Enabled() {
+		svc.AI = anthropic.New(cfg.AI.APIKey, cfg.AI.BaseURL, cfg.AI.Model, cfg.AI.Effort)
+		if len(cfg.AI.Price) == 4 {
+			svc.AIPrice = &ai.Price{Input: cfg.AI.Price[0], Output: cfg.AI.Price[1], CacheRead: cfg.AI.Price[2], CacheWrite: cfg.AI.Price[3]}
+		}
+	}
 	if svc.PublicURL == "" && cfg.Domain != "" {
 		svc.PublicURL = "https://" + cfg.Domain
 	}

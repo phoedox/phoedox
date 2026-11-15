@@ -34,18 +34,25 @@ import "./monitoring";
 import "./insights";
 import "./project-settings";
 import "./create-dialog";
+import "./ai-chat";
 import type { PhxCreateDialog } from "./create-dialog";
 
 const typeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scale", link: "ExternalLink", board: "SquareKanban", floorplan: "LandPlot" };
 
 /** Project layout: sidebar with documents by category + nested routes. */
 export class PhxProject extends SignalWatcher(LitElement) {
-  static properties = { slug: {}, root: {}, docs: { state: true }, drafts: { state: true }, collapsed: { state: true }, newOpen: { state: true }, error: { state: true }, menuOpen: { state: true }, dropTarget: { state: true }, ctx: { state: true }, sideWidth: { state: true }, sideHidden: { type: Boolean, reflect: true, attribute: "sidehidden" } };
+  static properties = { slug: {}, root: {}, docs: { state: true }, drafts: { state: true }, collapsed: { state: true }, newOpen: { state: true }, error: { state: true }, menuOpen: { state: true }, dropTarget: { state: true }, ctx: { state: true }, sideWidth: { state: true }, sideHidden: { type: Boolean, reflect: true, attribute: "sidehidden" },
+    aiChat: { state: true }, chatOpen: { type: Boolean, reflect: true, attribute: "chatopen" } };
   static styles = [base, css`
     :host { display: grid; grid-template-columns: var(--side-w, 260px) minmax(0, 1fr); min-height: calc(100vh - var(--header-h)); }
     /* Collapsed sidebar (desktop): the page uses the full width; a small
        button at the left edge brings the sidebar back. */
     :host([sidehidden]) { grid-template-columns: minmax(0, 1fr); }
+    /* AI chat (ADR-0066): a third column on the right. */
+    :host([chatopen]) { grid-template-columns: var(--side-w, 260px) minmax(0, 1fr) var(--chat-w, 380px); }
+    :host([chatopen][sidehidden]) { grid-template-columns: minmax(0, 1fr) var(--chat-w, 380px); }
+    phx-ai-chat { position: sticky; top: var(--header-h); height: calc(100vh - var(--header-h)); }
+    .mbar .chatbtn { margin-left: auto; }
     :host([sidehidden]) aside { display: none; }
     .reopen { display: none; }
     :host([sidehidden]) .reopen { display: grid; place-items: center; position: fixed; left: 0; top: calc(var(--header-h) + 12px); z-index: 6;
@@ -115,6 +122,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
       :host([sidehidden]) aside { display: flex; }
       .resize, .collapse, :host([sidehidden]) .reopen { display: none; }
       main { padding: 18px 16px 48px; }
+      :host([chatopen]), :host([chatopen][sidehidden]) { grid-template-columns: 1fr; }
+      phx-ai-chat { position: fixed; inset: 0; z-index: 40; height: 100dvh; border-left: 0; }
       .mbar { display: flex; align-items: center; gap: 10px; position: sticky; top: var(--header-h); z-index: 5;
         padding: 8px 12px; background: var(--bg); border-bottom: 1px solid var(--line); }
       .mbar button { padding: 6px 10px; }
@@ -218,6 +227,9 @@ export class PhxProject extends SignalWatcher(LitElement) {
         this.docs = (await api<Doc[]>("GET", `/projects/${this.slug}/documents${p.mainLocale && this.loadedLang ? `?lang=${this.loadedLang}` : ""}`)) ?? [];
         this.drafts = new Set(((await api<DraftInfo[]>("GET", `/projects/${this.slug}/drafts`).catch(() => [])) ?? []).map((d) => d.documentId));
         favorites.set((await api<Favorite[]>("GET", `/projects/${this.slug}/favorites`).catch(() => [])) ?? []);
+        const ai = await api<{ available: boolean; reason?: string }>("GET", `/projects/${this.slug}/ai/status`).catch(() => undefined);
+        // Hidden where the chat is switched off; shown with a notice when a budget is used up.
+        this.aiChat = !!ai && (ai.available || /budget$/.test(ai.reason ?? ""));
       } catch {
         this.error = t("error.not_found");
       }
@@ -649,6 +661,20 @@ export class PhxProject extends SignalWatcher(LitElement) {
         ${uncategorized.map((d) => this.docLink(d, here))}</div>` : ""}`;
   }
 
+  aiChat = false;
+  chatOpen = readSide("phx.aichat", 0) === 1;
+
+  private setChat(open: boolean) {
+    this.chatOpen = open;
+    writeSide("phx.aichat", open ? 1 : 0);
+  }
+
+  /** Slug of the page that is open (context for the AI chat). */
+  private openDoc(here: string): string {
+    const prefix = `/p/${this.slug}/d/`;
+    return here.startsWith(prefix) ? decodeURIComponent(here.slice(prefix.length).split("/")[0]) : "";
+  }
+
   render() {
     this.toggleAttribute("focus", focusMode.get());
     if (this.error) return html`<main><p class="error">${this.error}</p></main>`;
@@ -662,6 +688,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
       <div class="mbar">
         <button class="ghost" aria-expanded=${this.menuOpen} aria-controls="nav" @click=${() => this.setMenu(!this.menuOpen)}>${icon("Menu", 16)} ${t("nav.menu")}</button>
         <span class="where">${this.where(here)}</span>
+        ${this.aiChat && !docOnly ? html`<button class="ghost chatbtn" aria-label=${t("ai_chat.title")} aria-pressed=${this.chatOpen ? "true" : "false"} @click=${() => this.setChat(!this.chatOpen)}>${icon("BotMessageSquare", 16)}</button>` : ""}
       </div>
       <div class=${this.menuOpen ? "scrim open" : "scrim"} @click=${() => this.setMenu(false, true)}></div>
       <button class="reopen" aria-controls="nav" aria-expanded="false" title=${`${t("nav.sidebar_show")}${comboFor("sidebar") ? ` (${comboLabel(comboFor("sidebar"))})` : ""}`}
@@ -692,6 +719,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
           </div>
           <a href="/p/${this.slug}/trash" class=${here.endsWith("/trash") ? "on" : ""}>${icon("Trash2", 15)} ${t("nav.trash")}</a>` : ""}
           ${docOnly || !hasFeature(proj, "household") ? "" : html`<a href="/p/${this.slug}/household" class=${here.endsWith("/household") ? "on" : ""}>${icon("House", 15)} ${t("house.title")}</a>`}
+          ${this.aiChat && !docOnly ? html`<button class="collapse" aria-pressed=${this.chatOpen ? "true" : "false"} @click=${() => this.setChat(!this.chatOpen)}>${icon("BotMessageSquare", 15)} ${t("ai_chat.title")}</button>` : ""}
           ${docOnly ? "" : html`<a href="/p/${this.slug}/insights" class=${here.endsWith("/insights") ? "on" : ""}>${icon("Sparkles", 15)} ${t("insights.title")}</a>
           <a href="/p/${this.slug}/monitoring" class=${here.endsWith("/monitoring") ? "on" : ""}>${icon("Activity", 15)} ${t("monitoring.title")}</a>
           <a href="/p/${this.slug}/suggestions" class=${here.endsWith("/suggestions") ? "on" : ""}>${icon("Bot", 15)} ${t("nav.suggestions")}</a>
@@ -703,6 +731,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
         ${this.ctxMenu()}
       </aside>
       <main>${this.routes.outlet()}</main>
+      ${this.aiChat && this.chatOpen && !docOnly ? html`<phx-ai-chat .project=${this.slug} .doc=${this.openDoc(here)} @close=${() => this.setChat(false)}></phx-ai-chat>` : ""}
     `;
   }
 }
