@@ -27,6 +27,8 @@ type Links struct {
 	File string
 	// Board renders an embedded board (```board) or returns "".
 	Board func(ref string) string
+	// Whiteboard renders an embedded whiteboard (```whiteboard) as SVG or returns "".
+	Whiteboard func(ref string) string
 	// Include renders an included page (```include) or returns "".
 	Include func(ref string) string
 	// PageRef resolves a [[page]] link (slug, ADR-0007 or the start of a
@@ -184,6 +186,10 @@ func (r fenceRenderer) render(w util.BufWriter, src []byte, n ast.Node, entering
 	case "board":
 		if r.links.Board != nil {
 			_, _ = w.WriteString(r.links.Board(text))
+		}
+	case "whiteboard":
+		if r.links.Whiteboard != nil {
+			_, _ = w.WriteString(r.links.Whiteboard(text))
 		}
 	case "include":
 		if r.links.Include != nil {

@@ -172,8 +172,8 @@ export class FenceNode extends DecoratorNode<null> {
       el = document.createElement("phx-query-block");
       el.dataset.query = src;
       el.dataset.project = project;
-    } else if (this.__kind === "board") {
-      el = document.createElement("phx-board-embed");
+    } else if (this.__kind === "board" || this.__kind === "whiteboard") {
+      el = document.createElement(this.__kind === "board" ? "phx-board-embed" : "phx-whiteboard-embed");
       el.dataset.board = src;
       el.dataset.project = project;
     } else {

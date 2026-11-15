@@ -95,6 +95,14 @@ func WriteOffline(ctx context.Context, w io.Writer, d core.OfflineData, open fun
 			}
 			return ""
 		},
+		Whiteboard: func(ref string) string {
+			for _, x := range d.Docs {
+				if x.Type == store.DocWhiteboard && (x.Slug == ref || x.ID == ref) {
+					return whiteboardSVG(x, "files/")
+				}
+			}
+			return ""
+		},
 		PageRef: func(ref string) string {
 			if _, r, ok := strings.Cut(ref, "/"); ok {
 				ref = r

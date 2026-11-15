@@ -2,6 +2,7 @@
 // pages (doc view, shared view, editor) and only load what they need.
 
 import { LitElement, css, html, type PropertyValues } from "lit";
+import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { api, type Doc } from "../api";
 import { locale, t } from "../i18n";
 import { icon, iconSVG } from "../icon";
@@ -273,6 +274,46 @@ export class PhxBoardEmbed extends LitElement {
   }
 }
 customElements.get("phx-board-embed") || customElements.define("phx-board-embed", PhxBoardEmbed);
+
+/** ```whiteboard: a whiteboard of the project, drawn read-only, with a link to open it. */
+export class PhxWhiteboardEmbed extends LitElement {
+  static properties = { board: { attribute: "data-board" }, project: { attribute: "data-project" }, svg: { state: true }, missing: { state: true } };
+  static styles = [base, css`
+    :host { display: block; margin: 1em 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+    .head { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); font-weight: 600; }
+    .head a { color: var(--fg); text-decoration: none; margin-right: auto; }
+    .pic { padding: 8px; }
+    .pic figure { margin: 0; width: 100%; }
+    .pic svg { display: block; width: 100%; height: auto; max-height: 500px; }
+  `];
+  board = "";
+  project = "";
+  svg = "";
+  missing = false;
+  private loaded = "";
+
+  async willUpdate() {
+    const key = `${this.project}/${this.board}`;
+    if (!this.project || !this.board || key === this.loaded) return;
+    this.loaded = key;
+    try {
+      const r = await fetch(`/api/v1/projects/${this.project}/documents/${encodeURIComponent(this.board.trim())}/whiteboard.svg`, { credentials: "same-origin" });
+      if (!r.ok) throw new Error(String(r.status));
+      this.svg = await r.text();
+    } catch {
+      this.missing = true;
+    }
+  }
+
+  render() {
+    if (this.missing) return html`<p class="muted" style="padding:8px 12px">${icon("Presentation", 14)} ${t("block.whiteboard_missing", { board: this.board })}</p>`;
+    const href = `/p/${this.project}/d/${encodeURIComponent(this.board.trim())}`;
+    // The SVG comes from Phoedox's own renderer, which escapes all text.
+    return html`<div class="head">${icon("Presentation", 15)} <a href=${href}>${this.board}</a><a class="btn ghost" style="margin:0" href=${href}>${t("block.whiteboard_open")}</a></div>
+      <div class="pic">${this.svg ? unsafeHTML(this.svg.replace(/^<\?xml[^>]*>/, "")) : html`<span class="muted">${t("app.loading")}</span>`}</div>`;
+  }
+}
+customElements.get("phx-whiteboard-embed") || customElements.define("phx-whiteboard-embed", PhxWhiteboardEmbed);
 
 /** Styles for callouts and colors inside rendered pages. */
 export const blockStyles = `

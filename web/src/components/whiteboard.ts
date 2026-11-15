@@ -17,6 +17,7 @@ import { currentUser, navigate } from "../state";
 import {
   BOXY, LINEAR, PALETTE, TEXTUAL, alignTo, backKey, bbox, bindTarget, bindingAt, boxOf, codeLabel, embedKind, extent, frontKey, hitTest, inFrame, linePts,
   newId, normalizeBoard, playerURL, removeElement, sorted, wrapText, type Binding, type Color, type ElementType, type Preview, type Pt, type WBComment, type WBElement, type Whiteboard,
+  alignEls, cloneEls, fromExcalidraw, slides, templateEls, toExcalidraw, TEMPLATES, type Template, type Box, distributeEls, groupOf, inBox, shiftEl, snapBox, CLIP_PREFIX, type AlignHow,
 } from "../whiteboard";
 import { connectBoard, type Live, type Peer, type Status } from "../whiteboard-live";
 import { base } from "./shared";
@@ -58,7 +59,8 @@ function ico(name: string, size = 14): HTMLElement {
 }
 
 interface Drag {
-  mode: "pan" | "move" | "resize" | "point" | "pen" | "linedrag" | "create" | "erase";
+  mode: "pan" | "move" | "resize" | "point" | "pen" | "linedrag" | "create" | "erase" | "box" | "movemany";
+  cx?: number; cy?: number; add?: string[];
   id?: string; sx?: number; sy?: number; vx?: number; vy?: number; lx?: number; ly?: number; moved?: boolean;
   h?: string; o?: { x: number; y: number; w: number; h: number }; i?: number; bind?: WBElement; ox?: number; oy?: number;
 }
@@ -67,7 +69,7 @@ interface Pop { kind: "comment" | "newcomment" | "embed" | "entity"; x: number; 
 export class PhxWhiteboard extends LitElement {
   static properties = {
     project: {}, doc: { attribute: false }, canEdit: { type: Boolean },
-    tool: { state: true }, selId: { state: true }, status: { state: true }, saved: { state: true }, peers: { state: true }, zoom: { state: true },
+    tool: { state: true }, selId: { state: true }, sel: { state: true }, snap: { state: true }, present: { state: true }, status: { state: true }, saved: { state: true }, peers: { state: true }, zoom: { state: true },
     pop: { state: true }, panel: { state: true }, arrowMode: { state: true }, roundDefault: { state: true }, trail: { state: true }, laserSize: { state: true },
     entities: { state: true }, query: { state: true }, busy: { state: true }, boardVersion: { state: true },
   };
@@ -140,6 +142,11 @@ export class PhxWhiteboard extends LitElement {
     .panel .thread { padding: 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; display: grid; gap: 4px; text-align: left; background: var(--surface); color: var(--fg); }
     .panel .thread.done { opacity: 0.6; }
     .empty { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; color: var(--muted); font-size: 14px; text-align: center; padding: 20px; }
+    .empty .tpls { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; margin-top: 12px; pointer-events: auto; }
+    .empty .tpls button { height: 30px; padding: 0 10px; font-size: 13px; }
+    :host([presenting]) .bar:not(.present), :host([presenting]) .stylebar, :host([presenting]) .panel, :host([presenting]) .pop { display: none !important; }
+    .bar.present { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; font-size: 13px; }
+    .bar.present span { padding: 0 6px; color: var(--muted); max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   `];
 
   project = "";
@@ -147,6 +154,11 @@ export class PhxWhiteboard extends LitElement {
   canEdit = false;
   tool: Tool = "select";
   selId: string | null = null;
+  /** Several selected elements (box, Shift-click, groups); selId is then null. */
+  sel: string[] = [];
+  snap = localStorage.getItem("wb.snap") === "1";
+  /** Presentation: index of the frame shown (-1 = off). */
+  present = -1;
   status: Status = "connecting";
   saved: { state: "saving" | "saved" | "error"; at?: Date } | null = null;
   peers: Peer[] = [];
@@ -169,6 +181,8 @@ export class PhxWhiteboard extends LitElement {
   private pen: { stroke: Color; smooth: boolean } = { stroke: "blue", smooth: false };
   private drag: Drag | null = null;
   private clickLine: string | null = null;
+  /** Last copied elements, for paste without clipboard permission. */
+  private clip = "";
   private hoverBind: string | null = null;
   private editing: string | null = null;
   private spaceDown = false;
@@ -187,6 +201,7 @@ export class PhxWhiteboard extends LitElement {
     window.addEventListener("keydown", this.onKey);
     window.addEventListener("keyup", this.onKeyUp);
     window.addEventListener("paste", this.onPaste);
+    document.addEventListener("fullscreenchange", this.onFullscreen);
     requestAnimationFrame(this.laserFrame);
   }
 
@@ -195,6 +210,7 @@ export class PhxWhiteboard extends LitElement {
     window.removeEventListener("keydown", this.onKey);
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("paste", this.onPaste);
+    document.removeEventListener("fullscreenchange", this.onFullscreen);
     this.resize?.disconnect();
     void this.live?.destroy();
     this.live = undefined;
@@ -294,8 +310,95 @@ export class PhxWhiteboard extends LitElement {
   }
   private select(id: string | null) {
     this.selId = id;
+    this.sel = id ? [id] : [];
     this.live?.setSelection(id ?? undefined);
     this.paint();
+  }
+
+  /** Selects several elements; one becomes the normal selection. */
+  private selectMany(ids: string[]) {
+    const uniq = [...new Set(ids)].filter((id) => this.byId(id));
+    if (uniq.length <= 1) {
+      this.select(uniq[0] ?? null);
+      return;
+    }
+    this.selId = null;
+    this.sel = uniq;
+    this.live?.setSelection(uniq[0]);
+    this.paint();
+  }
+
+  /** The selected elements (one or several). */
+  private selection(): WBElement[] {
+    return this.sel.map((id) => this.byId(id)).filter((e): e is WBElement => !!e);
+  }
+
+  /** With groups: clicking one element selects its whole group. */
+  private withGroups(ids: string[]): string[] {
+    const out = new Set<string>();
+    for (const id of ids) {
+      const e = this.byId(id);
+      if (e) for (const g of groupOf(this.els(), e)) out.add(g.id);
+    }
+    return [...out];
+  }
+
+  private removeMany(ids: string[]) {
+    for (const id of ids) {
+      this.board.elements = removeElement(this.board.elements, id);
+      this.board.comments = (this.board.comments ?? []).map((c) => (c.element === id ? { ...c, element: undefined } : c));
+    }
+    this.select(null);
+    this.changed();
+  }
+
+  private copySelection(cut: boolean) {
+    const sel = this.selection();
+    if (!sel.length) return;
+    const text = CLIP_PREFIX + JSON.stringify(sel);
+    void navigator.clipboard?.writeText(text).catch(() => {});
+    this.clip = text;
+    if (cut && !this.readOnly) this.removeMany(sel.map((e) => e.id));
+  }
+
+  private pasteElements(json: string) {
+    let list: WBElement[];
+    try {
+      list = JSON.parse(json) as WBElement[];
+    } catch {
+      return;
+    }
+    if (!Array.isArray(list) || !list.length) return;
+    const copies = cloneEls(list.filter((e) => e && typeof e.id === "string" && typeof e.type === "string"), 24);
+    for (const c of copies) this.add(c);
+    this.selectMany(copies.map((c) => c.id));
+    this.changed();
+  }
+
+  private alignSel(how: AlignHow | "dx" | "dy") {
+    const sel = this.selection().filter((e) => !e.locked);
+    if (how === "dx" || how === "dy") distributeEls(sel, how === "dx" ? "x" : "y", this.byId);
+    else alignEls(sel, how, this.byId);
+    this.changed();
+  }
+
+  private groupSel(on: boolean) {
+    const sel = this.selection();
+    if (on) {
+      const g = newId();
+      for (const e of sel) e.groups = [...(e.groups ?? []), g];
+    } else {
+      for (const e of sel) {
+        e.groups = e.groups?.slice(0, -1);
+        if (!e.groups?.length) delete e.groups;
+      }
+    }
+    this.changed();
+  }
+
+  private setSnap(on: boolean) {
+    this.snap = on;
+    localStorage.setItem("wb.snap", on ? "1" : "0");
   }
 
   // ---- rendering -------------------------------------------------------------
@@ -308,6 +411,13 @@ export class PhxWhiteboard extends LitElement {
     const grid = svg.querySelector("pattern#wbgrid");
     grid?.setAttribute("patternTransform", `translate(${this.view.x % (24 * this.view.z)},${this.view.y % (24 * this.view.z)}) scale(${this.view.z})`);
     layer.replaceChildren(...sorted(this.els()).map((e) => this.drawEl(svg, e)));
+    if (this.sel.length > 1) layer.append(this.drawMulti());
+    const d = this.drag;
+    if (d?.mode === "box") {
+      const r = mk("rect", { x: Math.min(d.ox!, d.cx!), y: Math.min(d.oy!, d.cy!), width: Math.abs(d.cx! - d.ox!), height: Math.abs(d.cy! - d.oy!) });
+      r.style.cssText = `fill:color-mix(in srgb, var(--accent) 8%, transparent);stroke:var(--accent);stroke-width:${1 / this.view.z};stroke-dasharray:${4 / this.view.z} ${3 / this.view.z}`;
+      layer.append(r);
+    }
     this.paintPins();
     this.paintOthers();
     this.zoom = Math.round(this.view.z * 100);
@@ -557,6 +667,21 @@ export class PhxWhiteboard extends LitElement {
     for (const k in H) this.handle(g, X[H[k][0]], Y[H[k][1]], { "data-h": k, cursor: H[k][2] });
   }
 
+  /** Outline of several selected elements and their common bounds. */
+  private drawMulti(): SVGGElement {
+    const g = mk("g", { "data-multi": "1" });
+    const boxes = this.selection().map((e) => bbox(e, this.byId)), pad = 6;
+    for (const b of boxes) {
+      const r = mk("rect", { x: b.x - 3, y: b.y - 3, width: b.w + 6, height: b.h + 6, rx: 3 }, g);
+      r.style.cssText = `fill:none;stroke:var(--accent);stroke-width:${1 / this.view.z};opacity:.6`;
+    }
+    const x = Math.min(...boxes.map((b) => b.x)) - pad, y = Math.min(...boxes.map((b) => b.y)) - pad;
+    const w = Math.max(...boxes.map((b) => b.x + b.w)) + pad - x, h = Math.max(...boxes.map((b) => b.y + b.h)) + pad - y;
+    const r = mk("rect", { x, y, width: w, height: h, rx: 4 }, g);
+    r.style.cssText = `fill:none;stroke:var(--accent);stroke-width:${1.5 / this.view.z};stroke-dasharray:${4 / this.view.z} ${3 / this.view.z}`;
+    return g;
+  }
+
   private openComments() {
     return (this.board.comments ?? []).filter((c) => !c.resolved);
   }
@@ -621,6 +746,97 @@ export class PhxWhiteboard extends LitElement {
       this.view = { z, x: (r.width - b.w * z) / 2 - b.x * z, y: (r.height - b.h * z) / 2 - b.y * z + 20 };
     }
     this.paint();
+  }
+
+  /** Shows a box as large as possible. */
+  private fitBox(b: Box, pad = 40) {
+    const r = this.svgEl?.getBoundingClientRect();
+    if (!r?.width) return;
+    const z = Math.min(4, Math.max(0.1, Math.min((r.width - 2 * pad) / Math.max(b.w, 1), (r.height - 2 * pad) / Math.max(b.h, 1))));
+    this.view = { z, x: (r.width - b.w * z) / 2 - b.x * z, y: (r.height - b.h * z) / 2 - b.y * z };
+    this.paint();
+  }
+
+  /** Presentation: the frames are slides, shown one after the other. */
+  private presentAt(i: number) {
+    const list = slides(this.els());
+    if (!list.length) {
+      toast(t("wb.present_none"), "error");
+      return;
+    }
+    if (i < 0 || i >= list.length) {
+      this.stopPresenting();
+      return;
+    }
+    if (this.present < 0) {
+      this.select(null);
+      this.pop = null;
+      this.panel = false;
+      void this.requestFullscreen?.().catch(() => {});
+    }
+    this.present = i;
+    requestAnimationFrame(() => this.fitBox(boxOf(list[i]), 24));
+  }
+
+  /** Leaving full screen (Esc in the browser) ends the presentation too. */
+  private onFullscreen = () => {
+    if (!document.fullscreenElement && this.present >= 0) {
+      this.present = -1;
+      requestAnimationFrame(() => this.fit());
+    } else if (this.present >= 0) {
+      requestAnimationFrame(() => this.presentAt(this.present));
+    }
+  };
+
+  private stopPresenting() {
+    this.present = -1;
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    requestAnimationFrame(() => this.fit());
+  }
+
+  private useTemplate(kind: Template) {
+    const L: Record<string, string> = {};
+    for (const k of ["well", "improve", "actions", "topic", "idea", "ap", "activity", "person", "system", "web", "db"]) L[k] = t(`wb.tpl.${k}` as any);
+    for (const e of templateEls(kind, L)) this.add(e, e.type === "frame");
+    this.changed();
+    requestAnimationFrame(() => this.fit());
+  }
+
+  private exportExcalidraw() {
+    const blob = new Blob([toExcalidraw(this.board)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `${this.doc?.slug ?? "whiteboard"}.excalidraw`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  private async importExcalidraw(f: File) {
+    try {
+      const els = fromExcalidraw(await f.text());
+      // Placed next to what is already there.
+      const b = extent(this.els(), this.byId);
+      const dx = b ? b.x + b.w + 80 : 0;
+      const minX = Math.min(...els.map((e) => bbox(e, (id) => els.find((x) => x.id === id)).x));
+      for (const e of els) {
+        shiftEl(e, dx - (Number.isFinite(minX) ? minX : 0), 0);
+        this.add(e, e.type === "frame");
+      }
+      this.changed();
+      this.selectMany(els.map((e) => e.id));
+      requestAnimationFrame(() => this.fit());
+      toast(t("wb.imported", { count: els.length }));
+    } catch {
+      toast(t("wb.import_failed"), "error");
+    }
+  }
+
+  private pickExcalidraw() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".excalidraw,application/json";
+    input.onchange = () => input.files?.[0] && void this.importExcalidraw(input.files[0]);
+    input.click();
   }
 
   // ---- tools --------------------------------------------------------------------
@@ -689,6 +905,10 @@ export class PhxWhiteboard extends LitElement {
 
   private onDown = (ev: PointerEvent) => {
     const svg = this.svgEl;
+    if (this.present >= 0) {
+      if (ev.button === 0) this.presentAt(this.present + 1);
+      return;
+    }
     if (this.editing) {
       (this.renderRoot.querySelector(".editbox div") as HTMLElement | null)?.blur();
       return;
@@ -781,8 +1001,31 @@ export class PhxWhiteboard extends LitElement {
         return;
       }
       const h = hitTest(this.els(), x, y, 8 / this.view.z, this.byId);
-      this.select(h?.id ?? null);
-      if (h && !h.locked) this.drag = { mode: "move", id: h.id, lx: x, ly: y, moved: false };
+      if (!h) {
+        // Empty space: draw a box to select what lies in it.
+        if (!ev.shiftKey) this.select(null);
+        this.drag = { mode: "box", ox: x, oy: y, cx: x, cy: y, add: ev.shiftKey ? [...this.sel] : [] };
+        return;
+      }
+      const group = this.withGroups([h.id]);
+      if (ev.shiftKey) {
+        const cur = new Set(this.sel);
+        const all = group.every((id) => cur.has(id));
+        for (const id of group) if (all) cur.delete(id); else cur.add(id);
+        this.selectMany([...cur]);
+        return;
+      }
+      if (this.sel.length > 1 && this.sel.includes(h.id)) {
+        this.drag = { mode: "movemany", lx: x, ly: y, moved: false };
+        return;
+      }
+      if (group.length > 1) {
+        this.selectMany(group);
+        this.drag = { mode: "movemany", lx: x, ly: y, moved: false };
+        return;
+      }
+      this.select(h.id);
+      if (!h.locked) this.drag = { mode: "move", id: h.id, lx: x, ly: y, moved: false };
       return;
     }
     const base: WBElement = { id: newId(), type: this.tool as ElementType, stroke: this.pen.stroke, smooth: this.pen.smooth };
@@ -850,6 +1093,26 @@ export class PhxWhiteboard extends LitElement {
     if (d.mode === "erase") {
       const h = hitTest(this.els(), x, y, 8 / this.view.z, this.byId);
       if (h && h.type !== "frame") this.removeEl(h.id);
+      return;
+    }
+    if (d.mode === "box") {
+      d.cx = x;
+      d.cy = y;
+      this.paint();
+      return;
+    }
+    if (d.mode === "movemany") {
+      const dx = x - d.lx!, dy = y - d.ly!;
+      d.lx = x;
+      d.ly = y;
+      d.moved = true;
+      const moving = new Set(this.sel);
+      for (const o of this.selection()) {
+        if (o.locked) continue;
+        if (o.type === "frame") for (const c of inFrame(this.els(), o, this.byId)) if (!moving.has(c.id)) { moving.add(c.id); shiftEl(c, dx, dy); }
+        shiftEl(o, dx, dy);
+      }
+      this.changed();
       return;
     }
     const e = d.id ? this.byId(d.id) : undefined;
@@ -944,7 +1207,38 @@ export class PhxWhiteboard extends LitElement {
     const d = this.drag;
     this.drag = null;
     if (!d) return;
+    if (d.mode === "box") {
+      const b = { x: Math.min(d.ox!, d.cx!), y: Math.min(d.oy!, d.cy!), w: Math.abs(d.cx! - d.ox!), h: Math.abs(d.cy! - d.oy!) };
+      const hit = b.w > 3 || b.h > 3 ? inBox(this.els(), b, this.byId).map((e) => e.id) : [];
+      this.selectMany(this.withGroups([...(d.add ?? []), ...hit]));
+      return;
+    }
+    if (d.mode === "movemany") {
+      if (d.moved) {
+        if (this.snap) {
+          // The first element snaps; the others keep their distance to it.
+          const sel = this.selection().filter((o) => !o.locked && !o.points);
+          if (sel[0]) {
+            const before = { x: sel[0].x ?? 0, y: sel[0].y ?? 0 };
+            const s0 = { ...sel[0] };
+            snapBox(s0);
+            const dx = (s0.x ?? 0) - before.x, dy = (s0.y ?? 0) - before.y;
+            for (const o of this.selection()) if (!o.locked) shiftEl(o, dx, dy);
+          }
+        }
+        this.changed();
+      }
+      return;
+    }
     const e = d.id ? this.byId(d.id) : undefined;
+    if (this.snap && e && !e.points && (d.mode === "create" || d.mode === "resize" || (d.mode === "move" && d.moved))) {
+      if (d.mode === "move") {
+        const s0 = { ...e };
+        snapBox(s0);
+        e.x = s0.x;
+        e.y = s0.y;
+      } else snapBox(e);
+    }
     if (d.mode === "linedrag" && e) {
       const p = e.points![1], s = bindTarget(this.els(), p[0], p[1], 10 / this.view.z, e.start?.element);
       if (s) e.end = bindingAt(s, p[0], p[1], 14 / this.view.z);
@@ -1028,6 +1322,12 @@ export class PhxWhiteboard extends LitElement {
   private onKey = (ev: KeyboardEvent) => {
     if (!this.isConnected || this.typing(ev) || !this.svgEl) return;
     const k = ev.key.toLowerCase(), mod = ev.ctrlKey || ev.metaKey;
+    if (this.present >= 0) {
+      if (["arrowright", "arrowdown", " ", "pagedown", "enter"].includes(k)) { ev.preventDefault(); this.presentAt(this.present + 1); }
+      else if (["arrowleft", "arrowup", "pageup", "backspace"].includes(k)) { ev.preventDefault(); this.presentAt(Math.max(0, this.present - 1)); }
+      else if (k === "escape") { ev.preventDefault(); this.stopPresenting(); }
+      return;
+    }
     if (mod && k === "z") {
       ev.preventDefault();
       if (ev.shiftKey) this.live?.redo(); else this.live?.undo();
@@ -1038,9 +1338,24 @@ export class PhxWhiteboard extends LitElement {
       this.live?.redo();
       return;
     }
-    if (mod && k === "d" && this.selId && !this.readOnly) {
+    if (mod && k === "d" && this.sel.length && !this.readOnly) {
       ev.preventDefault();
       this.duplicate();
+      return;
+    }
+    if (mod && k === "a") {
+      ev.preventDefault();
+      this.selectMany(this.els().map((e) => e.id));
+      return;
+    }
+    if (mod && (k === "c" || k === "x") && this.sel.length) {
+      ev.preventDefault();
+      this.copySelection(k === "x");
+      return;
+    }
+    if (mod && k === "g" && this.sel.length > 1 && !this.readOnly) {
+      ev.preventDefault();
+      this.groupSel(!ev.shiftKey);
       return;
     }
     if (ev.key === " " && !this.spaceDown) {
@@ -1056,9 +1371,9 @@ export class PhxWhiteboard extends LitElement {
       this.setTool("select");
       return;
     }
-    if ((ev.key === "Delete" || ev.key === "Backspace") && this.selId && !this.readOnly) {
+    if ((ev.key === "Delete" || ev.key === "Backspace") && this.sel.length && !this.readOnly) {
       ev.preventDefault();
-      this.removeEl(this.selId);
+      this.removeMany(this.selection().filter((e) => !e.locked).map((e) => e.id));
       return;
     }
     if (ev.key === "Enter" && this.selId && !this.readOnly) {
@@ -1085,6 +1400,16 @@ export class PhxWhiteboard extends LitElement {
   private onPaste = (ev: ClipboardEvent) => {
     if (!this.isConnected || this.readOnly || this.typing(ev)) return;
     const text = (ev.clipboardData?.getData("text/plain") ?? "").trim();
+    if (text.startsWith(CLIP_PREFIX)) {
+      ev.preventDefault();
+      this.pasteElements(text.slice(CLIP_PREFIX.length));
+      return;
+    }
+    if (!text && this.clip) {
+      ev.preventDefault();
+      this.pasteElements(this.clip.slice(CLIP_PREFIX.length));
+      return;
+    }
     if (!/^https?:\/\/\S+$/.test(text)) return;
     ev.preventDefault();
     const r = this.svgEl.getBoundingClientRect(), [x, y] = this.toWorld(r.left + r.width / 2, r.top + r.height / 2);
@@ -1092,6 +1417,13 @@ export class PhxWhiteboard extends LitElement {
   };
 
   private duplicate() {
+    if (this.sel.length > 1) {
+      const copies = cloneEls(this.selection(), 24);
+      for (const c of copies) this.add(c);
+      this.selectMany(copies.map((c) => c.id));
+      this.changed();
+      return;
+    }
     const e = this.selId ? this.byId(this.selId) : undefined;
     if (!e) return;
     const c: WBElement = { ...JSON.parse(JSON.stringify(e)), id: newId(), seed: undefined };
@@ -1257,6 +1589,12 @@ export class PhxWhiteboard extends LitElement {
 
   private onDrop = (ev: DragEvent) => {
     if (this.readOnly) return;
+    const ex = [...(ev.dataTransfer?.files ?? [])].find((x) => x.name.endsWith(".excalidraw"));
+    if (ex) {
+      ev.preventDefault();
+      void this.importExcalidraw(ex);
+      return;
+    }
     const f = [...(ev.dataTransfer?.files ?? [])].find((x) => x.type.startsWith("image/"));
     if (!f) return;
     ev.preventDefault();
@@ -1485,7 +1823,29 @@ export class PhxWhiteboard extends LitElement {
 
   // ---- chrome --------------------------------------------------------------------------------
 
+  private multiBar() {
+    const n = this.sel.length;
+    const grouped = this.selection().some((e) => e.groups?.length);
+    const b = (how: AlignHow | "dx" | "dy", ico: string, label: string, dis = false) =>
+      html`<button class="ghost" title=${label} aria-label=${label} ?disabled=${dis} @click=${() => this.alignSel(how)}>${icon(ico, 14)}</button>`;
+    return html`<aside class="stylebar" aria-label=${t("wb.style")}>
+      <h4>${t("wb.selected", { count: n })}</h4>
+      <h4>${t("wb.align")}</h4>
+      <div class="row">${b("left", "AlignStartVertical", t("wb.align_left"))}${b("hcenter", "AlignCenterVertical", t("wb.align_hcenter"))}${b("right", "AlignEndVertical", t("wb.align_right"))}</div>
+      <div class="row">${b("top", "AlignStartHorizontal", t("wb.align_top"))}${b("vcenter", "AlignCenterHorizontal", t("wb.align_vcenter"))}${b("bottom", "AlignEndHorizontal", t("wb.align_bottom"))}</div>
+      <h4>${t("wb.distribute")}</h4>
+      <div class="row">${b("dx", "AlignHorizontalSpaceAround", t("wb.distribute_h"), n < 3)}${b("dy", "AlignVerticalSpaceAround", t("wb.distribute_v"), n < 3)}</div>
+      <div class="row">
+        <button class="ghost" title=${t("wb.group")} aria-label=${t("wb.group")} @click=${() => this.groupSel(true)}>${icon("Group", 14)}</button>
+        <button class="ghost" title=${t("wb.ungroup")} aria-label=${t("wb.ungroup")} ?disabled=${!grouped} @click=${() => this.groupSel(false)}>${icon("Ungroup", 14)}</button>
+        <button class="ghost" title=${t("wb.duplicate")} aria-label=${t("wb.duplicate")} @click=${() => this.duplicate()}>${icon("Copy", 14)}</button>
+        <button class="ghost danger" title=${t("wb.delete")} aria-label=${t("wb.delete")} @click=${() => this.removeMany(this.selection().filter((e) => !e.locked).map((e) => e.id))}>${icon("Trash2", 14)}</button>
+      </div>
+    </aside>`;
+  }
+
   private styleBar() {
+    if (this.sel.length > 1 && !this.readOnly && !this.editing) return this.multiBar();
     const e = this.selId ? this.byId(this.selId) : undefined;
     if (!e || this.readOnly || this.editing) return nothing;
     const set = (patch: Partial<WBElement>) => {
@@ -1684,7 +2044,9 @@ export class PhxWhiteboard extends LitElement {
         <g class="world"><g class="layer"></g><g class="pins"></g><g class="others"></g></g>
         <g class="laser" style="pointer-events:none"></g>
       </svg>
-      ${this.els().length === 0 && this.painted ? html`<div class="empty">${this.readOnly ? t("wb.empty_read") : t("wb.empty")}</div>` : nothing}
+      ${this.els().length === 0 && this.painted ? html`<div class="empty"><div>${this.readOnly ? t("wb.empty_read") : t("wb.empty")}
+        ${this.readOnly ? nothing : html`<div class="tpls"><span>${t("wb.tpl.start")}</span>${TEMPLATES.map((k) => html`<button class="ghost" @click=${() => this.useTemplate(k)}>${t(`wb.tpl.${k}` as any)}</button>`)}
+          <button class="ghost" @click=${() => this.pickExcalidraw()}>${icon("Upload", 14)} ${t("wb.import_excalidraw")}</button></div>`}</div></div>` : nothing}
       <div class="bar tools" role="toolbar" aria-label=${t("wb.tools")}>
         ${TOOLS.filter((x) => x === "|" ? !this.readOnly : !this.readOnly || VIEW_TOOLS.has(x[0])).map((x) => x === "|" ? html`<span class="sep"></span>` : html`
           <button aria-pressed=${this.tool === x[0] ? "true" : "false"} title="${t(`wb.tool.${x[0]}` as any)} (${x[2]})" aria-label=${t(`wb.tool.${x[0]}` as any)} @click=${() => this.setTool(x[0])}>${icon(x[1], 18)}<kbd>${x[2]}</kbd></button>`)}
@@ -1706,6 +2068,7 @@ export class PhxWhiteboard extends LitElement {
         <button aria-label=${t("wb.zoom_out")} title=${t("wb.zoom_out")} @click=${() => this.zoomBy(1 / 1.2)}>${icon("ZoomOut", 16)}</button><span>${this.zoom} %</span>
         <button aria-label=${t("wb.zoom_in")} title=${t("wb.zoom_in")} @click=${() => this.zoomBy(1.2)}>${icon("ZoomIn", 16)}</button>
         <button aria-label=${t("wb.fit")} title=${t("wb.fit")} @click=${() => this.fit()}>${icon("Maximize", 16)}</button>
+        ${this.readOnly ? nothing : html`<button aria-label=${t("wb.snap")} title=${t("wb.snap")} aria-pressed=${this.snap ? "true" : "false"} @click=${() => this.setSnap(!this.snap)}>${icon("Grid3x3", 16)}</button>`}
         ${this.readOnly ? nothing : html`<span class="sep"></span>
         <button aria-label=${t("editor.undo")} title=${t("editor.undo")} @click=${() => this.live?.undo()}>${icon("Undo2", 16)}</button>
         <button aria-label=${t("editor.redo")} title=${t("editor.redo")} @click=${() => this.live?.redo()}>${icon("Redo2", 16)}</button>`}
@@ -1713,14 +2076,23 @@ export class PhxWhiteboard extends LitElement {
       <div class="bar side">
         <button aria-label=${t("wb.export_svg")} title=${t("wb.export_svg")} @click=${() => this.exportAs("svg")}>${icon("Download", 16)}</button>
         <button aria-label=${t("wb.export_png")} title=${t("wb.export_png")} @click=${() => this.exportAs("png")}>${icon("Image", 16)}</button>
+        <button aria-label=${t("wb.export_excalidraw")} title=${t("wb.export_excalidraw")} @click=${() => this.exportExcalidraw()}>${icon("FileCode", 16)}</button>
+        ${this.readOnly ? nothing : html`<button aria-label=${t("wb.import_excalidraw")} title=${t("wb.import_excalidraw")} @click=${() => this.pickExcalidraw()}>${icon("Upload", 16)}</button>`}
+        <button aria-label=${t("wb.present")} title=${t("wb.present")} @click=${() => this.presentAt(0)}>${icon("Presentation", 16)}</button>
         <button aria-label=${t("wb.comments")} title=${t("wb.comments")} aria-pressed=${this.panel ? "true" : "false"} @click=${() => (this.panel = !this.panel)}>${icon("MessageSquare", 16)}${open ? html`<span class="count">${open}</span>` : nothing}</button>
       </div>
       ${this.panel ? this.commentPanel() : this.styleBar()}
       ${this.popoverView()}
+      ${this.present >= 0 ? html`<div class="bar present" role="toolbar" aria-label=${t("wb.present")}>
+        <button aria-label=${t("wb.prev")} @click=${() => this.presentAt(Math.max(0, this.present - 1))}>${icon("ChevronLeft", 16)}</button>
+        <span>${this.present + 1} / ${slides(this.els()).length} · ${slides(this.els())[this.present]?.text ?? ""}</span>
+        <button aria-label=${t("wb.next")} @click=${() => this.presentAt(this.present + 1)}>${icon("ChevronRight", 16)}</button>
+        <button aria-label=${t("wb.present_end")} @click=${() => this.stopPresenting()}>${icon("X", 16)}</button></div>` : nothing}
     </div>`;
   }
 
   updated() {
+    this.toggleAttribute("presenting", this.present >= 0);
     if (!this.painted && this.doc) this.paint();
     if (this.pop) (this.renderRoot.querySelector(".pop [autofocus]") as HTMLElement | null)?.focus();
   }

@@ -18,6 +18,7 @@ import (
 	"github.com/phoedox/phoedox/internal/auth"
 	"github.com/phoedox/phoedox/internal/config"
 	"github.com/phoedox/phoedox/internal/core"
+	"github.com/phoedox/phoedox/internal/publish"
 	"github.com/phoedox/phoedox/internal/store"
 )
 
@@ -414,6 +415,7 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/entities/{e}/traverse", a.traverse)
 			r.Get("/entities/{e}/readings", a.entityReadings)
 			r.Get("/entities/{e}/timeline", a.entityTimeline)
+			r.Get("/documents/{d}/whiteboard.svg", a.whiteboardSVG)
 			r.Get("/discovered", a.discovered)
 			r.Post("/discovered/{id}/adopt", a.adoptDiscovered)
 			r.Post("/discovered/{id}/dismiss", a.dismissDiscovered)
@@ -654,6 +656,24 @@ func (a *api) dismissDiscovered(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// whiteboardSVG draws a whiteboard read-only (```whiteboard blocks in pages).
+func (a *api) whiteboardSVG(w http.ResponseWriter, r *http.Request) {
+	d, err := a.core.Document(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	wb, err := core.WhiteboardOf(d)
+	if err != nil || d.Type != store.DocWhiteboard {
+		writeErr(w, core.ErrNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:")
+	w.Header().Set("Cache-Control", "private, no-cache")
+	_, _ = io.WriteString(w, publish.WhiteboardSVG(wb, d.Title, "/api/v1/files/"))
 }
 
 func (a *api) entityTimeline(w http.ResponseWriter, r *http.Request) {

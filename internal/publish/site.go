@@ -557,6 +557,14 @@ func (s *Site) links(r *http.Request, base string, site []core.PubProject, pp co
 			inner.Include = nil // one level only
 			return `<div class="include">` + Markdown(withoutTitle(md, d.Title), inner) + `</div>`
 		},
+		Whiteboard: func(ref string) string {
+			for _, d := range pp.Docs {
+				if d.Type == store.DocWhiteboard && (d.Slug == ref || d.ID == ref) {
+					return whiteboardSVG(d, base+"/_files/")
+				}
+			}
+			return ""
+		},
 		Board: func(ref string) string {
 			for _, d := range pp.Docs {
 				if d.Type == store.DocBoard && (d.Slug == ref || d.ID == ref) {

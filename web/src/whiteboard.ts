@@ -290,3 +290,304 @@ export function diffBoards(a: Whiteboard, b: Whiteboard): { set: WBElement[]; de
   const delNotes = (a.comments ?? []).filter((c) => !na.has(c.id)).map((c) => c.id);
   return { set, del, notes, delNotes, bg: (a.background ?? "") !== (b.background ?? "") };
 }
+
+// ---- several elements at once ------------------------------------------------
+
+/** Moves an element by dx, dy (points of lines, else the box). */
+export function shiftEl(e: WBElement, dx: number, dy: number) {
+  if (e.points) e.points = e.points.map(([a, b]) => [a + dx, b + dy] as Pt);
+  else {
+    e.x = (e.x ?? 0) + dx;
+    e.y = (e.y ?? 0) + dy;
+  }
+}
+
+/** Elements whose bounds lie fully inside the box (frames only as a whole). */
+export function inBox(els: WBElement[], b: Box, byId: (id: string) => WBElement | undefined): WBElement[] {
+  return els.filter((e) => {
+    const r = bbox(e, byId);
+    return r.x >= b.x && r.y >= b.y && r.x + r.w <= b.x + b.w && r.y + r.h <= b.y + b.h;
+  });
+}
+
+/** The elements of the same group(s) as e (its outermost group). */
+export function groupOf(els: WBElement[], e: WBElement): WBElement[] {
+  const g = e.groups?.[e.groups.length - 1];
+  return g ? els.filter((x) => x.groups?.includes(g)) : [e];
+}
+
+export type AlignHow = "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom";
+
+/** Aligns the elements to the common bounds. */
+export function alignEls(sel: WBElement[], how: AlignHow, byId: (id: string) => WBElement | undefined) {
+  const boxes = sel.map((e) => bbox(e, byId));
+  const minX = Math.min(...boxes.map((b) => b.x)), maxX = Math.max(...boxes.map((b) => b.x + b.w));
+  const minY = Math.min(...boxes.map((b) => b.y)), maxY = Math.max(...boxes.map((b) => b.y + b.h));
+  sel.forEach((e, i) => {
+    const b = boxes[i];
+    const dx = how === "left" ? minX - b.x : how === "right" ? maxX - (b.x + b.w) : how === "hcenter" ? (minX + maxX) / 2 - (b.x + b.w / 2) : 0;
+    const dy = how === "top" ? minY - b.y : how === "bottom" ? maxY - (b.y + b.h) : how === "vcenter" ? (minY + maxY) / 2 - (b.y + b.h / 2) : 0;
+    shiftEl(e, dx, dy);
+  });
+}
+
+/** Spreads the elements evenly between the outermost ones. */
+export function distributeEls(sel: WBElement[], axis: "x" | "y", byId: (id: string) => WBElement | undefined) {
+  if (sel.length < 3) return;
+  const items = sel.map((e) => ({ e, b: bbox(e, byId) })).sort((a, c) => (axis === "x" ? a.b.x - c.b.x : a.b.y - c.b.y));
+  const size = (b: Box) => (axis === "x" ? b.w : b.h), pos = (b: Box) => (axis === "x" ? b.x : b.y);
+  const first = items[0].b, last = items[items.length - 1].b;
+  const total = pos(last) + size(last) - pos(first);
+  const gap = (total - items.reduce((s, x) => s + size(x.b), 0)) / (items.length - 1);
+  let at = pos(first) + size(first) + gap;
+  for (const x of items.slice(1, -1)) {
+    const d = at - pos(x.b);
+    shiftEl(x.e, axis === "x" ? d : 0, axis === "y" ? d : 0);
+    at += size(x.b) + gap;
+  }
+}
+
+/** Copies of elements with new ids, moved by d; bindings and groups inside
+ * the copy point to the copies, bindings to other elements are dropped. */
+export function cloneEls(sel: WBElement[], d: number): WBElement[] {
+  const ids = new Map(sel.map((e) => [e.id, newId()]));
+  const groups = new Map<string, string>();
+  return sel.map((e) => {
+    const c: WBElement = JSON.parse(JSON.stringify(e));
+    c.id = ids.get(e.id)!;
+    delete c.seed;
+    delete c.order;
+    shiftEl(c, d, d);
+    for (const end of ["start", "end"] as const) {
+      const b = c[end];
+      if (b) {
+        if (ids.has(b.element)) c[end] = { ...b, element: ids.get(b.element)! };
+        else delete c[end];
+      }
+    }
+    if (c.groups) c.groups = c.groups.map((g) => groups.get(g) ?? (groups.set(g, newId()), groups.get(g)!));
+    if (c.frame && !ids.has(c.frame)) delete c.frame;
+    else if (c.frame) c.frame = ids.get(c.frame);
+    return c;
+  });
+}
+
+/** Rounds a box to the grid (12 px). */
+export function snapBox(e: WBElement, grid = 12) {
+  if (e.points) return;
+  const r = (v: number | undefined) => Math.round((v ?? 0) / grid) * grid;
+  e.x = r(e.x);
+  e.y = r(e.y);
+  if (e.w) e.w = Math.max(grid, r(e.w));
+  if (e.h) e.h = Math.max(grid, r(e.h));
+}
+
+/** Clipboard marker for elements copied from a whiteboard. */
+export const CLIP_PREFIX = "phoedox-whiteboard:";
+
+// ---- frames as slides -----------------------------------------------------------
+
+/** Frames in reading order (top to bottom, then left to right). */
+export function slides(els: WBElement[]): WBElement[] {
+  return els.filter((e) => e.type === "frame").sort((a, b) => {
+    const dy = (a.y ?? 0) - (b.y ?? 0);
+    return Math.abs(dy) > 40 ? dy : (a.x ?? 0) - (b.x ?? 0);
+  });
+}
+
+// ---- templates -------------------------------------------------------------------
+
+export type Template = "retro" | "mindmap" | "network" | "storymap" | "c4";
+export const TEMPLATES: Template[] = ["retro", "mindmap", "network", "storymap", "c4"];
+
+/** Elements of a template; labels are the visible texts (translated by the caller). */
+export function templateEls(kind: Template, L: Record<string, string>): WBElement[] {
+  const out: WBElement[] = [];
+  const add = (e: Omit<WBElement, "id">) => {
+    const el = { id: newId(), ...e } as WBElement;
+    out.push(el);
+    return el;
+  };
+  const arrow = (a: WBElement, b: WBElement) => add({ type: "arrow", stroke: "gray", points: [[0, 0], [0, 0]], start: { element: a.id }, end: { element: b.id } });
+  switch (kind) {
+    case "retro": {
+      const cols: [string, Color][] = [[L.well, "green"], [L.improve, "orange"], [L.actions, "blue"]];
+      cols.forEach(([title, c], i) => {
+        add({ type: "frame", x: i * 400, y: 0, w: 370, h: 560, text: title });
+        add({ type: "sticky", x: i * 400 + 30, y: 60, w: 150, h: 110, fill: c === "green" ? "green" : c === "orange" ? "yellow" : "blue", text: "" });
+      });
+      break;
+    }
+    case "mindmap": {
+      const mid = add({ type: "ellipse", x: 0, y: 0, w: 200, h: 100, text: L.topic, fill: "yellow", smooth: true });
+      const spots: Pt[] = [[-320, -160], [320, -160], [-320, 160], [320, 160]];
+      spots.forEach(([x, y], i) => arrow(mid, add({ type: "rect", x: x, y: y + 20, w: 180, h: 64, text: `${L.idea} ${i + 1}`, smooth: true })));
+      break;
+    }
+    case "network": {
+      const net = add({ type: "ellipse", x: 0, y: 0, w: 180, h: 80, text: "Internet", stroke: "blue" });
+      const router = add({ type: "rect", x: 0, y: 160, w: 180, h: 70, text: "Router" });
+      const sw = add({ type: "rect", x: 0, y: 310, w: 180, h: 70, text: "Switch" });
+      arrow(net, router);
+      arrow(router, sw);
+      ["NAS", "Server", L.ap].forEach((n, i) => arrow(sw, add({ type: "rect", x: -240 + i * 240, y: 470, w: 180, h: 70, text: n })));
+      break;
+    }
+    case "storymap": {
+      for (let i = 0; i < 3; i++) {
+        add({ type: "sticky", x: i * 220, y: 0, w: 180, h: 100, fill: "blue", text: `${L.activity} ${i + 1}` });
+        for (let j = 0; j < 2; j++) add({ type: "sticky", x: i * 220, y: 160 + j * 130, w: 180, h: 100, fill: "yellow", text: "" });
+      }
+      add({ type: "line", stroke: "gray", dash: "dashed", points: [[-40, 135], [660, 135]] });
+      break;
+    }
+    case "c4": {
+      const person = add({ type: "ellipse", x: 120, y: 0, w: 200, h: 90, text: L.person, fill: "blue" });
+      const sys = add({ type: "frame", x: -40, y: 160, w: 520, h: 300, text: L.system });
+      const web = add({ type: "rect", x: 0, y: 220, w: 190, h: 80, text: L.web, fill: "blue" });
+      const api = add({ type: "rect", x: 250, y: 220, w: 190, h: 80, text: "API", fill: "blue" });
+      const db = add({ type: "rect", x: 250, y: 350, w: 190, h: 80, text: L.db, fill: "gray" });
+      void sys;
+      arrow(person, web);
+      arrow(web, api);
+      arrow(api, db);
+      break;
+    }
+  }
+  return out;
+}
+
+// ---- Excalidraw ------------------------------------------------------------------
+
+// The Excalidraw file format stores colours as hex values; these are its
+// default palette entries closest to ours (only for files, not for styling).
+const EX_STROKE: Record<Color, string> = { gray: "#1e1e1e", red: "#e03131", orange: "#f08c00", yellow: "#e8b800", green: "#2f9e44", blue: "#1971c2", purple: "#9c36b5", pink: "#c2255c" };
+const EX_FILL: Record<Color, string> = { gray: "#e9ecef", red: "#ffc9c9", orange: "#ffd8a8", yellow: "#fff3bf", green: "#b2f2bb", blue: "#a5d8ff", purple: "#eebefa", pink: "#fcc2d7" };
+
+function nearest(hex: string | undefined, table: Record<Color, string>): Color | undefined {
+  if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) return undefined;
+  const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [r, g, b] = rgb(hex);
+  let best: Color | undefined, dist = Infinity;
+  for (const [c, h] of Object.entries(table) as [Color, string][]) {
+    const [x, y, z] = rgb(h);
+    const d = (r - x) ** 2 + (g - y) ** 2 + (b - z) ** 2;
+    if (d < dist) { dist = d; best = c; }
+  }
+  return best;
+}
+
+type ExEl = Record<string, any>;
+
+/** The board as an .excalidraw file (shapes, text, lines, drawings, frames). */
+export function toExcalidraw(b: Whiteboard): string {
+  const byId = (id: string) => b.elements.find((e) => e.id === id);
+  const out: ExEl[] = [];
+  const base = (e: WBElement, type: string, box: Box): ExEl => ({
+    id: e.id, type, x: box.x, y: box.y, width: box.w, height: box.h, angle: 0,
+    strokeColor: EX_STROKE[(e.stroke as Color) ?? "gray"] ?? EX_STROKE.gray, backgroundColor: e.fill ? EX_FILL[e.fill as Color] ?? "transparent" : "transparent",
+    fillStyle: "solid", strokeWidth: e.width || 2, strokeStyle: e.dash || "solid", roughness: e.smooth ? 0 : 1, opacity: Math.round((e.opacity ?? 1) * 100),
+    groupIds: e.groups ?? [], frameId: null, roundness: null, seed: e.seed || 1, version: 1, versionNonce: 0, isDeleted: false,
+    boundElements: [] as { id: string; type: string }[], updated: 0, link: null, locked: !!e.locked,
+  });
+  const text = (id: string, s: string, box: Box, container: string | null, size: number): ExEl => ({
+    ...base({ id, type: "text" } as WBElement, "text", box), text: s, originalText: s, fontSize: size, fontFamily: 1,
+    textAlign: container ? "center" : "left", verticalAlign: container ? "middle" : "top", containerId: container, lineHeight: 1.25, strokeColor: EX_STROKE.gray, backgroundColor: "transparent",
+  });
+  for (const e of sorted(b.elements)) {
+    const box = bbox(e, byId);
+    if (LINEAR.has(e.type) || e.type === "pen") {
+      const pts = e.type === "pen" ? e.points ?? [] : linePts(e, byId);
+      if (pts.length < 2) continue;
+      const [x0, y0] = pts[0];
+      const el = base(e, e.type === "pen" ? "freedraw" : e.type, box);
+      Object.assign(el, { x: x0, y: y0, points: pts.map(([x, y]) => [x - x0, y - y0]), lastCommittedPoint: null });
+      if (e.type === "arrow") Object.assign(el, { startArrowhead: null, endArrowhead: "arrow" });
+      if (e.type !== "pen") {
+        if (e.start) el.startBinding = { elementId: e.start.element, focus: 0, gap: 8 };
+        if (e.end) el.endBinding = { elementId: e.end.element, focus: 0, gap: 8 };
+      } else Object.assign(el, { pressures: [], simulatePressure: true });
+      out.push(el);
+      continue;
+    }
+    if (e.type === "text") {
+      out.push(text(e.id, e.text ?? "", box, null, e.fontSize || 24));
+      continue;
+    }
+    if (e.type === "frame") {
+      out.push({ ...base(e, "frame", box), name: e.text ?? null });
+      continue;
+    }
+    const type = e.type === "ellipse" ? "ellipse" : e.type === "diamond" ? "diamond" : "rectangle";
+    const el = base(e, type, box);
+    if (e.type === "sticky") Object.assign(el, { backgroundColor: EX_FILL[(e.fill as Color) ?? "yellow"] ?? EX_FILL.yellow, strokeColor: "transparent" });
+    const label = e.text || (e.type === "entity" ? e.entity : e.type === "embed" ? e.url : "") || "";
+    out.push(el);
+    if (label) {
+      const tid = e.id + "-t";
+      el.boundElements.push({ id: tid, type: "text" });
+      out.push(text(tid, label, { x: box.x + 8, y: box.y + box.h / 2 - 12, w: Math.max(10, box.w - 16), h: 24 }, e.id, e.fontSize || 20));
+    }
+  }
+  for (const el of out) {
+    for (const end of ["startBinding", "endBinding"]) {
+      const target = el[end] && out.find((x) => x.id === el[end].elementId);
+      if (target) target.boundElements.push({ id: el.id, type: "arrow" });
+    }
+  }
+  return JSON.stringify({ type: "excalidraw", version: 2, source: "https://phoedox.com", elements: out, appState: { viewBackgroundColor: "#ffffff", gridSize: null }, files: {} }, null, 2);
+}
+
+/** Elements from an .excalidraw file; images are left out. */
+export function fromExcalidraw(json: string): WBElement[] {
+  const data = JSON.parse(json) as { type?: string; elements?: ExEl[] };
+  if (data.type !== "excalidraw" || !Array.isArray(data.elements)) throw new Error("not an Excalidraw file");
+  const els = data.elements.filter((x) => x && !x.isDeleted);
+  const labels = new Map<string, ExEl>();
+  for (const x of els) if (x.type === "text" && x.containerId) labels.set(x.containerId, x);
+  const ids = new Map<string, string>();
+  const id = (old: string) => ids.get(old) ?? (ids.set(old, newId()), ids.get(old)!);
+  const out: WBElement[] = [];
+  for (const x of els) {
+    const common: Partial<WBElement> = {
+      stroke: nearest(x.strokeColor, EX_STROKE), smooth: x.roughness === 0 ? true : undefined, width: x.strokeWidth && x.strokeWidth !== 2 ? Math.min(8, x.strokeWidth) : undefined,
+      dash: x.strokeStyle === "dashed" || x.strokeStyle === "dotted" ? x.strokeStyle : undefined, opacity: x.opacity && x.opacity < 100 ? x.opacity / 100 : undefined,
+      groups: Array.isArray(x.groupIds) && x.groupIds.length ? x.groupIds.map((g: string) => "g" + g) : undefined, locked: x.locked || undefined,
+    };
+    const box = { x: Number(x.x) || 0, y: Number(x.y) || 0, w: Math.abs(Number(x.width) || 0), h: Math.abs(Number(x.height) || 0) };
+    switch (x.type) {
+      case "rectangle": case "ellipse": case "diamond": {
+        const fill = x.backgroundColor && x.backgroundColor !== "transparent" ? nearest(x.backgroundColor, EX_FILL) : undefined;
+        out.push({ ...common, id: id(x.id), type: x.type === "rectangle" ? "rect" : x.type, ...box, fill, text: labels.get(x.id)?.text } as WBElement);
+        break;
+      }
+      case "text":
+        if (x.containerId && els.some((c) => c.id === x.containerId)) break;
+        out.push({ ...common, id: id(x.id), type: "text", ...box, text: String(x.text ?? ""), fontSize: x.fontSize || undefined } as WBElement);
+        break;
+      case "frame": case "magicframe":
+        out.push({ id: id(x.id), type: "frame", ...box, text: x.name ?? "" } as WBElement);
+        break;
+      case "arrow": case "line": case "freedraw": {
+        const pts = (Array.isArray(x.points) ? x.points : []).map(([px, py]: number[]) => [box.x + px, box.y + py] as Pt);
+        if (pts.length < 2) break;
+        const e: WBElement = { ...common, id: id(x.id), type: x.type === "freedraw" ? "pen" : x.type, points: pts } as WBElement;
+        if (x.type !== "freedraw") {
+          if (x.startBinding?.elementId) e.start = { element: id(x.startBinding.elementId) };
+          if (x.endBinding?.elementId) e.end = { element: id(x.endBinding.elementId) };
+          const label = labels.get(x.id);
+          if (label) e.text = label.text;
+        }
+        out.push(e);
+        break;
+      }
+    }
+  }
+  // Bindings to elements that were not imported are dropped.
+  const have = new Set(out.map((e) => e.id));
+  for (const e of out) {
+    if (e.start && !have.has(e.start.element)) delete e.start;
+    if (e.end && !have.has(e.end.element)) delete e.end;
+  }
+  return out;
+}
