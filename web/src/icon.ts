@@ -7,6 +7,7 @@ import {
   MousePointer2, PenTool, MapPin, Ruler, ImageUp, ZoomIn, ZoomOut, Maximize, LandPlot,
   CircleDashed, RefreshCw, Keyboard, Camera, BrickWall, Import, DoorClosed, Rotate3d,
   Braces, Activity, Reply, MessageSquare, MessageSquarePlus, Bell, BellOff, BellRing, AtSign, SquareCheckBig, CalendarClock, CircleArrowUp, ShieldAlert, FileArchive, ArrowRightLeft, Loader, PackageOpen, UserX, PanelLeftClose, PanelLeftOpen, Binary, Rows3, HardDriveDownload, MonitorPlay, FileSignature, Pause, FlaskConical, Gift, SquarePen, FolderInput, ChevronsDownUp, ChevronsUpDown, GitCommitHorizontal, GitPullRequest, Circle, BotMessageSquare,
+  Hand, Square, Diamond, MoveUpRight, StickyNote, Wand, Eraser, Video, BookOpen, Spline, BringToFront, SendToBack, Presentation,
 } from "lucide";
 
 type Node = [string, Record<string, string | number>][];
@@ -19,6 +20,7 @@ const icons: Record<string, Node> = {
   MousePointer2, PenTool, MapPin, Ruler, ImageUp, ZoomIn, ZoomOut, Maximize, LandPlot,
   CircleDashed, RefreshCw, Keyboard, Camera, BrickWall, Import, DoorClosed, Rotate3d,
   Braces, Activity, Reply, MessageSquare, MessageSquarePlus, Bell, BellOff, BellRing, AtSign, SquareCheckBig, CalendarClock, CircleArrowUp, ShieldAlert, FileArchive, ArrowRightLeft, Loader, PackageOpen, UserX, PanelLeftClose, PanelLeftOpen, Binary, Rows3, HardDriveDownload, MonitorPlay, FileSignature, Pause, FlaskConical, Gift, SquarePen, FolderInput, ChevronsDownUp, ChevronsUpDown, GitCommitHorizontal, GitPullRequest, Circle, BotMessageSquare,
+  Hand, Square, Diamond, MoveUpRight, StickyNote, Wand, Eraser, Video, BookOpen, Spline, BringToFront, SendToBack, Presentation,
 } as unknown as Record<string, Node>;
 
 /** Renders a Lucide icon by its PascalCase name. */

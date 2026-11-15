@@ -10,7 +10,7 @@ export interface RecentItem {
   viewedAt: string;
 }
 
-const docIcons: Record<string, string> = { markdown: "FileText", adr: "Scale", link: "ExternalLink", board: "SquareKanban", floorplan: "LandPlot" };
+const docIcons: Record<string, string> = { markdown: "FileText", adr: "Scale", link: "ExternalLink", board: "SquareKanban", floorplan: "LandPlot", whiteboard: "Presentation" };
 
 export const recentHref = (r: RecentItem) => `/p/${r.projectSlug}/${r.kind === "entity" ? "e" : "d"}/${r.slug}`;
 export const recentIcon = (r: RecentItem) => (r.kind === "entity" ? "Box" : docIcons[r.type] ?? "FileText");

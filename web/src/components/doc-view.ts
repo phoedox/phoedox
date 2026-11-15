@@ -420,6 +420,11 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       <phx-board .project=${this.project} .doc=${d} @changed=${() => this.reload()}></phx-board>`;
     if (d.type === "floorplan") return html`${c.description ? html`<div class="prose">${unsafeHTML(renderMarkdown(c.description, this.project, d.id))}</div>` : ""}
       <phx-floorplan .project=${this.project} .doc=${d} .draft=${this.draft} ?canEdit=${["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "")} @changed=${() => this.reload()}></phx-floorplan>`;
+    if (d.type === "whiteboard") {
+      // The editor (with Rough.js) loads only when a whiteboard is opened.
+      void import("./whiteboard");
+      return html`<phx-whiteboard .project=${this.project} .doc=${d} ?canEdit=${!this.kiosk && ["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "")}></phx-whiteboard>`;
+    }
     if (d.type === "markdown") return html`<div class="prose">${unsafeHTML(renderMarkdown(withoutTitle(c.markdown ?? "", d.title), this.project, d.id))}</div>`;
     if (d.type === "link") return html`<p><a class="btn" href=${c.url} target="_blank" rel="noopener external">${icon("ExternalLink", 15)} ${t("doc.open_link")}</a></p>
       <p class="mono muted">${c.url}</p>
@@ -525,9 +530,9 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     const wide = wideReading.get();
     if (this.kiosk) return html`<article class="enter wide kiosk"><header><div><h1>${d.title}</h1></div></header>${this.body(d)}${this.zoomDialog()}</article>`;
     // Boards need the room of the whole page.
-    return html`<article class=${wide || d.type === "board" || d.type === "floorplan" ? "enter wide" : "enter"} @click=${this.onClick}
+    return html`<article class=${wide || d.type === "board" || d.type === "floorplan" || d.type === "whiteboard" ? "enter wide" : "enter"} @click=${this.onClick}
       @mouseover=${this.onHover} @mouseout=${this.hideGutter} @comments-changed=${this.onComments} @show-block=${this.showBlock}>
-      ${d.type === "link" ? "" : html`<div class="cbtns" role="group" aria-label=${t("comment.block")}>
+      ${d.type === "link" || d.type === "whiteboard" ? "" : html`<div class="cbtns" role="group" aria-label=${t("comment.block")}>
         <button class="ghost" title=${t("comment.on_block")} aria-label=${t("comment.on_block")} @click=${this.commentBlock}>${icon("MessageSquarePlus", 15)}</button>
         <button class="ghost count" style="display:none" title=${t("comment.show_threads")} @click=${this.showThread}>${icon("MessageSquare", 13)}<span></span></button>
       </div>`}
@@ -545,7 +550,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         </div>
         <div class="row">
           ${this.favoriteButtons(d)}
-          ${d.type === "board" || d.type === "floorplan" ? "" : html`<button class="ghost icon" aria-pressed=${wide ? "true" : "false"} title=${t(wide ? "doc.narrow" : "doc.wide")} aria-label=${t(wide ? "doc.narrow" : "doc.wide")}
+          ${d.type === "board" || d.type === "floorplan" || d.type === "whiteboard" ? "" : html`<button class="ghost icon" aria-pressed=${wide ? "true" : "false"} title=${t(wide ? "doc.narrow" : "doc.wide")} aria-label=${t(wide ? "doc.narrow" : "doc.wide")}
             @click=${() => setWideReading(!wide)}>${icon(wide ? "Minimize2" : "Maximize2", 15)}</button>`}
           <a class="btn ghost" href="/p/${this.project}/d/${d.slug}/history">${icon("History", 14)} ${t("doc.history")}</a>
           ${d.type === "link" ? "" : html`<a class="btn ghost icon" href="/kiosk/${this.project}/${d.slug}" target="_blank" rel="noopener" title=${t("kiosk.open")} aria-label=${t("kiosk.open")}>${icon("MonitorPlay", 15)}</a>`}

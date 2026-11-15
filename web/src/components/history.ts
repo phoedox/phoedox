@@ -16,6 +16,8 @@ function textOf(type: Doc["type"], v: VersionInfo): string[] {
   if (type === "markdown") lines.push(...String(c.markdown ?? "").split("\n"));
   if (type === "floorplan") lines.push(...String(c.description ?? "").split("\n"), "", ...(c.rooms ?? []).map((r: any) => `▢ ${r.name}${r.entity ? ` (@${r.entity})` : ""}`),
     ...(c.devices ?? []).map((d: any) => `• @${d.entity} ${Math.round(d.x)},${Math.round(d.y)}`));
+  if (type === "whiteboard") lines.push(...(c.elements ?? []).filter((e: any) => e.text || e.entity || e.url).map((e: any) => `${e.type}: ${e.text ?? e.preview?.title ?? e.url ?? "@" + e.entity}`),
+    ...(c.comments ?? []).map((n: any) => `💬 ${n.name ?? ""}: ${n.text ?? "✎"}${n.resolved ? " ✓" : ""}`));
   if (type === "board") lines.push(...String(c.description ?? "").split("\n"), "", ...(c.columns ?? []).map((col: any) => `- ${col.name}${col.done ? " ✓" : ""}`));
   if (type === "link") lines.push(`URL: ${c.url ?? ""}`, "", ...String(c.description ?? "").split("\n"));
   if (type === "adr") {

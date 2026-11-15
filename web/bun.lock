@@ -29,6 +29,7 @@
         "lucide": "1.72.0",
         "marked": "18.2.0",
         "mermaid": "^12.3.0",
+        "roughjs": "4.6.6",
         "three": "0.187.0",
         "urlpattern-polyfill": "10.1.0",
         "y-protocols": "1.0.7",

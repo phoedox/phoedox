@@ -81,6 +81,7 @@ export class PhxDocForm extends LitElement {
       const base = draft ? JSON.parse(draft.markdown || "{}") : this.doc?.content ?? {};
       body.floorplan = { ...base, description: s("description") };
     }
+    if (this.type === "whiteboard" && !this.doc) body.whiteboard = { elements: [] };
     if (this.type === "board") {
       body.board = this.doc
         ? { ...(this.doc.content ?? {}), description: s("description") }
