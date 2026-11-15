@@ -69,6 +69,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
 
   private router = new Router(this, [
     { path: "/login", render: () => html`<phx-login></phx-login>` },
+    { path: "/identify", render: () => html`<phx-identify></phx-identify>` },
     // The website's "Start for free" links here; signed-in people go to their projects.
     { path: "/signup", render: () => {
       if (!currentUser.get()) return html`<phx-signup></phx-signup>`;

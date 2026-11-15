@@ -107,6 +107,10 @@ type Auth struct {
 	OIDC *OIDC
 	// HA enables sign-in with Home Assistant (nil if not configured).
 	HA *HAConfig
+	// IdentityClients may ask who someone is ("Sign in with Phoedox", ADR-0058).
+	IdentityClients []IdentityClient
+	// Identity holds the codes of identity requests.
+	Identity IdentityCodes
 }
 
 // Login checks the password. Without two-factor authentication it starts a

@@ -76,6 +76,7 @@ make build && ./bin/phoedox
 | `PHOEDOX_PUBLIC_URL` | – | Public address, e.g. `https://docs.example.org` – for links in emails. Without it (or `PHOEDOX_DOMAIN`), there is no "forgot password" by email |
 | `PHOEDOX_DEFAULT_LOCALE` | `de` | Language for emails to users without their own language setting |
 | `PHOEDOX_SIGNUP` | `invite` | `open` lets anyone create an account with a confirmed e-mail address (needs mail); admins can switch it under Admin → Instance |
+| `PHOEDOX_IDENTITY_CLIENTS` | – | Services that may sign people in with their Phoedox account and learn only id, name and e-mail, e.g. `phoedox-store\|Phoedox Store\|https://store.phoedox.com/auth/callback` (comma-separated) |
 | `PHOEDOX_TERMS_URL`, `PHOEDOX_PRIVACY_URL` | – | Terms of use and privacy policy shown on the sign-up page; when set, people must accept them |
 | `PHOEDOX_OIDC_ISSUER` | – | Sign-in through an OpenID Connect provider (Authentik, Keycloak, Entra ID, Google …), e.g. `https://auth.example.org/application/o/phoedox/`. Redirect URI at the provider: `<public URL>/api/v1/auth/oidc/callback` |
 | `PHOEDOX_HA_URL` | – | Sign-in with Home Assistant users: the address browsers use for Home Assistant, e.g. `http://homeassistant.local:8123`. Phoedox's public URL is the client ID. |

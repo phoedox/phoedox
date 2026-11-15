@@ -30,6 +30,12 @@ signup:
   termsUrl: ""
   privacyUrl: ""
 
+# "Sign in with Phoedox" for our own services (ADR-0058): they learn only
+# id, name and e-mail of the person. One entry per service:
+# "id|Name|https://host/callback", e.g. for the plugin store:
+#   - "phoedox-store|Phoedox Store|https://store.phoedox.com/auth/callback"
+identityClients: []
+
 ingress:
   enabled: true
   # k3s ships Traefik as ingress controller.

@@ -1,7 +1,8 @@
+import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
 import { ApiError, api, minPasswordLength, type Instance, type LinkInfo, type User } from "../api";
 import { locale, t } from "../i18n";
-import { navigate, signedIn } from "../state";
+import { currentUser, navigate, signedIn } from "../state";
 import { authPage } from "./login";
 import { base } from "./shared";
 
@@ -116,6 +117,64 @@ export class PhxSignup extends LitElement {
   }
 }
 customElements.define("phx-signup", PhxSignup);
+
+/** "Sign in with Phoedox" (ADR-0058): another Phoedox service, such as the
+ * plugin store, asks who you are. It gets id, name and e-mail – nothing else. */
+export class PhxIdentify extends SignalWatcher(LitElement) {
+  static properties = { client: { state: true }, error: { state: true }, busy: { state: true } };
+  static styles = [base, authPage, css`
+    .who { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+    .who b { display: block; }
+    ul { margin: 0; padding-left: 20px; line-height: 1.6; }
+  `];
+  client?: { clientId: string; name: string; host: string };
+  error = "";
+  busy = false;
+  private q = new URLSearchParams(location.search);
+
+  async connectedCallback() {
+    super.connectedCallback();
+    try {
+      this.client = await api("GET", `/identity/request?client_id=${encodeURIComponent(this.q.get("client_id") ?? "")}&redirect_uri=${encodeURIComponent(this.q.get("redirect_uri") ?? "")}`);
+    } catch (err) {
+      this.error = err instanceof ApiError ? err.text : t("error.unknown");
+    }
+  }
+
+  private async approve() {
+    this.busy = true;
+    try {
+      const r = await api<{ redirect: string }>("POST", "/identity/approve", {
+        client_id: this.q.get("client_id"), redirect_uri: this.q.get("redirect_uri"), state: this.q.get("state"), code_challenge: this.q.get("code_challenge"),
+      });
+      location.assign(r.redirect);
+    } catch (err) {
+      this.error = err instanceof ApiError ? err.text : t("error.unknown");
+      this.busy = false;
+    }
+  }
+
+  private async other() {
+    await api("POST", "/auth/logout").catch(() => {});
+    location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
+  }
+
+  render() {
+    const u = currentUser.get();
+    if (this.error) return html`<div class="card">${logo}<h1 style="font-size:20px">${t("identify.title")}</h1><p class="error" role="alert">${this.error}</p></div>`;
+    if (!this.client || !u) return html`<div class="card">${logo}<p class="muted">${t("app.loading")}</p></div>`;
+    return html`<div class="card">
+      ${logo}
+      <h1 style="font-size:20px">${t("identify.title_for", { name: this.client.name })}</h1>
+      <p class="muted">${t("identify.intro", { name: this.client.name, host: this.client.host })}</p>
+      <div class="who"><span><b>${u.name}</b><span class="muted">${u.email}</span></span></div>
+      <ul class="muted"><li>${t("identify.gets")}</li><li>${t("identify.not")}</li></ul>
+      <button ?disabled=${this.busy} @click=${this.approve}>${t("identify.continue", { name: u.name })}</button>
+      <div class="links"><a href="#" @click=${(e: Event) => { e.preventDefault(); void this.other(); }}>${t("identify.other")}</a></div>
+    </div>`;
+  }
+}
+customElements.define("phx-identify", PhxIdentify);
 
 /** Sets a password from an invitation or reset link and signs in. */
 export class PhxSetPassword extends LitElement {

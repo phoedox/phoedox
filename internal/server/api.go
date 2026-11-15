@@ -49,6 +49,8 @@ func actorOf(r *http.Request) core.Actor { return r.Context().Value(ctxKey{}).(c
 
 func (a *api) routes(r chi.Router) {
 	r.Post("/auth/login", a.login)
+	// Server-to-server: a service redeems a sign-in code (ADR-0058).
+	r.Post("/identity/token", a.identityToken)
 	r.Post("/auth/logout", a.logout)
 	r.Get("/status/{token}", a.publicStatus)
 	// One-time secret links: POST so link previews cannot burn them.
@@ -97,6 +99,7 @@ func (a *api) routes(r chi.Router) {
 		r.Use(requireHeader)
 		r.Post("/auth/reset-request", a.resetRequest)
 		r.Post("/auth/signup", a.signup)
+		r.Get("/identity/request", a.identityRequest)
 		r.Get("/auth/links/{token}", a.linkInfo)
 		r.Post("/auth/links/{token}", a.completeLink)
 		r.Post("/auth/login/totp", a.loginTOTP)
@@ -110,6 +113,7 @@ func (a *api) routes(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(a.requireActor)
 		r.Get("/me", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, 200, actorOf(r).User) })
+		r.With(requireFull).Post("/identity/approve", a.identityApprove)
 		r.Get("/me/notifications", a.listNotifications)
 		r.Get("/me/tasks", a.myTasks)
 		r.Get("/me/skills", a.mySkills)

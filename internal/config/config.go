@@ -51,6 +51,10 @@ type Config struct {
 	// register with a confirmed e-mail address). Admins can change it later
 	// in the instance settings.
 	Signup string
+	// IdentityClients are our own services that may sign people in with
+	// their Phoedox account, e.g. the plugin store (PHOEDOX_IDENTITY_CLIENTS,
+	// "id|Name|https://host/callback", comma-separated; ADR-0058).
+	IdentityClients string
 	// TermsURL and PrivacyURL are shown on the sign-up page; when set, people
 	// must accept them (PHOEDOX_TERMS_URL, PHOEDOX_PRIVACY_URL).
 	TermsURL, PrivacyURL string
@@ -172,20 +176,21 @@ type SMTP struct {
 // FromEnv reads the configuration and applies defaults.
 func FromEnv() (Config, error) {
 	c := Config{
-		Domain:        os.Getenv("PHOEDOX_DOMAIN"),
-		Listen:        getenv("PHOEDOX_LISTEN", ":8080"),
-		DBDriver:      DBDriver(strings.ToLower(getenv("PHOEDOX_DB_DRIVER", string(DriverSQLite)))),
-		DataDir:       getenv("PHOEDOX_DATA_DIR", "./data"),
-		MultiTenant:   os.Getenv("PHOEDOX_MULTI_TENANT") == "true",
-		SecureCookies: os.Getenv("PHOEDOX_INSECURE_COOKIES") != "true",
-		BehindProxy:   os.Getenv("PHOEDOX_BEHIND_PROXY") == "true",
-		PublicURL:     strings.TrimRight(os.Getenv("PHOEDOX_PUBLIC_URL"), "/"),
-		DefaultLocale: getenv("PHOEDOX_DEFAULT_LOCALE", "de"),
-		Signup:        strings.ToLower(getenv("PHOEDOX_SIGNUP", "invite")),
-		TermsURL:      os.Getenv("PHOEDOX_TERMS_URL"),
-		PrivacyURL:    os.Getenv("PHOEDOX_PRIVACY_URL"),
-		LegacyWebsite: os.Getenv("PHOEDOX_WEBSITE_DOMAINS") != "",
-		MasterKey:     os.Getenv("PHOEDOX_MASTER_KEY"),
+		Domain:          os.Getenv("PHOEDOX_DOMAIN"),
+		Listen:          getenv("PHOEDOX_LISTEN", ":8080"),
+		DBDriver:        DBDriver(strings.ToLower(getenv("PHOEDOX_DB_DRIVER", string(DriverSQLite)))),
+		DataDir:         getenv("PHOEDOX_DATA_DIR", "./data"),
+		MultiTenant:     os.Getenv("PHOEDOX_MULTI_TENANT") == "true",
+		SecureCookies:   os.Getenv("PHOEDOX_INSECURE_COOKIES") != "true",
+		BehindProxy:     os.Getenv("PHOEDOX_BEHIND_PROXY") == "true",
+		PublicURL:       strings.TrimRight(os.Getenv("PHOEDOX_PUBLIC_URL"), "/"),
+		DefaultLocale:   getenv("PHOEDOX_DEFAULT_LOCALE", "de"),
+		Signup:          strings.ToLower(getenv("PHOEDOX_SIGNUP", "invite")),
+		TermsURL:        os.Getenv("PHOEDOX_TERMS_URL"),
+		IdentityClients: os.Getenv("PHOEDOX_IDENTITY_CLIENTS"),
+		PrivacyURL:      os.Getenv("PHOEDOX_PRIVACY_URL"),
+		LegacyWebsite:   os.Getenv("PHOEDOX_WEBSITE_DOMAINS") != "",
+		MasterKey:       os.Getenv("PHOEDOX_MASTER_KEY"),
 		OIDC: OIDC{
 			Issuer:       strings.TrimRight(os.Getenv("PHOEDOX_OIDC_ISSUER"), "/"),
 			ClientID:     os.Getenv("PHOEDOX_OIDC_CLIENT_ID"),

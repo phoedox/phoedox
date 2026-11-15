@@ -104,6 +104,10 @@ func Open(ctx context.Context) (*App, error) {
 		return nil, err
 	}
 	a := &auth.Auth{DB: db, SecureCookies: cfg.SecureCookies, Mail: sender, DefaultLocale: cfg.DefaultLocale, Box: box}
+	if a.IdentityClients, err = auth.ParseIdentityClients(cfg.IdentityClients); err != nil {
+		db.Close()
+		return nil, err
+	}
 	if cfg.HAURL != "" {
 		a.HA = &auth.HAConfig{URL: cfg.HAURL, InternalURL: cfg.HAInternalURL, AutoCreate: cfg.HAAutoCreate}
 	}
