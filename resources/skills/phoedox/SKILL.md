@@ -105,10 +105,25 @@ tell the user.
 | `rate_limited` / too many requests | Wait about a minute before the next call of that kind (e.g. `run_request`); do not retry at once. |
 | A result with `applied: false` and a `suggestion` | Not an error: a person decides. Report it and move on. |
 
+## What people do in Phoedox itself
+
+Some things have no tool for you. When they fit the task, point the user to them
+instead of rebuilding them in pages:
+
+- **Deciding** proposed decisions with options (the "To decide" panel on the page).
+- **Automation rules** (project settings → Rules): when a check fails or recovers,
+  an entry is created or a date such as "cancel by" comes close, create a task,
+  notify people or send a request (e.g. open a ticket).
+- **Emergency copy** (project settings): the project as static HTML in a ZIP that
+  opens without a server – for the household folder or a USB stick.
+- **Wall display** (kiosk mode) for a page, and **voice questions** through Home
+  Assistant Assist ("Where is the NAS?").
+- **Publishing** a project as a website, **share links**, sharing single pages.
+
 ## Typical flows
 
 See `references/workflows.md` for step-by-step flows: documenting a network,
-onboarding a server, troubleshooting, recording a decision, planning work on a
+onboarding a server, troubleshooting, recording a decision, preparing a decision with options for people, planning work on a
 board, floor plans (with a complete `save_floorplan` example), monitoring an API,
 and keeping documentation healthy.
 

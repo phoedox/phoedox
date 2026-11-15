@@ -17,6 +17,7 @@ den Nutzer fragen. `docs/decisions.md` ist nur noch ein Verweis (ADR-0026). Der 
 - `internal/auth` – Passwörter (argon2id), Sitzungen, API-Tokens
 - `internal/mcp` – MCP-Server (`/mcp`, Bearer-Token), Tools für Projekte, Dokumente, Entscheidungen, Einträge
 - `internal/app` – verbindet Konfiguration, DB und Dienste (Server + CLI)
+- `resources/skills/phoedox/` – der Phoedox-Skill für KI-Clients (SKILL.md + references, als `/phoedox-skill.zip` ausgeliefert). **Bei jeder Änderung, die KI-Clients betrifft (MCP-Tools, Parameter, neue Möglichkeiten wie Entscheidungs-Optionen, neue Funktionen, auf die die KI Nutzer hinweisen kann), Skill und `resources/prompts/mcp-instructions.md` im selben Commit anpassen.**
 - `resources/prompts/` – System-Prompts und Anleitungen für KI als Markdown, eingebettet beim Build, per `PHOEDOX_PROMPTS_DIR` beim Start überschreibbar. **Prompt-Texte nie im Go-Code**, immer hier ablegen und mit `resources.Prompt(name)` laden.
 - `internal/plugins` – WASM-Laufzeit (Extism), Manifest, Pakete, Signaturen; Kernlogik in `internal/core/plugins.go`, Store-Client `internal/storeclient`. Test-Plugin in `internal/plugins/testdata/testplugin` (wird in Tests gebaut)
 - `internal/agenthub` – noch Gerüst, siehe Paket-Doku

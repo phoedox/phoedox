@@ -42,6 +42,22 @@
    main language. Set `supersedes` to the replaced number (e.g. `ADR-0007`); do not
    change the old one's status yourself.
 
+## Prepare a decision for people
+
+When a person has to choose (the user asks "what are my options?", or you are not
+allowed to decide), do not pick one yourself:
+
+1. `create_decision` with `status: proposed`, the context, and `options`: each
+   option has a `title` and a Markdown `description` with pros, cons and cost. The
+   `decision` field stays empty; Phoedox assigns option ids (`o1`, `o2`, …).
+2. Tell the user to decide on the page: they pick an option (the decision becomes
+   `accepted`, the option its decision text, the others its alternatives) or answer
+   "nothing fits", each with an optional comment. You never decide.
+3. Later, `list_decisions`: `needsOptions: true` means the last answer was "nothing
+   fits". Read the `responses` with `get_document` (the comments say what is
+   missing) and offer new options with `update_decision` (`options` replaces the
+   list; the responses stay).
+
 ## Plan work on a board
 
 1. `list_tasks` (optionally `board`, `column`, `assignee`) to avoid duplicates.
