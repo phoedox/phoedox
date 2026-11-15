@@ -322,3 +322,53 @@ func TestDiagramGroupsDoNotOverlap(t *testing.T) {
 		}
 	}
 }
+
+func TestDescriptionLinksCardDocs(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _ := setup(t)
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Home"})
+	adr, err := s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: "adr", Title: "Backup target", ADR: &ADR{Status: "accepted", Context: "x", Decision: "Box"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, _ := s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: "markdown", Title: "Restore", Markdown: "x"})
+	board, _ := s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: "board", Title: "Tasks"})
+	task, err := s.CreateTask(ctx, owner, p.Slug, board.Document.Slug, TaskInput{Title: "Choose", Description: "Decide [[ADR-0001]] together, see [[unknown]]."})
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs, _ := s.DB.TaskDocs(ctx, p.ID, task.ID)
+	if len(docs) != 1 || docs[0].ID != adr.Document.ID {
+		t.Fatalf("create: %+v", docs)
+	}
+	desc := "Decide [[ADR-0001]], then [[restore|the restore page]]."
+	if _, err := s.UpdateTask(ctx, owner, p.Slug, task.ID, TaskPatch{Description: &desc}); err != nil {
+		t.Fatal(err)
+	}
+	docs, _ = s.DB.TaskDocs(ctx, p.ID, task.ID)
+	if len(docs) != 2 || docs[1].ID != page.Document.ID && docs[0].ID != page.Document.ID {
+		t.Fatalf("update: %+v", docs)
+	}
+}
+
+func TestChecklistBecomesSubtasks(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _ := setup(t)
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Home"})
+	board, _ := s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: "board", Title: "Tasks"})
+	desc := "Part of the plan.\n\n- [x] Create Wi-Fi\n- [ ] Connect the @tv\n\nThen test."
+	task, err := s.CreateTask(ctx, owner, p.Slug, board.Document.Slug, TaskInput{Title: "TV", Description: desc})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Description != "Part of the plan.\n\nThen test." || len(task.Subtasks) != 2 || !task.Subtasks[0].Done || task.Subtasks[1].Title != "Connect the @tv" {
+		t.Fatalf("create: %q %+v", task.Description, task.Subtasks)
+	}
+	more := task.Description + "\n- [ ] Test casting"
+	// The web sends the subtasks it shows together with the description.
+	shown := task.Subtasks
+	u, err := s.UpdateTask(ctx, owner, p.Slug, task.ID, TaskPatch{Description: &more, Subtasks: &shown})
+	if err != nil || len(u.Subtasks) != 3 || u.Subtasks[2].Title != "Test casting" || u.Description != "Part of the plan.\n\nThen test." {
+		t.Fatalf("update: %q %+v %v", u.Description, u.Subtasks, err)
+	}
+}

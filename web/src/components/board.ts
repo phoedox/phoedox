@@ -35,7 +35,7 @@ function between(before?: number, after?: number): number {
 export class PhxBoard extends LitElement {
   static properties = {
     project: {}, doc: {}, tasks: { state: true }, members: { state: true }, open: { state: true }, editingColumns: { state: true },
-    dragging: { state: true }, dropAt: { state: true }, adding: { state: true }, desc: { state: true }, uploading: { state: true },
+    dragging: { state: true }, dropAt: { state: true }, adding: { state: true }, desc: { state: true }, uploading: { state: true }, descEdit: { state: true },
     showSubs: { state: true }, subs: { state: true },
   };
   static styles = [base, css`
@@ -104,6 +104,10 @@ export class PhxBoard extends LitElement {
     dialog .row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
     dialog .row .danger { margin-right: auto; }
     dialog .prose { font-size: 14px; }
+    dialog .desc-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); }
+    dialog .desc-head button { height: 28px; padding: 0 8px; font-size: 13px; }
+    dialog .desc-view { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); max-height: 320px; overflow: auto; }
+    dialog .desc-view > :first-child { margin-top: 0; } dialog .desc-view > :last-child { margin-bottom: 0; }
     .hint { font-size: 12.5px; color: var(--muted); }
     @media (max-width: 600px) { dialog .two { grid-template-columns: 1fr; } }
     @media (prefers-reduced-motion: reduce) { dialog { transition: opacity var(--dur) ease; @starting-style { opacity: 0; transform: none; } } }
@@ -421,10 +425,14 @@ export class PhxBoard extends LitElement {
     </ul>`;
   }
 
+  /** The description is shown rendered (links work) until someone edits it. */
+  descEdit = false;
+
   private show(task: Task) {
     this.subs = (task.subtasks ?? []).map((s) => ({ ...s }));
     this.open = task;
     this.desc = undefined;
+    this.descEdit = !task.description.trim();
     this.updateComplete.then(() => this.renderRoot.querySelector<HTMLDialogElement>("dialog")?.showModal());
   }
 
@@ -631,15 +639,19 @@ export class PhxBoard extends LitElement {
     return html`<dialog aria-labelledby="card-title" @close=${() => { this.open = undefined; this.desc = undefined; }}>
       <form @submit=${this.saveCard}>
         <label class="field" id="card-title">${t("doc.title")}<input name="title" required .value=${task.title} ?disabled=${!edit}></label>
-        <label class="field">${t("board.card_description")}<textarea name="description" .value=${this.desc ?? task.description} ?disabled=${!edit}
+        ${edit && this.descEdit ? html`<label class="field">${t("board.card_description")}<textarea name="description" .value=${this.desc ?? task.description}
           @input=${(e: Event) => (this.desc = (e.target as HTMLTextAreaElement).value)}
           @paste=${(e: ClipboardEvent) => this.addImages(e, imageFiles(e.clipboardData?.files))}
           @drop=${(e: DragEvent) => this.addImages(e, imageFiles(e.dataTransfer?.files))}></textarea></label>
-        ${edit ? html`<div class="desc-tools">
+          <p class="hint" style="margin:-4px 0 0">${t("board.checklist_hint")}</p>`
+        : html`<div class="field"><span class="desc-head">${t("board.card_description")}${edit ? html`<button type="button" class="ghost" @click=${() => { this.descEdit = true; this.updateComplete.then(() => this.renderRoot.querySelector<HTMLTextAreaElement>('dialog textarea[name="description"]')?.focus()); }}>${icon("Pencil", 13)} ${t("board.edit_description")}</button>` : ""}</span>
+          <input type="hidden" name="description" .value=${this.desc ?? task.description}>
+          ${(this.desc ?? task.description).trim() ? html`<div class="prose desc-view" @dblclick=${() => { if (edit) this.descEdit = true; }}>${unsafeHTML(renderMarkdown(this.desc ?? task.description, this.project))}</div>` : html`<p class="hint">${t("board.no_description")}</p>`}</div>`}
+        ${edit && this.descEdit ? html`<div class="desc-tools">
           <label class="btn ghost">${icon("ImageUp", 14)} ${t("board.add_image")}<input type="file" accept="image/*" multiple
             @change=${(e: Event) => { const i = e.target as HTMLInputElement; void this.addImages(undefined, imageFiles(i.files)); i.value = ""; }}></label>
           <span>${this.uploading ? t("board.uploading") : t("board.paste_hint")}</span></div>` : ""}
-        ${(this.desc ?? task.description) && (!edit || coverImage(this.desc ?? task.description)) ? html`<div class="prose">${unsafeHTML(renderMarkdown(this.desc ?? task.description, this.project))}</div>` : ""}
+        ${this.descEdit && edit && coverImage(this.desc ?? task.description) ? html`<div class="prose">${unsafeHTML(renderMarkdown(this.desc ?? task.description, this.project))}</div>` : ""}
         <div class="two">
           <label class="field">${t("board.column")}<select name="column" ?disabled=${!edit}>${this.board.columns.map((c) => html`<option value=${c.id} ?selected=${c.id === task.column}>${c.name}</option>`)}</select></label>
           <label class="field">${t("board.assignee")}<input name="assignee" list="assignees" autocomplete="off" ?disabled=${!edit} placeholder=${t("board.assignee_hint")}

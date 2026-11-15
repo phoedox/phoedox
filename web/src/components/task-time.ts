@@ -21,7 +21,8 @@ export class PhxTaskTime extends LitElement {
     fieldset { border: 0; padding: 0; margin: 0; }
     legend { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
     ul { list-style: none; padding: 0; margin: 0 0 6px; display: grid; gap: 2px; font-size: 13.5px; }
-    li { display: grid; grid-template-columns: 70px 90px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--line); }
+    li { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 3px 0; border-bottom: 1px solid var(--line); }
+    li > span:first-child { white-space: nowrap; }
     li .n { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     form { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     form input { width: auto; height: 32px; }

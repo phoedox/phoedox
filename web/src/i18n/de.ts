@@ -3084,4 +3084,7 @@ export const de = {
   "time.report_hint": "Die auf diesem Board diesen Monat erfasste Zeit herunterladen",
   "validation.time_duration": "Gib eine Dauer zwischen 1 Minute und 24 Stunden an, z. B. 1:30 oder 45m.",
   "validation.time_day": "Der Tag muss ein Datum sein.",
+  "board.edit_description": "Bearbeiten",
+  "board.no_description": "Noch keine Beschreibung.",
+  "board.checklist_hint": "Zeilen wie „- [ ] Schritt“ werden beim Speichern zu Unteraufgaben.",
 } as const;

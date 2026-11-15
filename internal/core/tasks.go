@@ -153,6 +153,28 @@ const maxSubtasks = 100
 
 // cleanSubtasks checks a checklist: titles 1–300 characters, at most 100
 // items, valid dates; new items get an id.
+// checklistRe matches a Markdown checklist item: "- [ ] text" or "* [x] text".
+var checklistRe = regexp.MustCompile(`^\s*[-*+]\s+\[([ xX])\]\s+(.+?)\s*$`)
+
+// checklistToSubtasks moves the Markdown checklist of a description into
+// subtasks; the rest of the description stays. Without a checklist the
+// description comes back unchanged and subtasks is nil.
+func checklistToSubtasks(desc string) (string, []store.Subtask) {
+	var subs []store.Subtask
+	var rest []string
+	for _, line := range strings.Split(desc, "\n") {
+		if m := checklistRe.FindStringSubmatch(line); m != nil && len(subs) < maxSubtasks && len([]rune(m[2])) <= 300 {
+			subs = append(subs, store.Subtask{ID: newID(), Title: m[2], Done: m[1] != " "})
+			continue
+		}
+		rest = append(rest, line)
+	}
+	if len(subs) == 0 {
+		return desc, nil
+	}
+	return strings.TrimSpace(regexp.MustCompile(`\n{3,}`).ReplaceAllString(strings.Join(rest, "\n"), "\n\n")), subs
+}
+
 func cleanSubtasks(in []store.Subtask) ([]store.Subtask, error) {
 	if len(in) > maxSubtasks {
 		return nil, invalid("validation.subtasks_count", map[string]any{"max": maxSubtasks}, "at most %d subtasks", maxSubtasks)
@@ -338,6 +360,10 @@ func (s *Service) CreateTask(ctx context.Context, a Actor, ref, boardRef string,
 		return store.Task{}, err
 	}
 	now := store.Now()
+	if len(in.Subtasks) == 0 {
+		// A checklist in the description becomes the card's subtasks.
+		in.Description, in.Subtasks = checklistToSubtasks(in.Description)
+	}
 	subs, err := cleanSubtasks(in.Subtasks)
 	if err != nil {
 		return store.Task{}, err
@@ -350,6 +376,12 @@ func (s *Service) CreateTask(ctx context.Context, a Actor, ref, boardRef string,
 	docIDs, err := s.resolveTaskDocs(ctx, a, p, in.Documents)
 	if err != nil {
 		return t, err
+	}
+	// Pages and decisions linked in the description ([[ADR-0009]]) are linked to the card too.
+	for _, id := range s.descDocs(ctx, a, p, in.Description) {
+		if !slices.Contains(docIDs, id) && len(docIDs) < maxTaskDocs {
+			docIDs = append(docIDs, id)
+		}
 	}
 	if err := s.DB.SaveTask(ctx, t); err != nil {
 		return t, err
@@ -450,6 +482,13 @@ func (s *Service) UpdateTask(ctx context.Context, a Actor, ref, id string, patch
 	if patch.Labels != nil {
 		t.Labels = cleanLabels(*patch.Labels)
 	}
+	if patch.Description != nil {
+		// A checklist in the description becomes subtasks, after the existing ones.
+		if rest, subs := checklistToSubtasks(t.Description); len(subs) > 0 && len(t.Subtasks)+len(subs) <= maxSubtasks {
+			t.Description = rest
+			t.Subtasks = append(t.Subtasks, subs...)
+		}
+	}
 	var docIDs []string
 	if patch.Documents != nil {
 		if docIDs, err = s.resolveTaskDocs(ctx, a, p, *patch.Documents); err != nil {
@@ -475,6 +514,29 @@ func (s *Service) UpdateTask(ctx context.Context, a Actor, ref, id string, patch
 		}
 		if err := s.DB.SetTaskDocs(ctx, p.ID, t.ID, docIDs, a.String()); err != nil {
 			return t, err
+		}
+	}
+	if patch.Description != nil {
+		// Pages and decisions newly linked in the description join the card's links.
+		if extra := s.descDocs(ctx, a, p, t.Description); len(extra) > 0 {
+			if cur, err := s.DB.TaskDocs(ctx, p.ID, t.ID); err == nil {
+				ids := make([]string, 0, len(cur)+len(extra))
+				for _, d := range cur {
+					ids = append(ids, d.ID)
+				}
+				changed := false
+				for _, id := range extra {
+					if !slices.Contains(ids, id) && len(ids) < maxTaskDocs {
+						ids = append(ids, id)
+						changed = true
+					}
+				}
+				if changed {
+					if err := s.DB.SetTaskDocs(ctx, p.ID, t.ID, ids, a.String()); err != nil {
+						return t, err
+					}
+				}
+			}
 		}
 	}
 	s.event(ctx, a, "task.update", t.ID, map[string]any{"board": t.BoardID, "column": t.Column, "patch": patch})

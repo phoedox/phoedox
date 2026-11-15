@@ -3,7 +3,9 @@ package core
 import (
 	"context"
 	"log/slog"
+	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/phoedox/phoedox/internal/store"
 )
@@ -35,6 +37,36 @@ func (s *Service) resolveTaskDocs(ctx context.Context, a Actor, p store.Project,
 		}
 	}
 	return ids, nil
+}
+
+// descRefRe finds page links [[ref]] / [[ref|label]] in a card description.
+var descRefRe = regexp.MustCompile(`\[\[([^\]|\n]+?)(?:\|[^\]\n]+)?\]\]`)
+
+// descDocs resolves the page links of a description to documents of the
+// project the actor can see (links to other projects are left out).
+func (s *Service) descDocs(ctx context.Context, a Actor, p store.Project, desc string) []string {
+	m := descRefRe.FindAllStringSubmatch(desc, maxTaskDocs)
+	if len(m) == 0 {
+		return nil
+	}
+	see, err := s.docFilter(ctx, a, p)
+	if err != nil {
+		return nil
+	}
+	var ids []string
+	for _, x := range m {
+		ref := strings.TrimSpace(x[1])
+		if proj, rest, ok := strings.Cut(ref, "/"); ok {
+			if proj != p.Slug {
+				continue
+			}
+			ref = rest
+		}
+		if doc, err := s.findDoc(ctx, p.ID, ref); err == nil && see(doc.ID, doc.Restricted) && !slices.Contains(ids, doc.ID) {
+			ids = append(ids, doc.ID)
+		}
+	}
+	return ids
 }
 
 // attachTaskDocs fills the documents of listed tasks that the actor may see.

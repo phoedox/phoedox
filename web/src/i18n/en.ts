@@ -3086,4 +3086,7 @@ export const en: Record<keyof typeof de, string> = {
   "time.report_hint": "Download the time logged on this board this month",
   "validation.time_duration": "Give a duration between 1 minute and 24 hours, e.g. 1:30 or 45m.",
   "validation.time_day": "The day must be a date.",
+  "board.edit_description": "Edit",
+  "board.no_description": "No description yet.",
+  "board.checklist_hint": "Lines like “- [ ] step” become subtasks when you save.",
 };
