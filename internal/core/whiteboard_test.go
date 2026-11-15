@@ -252,3 +252,39 @@ func TestWhiteboardAI(t *testing.T) {
 		t.Fatalf("suggest mode: %v %+v", err, r)
 	}
 }
+
+// TestSubtasks: a card's checklist through create and update, validated,
+// ids kept, stored in both dialects.
+func TestSubtasks(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _ := setup(t)
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Tasks"})
+	b, err := s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: "board", Title: "Board", Board: &Board{Columns: []BoardColumn{{ID: "todo", Name: "To do"}, {ID: "done", Name: "Done", Done: true}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.CreateTask(ctx, owner, p.Slug, b.Document.Slug, TaskInput{Title: "Set up backups", Subtasks: []store.Subtask{{Title: " Buy disk "}, {Title: "Configure restic", Due: "2026-12-01"}}})
+	if err != nil || len(task.Subtasks) != 2 || task.Subtasks[0].Title != "Buy disk" || task.Subtasks[0].ID == "" {
+		t.Fatalf("create: %v %+v", err, task.Subtasks)
+	}
+	subs := task.Subtasks
+	subs[0].Done = true
+	subs = append(subs, store.Subtask{Title: "Test restore"})
+	up, err := s.UpdateTask(ctx, owner, p.Slug, task.ID, TaskPatch{Subtasks: &subs})
+	if err != nil || len(up.Subtasks) != 3 || !up.Subtasks[0].Done || up.Subtasks[0].ID != task.Subtasks[0].ID {
+		t.Fatalf("update: %v %+v", err, up.Subtasks)
+	}
+	list, _ := s.Tasks(ctx, owner, p.Slug, b.Document.Slug, "", "", false)
+	if len(list) != 1 || len(list[0].Subtasks) != 3 {
+		t.Fatalf("listed: %+v", list)
+	}
+	for _, bad := range [][]store.Subtask{{{Title: ""}}, {{Title: "x", Due: "tomorrow"}}} {
+		if _, err := s.UpdateTask(ctx, owner, p.Slug, task.ID, TaskPatch{Subtasks: &bad}); err == nil {
+			t.Fatalf("bad subtasks accepted: %+v", bad)
+		}
+	}
+	none := []store.Subtask{}
+	if up, _ := s.UpdateTask(ctx, owner, p.Slug, task.ID, TaskPatch{Subtasks: &none}); len(up.Subtasks) != 0 {
+		t.Fatalf("clear: %+v", up.Subtasks)
+	}
+}

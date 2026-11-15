@@ -42,6 +42,7 @@ type createTaskIn struct {
 	Priority    int      `json:"priority,omitempty" jsonschema:"0 none, 1 low, 2 medium, 3 high"`
 	Labels      []string `json:"labels,omitempty"`
 	Documents   []string `json:"documents,omitempty" jsonschema:"pages, decisions or other documents to link to the card: slugs, ids or decision numbers like ADR-0003"`
+	Subtasks    []string `json:"subtasks,omitempty" jsonschema:"titles of the card's subtasks (a checklist); change them later with update_task"`
 }
 
 type linkCodeIn struct {
@@ -620,7 +621,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocBoard, Title: in.Title, Category: in.Category, Board: &core.Board{Description: in.Description, Columns: in.Columns}})
 	})
 	tool(s, "create_task", "Add a task to a board. Check list_tasks first to avoid duplicates.", func(ctx context.Context, a core.Actor, in createTaskIn) (any, error) {
-		return svc.CreateTask(ctx, a, in.Project, in.Board, core.TaskInput{Title: in.Title, Description: in.Description, Column: in.Column, Assignee: in.Assignee, Due: in.Due, Priority: in.Priority, Labels: in.Labels, Documents: in.Documents})
+		return svc.CreateTask(ctx, a, in.Project, in.Board, core.TaskInput{Title: in.Title, Description: in.Description, Column: in.Column, Assignee: in.Assignee, Due: in.Due, Priority: in.Priority, Labels: in.Labels, Documents: in.Documents, Subtasks: subtasksOf(in.Subtasks)})
 	})
 	tool(s, "update_task", "Change a task or move it to another column (e.g. the done column) or board. Only given fields change.", func(ctx context.Context, a core.Actor, in updateTaskIn) (any, error) {
 		return svc.UpdateTask(ctx, a, in.Project, in.Task, in.TaskPatch)
@@ -899,4 +900,12 @@ func setIf(dst *string, v *string) {
 	if v != nil && *v != "" {
 		*dst = *v
 	}
+}
+
+func subtasksOf(titles []string) []store.Subtask {
+	out := make([]store.Subtask, 0, len(titles))
+	for _, t := range titles {
+		out = append(out, store.Subtask{Title: t})
+	}
+	return out
 }

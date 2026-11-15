@@ -117,7 +117,10 @@ export interface Task {
   codeLinks?: CodeLink[];
   /** Pages, decisions and other documents linked to the card (ADR-0064). */
   documents?: TaskDoc[];
+  /** The card's checklist. */
+  subtasks?: Subtask[];
 }
+export interface Subtask { id: string; title: string; done?: boolean; due?: string }
 export interface TaskDoc { id: string; slug: string; title: string; type: Doc["type"]; number?: number }
 /** A GitHub or Gitea/Forgejo repository connected to a project. */
 export interface CodeRepo { id: string; provider: "github" | "gitea"; webUrl: string; owner: string; name: string; tokenVar?: string; lastCheck?: string; lastError?: string }

@@ -128,6 +128,8 @@ type TaskInput struct {
 	// Documents are pages, decisions or other documents to link: slugs, ids
 	// or decision numbers like ADR-0003 (ADR-0064).
 	Documents []string `json:"documents,omitempty"`
+	// Subtasks are the card's checklist: title, done and an optional due date.
+	Subtasks []store.Subtask `json:"subtasks,omitempty" jsonschema:"checklist of the card: [{title, done, due}]"`
 }
 
 type TaskPatch struct {
@@ -143,6 +145,37 @@ type TaskPatch struct {
 	// Documents replaces the linked documents (slugs, ids or ADR-0003);
 	// an empty list removes them all.
 	Documents *[]string `json:"documents,omitempty" jsonschema:"replaces the linked pages and decisions (slugs, ids or ADR-0003); an empty list removes them"`
+	// Subtasks replaces the checklist; keep the ids of existing items.
+	Subtasks *[]store.Subtask `json:"subtasks,omitempty" jsonschema:"replaces the whole checklist [{id, title, done, due}]; keep the ids of existing items (read them with list_tasks); an empty list removes all"`
+}
+
+const maxSubtasks = 100
+
+// cleanSubtasks checks a checklist: titles 1–300 characters, at most 100
+// items, valid dates; new items get an id.
+func cleanSubtasks(in []store.Subtask) ([]store.Subtask, error) {
+	if len(in) > maxSubtasks {
+		return nil, invalid("validation.subtasks_count", map[string]any{"max": maxSubtasks}, "at most %d subtasks", maxSubtasks)
+	}
+	out := make([]store.Subtask, 0, len(in))
+	seen := map[string]bool{}
+	for _, st := range in {
+		st.Title = strings.TrimSpace(st.Title)
+		if st.Title == "" || len([]rune(st.Title)) > 300 {
+			return nil, invalid("validation.subtask_title", nil, "every subtask needs a title of up to 300 characters")
+		}
+		if st.Due != "" {
+			if _, err := time.Parse("2006-01-02", st.Due); err != nil {
+				return nil, invalid("validation.due", nil, "due must be YYYY-MM-DD")
+			}
+		}
+		if st.ID == "" || seen[st.ID] || len(st.ID) > 40 {
+			st.ID = newID()
+		}
+		seen[st.ID] = true
+		out = append(out, st)
+	}
+	return out, nil
 }
 
 // boardAccess loads a board document with the needed role.
@@ -304,8 +337,12 @@ func (s *Service) CreateTask(ctx context.Context, a Actor, ref, boardRef string,
 		return store.Task{}, err
 	}
 	now := store.Now()
+	subs, err := cleanSubtasks(in.Subtasks)
+	if err != nil {
+		return store.Task{}, err
+	}
 	t := store.Task{ID: newID(), ProjectID: p.ID, BoardID: doc.ID, Column: col.ID, Position: pos + 1, Title: in.Title, Description: in.Description,
-		AssigneeID: assignee, AssigneeText: assigneeText, Due: in.Due, Priority: min(max(in.Priority, 0), 3), Labels: cleanLabels(in.Labels), CreatedBy: a.String(), CreatedAt: now, UpdatedAt: now}
+		AssigneeID: assignee, AssigneeText: assigneeText, Due: in.Due, Priority: min(max(in.Priority, 0), 3), Labels: cleanLabels(in.Labels), CreatedBy: a.String(), CreatedAt: now, UpdatedAt: now, Subtasks: subs}
 	if col.Done {
 		t.DoneAt = now
 	}
@@ -401,6 +438,13 @@ func (s *Service) UpdateTask(ctx context.Context, a Actor, ref, id string, patch
 	}
 	if patch.Priority != nil {
 		t.Priority = min(max(*patch.Priority, 0), 3)
+	}
+	if patch.Subtasks != nil {
+		subs, err := cleanSubtasks(*patch.Subtasks)
+		if err != nil {
+			return store.Task{}, err
+		}
+		t.Subtasks = subs
 	}
 	if patch.Labels != nil {
 		t.Labels = cleanLabels(*patch.Labels)

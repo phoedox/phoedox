@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 )
@@ -37,24 +38,38 @@ type Task struct {
 	// Documents are the pages, decisions and other documents linked to the
 	// card (filled by the core; ADR-0064).
 	Documents []TaskDoc `json:"documents,omitempty"`
+	// Subtasks are the checklist of the card.
+	Subtasks []Subtask `json:"subtasks"`
+}
+
+// Subtask is one item of a card's checklist.
+type Subtask struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Done  bool   `json:"done,omitempty"`
+	Due   string `json:"due,omitempty"` // YYYY-MM-DD
 }
 
 const taskCols = `t.id, t.project_id, t.board_id, t.column_id, t.position, t.title, t.description, COALESCE(t.assignee_id, ''), t.assignee_text, t.due, t.priority, t.labels,
-	t.created_by, t.created_at, t.updated_at, t.done_at, COALESCE(u.name, ''), COALESCE(u.avatar, ''), d.slug, d.title`
+	t.created_by, t.created_at, t.updated_at, t.done_at, COALESCE(u.name, ''), COALESCE(u.avatar, ''), d.slug, d.title, t.subtasks`
 
 const taskFrom = ` FROM tasks t JOIN documents d ON d.id = t.board_id LEFT JOIN users u ON u.id = t.assignee_id`
 
 func scanTask(r interface{ Scan(...any) error }) (Task, error) {
 	var t Task
-	var labels string
+	var labels, subtasks string
 	err := r.Scan(&t.ID, &t.ProjectID, &t.BoardID, &t.Column, &t.Position, &t.Title, &t.Description, &t.AssigneeID, &t.AssigneeText, &t.Due, &t.Priority, &labels,
-		&t.CreatedBy, &t.CreatedAt, &t.UpdatedAt, &t.DoneAt, &t.AssigneeName, &t.AssigneeAvatar, &t.BoardSlug, &t.BoardTitle)
+		&t.CreatedBy, &t.CreatedAt, &t.UpdatedAt, &t.DoneAt, &t.AssigneeName, &t.AssigneeAvatar, &t.BoardSlug, &t.BoardTitle, &subtasks)
 	if errors.Is(err, sql.ErrNoRows) {
 		return t, ErrNotFound
 	}
 	t.Labels = []string{}
 	if labels != "" {
 		t.Labels = strings.Split(labels, ",")
+	}
+	t.Subtasks = []Subtask{}
+	if subtasks != "" {
+		_ = json.Unmarshal([]byte(subtasks), &t.Subtasks)
 	}
 	return t, err
 }
@@ -126,13 +141,17 @@ func (d *DB) SaveTask(ctx context.Context, t Task) error {
 	if !t.DoneAt.IsZero() {
 		done = t.DoneAt
 	}
-	_, err := d.Exec(ctx, `INSERT INTO tasks (id, tenant_id, project_id, board_id, column_id, position, title, description, assignee_id, assignee_text, due, priority, labels, created_by, created_at, updated_at, done_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	subtasks := []byte("[]")
+	if len(t.Subtasks) > 0 {
+		subtasks, _ = json.Marshal(t.Subtasks)
+	}
+	_, err := d.Exec(ctx, `INSERT INTO tasks (id, tenant_id, project_id, board_id, column_id, position, title, description, assignee_id, assignee_text, due, priority, labels, created_by, created_at, updated_at, done_at, subtasks)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET board_id = excluded.board_id, column_id = excluded.column_id, position = excluded.position, title = excluded.title,
 		  description = excluded.description, assignee_id = excluded.assignee_id, assignee_text = excluded.assignee_text, due = excluded.due, priority = excluded.priority, labels = excluded.labels,
-		  updated_at = excluded.updated_at, done_at = excluded.done_at`,
+		  updated_at = excluded.updated_at, done_at = excluded.done_at, subtasks = excluded.subtasks`,
 		t.ID, TenantOf(ctx), t.ProjectID, t.BoardID, t.Column, t.Position, t.Title, t.Description, nullable(t.AssigneeID), t.AssigneeText, t.Due, t.Priority,
-		strings.Join(t.Labels, ","), t.CreatedBy, t.CreatedAt, t.UpdatedAt, done)
+		strings.Join(t.Labels, ","), t.CreatedBy, t.CreatedAt, t.UpdatedAt, done, string(subtasks))
 	return err
 }
 

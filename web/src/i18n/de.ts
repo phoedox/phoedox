@@ -2825,4 +2825,13 @@ export const de = {
   "wb.t.image": "Bild",
   "wb.t.embed": "Einbettung",
   "wb.t.entity": "Eintrag",
+  "board.subtasks": "Unteraufgaben",
+  "board.show_subtasks": "Unteraufgaben auf Karten",
+  "board.subtask_title": "Unteraufgabe",
+  "board.subtask_new": "Neue Unteraufgabe …",
+  "board.subtask_add": "Hinzufügen",
+  "board.subtask_remove": "Unteraufgabe entfernen",
+  "board.subtask_done": "{title} erledigt",
+  "validation.subtasks_count": "Eine Karte kann höchstens {max} Unteraufgaben haben.",
+  "validation.subtask_title": "Jede Unteraufgabe braucht einen Titel (bis 300 Zeichen).",
 } as const;

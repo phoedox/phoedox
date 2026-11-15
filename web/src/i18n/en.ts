@@ -2827,4 +2827,13 @@ export const en: Record<keyof typeof de, string> = {
   "wb.t.image": "image",
   "wb.t.embed": "embed",
   "wb.t.entity": "entry",
+  "board.subtasks": "Subtasks",
+  "board.show_subtasks": "Subtasks on cards",
+  "board.subtask_title": "Subtask",
+  "board.subtask_new": "New subtask …",
+  "board.subtask_add": "Add",
+  "board.subtask_remove": "Remove subtask",
+  "board.subtask_done": "{title} done",
+  "validation.subtasks_count": "A card can have at most {max} subtasks.",
+  "validation.subtask_title": "Every subtask needs a title (up to 300 characters).",
 };

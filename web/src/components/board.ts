@@ -34,6 +34,7 @@ export class PhxBoard extends LitElement {
   static properties = {
     project: {}, doc: {}, tasks: { state: true }, members: { state: true }, open: { state: true }, editingColumns: { state: true },
     dragging: { state: true }, dropAt: { state: true }, adding: { state: true }, desc: { state: true }, uploading: { state: true },
+    showSubs: { state: true }, subs: { state: true },
   };
   static styles = [base, css`
     :host { display: block; margin-top: 8px; white-space: normal; }
@@ -51,6 +52,18 @@ export class PhxBoard extends LitElement {
     @media (hover: hover) and (pointer: fine) { .card:hover { border-color: var(--muted); } }
     .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
     .card.ghost { opacity: .4; }
+    /* Subtasks on the card (when switched on) and in the dialog. */
+    .subs { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: 13px; }
+    .subs li { display: flex; gap: 6px; align-items: flex-start; }
+    .subs li.done span { color: var(--muted); text-decoration: line-through; }
+    .subs input[type="checkbox"] { margin: 2px 0 0; flex: none; width: 16px; height: 16px; min-height: 0; padding: 0; }
+    .subs li > span:not(.due) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+    .subs .due { color: var(--muted); font-size: 11px; white-space: nowrap; }
+    .subs.edit li { align-items: center; }
+    .subs.edit input[type="text"] { flex: 1; min-width: 0; width: auto; }
+    .subs.edit input[type="date"] { width: 9.5em; flex: none; }
+    .subs.edit button { flex: none; }
+    .meta .progress.all { color: var(--good); }
     /* Touch: hold a card, then drag it (no text selection or callout menu meanwhile). */
     @media (pointer: coarse) { .card { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; } }
     .lift { position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none; width: 240px; box-shadow: 0 12px 32px rgb(0 0 0 / .25);
@@ -185,6 +198,7 @@ export class PhxBoard extends LitElement {
   willUpdate() {
     if (this.doc && this.loadedFor !== this.doc.id) {
       this.loadedFor = this.doc.id;
+      try { this.showSubs = localStorage.getItem(this.subsKey()) === "1"; } catch { /* private mode */ }
       void this.load();
       this.listen();
       api<Member[]>("GET", `/projects/${this.project}/members`).then((m) => (this.members = m ?? []), () => {});
@@ -375,7 +389,38 @@ export class PhxBoard extends LitElement {
     }
   }
 
+  /** Subtasks on the cards: switched per board, remembered in this browser. */
+  showSubs = false;
+  /** The checklist while the card dialog is open. */
+  subs: { id?: string; title: string; done?: boolean; due?: string }[] = [];
+
+  private subsKey() {
+    return `board.subtasks.${this.doc?.id ?? ""}`;
+  }
+
+  private toggleSubs() {
+    this.showSubs = !this.showSubs;
+    try { localStorage.setItem(this.subsKey(), this.showSubs ? "1" : "0"); } catch { /* private mode */ }
+  }
+
+  /** Ticks a subtask right on the card. */
+  private tick(e: Event, task: Task, id: string) {
+    e.stopPropagation();
+    const subtasks = (task.subtasks ?? []).map((s) => (s.id === id ? { ...s, done: !s.done } : s));
+    void this.patch(task, { subtasks });
+  }
+
+  private subtaskList(task: Task) {
+    const subs = task.subtasks ?? [];
+    if (!this.showSubs || !subs.length) return "";
+    return html`<ul class="subs" aria-label=${t("board.subtasks")} @click=${(e: Event) => e.stopPropagation()}>
+      ${subs.map((s) => html`<li class=${s.done ? "done" : ""}><input type="checkbox" .checked=${!!s.done} ?disabled=${!this.canEdit} aria-label=${s.title}
+        @click=${(e: Event) => this.tick(e, task, s.id)} @keydown=${(e: KeyboardEvent) => e.stopPropagation()}><span>${s.title}</span>${s.due ? html`<span class="due">${formatDay(s.due)}</span>` : ""}</li>`)}
+    </ul>`;
+  }
+
   private show(task: Task) {
+    this.subs = (task.subtasks ?? []).map((s) => ({ ...s }));
     this.open = task;
     this.desc = undefined;
     this.updateComplete.then(() => this.renderRoot.querySelector<HTMLDialogElement>("dialog")?.showModal());
@@ -402,6 +447,7 @@ export class PhxBoard extends LitElement {
     const saved = await this.patch(task, {
       title: s("title"), description: s("description"), column: s("column"), assignee: this.assigneeRef(s("assignee")), due: s("due"),
       priority: Number(s("priority")), labels: s("labels").split(",").map((x) => x.trim()).filter(Boolean),
+      subtasks: this.subs.map((x) => ({ ...x, title: x.title.trim() })).filter((x) => x.title),
     });
     if (saved) this.close();
   }
@@ -512,8 +558,10 @@ export class PhxBoard extends LitElement {
       @drop=${(e: DragEvent) => { e.preventDefault(); e.stopPropagation(); if (this.dragging) this.move(this.dragging, col.id, task.id); this.dragging = undefined; this.dropAt = undefined; }}>
       ${coverImage(task.description) ? html`<img class="cover" src=${coverImage(task.description)!} alt="" loading="lazy" draggable="false">` : ""}
       <span class="title">${task.title}</span>
-      ${task.labels.length || task.due || task.priority || task.assigneeName || task.assigneeText || task.codeLinks?.length || task.documents?.length ? html`<span class="meta">
+      ${this.subtaskList(task)}
+      ${task.labels.length || task.due || task.priority || task.assigneeName || task.assigneeText || task.codeLinks?.length || task.documents?.length || task.subtasks?.length ? html`<span class="meta">
         ${task.labels.map((l) => html`<span class="label">${l}</span>`)}
+        ${task.subtasks?.length ? html`<span class=${task.subtasks.every((s) => s.done) ? "progress all" : "progress"} title=${t("board.subtasks")}>${icon("ListChecks", 12)} ${task.subtasks.filter((s) => s.done).length}/${task.subtasks.length}</span>` : ""}
         ${task.documents?.length ? html`<span class="code" title=${task.documents.map((d) => d.title).join(", ")}>${icon("Link", 12)} ${task.documents.length}</span>` : ""}
         ${this.codeBadges(task)}
         ${task.priority ? html`<span class="prio p${task.priority}" title=${t(`board.priority.${task.priority}` as any)}>${icon("Flag", 12)}</span>` : ""}
@@ -550,6 +598,29 @@ export class PhxBoard extends LitElement {
     </section>`;
   }
 
+  private subtaskEditor(edit: boolean) {
+    const set = (i: number, patch: Partial<{ title: string; done: boolean; due: string }>) => (this.subs = this.subs.map((s, k) => (k === i ? { ...s, ...patch } : s)));
+    const add = (input: HTMLInputElement) => {
+      const title = input.value.trim();
+      if (!title) return;
+      this.subs = [...this.subs, { title }];
+      input.value = "";
+    };
+    if (!edit && !this.subs.length) return "";
+    return html`<fieldset class="field" style="border:0;padding:0;margin:0"><legend>${t("board.subtasks")}${this.subs.length ? ` · ${this.subs.filter((s) => s.done).length}/${this.subs.length}` : ""}</legend>
+      <ul class="subs edit">${this.subs.map((s, i) => html`<li class=${s.done ? "done" : ""}>
+        <input type="checkbox" .checked=${!!s.done} ?disabled=${!edit} aria-label=${t("board.subtask_done", { title: s.title })} @change=${(e: Event) => set(i, { done: (e.target as HTMLInputElement).checked })}>
+        <input type="text" .value=${s.title} ?disabled=${!edit} aria-label=${t("board.subtask_title")} @input=${(e: Event) => set(i, { title: (e.target as HTMLInputElement).value })}
+          @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") e.preventDefault(); }}>
+        <input type="date" .value=${s.due ?? ""} ?disabled=${!edit} aria-label=${t("board.due")} @change=${(e: Event) => set(i, { due: (e.target as HTMLInputElement).value || undefined })}>
+        ${edit ? html`<button type="button" class="ghost icon" aria-label=${t("board.subtask_remove")} title=${t("board.subtask_remove")} @click=${() => (this.subs = this.subs.filter((_, k) => k !== i))}>${icon("X", 14)}</button>` : ""}
+      </li>`)}</ul>
+      ${edit ? html`<div class="row" style="gap:6px;margin-top:4px"><input type="text" placeholder=${t("board.subtask_new")} aria-label=${t("board.subtask_new")} style="flex:1"
+        @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); add(e.target as HTMLInputElement); } }}>
+        <button type="button" class="ghost" @click=${(e: Event) => add((e.target as HTMLElement).closest(".row")!.querySelector("input")!)}>${icon("Plus", 14)} ${t("board.subtask_add")}</button></div>` : ""}
+    </fieldset>`;
+  }
+
   private dialog() {
     const task = this.open;
     if (!task) return "";
@@ -575,6 +646,7 @@ export class PhxBoard extends LitElement {
           <label class="field">${t("board.priority")}<select name="priority" ?disabled=${!edit}>${[0, 1, 2, 3].map((p) => html`<option value=${p} ?selected=${p === task.priority}>${t(`board.priority.${p}` as any)}</option>`)}</select></label>
         </div>
         <label class="field">${t("board.labels")}<input name="labels" .value=${task.labels.join(", ")} ?disabled=${!edit} placeholder=${t("board.labels_hint")}></label>
+        ${this.subtaskEditor(edit)}
         <phx-task-docs .project=${this.project} .task=${task.id} .docs=${task.documents ?? []} ?canEdit=${edit}
           @changed=${(e: CustomEvent<TaskDoc[]>) => { e.stopPropagation(); this.tasks = this.tasks?.map((x) => (x.id === task.id ? { ...x, documents: e.detail } : x)); if (this.open) this.open = { ...this.open, documents: e.detail }; }}></phx-task-docs>
         <phx-task-code .project=${this.project} .task=${task.id} ?canEdit=${edit}
@@ -598,6 +670,7 @@ export class PhxBoard extends LitElement {
       <div class="tools">
         <span class="muted">${t("board.summary", { open, total: this.tasks.length })}</span>
         <span style="flex:1"></span>
+        ${this.tasks.some((x) => x.subtasks?.length) ? html`<button class="ghost" aria-pressed=${this.showSubs ? "true" : "false"} @click=${() => this.toggleSubs()}>${icon("ListChecks", 14)} ${t("board.show_subtasks")}</button>` : ""}
         ${this.canEdit && !this.editingColumns ? html`<button class="ghost" @click=${() => (this.editingColumns = true)}>${icon("Columns3", 14)} ${t("board.edit_columns")}</button>` : ""}
       </div>
       ${this.editingColumns ? this.columnsForm() : ""}
