@@ -5,6 +5,8 @@ import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
 import { currentProject, docsVersion } from "../state";
 import { base } from "./shared";
+import { pageHead, scard, settingsUI, srow, sswitch } from "./settings-ui";
+import "./settings-shell";
 import type { Storage } from "../files";
 import { storageBar, storageStyles } from "./project-files";
 import "./webhooks";
@@ -28,8 +30,12 @@ export class PhxProjectSettings extends LitElement {
     project: {}, section: {}, p: { state: true }, members: { state: true }, env: { state: true }, storage: { state: true }, error: { state: true },
     groups: { state: true }, orgGroups: { state: true }, orgs: { state: true }, links: { state: true }, newLink: { state: true }, mainDraft: { state: true }, approval: { state: true },
   };
-  static styles = [base, storageStyles, css`
-    form { display: grid; gap: 12px; max-width: 560px; margin-bottom: 28px; }
+  static styles = [base, storageStyles, settingsUI, css`
+    :host { display: block; }
+    .scard > .body > p:first-child { margin-top: 0; }
+    .scard table { max-width: none; }
+    .scard .foot { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); }
+    form.grid { display: grid; gap: 12px; max-width: 560px; }
     .color { display: flex; gap: 8px; align-items: center; } .color input[type=color] { width: 48px; padding: 2px; height: 38px; }
     table { border-collapse: collapse; width: 100%; max-width: 760px; } td { padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); }
     .chip.bad { color: var(--bad); }
@@ -39,15 +45,9 @@ export class PhxProjectSettings extends LitElement {
     fieldset.langs p { margin: 0; font-size: 13px; }
     .checks { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 4px; }
     .checks label { display: inline-flex; gap: 6px; align-items: center; font-weight: 400; white-space: nowrap; }
-    nav.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 20px; overflow-x: auto; scrollbar-width: none; }
-    nav.tabs a { display: inline-flex; align-items: center; gap: 7px; padding: 8px 12px; color: var(--muted); text-decoration: none; font-size: 14px;
-      border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; transition: color var(--dur-fast) ease; }
-    nav.tabs a[aria-current="page"] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 600; }
-    nav.tabs a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
-    @media (hover: hover) and (pointer: fine) { nav.tabs a:hover { color: var(--fg); } }
   `];
   project = "";
-  /** "" = general settings, "model" = kinds and fields of the knowledge graph. */
+  /** The page (ADR-0070): "" (rail on phones), general, people, ai, rules, model, env, code, integrations, data, activity, transfer. */
   section = "";
   p?: Project;
   /** Main language chosen in the form before saving. */
@@ -115,7 +115,7 @@ export class PhxProjectSettings extends LitElement {
     const p = this.p!;
     const now = Date.now();
     return html`
-      <h2 style="font-size:18px;margin:28px 0 8px">${t("settings.members")}</h2>
+      <section class="scard"><header><h2>${t("settings.members")}</h2></header><div class="body">
       <table>${this.members.map((m) => {
         const expired = m.expiresAt && Date.parse(m.expiresAt) < now;
         return html`<tr><td>${m.name}</td><td class="muted">${m.email}</td>
@@ -129,9 +129,9 @@ export class PhxProjectSettings extends LitElement {
           <label class="row" style="gap:6px;font-size:13px;color:var(--muted)">${t("settings.guest_until_label")}<input name="until" type="date" style="width:auto" min=${new Date().toISOString().slice(0, 10)}></label>
           <button type="submit">${t("settings.add_member")}</button></div>
         <p class="muted" style="font-size:13px;margin:0">${t("settings.guest_hint")}</p>
-      </form>` : ""}
+      </form>` : ""}</div></section>
 
-      ${p.orgId ? html`<h2 style="font-size:18px;margin:28px 0 8px">${t("settings.groups")}</h2>
+      ${p.orgId ? html`<section class="scard"><header><h2>${t("settings.groups")}</h2></header><div class="body">
         ${this.groups.length ? html`<table>${this.groups.map((g) => html`<tr><td>${icon("Users", 13)} ${g.name}</td>
           <td>${owner ? html`<select style="width:auto" aria-label=${t("settings.group_role", { name: g.name })} @change=${(e: Event) => this.act(() => api("PUT", `/projects/${this.project}/groups/${g.groupId}`, { role: (e.target as HTMLSelectElement).value }))}>
             ${["reader", "editor", "owner"].map((r) => html`<option value=${r} ?selected=${g.role === r}>${t(`settings.role.${r}` as any)}</option>`)}</select>` : t(`settings.role.${g.role}` as any)}</td>
@@ -144,10 +144,9 @@ export class PhxProjectSettings extends LitElement {
         }}><select name="group" required style="width:auto"><option value="">${t("settings.add_group")}</option>
           ${this.orgGroups.filter((g) => !this.groups.some((x) => x.groupId === g.id)).map((g) => html`<option value=${g.id}>${g.name}</option>`)}</select>
           <select name="role" style="width:auto"><option value="reader">${t("settings.role.reader")}</option><option value="editor">${t("settings.role.editor")}</option><option value="owner">${t("settings.role.owner")}</option></select>
-          <button class="ghost">${icon("Plus", 13)}</button></form>` : ""}` : ""}
+          <button class="ghost">${icon("Plus", 13)}</button></form>` : ""}</div></section>` : ""}
 
-      ${canEdit ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("share.title")}</h2>
-        <p class="muted" style="max-width:640px;margin-top:0">${t("share.intro")}</p>
+      ${canEdit ? html`<section class="scard"><header><h2>${t("share.title")}</h2><p>${t("share.intro")}</p></header><div class="body">
         ${this.newLink?.token ? html`<div class="card secret" style="margin-bottom:12px"><b>${t("share.created")}</b>
           <p class="row" style="margin:8px 0 0"><code style="word-break:break-all">${shareURL(this.newLink.token)}</code>
           <button class="ghost" @click=${() => navigator.clipboard?.writeText(shareURL(this.newLink!.token!)).then(() => toast(t("tokens.copied")))}>${icon("Copy", 13)} ${t("tokens.copy")}</button></p></div>` : ""}
@@ -165,9 +164,13 @@ export class PhxProjectSettings extends LitElement {
           } catch (err) { toast(err instanceof ApiError ? err.text : t("error.unknown"), "error"); }
         }}><input name="label" maxlength="100" placeholder=${t("share.label")} aria-label=${t("share.label")} style="flex:1;min-width:180px">
           <select name="days" style="width:auto" aria-label=${t("share.validity")}><option value="7">${t("share.days", { days: 7 })}</option><option value="30">${t("share.days", { days: 30 })}</option><option value="365">${t("share.days", { days: 365 })}</option><option value="0">${t("share.no_expiry")}</option></select>
-          <button>${icon("Share2", 13)} ${t("share.create_project")}</button></form>` : ""}` : ""}
+          <button>${icon("Share2", 13)} ${t("share.create_project")}</button></form>` : ""}</div></section>` : ""}`;
+  }
 
-      ${owner && (this.orgs.length || p.orgId) ? html`<h2 style="font-size:18px;margin:28px 0 8px">${t("settings.org")}</h2>
+  /** Move the project into another organization (owners). */
+  private orgSection() {
+    const p = this.p!;
+    return html`${this.orgs.length || p.orgId ? html`<section class="scard"><header><h2>${t("settings.org")}</h2><p>${t("settings.org_hint")}</p></header><div class="body">
         <form class="row" @submit=${(e: SubmitEvent) => {
           e.preventDefault();
           const org = String(new FormData(e.target as HTMLFormElement).get("org") ?? "");
@@ -178,8 +181,7 @@ export class PhxProjectSettings extends LitElement {
           }, t("settings.saved"));
         }}><select name="org" style="width:auto"><option value="" ?selected=${!p.orgId}>${t("projects.personal")}</option>
           ${this.orgs.map((o) => html`<option value=${o.slug} ?selected=${o.id === p.orgId}>${o.name}</option>`)}</select>
-          <button class="ghost">${t("settings.move")}</button></form>
-        <p class="muted" style="font-size:13px">${t("settings.org_hint")}</p>` : ""}`;
+          <button class="ghost">${t("settings.move")}</button></form></div></section>` : ""}`;
   }
 
   private async setQuota(e: SubmitEvent) {
@@ -196,14 +198,14 @@ export class PhxProjectSettings extends LitElement {
   private storageSection(owner: boolean) {
     const s = this.storage;
     if (!s) return "";
-    return html`<h2 style="font-size:18px;margin:28px 0 8px">${t("storage.title")}</h2>
+    return html`<section class="scard"><header><h2>${t("storage.title")}</h2></header><div class="body">
       ${storageBar(s)}
-      ${owner ? html`<form @submit=${this.setQuota} style="margin-top:12px">
+      ${owner ? html`<form class="grid" @submit=${this.setQuota} style="margin-top:12px">
         <label class="field">${t("storage.project_quota")}
           <span class="row"><input name="quota" type="number" min="0" max=${s.maxMb || 100000000} .value=${String(s.projectMb || "")} placeholder=${s.maxMb ? String(s.maxMb) : "∞"} style="width:160px"> MB
           <button class="ghost" type="submit">${t("doc.save")}</button></span></label>
         <p class="muted" style="font-size:13px;margin:0">${s.maxMb ? t("storage.max_hint", { max: s.maxMb }) : t("storage.no_max_hint")}</p>
-      </form>` : ""}`;
+      </form>` : ""}</div></section>`;
   }
 
   private async loadEnv() {
@@ -236,8 +238,7 @@ export class PhxProjectSettings extends LitElement {
   }
 
   private envSection(owner: boolean, canEdit: boolean) {
-    return html`<h2 style="font-size:18px;margin:28px 0 6px">${t("env.title")}</h2>
-      <p class="muted" style="max-width:640px;margin-top:0">${t("env.intro")}</p>
+    return html`<section class="scard"><header><h2>${t("sx.p.variables")}</h2></header><div class="body">
       ${this.env.length === 0 ? html`<p class="muted">${t("env.empty")}</p>` : html`<table>${this.env.map((v) => html`<tr>
         <td class="mono">${v.name}</td>
         <td class="mono">${v.vaultRef ? html`<span class="chip">${icon("Lock", 12)} ${t("env.vault")}</span> ${v.vaultRef}`
@@ -252,25 +253,38 @@ export class PhxProjectSettings extends LitElement {
           <button type="submit">${t("env.add")}</button>
         </div>
         ${owner ? "" : html`<p class="muted" style="font-size:13px">${t("env.owner_only")}</p>`}
-      </form>` : ""}`;
+      </form>` : ""}</div></section>`;
   }
 
-  private async save(e: SubmitEvent) {
-    e.preventDefault();
-    const f = new FormData(e.target as HTMLFormElement);
+  /** Saves project fields; the rest keeps its current value. */
+  private async patch(changes: Partial<Project> & { mainLocale?: string; locales?: string[]; features?: string[] }) {
+    const p = this.p!;
     try {
-      const p = await api<Project>("PATCH", `/projects/${this.project}`, {
-        name: f.get("name"), description: f.get("description"), primaryColor: f.get("color"), aiWriteMode: f.get("mode"), short: this.p?.short,
-        mainLocale: f.get("main") ?? "", locales: f.get("main") ? f.getAll("locales") : [], features: f.getAll("features"),
+      const np = await api<Project>("PATCH", `/projects/${this.project}`, {
+        name: p.name, description: p.description, primaryColor: p.primaryColor, aiWriteMode: p.aiWriteMode, short: p.short,
+        mainLocale: p.mainLocale ?? "", locales: p.locales ?? [], features: p.features, ...changes,
       });
-      this.p = { ...p, role: this.p?.role ?? "owner" };
+      this.p = { ...np, role: p.role };
       currentProject.set(this.p);
-      applyProjectColor(document.documentElement, p.primaryColor);
+      applyProjectColor(document.documentElement, np.primaryColor);
       docsVersion.set(docsVersion.get() + 1);
       toast(t("settings.saved"));
     } catch (err) {
       toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
     }
+  }
+
+  private saveDetails(e: SubmitEvent) {
+    e.preventDefault();
+    const f = new FormData(e.target as HTMLFormElement);
+    void this.patch({ name: String(f.get("name")), description: String(f.get("description") ?? ""), primaryColor: String(f.get("color")) });
+  }
+
+  private saveLanguages(e: SubmitEvent) {
+    e.preventDefault();
+    const f = new FormData(e.target as HTMLFormElement);
+    const main = String(f.get("main") ?? "");
+    void this.patch({ mainLocale: main, locales: main ? f.getAll("locales").map(String) : [] });
   }
 
   private async addMember(e: SubmitEvent) {
@@ -286,80 +300,78 @@ export class PhxProjectSettings extends LitElement {
     }
   }
 
+  private general(owner: boolean) {
+    const p = this.p!;
+    const main = this.mainDraft ?? p.mainLocale;
+    return html`${pageHead(t("settings.general"), t("sx.p.general_text"))}
+      <form @submit=${this.saveDetails}>${scard(t("sx.p.details"), "", html`
+        ${srow(t("picture.project"), t("sx.p.picture_help"), owner ? html`<phx-picture-picker .project=${p.slug} .has=${!!p.image}
+          @changed=${(e: CustomEvent<string>) => { this.p = { ...p, image: e.detail || undefined }; currentProject.set(this.p); }}>${projectBadge(p, 48)}</phx-picture-picker>` : projectBadge(p, 48))}
+        ${srow(t("projects.name"), "", html`<input name="name" .value=${p.name} ?disabled=${!owner} required aria-label=${t("projects.name")} />`)}
+        ${srow(t("projects.description"), t("sx.p.description_help"), html`<input name="description" .value=${p.description} ?disabled=${!owner} aria-label=${t("projects.description")} />`)}
+        ${srow(t("settings.color"), t("sx.p.color_help"), html`<span class="color"><input type="color" name="color" .value=${p.primaryColor.toLowerCase()} ?disabled=${!owner} aria-label=${t("settings.color")}
+            @input=${(e: Event) => applyProjectColor(document.documentElement, (e.target as HTMLInputElement).value)} /><span class="mono">${p.primaryColor}</span></span>`)}
+        ${owner ? html`<div class="foot"><button type="submit">${t("doc.save")}</button></div>` : ""}`)}</form>
+      ${scard(t("settings.features"), t("settings.features_hint"), projectFeatures.filter((x) => x !== "model").map((x) =>
+        srow(t(`feature.${x}` as any), t(`sx.p.feature.${x}` as any), sswitch(p.features.includes(x), t(`feature.${x}` as any),
+          (on) => this.patch({ features: on ? [...p.features, x] : p.features.filter((f) => f !== x) }), !owner))))}
+      <form @submit=${this.saveLanguages}>${scard(t("settings.languages"), t("settings.languages_hint"), html`
+        ${srow(t("settings.main_locale"), t("sx.p.main_locale_help"), html`<select name="main" ?disabled=${!owner} aria-label=${t("settings.main_locale")} @change=${(e: Event) => { this.mainDraft = (e.target as HTMLSelectElement).value; }}>
+            <option value="" ?selected=${!p.mainLocale}>${t("settings.single_language")}</option>
+            ${contentLocales.map((c) => html`<option value=${c} ?selected=${p.mainLocale === c}>${languageName(c)}</option>`)}
+          </select>`)}
+        ${main ? srow(t("settings.locales"), t("sx.p.locales_help"), html`<div class="checks">${contentLocales.filter((c) => c !== main).map((c) => html`
+              <label><input type="checkbox" name="locales" value=${c} ?checked=${p.locales.includes(c)} ?disabled=${!owner}> ${languageName(c)}</label>`)}</div>`) : ""}
+        ${owner ? html`<div class="foot"><button type="submit">${t("doc.save")}</button></div>` : ""}`)}</form>`;
+  }
+
+  private ai(owner: boolean) {
+    const p = this.p!;
+    return html`${pageHead(t("sx.p.ai"), t("sx.p.ai_text"))}
+      ${scard(t("settings.ai_mode"), "", html`<div class="choices" role="radiogroup" aria-label=${t("settings.ai_mode")}>
+        ${(["off", "read", "suggest", "direct"] as const).map((m) => html`<label class="choice"><input type="radio" name="aimode" value=${m} .checked=${p.aiWriteMode === m} ?disabled=${!owner}
+          @change=${() => this.patch({ aiWriteMode: m })}><b>${t(`settings.ai_mode.${m}`)}</b><span>${t(`sx.p.ai.${m}`)}</span></label>`)}</div>`)}
+      ${scard(t("approval.title"), "", srow(t("approval.enable"), t("approval.hint"), sswitch(this.approval, t("approval.enable"), (on) => this.setApproval(on), !owner)))}`;
+  }
+
+  private page(owner: boolean, canEdit: boolean, withModel: boolean) {
+    const card = (title: string, sub: string, body: unknown) => scard(title, sub, html`<div class="body">${body}</div>`);
+    switch (this.section) {
+      case "general": return this.general(owner);
+      case "people": return html`${pageHead(t("sx.p.people"), t("sx.p.people_text"))}${this.accessSection(owner, canEdit)}`;
+      case "ai": return this.ai(owner);
+      case "rules": return canEdit ? html`${pageHead(t("sx.p.auto"), t("sx.p.auto_text"))}
+        ${card(t("auto.title"), "", html`<phx-rules .project=${this.project} ?owner=${owner}></phx-rules>`)}
+        ${card(t("check.title"), t("check.settings_hint"), html`<phx-checks .project=${this.project}></phx-checks>`)}` : "";
+      case "model": return withModel ? html`${pageHead(t("kg.model"), "")}<phx-data-model .project=${this.project}></phx-data-model>` : "";
+      case "env": return html`${pageHead(t("sx.p.env"), t("env.intro"))}${this.envSection(owner, canEdit)}`;
+      case "code": return canEdit ? html`${pageHead(t("sx.p.code"), t("sx.p.code_text"))}
+        ${card(t("code.title"), "", html`<phx-code-repos .project=${this.project} ?owner=${owner}></phx-code-repos>`)}
+        ${owner ? card(t("git.title"), t("git.hint"), html`<phx-project-transfer .project=${this.project}></phx-project-transfer>`) : ""}` : "";
+      case "integrations": return owner ? html`${pageHead(t("sx.p.int"), "")}
+        ${card(t("agents.title"), "", html`<phx-agents .project=${this.project}></phx-agents>`)}
+        ${card(t("plugins.title"), "", html`<phx-project-plugins .project=${this.project}></phx-project-plugins>`)}
+        ${card(t("hooks.title"), "", html`<phx-webhooks .project=${this.project}></phx-webhooks>`)}` : "";
+      case "data": return html`${pageHead(t("sx.p.data"), "")}
+        ${this.storageSection(owner)}
+        ${scard(t("sx.p.take_along"), "", html`
+          ${srow(t("offline.title"), t("offline.hint"), html`<a class="btn ghost" href=${`/api/v1/projects/${this.project}/offline`} download>${icon("HardDriveDownload", 14)} ${t("offline.download")}</a>`)}
+          ${owner ? srow(t("transfer.settings_title"), t("transfer.export_hint"), html`<a class="btn ghost" href="/api/v1/projects/${this.project}/export" download>${icon("Download", 14)} ${t("transfer.export")}</a>`) : ""}`)}`;
+      case "activity": return owner ? html`${pageHead(t("audit.project_title"), t("sx.p.activity_text"))}
+        ${card(t("audit.project_title"), "", html`<phx-audit-log .project=${this.project}></phx-audit-log>`)}` : "";
+      case "transfer": return owner ? html`${pageHead(t("sx.p.transfer"), "")}${this.orgSection()}` : "";
+    }
+    return "";
+  }
+
   render() {
     const p = this.p;
-    if (!p) return html`<p class="muted">${t("app.loading")}</p>`;
+    if (!p) return html`<p class="muted" style="padding:28px">${t("app.loading")}</p>`;
     const owner = p.role === "owner";
     const canEdit = owner || p.role === "editor";
     const withModel = hasFeature(p, "graph") || hasFeature(p, "model");
-    const tab = (section: string, ic: string, label: string) =>
-      html`<a href="/p/${this.project}/settings${section ? `/${section}` : ""}" aria-current=${(this.section || "") === section ? "page" : "false"}>${icon(ic as any, 15)} ${label}</a>`;
-    const sections = [
-      withModel ? tab("model", "Shapes", t("kg.model")) : "",
-      canEdit ? tab("rules", "Zap", t("auto.title")) : "",
-      canEdit ? tab("code", "GitBranch", t("code.title")) : "",
-    ].filter(Boolean);
-    const tabs = html`<h1 style="margin-bottom:12px">${t("settings.title")}</h1>
-      ${sections.length ? html`<nav class="tabs" aria-label=${t("settings.sections")}>${tab("", "Settings", t("settings.general"))}${sections}</nav>` : ""}`;
-    if (this.section === "code" && canEdit) return html`<div class="enter">${tabs}<phx-code-repos .project=${this.project} ?owner=${owner}></phx-code-repos></div>`;
-    if (this.section === "rules" && canEdit) return html`<div class="enter">${tabs}<phx-rules .project=${this.project} ?owner=${owner}></phx-rules></div>`;
-    if (this.section === "model" && withModel) return html`<div class="enter">${tabs}<phx-data-model .project=${this.project}></phx-data-model></div>`;
-    return html`<div class="enter">
-      ${tabs}
-      ${owner ? html`<h2 style="font-size:18px;margin:0 0 8px">${t("picture.project")}</h2>
-        <phx-picture-picker style="margin-bottom:20px" .project=${p.slug} .has=${!!p.image}
-          @changed=${(e: CustomEvent<string>) => { this.p = { ...p, image: e.detail || undefined }; currentProject.set(this.p); }}>${projectBadge(p, 64)}</phx-picture-picker>` : ""}
-      <form @submit=${this.save}>
-        <label class="field">${t("projects.name")}<input name="name" .value=${p.name} ?disabled=${!owner} required /></label>
-        <label class="field">${t("projects.description")}<input name="description" .value=${p.description} ?disabled=${!owner} /></label>
-        <label class="field">${t("settings.color")}
-          <span class="color"><input type="color" name="color" .value=${p.primaryColor.toLowerCase()} ?disabled=${!owner}
-            @input=${(e: Event) => applyProjectColor(document.documentElement, (e.target as HTMLInputElement).value)} /><span class="mono">${p.primaryColor}</span></span></label>
-        <label class="field">${t("settings.ai_mode")}
-          <select name="mode" ?disabled=${!owner}>
-            <option value="off" ?selected=${p.aiWriteMode === "off"}>${t("settings.ai_mode.off")}</option>
-            <option value="read" ?selected=${p.aiWriteMode === "read"}>${t("settings.ai_mode.read")}</option>
-            <option value="suggest" ?selected=${p.aiWriteMode === "suggest"}>${t("settings.ai_mode.suggest")}</option>
-            <option value="direct" ?selected=${p.aiWriteMode === "direct"}>${t("settings.ai_mode.direct")}</option>
-          </select></label>
-        <fieldset class="langs" ?disabled=${!owner}>
-          <legend>${t("settings.features")}</legend>
-          <p class="muted">${t("settings.features_hint")}</p>
-          <div class="checks">${projectFeatures.filter((x) => x !== "model").map((x) => html`<label><input type="checkbox" name="features" value=${x} ?checked=${p.features.includes(x)}> ${t(`feature.${x}` as any)}</label>`)}</div>
-        </fieldset>
-        <fieldset class="langs" ?disabled=${!owner}>
-          <legend>${t("settings.languages")}</legend>
-          <p class="muted">${t("settings.languages_hint")}</p>
-          <label class="field">${t("settings.main_locale")}
-            <select name="main" @change=${(e: Event) => { this.mainDraft = (e.target as HTMLSelectElement).value; }}>
-              <option value="" ?selected=${!p.mainLocale}>${t("settings.single_language")}</option>
-              ${contentLocales.map((c) => html`<option value=${c} ?selected=${p.mainLocale === c}>${languageName(c)}</option>`)}
-            </select></label>
-          ${(this.mainDraft ?? p.mainLocale) ? html`<div class="field">${t("settings.locales")}
-            <div class="checks">${contentLocales.filter((c) => c !== (this.mainDraft ?? p.mainLocale)).map((c) => html`
-              <label><input type="checkbox" name="locales" value=${c} ?checked=${p.locales.includes(c)}> ${languageName(c)}</label>`)}</div></div>` : ""}
-        </fieldset>
-        ${owner ? html`<div><button type="submit">${t("doc.save")}</button></div>` : ""}
-      </form>
-      ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("approval.title")}</h2>
-        <div class="checks"><label><input type="checkbox" .checked=${this.approval} @change=${(e: Event) => this.setApproval((e.target as HTMLInputElement).checked)}> ${t("approval.enable")}</label></div>
-        <p class="muted">${t("approval.hint")}</p>` : ""}
-      ${this.accessSection(owner, canEdit)}
-      ${this.envSection(owner, canEdit)}
-      <h2 style="font-size:18px;margin:28px 0 6px">${t("check.title")}</h2>
-      <p class="muted">${t("check.settings_hint")}</p>
-      <phx-checks .project=${this.project}></phx-checks>
-      ${this.storageSection(owner)}
-      ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("plugins.title")}</h2><phx-project-plugins .project=${this.project}></phx-project-plugins>` : ""}
-      ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("audit.project_title")}</h2><details><summary class="muted" style="cursor:pointer">${t("audit.project_show")}</summary>
-        <phx-audit-log .project=${this.project}></phx-audit-log></details>` : ""}
-      ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("agents.title")}</h2><phx-agents .project=${this.project}></phx-agents>` : ""}
-      <h2 style="font-size:18px;margin:28px 0 6px">${t("offline.title")}</h2>
-      <p class="muted">${t("offline.hint")}</p>
-      <a class="btn ghost" href=${`/api/v1/projects/${this.project}/offline`} download>${icon("HardDriveDownload", 14)} ${t("offline.download")}</a>
-      ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("transfer.settings_title")}</h2><phx-project-transfer .project=${this.project}></phx-project-transfer>` : ""}
-      ${owner ? html`<h2 style="font-size:18px;margin:28px 0 6px">${t("hooks.title")}</h2><phx-webhooks .project=${this.project}></phx-webhooks>` : ""}
-    </div>`;
+    return html`<phx-settings-shell area="project" active=${this.section} .ctx=${{ slug: p.slug, name: p.name, owner, canEdit, withModel }}>
+      <div class="enter">${this.page(owner, canEdit, withModel) || (this.section ? html`<p class="muted">${t("sx.p.unavailable")}</p>` : "")}</div></phx-settings-shell>`;
   }
 }
 customElements.define("phx-project-settings", PhxProjectSettings);

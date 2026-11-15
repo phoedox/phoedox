@@ -121,10 +121,10 @@ Some things have no tool for you. When they fit the task, point the user to them
 instead of rebuilding them in pages:
 
 - **Deciding** proposed decisions with options (the "To decide" panel on the page).
-- **Automation rules** (project settings → Rules): when a check fails or recovers,
+- **Automation rules** (project settings → Automation & monitoring): when a check fails or recovers,
   an entry is created or a date such as "cancel by" comes close, create a task,
   notify people or send a request (e.g. open a ticket).
-- **Emergency copy** (project settings): the project as static HTML in a ZIP that
+- **Emergency copy** (project settings → Storage & export): the project as static HTML in a ZIP that
   opens without a server – for the household folder or a USB stick.
 - **Wall display** (kiosk mode) for a page, and **voice questions** through Home
   Assistant Assist ("Where is the NAS?").

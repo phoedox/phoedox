@@ -141,6 +141,12 @@ export class PhxProject extends SignalWatcher(LitElement) {
       aside { transform: none; opacity: 0; transition: opacity var(--dur) ease, visibility 0s linear var(--dur); }
       aside.open { opacity: 1; transition: opacity var(--dur) ease, visibility 0s; }
     }
+      /* Project settings bring their own rail (ADR-0070): no sidebar. */
+    :host([insettings]) { grid-template-columns: minmax(0, 1fr); }
+    :host([insettings][chatopen]) { grid-template-columns: minmax(0, 1fr) var(--chat-w, 380px); }
+    :host([insettings]) aside, :host([insettings]) .mbar, :host([insettings]) .reopen, :host([insettings]) .scrim { display: none !important; }
+    :host([insettings]) main { padding: 0; }
+    @media (max-width: 800px) { :host([insettings][chatopen]) { grid-template-columns: 1fr; } }
   `];
   slug = "";
   /** True on /p/:project itself: show the overview. */
@@ -192,10 +198,9 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "suggestions", render: () => html`<phx-suggestions .project=${this.slug}></phx-suggestions>` },
     { path: "insights", render: () => html`<phx-insights .project=${this.slug}></phx-insights>` },
     { path: "monitoring", render: () => html`<phx-monitoring .project=${this.slug}></phx-monitoring>` },
-    { path: "settings", render: () => html`<phx-project-settings .project=${this.slug}></phx-project-settings>` },
-    { path: "settings/model", render: () => html`<phx-project-settings .project=${this.slug} section="model"></phx-project-settings>` },
-    { path: "settings/rules", render: () => html`<phx-project-settings .project=${this.slug} section="rules"></phx-project-settings>` },
-    { path: "settings/code", render: () => html`<phx-project-settings .project=${this.slug} section="code"></phx-project-settings>` },
+    // Project settings: pages with their own rail instead of the sidebar (ADR-0070).
+    { path: "settings", render: () => html`<phx-project-settings .project=${this.slug} section=""></phx-project-settings>` },
+    { path: "settings/:section", render: ({ section }) => html`<phx-project-settings .project=${this.slug} .section=${section!}></phx-project-settings>` },
   ], { fallback: { render: () => this.overview() } });
 
   async willUpdate(changed: Map<string, unknown>) {
@@ -677,6 +682,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
 
   render() {
     this.toggleAttribute("focus", focusMode.get());
+    this.toggleAttribute("insettings", location.pathname.startsWith(`/p/${this.slug}/settings`));
     if (this.error) return html`<main><p class="error">${this.error}</p></main>`;
     const decisions = this.docs.filter((d) => d.type === "adr").length;
     const proj = currentProject.get();

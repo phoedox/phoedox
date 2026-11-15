@@ -12,7 +12,9 @@ import { icon } from "../icon";
 import { currentUser, navigate } from "../state";
 import { base } from "./shared";
 
-export type Area = "me" | "admin";
+export type Area = "me" | "admin" | "project";
+/** What the project area needs to know to show its pages. */
+export interface ProjectCtx { slug: string; name: string; owner: boolean; canEdit: boolean; withModel: boolean }
 export interface SettingsPage { id: string; href: string; icon: string; label: string; end?: string; warn?: boolean }
 export interface SettingsGroup { label: string; pages: SettingsPage[] }
 
@@ -24,7 +26,18 @@ function keywords(id: string): string {
 
 interface OrgLite { slug: string; name: string; role?: string }
 
-export function areaGroups(area: Area, orgs: OrgLite[] = []): SettingsGroup[] {
+export function areaGroups(area: Area, orgs: OrgLite[] = [], ctx?: ProjectCtx): SettingsGroup[] {
+  if (area === "project") {
+    if (!ctx) return [];
+    const base = `/p/${ctx.slug}/settings`;
+    const pg = (id: string, ico: string, label: string, show = true) => (show ? [{ id, href: `${base}/${id}`, icon: ico, label }] : []);
+    return [
+      { label: t("sx.group.project"), pages: [...pg("general", "Settings", t("settings.general")), ...pg("people", "Users", t("sx.p.people"))] },
+      { label: t("sx.group.workflow"), pages: [...pg("ai", "Bot", t("sx.p.ai")), ...pg("rules", "Zap", t("sx.p.auto"), ctx.canEdit), ...pg("model", "Shapes", t("kg.model"), ctx.withModel)] },
+      { label: t("sx.group.connections"), pages: [...pg("env", "Braces", t("sx.p.env")), ...pg("code", "GitBranch", t("sx.p.code"), ctx.canEdit), ...pg("integrations", "Plug", t("sx.p.int"), ctx.owner)] },
+      { label: t("sx.group.data"), pages: [...pg("data", "HardDrive", t("sx.p.data")), ...pg("activity", "ScrollText", t("audit.project_title"), ctx.owner), ...pg("transfer", "ArrowRightLeft", t("sx.p.transfer"), ctx.owner)] },
+    ].filter((g) => g.pages.length);
+  }
   if (area === "admin") {
     return [
       { label: t("sx.group.instance"), pages: [
@@ -66,11 +79,13 @@ export function areaGroups(area: Area, orgs: OrgLite[] = []): SettingsGroup[] {
 let orgCache: Promise<OrgLite[]> | undefined;
 
 export class PhxSettingsShell extends SignalWatcher(LitElement) {
-  static properties = { area: {}, active: {}, q: { state: true }, orgs: { state: true } };
+  static properties = { area: {}, active: {}, ctx: { attribute: false }, q: { state: true }, orgs: { state: true } };
   static styles = [base, css`
     :host { display: grid; grid-template-columns: 252px minmax(0, 1fr); gap: 40px; max-width: 1180px; margin: 0 auto; padding: 28px 16px 80px; align-items: start; }
     .rail { position: sticky; top: calc(var(--header-h) + 20px); display: grid; gap: 14px; max-height: calc(100dvh - var(--header-h) - 40px); overflow: auto; padding: 2px 4px 2px 2px; }
     .rail h1 { font-size: 24px; }
+    .up { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); text-decoration: none; font-size: 13.5px; margin-bottom: -8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    @media (hover: hover) and (pointer: fine) { .up:hover { color: var(--fg); } }
     .tag { justify-self: start; display: inline-flex; gap: 5px; align-items: center; font-size: 12px; color: var(--signal); background: var(--surface2); border-radius: 999px; padding: 2px 9px; }
     .search { display: flex; gap: 8px; align-items: center; height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); }
     .search input { border: 0; outline: 0; background: transparent; padding: 0; height: 100%; }
@@ -101,6 +116,7 @@ export class PhxSettingsShell extends SignalWatcher(LitElement) {
   `];
 
   area: Area = "me";
+  ctx?: ProjectCtx;
   active = "";
   q = "";
   orgs: OrgLite[] = [];
@@ -122,7 +138,8 @@ export class PhxSettingsShell extends SignalWatcher(LitElement) {
   firstUpdated() {
     // Without a page: phones show the rail; elsewhere the first page opens.
     if (!this.active && !matchMedia("(max-width: 760px)").matches) {
-      const first = areaGroups(this.area, this.orgs)[0].pages[0];
+      const first = areaGroups(this.area, this.orgs, this.ctx)[0]?.pages[0];
+      if (!first) return;
       history.replaceState({}, "", first.href);
       window.dispatchEvent(new PopStateEvent("popstate"));
     }
@@ -137,7 +154,7 @@ export class PhxSettingsShell extends SignalWatcher(LitElement) {
 
   private found() {
     const term = this.q.trim().toLowerCase();
-    return areaGroups(this.area, this.orgs).map((g) => ({
+    return areaGroups(this.area, this.orgs, this.ctx).map((g) => ({
       ...g,
       pages: g.pages.map((p) => {
         if (!term || p.label.toLowerCase().includes(term)) return { p, hit: "" };
@@ -158,10 +175,13 @@ export class PhxSettingsShell extends SignalWatcher(LitElement) {
   render() {
     const groups = this.found();
     const admin = this.area === "admin";
-    const root = admin ? "/admin" : "/settings";
+    const proj = this.area === "project" ? this.ctx : undefined;
+    const root = proj ? `/p/${proj.slug}/settings` : admin ? "/admin" : "/settings";
+    const title = t(proj ? "settings.title" : admin ? "sx.admin.title" : "sx.me.title");
     return html`
-      <aside class="rail" aria-label=${t(admin ? "sx.admin.title" : "sx.me.title")}>
-        <h1>${t(admin ? "sx.admin.title" : "sx.me.title")}</h1>
+      <aside class="rail" aria-label=${title}>
+        ${proj ? html`<a class="up" href="/p/${proj.slug}" @click=${(e: Event) => this.go(e, `/p/${proj.slug}`)}>${icon("ChevronLeft", 15)} ${proj.name}</a>` : nothing}
+        <h1>${title}</h1>
         ${admin ? html`<span class="tag">${icon("Shield", 12)} ${t("sx.admin.only")}</span>` : nothing}
         <label class="search">${icon("Search", 15)}<input type="search" .value=${this.q} placeholder=${t("sx.search")} aria-label=${t("sx.search")} autocomplete="off"
           @input=${(e: Event) => (this.q = (e.target as HTMLInputElement).value)}
@@ -174,7 +194,7 @@ export class PhxSettingsShell extends SignalWatcher(LitElement) {
         </nav>
       </aside>
       <main>
-        <a class="back" href=${root} @click=${(e: Event) => this.go(e, root)}>${icon("ChevronLeft", 15)} ${t(admin ? "sx.admin.title" : "sx.me.title")}</a>
+        <a class="back" href=${root} @click=${(e: Event) => this.go(e, root)}>${icon("ChevronLeft", 15)} ${title}</a>
         <slot></slot>
       </main>`;
   }

@@ -12,7 +12,7 @@ interface ImportResult { project: { slug: string; name: string }; pages: number;
 
 const errText = (e: unknown) => (e instanceof ApiError ? e.text : t("error.unknown"));
 
-/** Project settings: download the export and set up Git sync (owners). */
+/** Project settings: Git sync of the pages (owners). The export is on the data page. */
 export class PhxProjectTransfer extends LitElement {
   static properties = { project: {}, git: { state: true }, secrets: { state: true }, busy: { state: true } };
   static styles = [base, css`
@@ -65,10 +65,6 @@ export class PhxProjectTransfer extends LitElement {
   render() {
     const g = this.git;
     return html`
-      <p class="muted">${t("transfer.export_hint")}</p>
-      <p><a class="btn ghost" href="/api/v1/projects/${this.project}/export" download>${icon("Download", 14)} ${t("transfer.export")}</a></p>
-      <h3>${t("git.title")}</h3>
-      <p class="muted">${t("git.hint")}</p>
       ${g ? html`<form @submit=${this.save}>
         <label class="field">${t("git.url")}<input name="url" type="url" required placeholder="https://github.com/org/docs.git" .value=${g.url} /></label>
         <div class="two">
