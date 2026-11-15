@@ -54,7 +54,7 @@ creates them:
 | Monitoring and APIs | `list_environment`, `run_request` (reading requests only), `list_checks`, `create_check`, `get_readings` |
 | Maintenance | `list_maintenance_plans`, `save_maintenance_plan` |
 | Comments | `list_comments`, `add_comment` (on a page, a block via `anchor`, or a reply via `parent`) |
-| Files and links | `list_files` (no contents), `create_link`, `archive_link` |
+| Files and links | `list_files` (no contents), `upload_image` (base64 picture → page, entry or task card), `set_project_image` (logo), `create_link`, `archive_link` |
 | Real devices | `list_agent_actions` → `prepare_agent_action`; plugin tools `plugin_*` (e.g. Home Assistant) |
 | Languages | `get_document(lang)`, `translate_document` |
 

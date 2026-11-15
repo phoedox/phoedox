@@ -70,5 +70,14 @@ Each is a fenced code block with this info string:
 
 ## Images and files
 
-Images are files of the project: `![alt](/api/v1/files/<id>/<name>)`. Upload happens
-in the app; `list_files` shows what exists.
+Images are files of the project: `![alt](/api/v1/files/<id>)`. `list_files` shows what
+exists. To add a picture yourself (screenshot, photo, diagram), send it as base64 with
+`upload_image`:
+
+- with `task`: the picture is stored with the card's board and appended to the card's
+  description (it becomes the card's cover if it is the first picture);
+- with `document` or `entity`: the picture is attached there; for a page, insert the
+  returned `markdown` with `update_document`;
+- only PNG, JPEG, GIF or WebP up to 8 MB, and only where the project lets AI write directly.
+
+`set_project_image` sets a project's logo from base64 (owners; scaled to 512 px).

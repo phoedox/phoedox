@@ -328,6 +328,21 @@ type listFilesIn struct {
 	Entity   string `json:"entity,omitempty" jsonschema:"only files attached to this entity (slug)"`
 }
 
+type uploadImageIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Data     string `json:"data" jsonschema:"the picture as base64 (or a data: URL); PNG, JPEG, GIF or WebP, at most 8 MB"`
+	Name     string `json:"name,omitempty" jsonschema:"file name, e.g. rack-front.jpg (the extension is fixed to the real type)"`
+	Alt      string `json:"alt,omitempty" jsonschema:"short description for the Markdown image (default: the file name)"`
+	Document string `json:"document,omitempty" jsonschema:"attach to this page (slug or ADR number)"`
+	Entity   string `json:"entity,omitempty" jsonschema:"attach to this entity (slug)"`
+	Task     string `json:"task,omitempty" jsonschema:"task id: the picture is stored with the card's board and added to the end of the card's description"`
+}
+
+type projectImageIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Data    string `json:"data" jsonschema:"the picture as base64 (or a data: URL); PNG, JPEG, GIF or WebP; scaled to 512 px"`
+}
+
 type defineKindIn struct {
 	Project     string          `json:"project" jsonschema:"project slug"`
 	ID          string          `json:"id" jsonschema:"kind id, lowercase with _, e.g. solar_inverter; a core kind id extends that kind"`
@@ -725,6 +740,16 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "list_files", "List uploaded files of a project (name, type, size, where attached). Contents are not returned.", func(ctx context.Context, a core.Actor, in listFilesIn) (any, error) {
 		return svc.Files(ctx, a, in.Project, core.FileFilter{Document: in.Document, Entity: in.Entity})
+	})
+	tool(s, "upload_image", "Upload a picture sent as base64 (screenshot, photo, diagram) into a project and get its Markdown. Attach it to a page or entity, or give a task id to add it to that card's description. Insert the returned markdown into pages yourself (update_document). Needs the project's AI write mode \"direct\".", func(ctx context.Context, a core.Actor, in uploadImageIn) (any, error) {
+		return svc.UploadImage(ctx, a, in.Project, core.ImageUpload{Name: in.Name, Data: in.Data, Alt: in.Alt, Document: in.Document, Entity: in.Entity, Task: in.Task})
+	})
+	tool(s, "set_project_image", "Set the picture (logo) of a project from base64; it is scaled to 512 px. Owners only; needs the project's AI write mode \"direct\".", func(ctx context.Context, a core.Actor, in projectImageIn) (any, error) {
+		v, err := svc.SetProjectImageBase64(ctx, a, in.Project, in.Data)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]string{"version": v}, nil
 	})
 	tool(s, "list_entities", "List entities of a project, optionally of one kind.", func(ctx context.Context, a core.Actor, in listEntitiesIn) (any, error) {
 		return svc.Entities(ctx, a, in.Project, in.Kind)

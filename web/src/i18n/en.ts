@@ -2264,4 +2264,8 @@ export const en: Record<keyof typeof de, string> = {
   "entity.no_kind_fits": "No kind fits? Create a new kind",
   "dm.col_field": "Field",
   "login.signup_closed": "Sign-up is not open here yet. Sign in, or ask an administrator for an invitation.",
+  "validation.ai_upload_direct": "AI clients can upload pictures only where the project lets AI write directly (an owner's setting).",
+  "validation.image_too_large": "The picture is larger than {max} MB.",
+  "validation.image_type": "Only PNG, JPEG, GIF or WebP pictures can be uploaded this way.",
+  "validation.base64": "The data is not valid base64.",
 };

@@ -2262,4 +2262,8 @@ export const de = {
   "entity.no_kind_fits": "Keine passende Art? Neue Art anlegen",
   "dm.col_field": "Feld",
   "login.signup_closed": "Eine Registrierung gibt es hier noch nicht. Melde dich an oder bitte eine Administratorin bzw. einen Administrator um eine Einladung.",
+  "validation.ai_upload_direct": "Bilder hochladen dürfen KI-Clients nur, wenn das Projekt der KI direktes Schreiben erlaubt (Einstellung der Besitzerin bzw. des Besitzers).",
+  "validation.image_too_large": "Das Bild ist größer als {max} MB.",
+  "validation.image_type": "Nur PNG-, JPEG-, GIF- oder WebP-Bilder können so hochgeladen werden.",
+  "validation.base64": "Die Daten sind kein gültiges Base64.",
 } as const;
