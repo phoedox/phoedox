@@ -16,6 +16,7 @@ import "./project-plugins";
 import "./data-model";
 import "./rules";
 import { toast } from "./toasts";
+import "./code-repos";
 import { contentLocales, languageName } from "../languages";
 import "./picture-picker";
 import { projectBadge } from "../pictures";
@@ -291,14 +292,16 @@ export class PhxProjectSettings extends LitElement {
     const owner = p.role === "owner";
     const canEdit = owner || p.role === "editor";
     const withModel = hasFeature(p, "graph") || hasFeature(p, "model");
+    const tab = (section: string, ic: string, label: string) =>
+      html`<a href="/p/${this.project}/settings${section ? `/${section}` : ""}" aria-current=${(this.section || "") === section ? "page" : "false"}>${icon(ic as any, 15)} ${label}</a>`;
+    const sections = [
+      withModel ? tab("model", "Shapes", t("kg.model")) : "",
+      canEdit ? tab("rules", "Zap", t("auto.title")) : "",
+      canEdit ? tab("code", "GitBranch", t("code.title")) : "",
+    ].filter(Boolean);
     const tabs = html`<h1 style="margin-bottom:12px">${t("settings.title")}</h1>
-      ${withModel ? html`<nav class="tabs" aria-label=${t("settings.sections")}>
-        <a href="/p/${this.project}/settings" aria-current=${this.section ? "false" : "page"}>${icon("Settings", 15)} ${t("settings.general")}</a>
-        <a href="/p/${this.project}/settings/model" aria-current=${this.section === "model" ? "page" : "false"}>${icon("Shapes", 15)} ${t("kg.model")}</a>
-        ${canEdit ? html`<a href="/p/${this.project}/settings/rules" aria-current=${this.section === "rules" ? "page" : "false"}>${icon("Zap", 15)} ${t("auto.title")}</a>` : ""}
-      </nav>` : canEdit ? html`<nav class="tabs" aria-label=${t("settings.sections")}>
-        <a href="/p/${this.project}/settings" aria-current=${this.section ? "false" : "page"}>${icon("Settings", 15)} ${t("settings.general")}</a>
-        <a href="/p/${this.project}/settings/rules" aria-current=${this.section === "rules" ? "page" : "false"}>${icon("Zap", 15)} ${t("auto.title")}</a></nav>` : ""}`;
+      ${sections.length ? html`<nav class="tabs" aria-label=${t("settings.sections")}>${tab("", "Settings", t("settings.general"))}${sections}</nav>` : ""}`;
+    if (this.section === "code" && canEdit) return html`<div class="enter">${tabs}<phx-code-repos .project=${this.project} ?owner=${owner}></phx-code-repos></div>`;
     if (this.section === "rules" && canEdit) return html`<div class="enter">${tabs}<phx-rules .project=${this.project} ?owner=${owner}></phx-rules></div>`;
     if (this.section === "model" && withModel) return html`<div class="enter">${tabs}<phx-data-model .project=${this.project}></phx-data-model></div>`;
     return html`<div class="enter">

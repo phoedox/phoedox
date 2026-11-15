@@ -113,7 +113,13 @@ export interface Task {
   id: string; projectId: string; boardId: string; column: string; position: number; title: string; description: string;
   assigneeId?: string; assigneeName?: string; assigneeText?: string; assigneeAvatar?: string; due?: string; priority: number; labels: string[];
   createdBy: string; createdAt: string; updatedAt: string; doneAt?: string; boardSlug?: string; boardTitle?: string;
+  /** Commits, pull requests and releases of the card (ADR-0063). */
+  codeLinks?: CodeLink[];
 }
+/** A GitHub or Gitea/Forgejo repository connected to a project. */
+export interface CodeRepo { id: string; provider: "github" | "gitea"; webUrl: string; owner: string; name: string; tokenVar?: string; lastCheck?: string; lastError?: string }
+export interface CodeLink { id: string; taskId: string; repoId: string; repo: string; kind: "commit" | "release" | "pull"; ref: string; title?: string; url?: string; at?: string; auto?: boolean }
+export interface CodeItem { kind: string; ref: string; title: string; url: string; at?: string; prerelease?: boolean }
 export interface TranslationMeta { documentId: string; locale: string; title: string; sourceVersion: number; machine: boolean; updatedAt: string }
 export interface TranslationInfo extends TranslationMeta { content?: any; outdated: boolean; mainVersion: number }
 /** A draft of a Markdown page (ADR-0027); shared by everyone editing it. */

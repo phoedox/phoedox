@@ -263,6 +263,7 @@ func (s *Service) Tasks(ctx context.Context, a Actor, ref string, boardRef, colu
 			out = append(out, t)
 		}
 	}
+	s.attachCodeLinks(ctx, p.ID, out)
 	return out, nil
 }
 

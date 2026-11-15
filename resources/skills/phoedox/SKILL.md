@@ -48,6 +48,7 @@ creates them:
 | Entries and relations | `get_data_model` first, then `upsert_entity` (one) or `upsert_entities` (up to 200 in one call, e.g. a whole network), `link_entities` (one relation per call), `unlink_entities`, `delete_entity` (to the trash), `define_kind` if no kind fits |
 | Lists over entries | `query_entities` (field and relation conditions), `list_saved_queries`, `run_saved_query`, `list_entities` |
 | Tasks | `list_tasks`, `my_tasks`, `create_task`, `update_task` (move to the done column to finish), `create_board`, `update_board` |
+| Code on task cards | `list_code_repos` (GitHub or Gitea repositories of the project), `search_commits` (by SHA or message), `link_task_code` (commit, pull request or release on a card; the first release containing a linked commit is added by Phoedox) |
 | Floor plans | create room and device entries first, then `save_floorplan` with the whole plan (read it first when changing) |
 | Quality | `find_documentation_gaps`, `list_duplicates`, `merge_entities`, `change_summary` |
 | Locations, household, network | `list_locations`, `household_overview`, `ip_addresses` |

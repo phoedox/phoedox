@@ -31,6 +31,9 @@ type Task struct {
 	AssigneeAvatar string `json:"assigneeAvatar,omitempty"`
 	BoardSlug      string `json:"boardSlug,omitempty"`
 	BoardTitle     string `json:"boardTitle,omitempty"`
+	// CodeLinks are the commits, releases and pull requests of the card
+	// (filled by the core when listing tasks; ADR-0063).
+	CodeLinks []TaskCodeLink `json:"codeLinks,omitempty"`
 }
 
 const taskCols = `t.id, t.project_id, t.board_id, t.column_id, t.position, t.title, t.description, COALESCE(t.assignee_id, ''), t.assignee_text, t.due, t.priority, t.labels,

@@ -64,6 +64,12 @@ allowed to decide), do not pick one yourself:
 2. `create_task` with a clear title, Markdown description, labels, priority, due date.
 3. `update_task` to move cards; moving to the done column completes them.
    `my_tasks` lists what is assigned to the token owner.
+4. When a card is about code and the project has repositories (`list_code_repos`):
+   after the work is pushed, find the commit with `search_commits` and link it with
+   `link_task_code` (`kind: commit`, the SHA), or link the pull request
+   (`kind: pull`, its number). Do not link releases by hand: Phoedox adds the first
+   release that contains a linked commit. `list_tasks` shows the links as
+   `codeLinks`. Connecting a repository is for project owners in the settings.
 
 ## Floor plans
 

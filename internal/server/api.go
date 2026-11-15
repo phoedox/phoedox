@@ -354,6 +354,14 @@ func (a *api) routes(r chi.Router) {
 			r.Post("/boards/{d}/tasks", a.createTask)
 			r.Patch("/tasks/{id}", a.updateTask)
 			r.Delete("/tasks/{id}", a.deleteTask)
+			r.Get("/tasks/{id}/code", a.taskCode)
+			r.Post("/tasks/{id}/code", a.linkTaskCode)
+			r.Delete("/tasks/{id}/code/{link}", a.unlinkTaskCode)
+			r.Get("/code/repos", a.codeRepos)
+			r.Post("/code/repos", a.addCodeRepo)
+			r.Delete("/code/repos/{id}", a.deleteCodeRepo)
+			r.Get("/code/repos/{id}/commits", a.codeCommits)
+			r.Get("/code/repos/{id}/releases", a.codeReleases)
 			r.Get("/files", a.listFiles)
 			r.Post("/files", a.uploadFile)
 			r.Patch("/files/{id}", a.renameFile)
@@ -830,6 +838,54 @@ func (a *api) updateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	t, err := a.core.UpdateTask(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), in)
 	respond(w, t, err)
+}
+
+func (a *api) taskCode(w http.ResponseWriter, r *http.Request) {
+	l, err := a.core.TaskCode(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"))
+	respond(w, l, err)
+}
+
+func (a *api) linkTaskCode(w http.ResponseWriter, r *http.Request) {
+	var in core.CodeLinkInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	l, err := a.core.LinkTaskCode(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), in)
+	respond(w, l, err)
+}
+
+func (a *api) unlinkTaskCode(w http.ResponseWriter, r *http.Request) {
+	respond(w, map[string]bool{"ok": true}, a.core.UnlinkTaskCode(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), chi.URLParam(r, "link")))
+}
+
+func (a *api) codeRepos(w http.ResponseWriter, r *http.Request) {
+	l, err := a.core.CodeRepos(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, l, err)
+}
+
+func (a *api) addCodeRepo(w http.ResponseWriter, r *http.Request) {
+	var in core.CodeRepoInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	x, err := a.core.AddCodeRepo(r.Context(), actorOf(r), chi.URLParam(r, "p"), in)
+	respond(w, x, err)
+}
+
+func (a *api) deleteCodeRepo(w http.ResponseWriter, r *http.Request) {
+	respond(w, map[string]bool{"ok": true}, a.core.DeleteCodeRepo(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id")))
+}
+
+func (a *api) codeCommits(w http.ResponseWriter, r *http.Request) {
+	l, err := a.core.CodeCommits(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), r.URL.Query().Get("q"))
+	respond(w, l, err)
+}
+
+func (a *api) codeReleases(w http.ResponseWriter, r *http.Request) {
+	l, err := a.core.CodeReleases(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"))
+	respond(w, l, err)
 }
 
 func (a *api) deleteTask(w http.ResponseWriter, r *http.Request) {

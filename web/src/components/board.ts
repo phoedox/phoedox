@@ -11,6 +11,8 @@ import { currentProject } from "../state";
 import { base } from "./shared";
 import { userAvatar } from "../pictures";
 import { toast } from "./toasts";
+import "./task-code";
+import type { CodeLink } from "../api";
 
 /** Fallback poll; changes normally arrive at once through the event stream. */
 const REFRESH = 60000;
@@ -63,6 +65,8 @@ export class PhxBoard extends LitElement {
     .title { font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
     .meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
     .meta .late { color: var(--bad); }
+    .meta .code { display: inline-flex; gap: 3px; align-items: center; }
+    .meta .rel { display: inline-flex; gap: 3px; align-items: center; color: var(--good); font-family: var(--font-mono); }
     .label { background: var(--accent-soft); color: var(--fg); border-radius: 999px; padding: 0 7px; font-size: 11.5px; }
     .prio { display: inline-flex; align-items: center; gap: 2px; }
     .prio.p3 { color: var(--bad); } .prio.p2 { color: var(--warn, var(--accent)); }
@@ -507,14 +511,25 @@ export class PhxBoard extends LitElement {
       @drop=${(e: DragEvent) => { e.preventDefault(); e.stopPropagation(); if (this.dragging) this.move(this.dragging, col.id, task.id); this.dragging = undefined; this.dropAt = undefined; }}>
       ${coverImage(task.description) ? html`<img class="cover" src=${coverImage(task.description)!} alt="" loading="lazy" draggable="false">` : ""}
       <span class="title">${task.title}</span>
-      ${task.labels.length || task.due || task.priority || task.assigneeName || task.assigneeText ? html`<span class="meta">
+      ${task.labels.length || task.due || task.priority || task.assigneeName || task.assigneeText || task.codeLinks?.length ? html`<span class="meta">
         ${task.labels.map((l) => html`<span class="label">${l}</span>`)}
+        ${this.codeBadges(task)}
         ${task.priority ? html`<span class="prio p${task.priority}" title=${t(`board.priority.${task.priority}` as any)}>${icon("Flag", 12)}</span>` : ""}
         ${task.due ? html`<span class=${late ? "late" : ""} title=${t("board.due")}>${icon("CalendarDays", 12)} ${formatDay(task.due)}</span>` : ""}
         ${task.assigneeName ? html`<span class="who" title=${task.assigneeName}>${userAvatar({ id: task.assigneeId ?? "", name: task.assigneeName, avatar: task.assigneeAvatar }, 22)}</span>`
           : task.assigneeText ? html`<span class="chip who-text" title=${t("board.assignee") + ": " + task.assigneeText}>${icon("UserRound", 11)} ${task.assigneeText}</span>` : ""}
       </span>` : ""}
     </div>`;
+  }
+
+  /** Commits and pull requests as a count, the newest release by its tag (ADR-0063). */
+  private codeBadges(task: Task) {
+    const links = task.codeLinks ?? [];
+    if (!links.length) return "";
+    const code = links.filter((l) => l.kind !== "release");
+    const rel = links.filter((l) => l.kind === "release").sort((a, b) => (b.at ?? "").localeCompare(a.at ?? ""))[0];
+    return html`${code.length ? html`<span class="code" title=${t("code.badge", { n: code.length })}>${icon("GitCommitHorizontal", 12)} ${code.length}</span>` : ""}
+      ${rel ? html`<span class="rel" title=${t("code.released_in", { tag: rel.ref })}>${icon("Tag", 12)} ${rel.ref}</span>` : ""}`;
   }
 
   private column(col: BoardColumn) {
@@ -558,6 +573,8 @@ export class PhxBoard extends LitElement {
           <label class="field">${t("board.priority")}<select name="priority" ?disabled=${!edit}>${[0, 1, 2, 3].map((p) => html`<option value=${p} ?selected=${p === task.priority}>${t(`board.priority.${p}` as any)}</option>`)}</select></label>
         </div>
         <label class="field">${t("board.labels")}<input name="labels" .value=${task.labels.join(", ")} ?disabled=${!edit} placeholder=${t("board.labels_hint")}></label>
+        <phx-task-code .project=${this.project} .task=${task.id} ?canEdit=${edit}
+          @changed=${(e: CustomEvent<CodeLink[]>) => { this.tasks = this.tasks?.map((x) => (x.id === task.id ? { ...x, codeLinks: e.detail } : x)); }}></phx-task-code>
         <p class="hint">${t("board.created", { date: formatDate(task.createdAt) })}${task.doneAt ? ` · ${t("board.done_at", { date: formatDate(task.doneAt) })}` : ""}</p>
         <div class="row">
           ${edit ? html`<button type="button" class="danger" @click=${this.deleteCard}>${icon("Trash2", 14)} ${t("board.delete")}</button>` : ""}

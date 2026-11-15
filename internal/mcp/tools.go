@@ -43,6 +43,18 @@ type createTaskIn struct {
 	Labels      []string `json:"labels,omitempty"`
 }
 
+type linkCodeIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Task    string `json:"task" jsonschema:"task id"`
+	core.CodeLinkInput
+}
+
+type searchCommitsIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Repo    string `json:"repo" jsonschema:"repository id or owner/name (see list_code_repos)"`
+	Query   string `json:"query,omitempty" jsonschema:"a commit SHA or words of the commit message; empty lists the latest commits"`
+}
+
 type updateTaskIn struct {
 	Project string `json:"project" jsonschema:"project slug"`
 	Task    string `json:"task" jsonschema:"task id"`
@@ -535,6 +547,15 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "list_tasks", "List tasks (cards on boards) of a project, optionally of one board, column or assignee. Boards are documents of type board; their columns are in the board's content.", func(ctx context.Context, a core.Actor, in listTasksIn) (any, error) {
 		return svc.Tasks(ctx, a, in.Project, in.Board, in.Column, in.Assignee, in.Open)
+	})
+	tool(s, "list_code_repos", "GitHub or Gitea/Forgejo repositories connected to a project; their commits, pull requests and releases can be linked to task cards.", func(ctx context.Context, a core.Actor, in projectRef) (any, error) {
+		return svc.CodeRepos(ctx, a, in.Project)
+	})
+	tool(s, "search_commits", "Find commits of a connected repository by SHA or message, e.g. to link the commit that finished a task.", func(ctx context.Context, a core.Actor, in searchCommitsIn) (any, error) {
+		return svc.CodeCommits(ctx, a, in.Project, in.Repo, in.Query)
+	})
+	tool(s, "link_task_code", "Link a commit, pull request or release of a connected repository to a task card. Phoedox links the first release that contains a linked commit by itself. Only where AI writes directly.", func(ctx context.Context, a core.Actor, in linkCodeIn) (any, error) {
+		return svc.LinkTaskCode(ctx, a, in.Project, in.Task, in.CodeLinkInput)
 	})
 	tool(s, "save_floorplan", "Create or replace a floor plan (document type floorplan). Read it first with get_document when replacing, and create the room and device entries before referencing them.", func(ctx context.Context, a core.Actor, in saveFloorplanIn) (any, error) {
 		if in.Document != "" {

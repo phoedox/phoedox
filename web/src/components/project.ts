@@ -186,6 +186,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "settings", render: () => html`<phx-project-settings .project=${this.slug}></phx-project-settings>` },
     { path: "settings/model", render: () => html`<phx-project-settings .project=${this.slug} section="model"></phx-project-settings>` },
     { path: "settings/rules", render: () => html`<phx-project-settings .project=${this.slug} section="rules"></phx-project-settings>` },
+    { path: "settings/code", render: () => html`<phx-project-settings .project=${this.slug} section="code"></phx-project-settings>` },
   ], { fallback: { render: () => this.overview() } });
 
   async willUpdate(changed: Map<string, unknown>) {
