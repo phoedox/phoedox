@@ -151,8 +151,12 @@ func TestMaintenancePlans(t *testing.T) {
 	if _, err := s.SaveMaintenancePlan(ctx, owner, p.Slug, "", bad); invalidKey(err) != "validation.maintenance_interval" {
 		t.Fatalf("bad unit: %v", err)
 	}
-	// Due today: the card appears at once.
+	// Due today: the card appears at once. "Months" means "month".
+	in.Unit = "Months"
 	plan, err := s.SaveMaintenancePlan(ctx, owner, p.Slug, "", in)
+	if err == nil && plan.Unit != "month" {
+		t.Fatalf("unit not normalised: %q", plan.Unit)
+	}
 	if err != nil || plan.OpenTaskID == "" || plan.EntitySlug != "heat-pump" {
 		t.Fatalf("plan: %+v %v", plan, err)
 	}

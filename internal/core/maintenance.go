@@ -22,8 +22,8 @@ type MaintenanceInput struct {
 	Board       string `json:"board"`  // slug or id of a board
 	Title       string `json:"title"`
 	Description string `json:"description,omitempty"`
-	Every       int    `json:"every"`
-	Unit        string `json:"unit"` // day | week | month | year
+	Every       int    `json:"every" jsonschema:"number of units between two cards, 1 to 1000"`
+	Unit        string `json:"unit" jsonschema:"day, week, month or year (singular)"`
 	LeadDays    *int   `json:"leadDays,omitempty"`
 	Assignee    string `json:"assignee,omitempty"`
 	NextDue     string `json:"nextDue,omitempty"` // YYYY-MM-DD, default today
@@ -85,8 +85,10 @@ func (s *Service) SaveMaintenancePlan(ctx context.Context, a Actor, ref, id stri
 	if plan.Title == "" {
 		return plan, invalid("validation.title_required", nil, "title is required")
 	}
+	// "months" or "Month" mean the same as "month".
+	in.Unit = strings.TrimSuffix(strings.ToLower(strings.TrimSpace(in.Unit)), "s")
 	if in.Every < 1 || in.Every > 1000 || !slices.Contains(store.MaintenanceUnits, in.Unit) {
-		return plan, invalid("validation.maintenance_interval", nil, "interval must be 1 to 1000 days, weeks, months or years")
+		return plan, invalid("validation.maintenance_interval", nil, "interval must be 1 to 1000 and unit one of day, week, month, year")
 	}
 	plan.Every, plan.Unit = in.Every, in.Unit
 	if in.LeadDays != nil {
