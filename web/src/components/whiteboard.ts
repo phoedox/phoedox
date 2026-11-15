@@ -64,18 +64,25 @@ interface Drag {
   id?: string; sx?: number; sy?: number; vx?: number; vy?: number; lx?: number; ly?: number; moved?: boolean;
   h?: string; o?: { x: number; y: number; w: number; h: number }; i?: number; bind?: WBElement; ox?: number; oy?: number;
 }
+/** The context menu: where it opened (stage pixels and board point). */
+interface Menu { x: number; y: number; wx: number; wy: number }
+const MAC = typeof navigator !== "undefined" && /Mac|iP(hone|ad|od)/.test(navigator.platform);
+const kbd = (k: string, shift = false) => [MAC ? "⌘" : t("wb.key_ctrl"), shift ? (MAC ? "⇧" : t("wb.key_shift")) : "", k].filter(Boolean).join(MAC ? "" : "+");
 interface Pop { kind: "comment" | "newcomment" | "embed" | "entity"; x: number; y: number; id?: string; element?: string }
 
 export class PhxWhiteboard extends LitElement {
   static properties = {
-    project: {}, doc: { attribute: false }, canEdit: { type: Boolean },
+    project: {}, doc: { attribute: false }, canEdit: { type: Boolean }, still: { type: Boolean, reflect: true },
     tool: { state: true }, selId: { state: true }, sel: { state: true }, snap: { state: true }, embedWeb: { state: true }, present: { state: true }, status: { state: true }, saved: { state: true }, peers: { state: true }, zoom: { state: true },
-    pop: { state: true }, panel: { state: true }, arrowMode: { state: true }, roundDefault: { state: true }, trail: { state: true }, laserSize: { state: true },
+    pop: { state: true }, menu: { state: true }, panel: { state: true }, arrowMode: { state: true }, roundDefault: { state: true }, trail: { state: true }, laserSize: { state: true },
     entities: { state: true }, query: { state: true }, busy: { state: true }, boardVersion: { state: true },
   };
 
   static styles = [base, css`
     :host { display: block; position: relative; height: calc(100dvh - var(--header-h) - 150px); min-height: 460px; }
+    :host([still]) { height: 320px; min-height: 0; }
+    :host([still]) .stage { border: 0; border-radius: 0; }
+    :host([still]) svg.board { pointer-events: none; }
     .stage { position: absolute; inset: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--canvas, var(--bg)); touch-action: none; }
     svg.board { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none; -webkit-user-select: none; outline: none; }
     svg.board.t-hand, svg.board.panning { cursor: grab; }
@@ -145,6 +152,32 @@ export class PhxWhiteboard extends LitElement {
     .empty { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; color: var(--muted); font-size: 14px; text-align: center; padding: 20px; }
     .empty .tpls { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; margin-top: 12px; pointer-events: auto; }
     .empty .tpls button { height: 30px; padding: 0 10px; font-size: 13px; }
+    .menu { position: absolute; z-index: 6; width: 240px; padding: 4px; display: grid; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+      box-shadow: 0 14px 34px -14px rgb(0 0 0 / 0.45); font-size: 13px; transform-origin: var(--mo, top left); animation: menu-in 120ms var(--ease-out); }
+    @keyframes menu-in { from { opacity: 0; transform: scale(0.97); } }
+    @media (prefers-reduced-motion: reduce) { .menu { animation: menu-fade 120ms ease; } @keyframes menu-fade { from { opacity: 0; } } }
+    .menu .mi { display: flex; align-items: center; gap: 10px; width: 100%; height: 30px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--fg); font-size: 13px; text-align: left; }
+    .menu .mi:focus-visible { outline: none; background: var(--surface2); }
+    @media (hover: hover) and (pointer: fine) { .menu .mi:hover:not([disabled]) { background: var(--surface2); } }
+    .menu .mi[disabled] { opacity: 0.45; }
+    .menu .mi .ico { flex: none; color: var(--muted); }
+    .menu .mi span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .menu .mi kbd { flex: none; font: 11px var(--font-mono); color: var(--muted); }
+    .menu .mi.danger, .menu .mi.danger .ico { color: var(--bad); }
+    .menu .mi .tick { flex: none; display: grid; color: var(--accent); }
+    .menu .mi .tick .ico { color: var(--accent); }
+    .menu .fmt .sw.none { display: grid; place-items: center; color: var(--muted); background: transparent; }
+    .menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 2px; }
+    .menu .fmt { display: grid; gap: 6px; padding: 4px 8px 6px; }
+    .menu .fmt .lbl { font-size: 11px; color: var(--muted); }
+    .menu .fmt .swatches { gap: 3px; }
+    .menu .fmt .sw { width: 19px; height: 19px; border-radius: 5px; }
+    .menu .fmt .seg2 button { height: 24px; font-size: 11.5px; }
+    .menu .icons { display: flex; gap: 2px; padding: 2px 4px; }
+    .menu .icons button { width: 30px; height: 28px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--fg); }
+    @media (hover: hover) and (pointer: fine) { .menu .icons button:hover { background: var(--surface2); } }
+    .menu .icons button:focus-visible { outline: none; background: var(--surface2); }
+    .menu .note { padding: 2px 8px 4px; font-size: 11px; color: var(--muted); }
     :host([presenting]) .bar:not(.present), :host([presenting]) .stylebar, :host([presenting]) .panel, :host([presenting]) .pop { display: none !important; }
     .bar.present { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; font-size: 13px; }
     .bar.present span { padding: 0 6px; color: var(--muted); max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -153,6 +186,9 @@ export class PhxWhiteboard extends LitElement {
   project = "";
   doc?: Doc;
   canEdit = false;
+  /** Read-only picture for page embeds: the editor's own drawing, no live
+   * connection and no chrome, sized to the board. */
+  still = false;
   tool: Tool = "select";
   selId: string | null = null;
   /** Several selected elements (box, Shift-click, groups); selId is then null. */
@@ -167,6 +203,7 @@ export class PhxWhiteboard extends LitElement {
   peers: Peer[] = [];
   zoom = 100;
   pop: Pop | null = null;
+  menu: Menu | null = null;
   panel = false;
   arrowMode: "drag" | "click" = (localStorage.getItem("wb.arrowMode") as "drag" | "click") || "drag";
   roundDefault = localStorage.getItem("wb.round") === "1";
@@ -194,6 +231,8 @@ export class PhxWhiteboard extends LitElement {
   private flushQueued = false;
   private painted = false;
   private lastDown = { t: 0, x: 0, y: 0, tool: "" };
+  private longPress?: { timer: number; x: number; y: number };
+  private menuFocus = false;
   private resize?: ResizeObserver;
   private readOnly = true;
 
@@ -204,6 +243,8 @@ export class PhxWhiteboard extends LitElement {
     window.addEventListener("keydown", this.onKey);
     window.addEventListener("keyup", this.onKeyUp);
     window.addEventListener("paste", this.onPaste);
+    window.addEventListener("pointerdown", this.onOutside, true);
+    window.addEventListener("blur", this.closeMenu);
     document.addEventListener("fullscreenchange", this.onFullscreen);
     requestAnimationFrame(this.laserFrame);
   }
@@ -213,6 +254,8 @@ export class PhxWhiteboard extends LitElement {
     window.removeEventListener("keydown", this.onKey);
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("paste", this.onPaste);
+    window.removeEventListener("pointerdown", this.onOutside, true);
+    window.removeEventListener("blur", this.closeMenu);
     document.removeEventListener("fullscreenchange", this.onFullscreen);
     this.resize?.disconnect();
     void this.live?.destroy();
@@ -224,7 +267,7 @@ export class PhxWhiteboard extends LitElement {
   }
 
   firstUpdated() {
-    this.resize = new ResizeObserver(() => this.paint());
+    this.resize = new ResizeObserver(() => (this.still ? this.fitStill() : this.paint()));
     this.resize.observe(this.svgEl);
   }
 
@@ -243,6 +286,12 @@ export class PhxWhiteboard extends LitElement {
     // Entries on the board show their name and kind.
     this.entities = [];
     if (this.board.elements.some((e) => e.entity)) void this.loadEntities();
+    if (this.still) {
+      this.readOnly = true;
+      this.live = undefined;
+      requestAnimationFrame(() => this.fitStill());
+      return;
+    }
     const u = currentUser.get();
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     this.live = connectBoard({
@@ -364,7 +413,7 @@ export class PhxWhiteboard extends LitElement {
     if (cut && !this.readOnly) this.removeMany(sel.map((e) => e.id));
   }
 
-  private pasteElements(json: string) {
+  private pasteElements(json: string, at?: Pt) {
     let list: WBElement[];
     try {
       list = JSON.parse(json) as WBElement[];
@@ -373,6 +422,11 @@ export class PhxWhiteboard extends LitElement {
     }
     if (!Array.isArray(list) || !list.length) return;
     const copies = cloneEls(list.filter((e) => e && typeof e.id === "string" && typeof e.type === "string"), 24);
+    if (at) {
+      // From the context menu: the copies' top left goes where it opened.
+      const b = extent(copies, (id) => copies.find((c) => c.id === id));
+      if (b) for (const c of copies) shiftEl(c, at[0] - b.x, at[1] - b.y);
+    }
     for (const c of copies) this.add(c);
     this.selectMany(copies.map((c) => c.id));
     this.changed();
@@ -693,6 +747,7 @@ export class PhxWhiteboard extends LitElement {
     const pins = this.svgEl?.querySelector("g.pins");
     if (!pins) return;
     pins.replaceChildren();
+    if (this.still) return;
     this.openComments().forEach((c, i) => {
       const g = mk("g", { transform: `translate(${c.x},${c.y})`, "data-pin": c.id, style: "cursor:pointer" }, pins);
       const inner = mk("g", { transform: `scale(${Math.min(1.6, Math.max(0.6, 1 / this.view.z))})` }, g);
@@ -748,6 +803,18 @@ export class PhxWhiteboard extends LitElement {
       const z = Math.min(1.3, Math.max(0.2, Math.min((r.width - 120) / Math.max(b.w, 1), (r.height - 160) / Math.max(b.h, 1))));
       this.view = { z, x: (r.width - b.w * z) / 2 - b.x * z, y: (r.height - b.h * z) / 2 - b.y * z + 20 };
     }
+    this.paint();
+  }
+
+  /** Still mode: the height follows the board's shape, the board fills it. */
+  private fitStill() {
+    const r = this.svgEl?.getBoundingClientRect(), b = extent(this.els(), this.byId);
+    if (!r?.width || !b) return;
+    const pad = 24, z = Math.min(1, (r.width - 2 * pad) / Math.max(b.w, 1));
+    const h = Math.round(Math.min(560, Math.max(120, b.h * z + 2 * pad)));
+    if (Math.abs(this.offsetHeight - h) > 1) this.style.height = `${h}px`;
+    const zz = Math.min(z, (h - 2 * pad) / Math.max(b.h, 1));
+    this.view = { z: zz, x: (r.width - b.w * zz) / 2 - b.x * zz, y: (h - b.h * zz) / 2 - b.y * zz };
     this.paint();
   }
 
@@ -912,9 +979,17 @@ export class PhxWhiteboard extends LitElement {
       if (ev.button === 0) this.presentAt(this.present + 1);
       return;
     }
+    if (ev.button === 2) return; // the context menu opens on "contextmenu"
+    this.menu = null;
     if (this.editing) {
       (this.renderRoot.querySelector(".editbox div") as HTMLElement | null)?.blur();
       return;
+    }
+    if (ev.pointerType === "touch") {
+      // A long press opens the context menu (iOS fires no contextmenu event).
+      clearTimeout(this.longPress?.timer);
+      const { clientX, clientY } = ev;
+      this.longPress = { x: clientX, y: clientY, timer: window.setTimeout(() => { this.longPress = undefined; this.drag = null; this.openMenu(clientX, clientY); }, 550) };
     }
     const target = ev.composedPath()[0] as Element;
     if (target.closest?.("[data-link]")) return; // links in embed cards open normally
@@ -1063,6 +1138,10 @@ export class PhxWhiteboard extends LitElement {
   };
 
   private onMove = (ev: PointerEvent) => {
+    if (this.longPress && Math.hypot(ev.clientX - this.longPress.x, ev.clientY - this.longPress.y) > 8) {
+      clearTimeout(this.longPress.timer);
+      this.longPress = undefined;
+    }
     const [x, y] = this.toWorld(ev.clientX, ev.clientY), ctrl = ev.ctrlKey || ev.metaKey, tol = 10 / this.view.z;
     this.live?.setCursor([x, y]);
     if (this.tool === "laser") {
@@ -1202,6 +1281,8 @@ export class PhxWhiteboard extends LitElement {
   };
 
   private onUp = () => {
+    clearTimeout(this.longPress?.timer);
+    this.longPress = undefined;
     this.svgEl.classList.remove("panning");
     if (this.tool === "laser") {
       this.laserDown = false;
@@ -1307,6 +1388,7 @@ export class PhxWhiteboard extends LitElement {
 
   private onWheel = (ev: WheelEvent) => {
     ev.preventDefault();
+    this.menu = null;
     if (ev.ctrlKey || ev.metaKey) this.zoomAt(ev.clientX, ev.clientY, Math.exp(-ev.deltaY * 0.01));
     else {
       this.view.x -= ev.deltaX;
@@ -1324,12 +1406,17 @@ export class PhxWhiteboard extends LitElement {
   }
 
   private onKey = (ev: KeyboardEvent) => {
-    if (!this.isConnected || this.typing(ev) || !this.svgEl) return;
+    if (!this.isConnected || this.still || this.typing(ev) || !this.svgEl) return;
     const k = ev.key.toLowerCase(), mod = ev.ctrlKey || ev.metaKey;
     if (this.present >= 0) {
       if (["arrowright", "arrowdown", " ", "pagedown", "enter"].includes(k)) { ev.preventDefault(); this.presentAt(this.present + 1); }
       else if (["arrowleft", "arrowup", "pageup", "backspace"].includes(k)) { ev.preventDefault(); this.presentAt(Math.max(0, this.present - 1)); }
       else if (k === "escape") { ev.preventDefault(); this.stopPresenting(); }
+      return;
+    }
+    if (ev.key === "ContextMenu" || (ev.shiftKey && ev.key === "F10")) {
+      ev.preventDefault();
+      this.menuAtSelection();
       return;
     }
     if (mod && k === "z") {
@@ -1402,7 +1489,7 @@ export class PhxWhiteboard extends LitElement {
 
   /** A link pasted onto the board becomes an embed in the middle of the view. */
   private onPaste = (ev: ClipboardEvent) => {
-    if (!this.isConnected || this.readOnly || this.typing(ev)) return;
+    if (!this.isConnected || this.still || this.readOnly || this.typing(ev)) return;
     const text = (ev.clipboardData?.getData("text/plain") ?? "").trim();
     if (text.startsWith(CLIP_PREFIX)) {
       ev.preventDefault();
@@ -2029,6 +2116,220 @@ export class PhxWhiteboard extends LitElement {
     this.pop = { kind: "comment", x: c.x, y: c.y, id: c.id };
   }
 
+  // ---- context menu ----------------------------------------------------------------------
+
+  private onContextMenu = (ev: MouseEvent) => {
+    ev.preventDefault();
+    if (this.present >= 0) return;
+    this.openMenu(ev.clientX, ev.clientY);
+  };
+
+  private onOutside = (ev: PointerEvent) => {
+    if (!this.menu) return;
+    const m = this.renderRoot.querySelector(".menu");
+    if (m && !ev.composedPath().includes(m)) this.menu = null;
+  };
+
+  private closeMenu = () => {
+    this.menu = null;
+  };
+
+  /** Opens the menu at a screen point; what lies there becomes the selection. */
+  private openMenu(cx: number, cy: number) {
+    const svg = this.svgEl;
+    if (!svg) return;
+    if (this.editing) (this.renderRoot.querySelector(".editbox div") as HTMLElement | null)?.blur();
+    if (this.clickLine) {
+      this.finishClickLine();
+      this.tool = "select";
+    }
+    this.pop = null;
+    this.drag = null;
+    const [x, y] = this.toWorld(cx, cy);
+    const h = hitTest(this.els(), x, y, 8 / this.view.z, this.byId);
+    if (h && !this.sel.includes(h.id)) {
+      const group = this.withGroups([h.id]);
+      if (group.length > 1) this.selectMany(group); else this.select(h.id);
+    } else if (!h) this.select(null);
+    const r = svg.getBoundingClientRect();
+    this.menu = { x: cx - r.left, y: cy - r.top, wx: x, wy: y };
+    this.menuFocus = true;
+  }
+
+  /** Keyboard (menu key, Shift+F10): opens at the selection or the middle. */
+  private menuAtSelection() {
+    const r = this.svgEl.getBoundingClientRect(), sel = this.selection();
+    let cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    if (sel.length) {
+      const b = extent(sel, this.byId);
+      if (b) {
+        const [sx, sy] = this.toScreen(b.x + b.w / 2, b.y + b.h / 2);
+        cx = r.left + sx;
+        cy = r.top + sy;
+      }
+    }
+    const keep = [...this.sel];
+    this.openMenu(cx, cy);
+    if (keep.length) this.selectMany(keep);
+  }
+
+  /** Keeps the menu inside the board; it opens towards the free side. */
+  private placeMenu() {
+    const m = this.renderRoot.querySelector(".menu") as HTMLElement | null;
+    if (!m || !this.menu) return;
+    const st = this.renderRoot.querySelector(".stage") as HTMLElement, W = st.clientWidth, H = st.clientHeight, w = m.offsetWidth, h = m.offsetHeight;
+    const left = this.menu.x + w + 8 > W ? Math.max(8, this.menu.x - w) : this.menu.x;
+    const top = this.menu.y + h + 8 > H ? Math.max(8, this.menu.y - h) : this.menu.y;
+    m.style.left = `${left}px`;
+    m.style.top = `${top}px`;
+    m.style.setProperty("--mo", `${left < this.menu.x ? "right" : "left"} ${top < this.menu.y ? "bottom" : "top"}`);
+    if (this.menuFocus) {
+      this.menuFocus = false;
+      (m.querySelector("button:not([disabled])") as HTMLElement | null)?.focus();
+    }
+  }
+
+  private menuKey(ev: KeyboardEvent) {
+    ev.stopPropagation();
+    const list = [...this.renderRoot.querySelectorAll<HTMLButtonElement>(".menu button:not([disabled])")];
+    const i = list.indexOf((this.renderRoot as ShadowRoot).activeElement as HTMLButtonElement);
+    const go = (n: number) => {
+      ev.preventDefault();
+      list[(n + list.length) % list.length]?.focus();
+    };
+    if (ev.key === "ArrowDown") go(i + 1);
+    else if (ev.key === "ArrowUp") go(i < 0 ? list.length - 1 : i - 1);
+    else if (ev.key === "Home") go(0);
+    else if (ev.key === "End") go(list.length - 1);
+    else if (ev.key === "Escape" || ev.key === "Tab") {
+      ev.preventDefault();
+      this.menu = null;
+      this.svgEl.focus();
+    }
+  }
+
+  /** Applies a change to every selected element that is not locked. */
+  private applySel(fn: (e: WBElement) => void) {
+    for (const e of this.selection()) if (!e.locked) fn(e);
+    this.changed();
+  }
+
+  /** Front/back for the whole selection, keeping its own order. */
+  private orderSel(front: boolean) {
+    const sel = sorted(this.selection());
+    for (const e of front ? sel : sel.reverse()) e.order = front ? frontKey(this.els()) : backKey(this.els());
+    this.changed();
+  }
+
+  private async pasteAt(at: Pt) {
+    let text = "";
+    try {
+      text = (await navigator.clipboard?.readText()) ?? "";
+    } catch {
+      /* no permission: use the last copy from this board */
+    }
+    text = text.trim();
+    if (text.startsWith(CLIP_PREFIX)) this.pasteElements(text.slice(CLIP_PREFIX.length), at);
+    else if (/^https?:\/\/\S+$/.test(text)) void this.embed(text, at[0], at[1], false);
+    else if (this.clip) this.pasteElements(this.clip.slice(CLIP_PREFIX.length), at);
+  }
+
+  private addAt(type: "sticky" | "text", x: number, y: number) {
+    const e: WBElement = type === "text"
+      ? { id: newId(), type, stroke: this.pen.stroke, smooth: this.pen.smooth, x, y: y - 14, w: 240, h: 34, text: "" }
+      : { id: newId(), type, x: x - 80, y: y - 60, w: 160, h: 120, text: "", fill: "yellow" };
+    this.add(e);
+    this.setTool("select");
+    this.select(e.id);
+    this.changed();
+    this.editText(e);
+  }
+
+  private menuView() {
+    const m = this.menu;
+    if (!m) return nothing;
+    const run = (fn: () => void, keep = false) => () => {
+      if (!keep) {
+        this.menu = null;
+        this.svgEl.focus();
+      }
+      fn();
+    };
+    const item = (ico: string, label: string, fn: () => void, o: { key?: string; danger?: boolean; dis?: boolean; checked?: boolean } = {}) => html`<button class="mi ${o.danger ? "danger" : ""}"
+      role=${o.checked === undefined ? "menuitem" : "menuitemcheckbox"} aria-checked=${o.checked === undefined ? nothing : o.checked ? "true" : "false"} ?disabled=${o.dis}
+      @click=${run(fn)}>${icon(ico, 15)}<span>${label}</span>${o.key ? html`<kbd>${o.key}</kbd>` : nothing}${o.checked ? html`<span class="tick">${icon("Check", 14)}</span>` : nothing}</button>`;
+    const sep = html`<hr role="separator">`;
+    const sel = this.selection(), ro = this.readOnly, at: Pt = [m.wx, m.wy];
+    const one = sel.length === 1 ? sel[0] : undefined, free = sel.filter((e) => !e.locked);
+    let body;
+    if (!sel.length) {
+      body = html`
+        ${ro ? nothing : html`${item("ClipboardPaste", t("wb.menu.paste_here"), () => void this.pasteAt(at), { key: kbd("V") })}
+        ${item("StickyNote", t("wb.menu.add_sticky"), () => this.addAt("sticky", m.wx, m.wy))}
+        ${item("Type", t("wb.menu.add_text"), () => this.addAt("text", m.wx, m.wy))}`}
+        ${item("MessageSquarePlus", t("wb.menu.add_comment"), () => (this.pop = { kind: "newcomment", x: m.wx, y: m.wy }))}
+        ${sep}
+        ${item("SquareDashedMousePointer", t("wb.menu.select_all"), () => this.selectMany(this.els().map((e) => e.id)), { key: kbd("A"), dis: !this.els().length })}
+        ${item("Maximize", t("wb.fit"), () => this.fit())}
+        ${ro ? nothing : html`${item("Grid3x3", t("wb.snap"), () => this.setSnap(!this.snap), { checked: this.snap })}
+        ${item("CircleDashed", t("wb.menu.grid"), () => { this.board.background = this.board.background === "plain" ? "" : "plain"; this.changed(); this.requestUpdate(); }, { checked: this.board.background !== "plain" })}`}`;
+    } else {
+      const textual = one && (TEXTUAL.has(one.type) || one.type === "frame");
+      const grouped = sel.some((e) => e.groups?.length);
+      const allLocked = sel.every((e) => e.locked);
+      body = html`
+        ${ro ? nothing : item("Scissors", t("wb.menu.cut"), () => this.copySelection(true), { key: kbd("X"), dis: !free.length })}
+        ${item("Copy", t("wb.menu.copy"), () => this.copySelection(false), { key: kbd("C") })}
+        ${ro ? nothing : html`${item("ClipboardPaste", t("wb.menu.paste"), () => void this.pasteAt(at), { key: kbd("V") })}
+        ${item("CopyPlus", t("wb.menu.duplicate"), () => this.duplicate(), { key: kbd("D") })}`}
+        ${!ro && textual && !one!.locked ? item("Pencil", t("wb.menu.edit_text"), () => this.editText(one!), { key: "↵" }) : nothing}
+        ${one?.entity ? item("ExternalLink", t("wb.open_entry"), () => navigate(`/p/${this.project}/e/${one.entity}`)) : nothing}
+        ${ro ? nothing : html`${this.formatView(free)}
+        ${sep}
+        ${item("BringToFront", t("wb.front"), () => this.orderSel(true))}
+        ${item("SendToBack", t("wb.back"), () => this.orderSel(false))}
+        ${sel.length > 1 ? html`<div class="icons" role="group" aria-label=${t("wb.align")}>${([["left", "AlignStartVertical", "wb.align_left"], ["hcenter", "AlignCenterVertical", "wb.align_hcenter"], ["right", "AlignEndVertical", "wb.align_right"],
+          ["top", "AlignStartHorizontal", "wb.align_top"], ["vcenter", "AlignCenterHorizontal", "wb.align_vcenter"], ["bottom", "AlignEndHorizontal", "wb.align_bottom"]] as const).map(([how, ic, label]) =>
+          html`<button title=${t(label)} aria-label=${t(label)} @click=${run(() => this.alignSel(how), true)}>${icon(ic, 15)}</button>`)}</div>
+          ${item("Group", t("wb.menu.group"), () => this.groupSel(true), { key: kbd("G") })}` : nothing}
+        ${grouped ? item("Ungroup", t("wb.menu.ungroup"), () => this.groupSel(false), { key: kbd("G", true) }) : nothing}
+        ${item(allLocked ? "LockOpen" : "Lock", t(allLocked ? "wb.unlock" : "wb.lock"), () => { for (const e of sel) e.locked = allLocked ? undefined : true; this.changed(); })}
+        ${item("MessageSquarePlus", t("wb.menu.add_comment"), () => (this.pop = { kind: "newcomment", x: m.wx, y: m.wy, element: one && one.type !== "frame" ? one.id : undefined }))}
+        ${sep}
+        ${item("Trash2", t("wb.menu.delete"), () => this.removeMany(free.map((e) => e.id)), { key: t("wb.key_del"), danger: true, dis: !free.length })}
+        ${free.length < sel.length ? html`<div class="note">${t("wb.menu.locked")}</div>` : nothing}`}`;
+    }
+    return html`<div class="menu" role="menu" aria-label=${t("wb.menu")} style="left:${m.x}px;top:${m.y}px" @keydown=${(e: KeyboardEvent) => this.menuKey(e)} @contextmenu=${(e: Event) => e.preventDefault()}>${body}</div>`;
+  }
+
+  /** Formatting for the selection: colour, fill, line style, text size. */
+  private formatView(free: WBElement[]) {
+    if (!free.length) return nothing;
+    const keep = (fn: () => void) => () => fn();
+    const strokeable = free.filter((e) => !["frame", "image", "embed", "sticky"].includes(e.type));
+    const stickies = free.filter((e) => e.type === "sticky");
+    const shapes = free.filter((e) => ["rect", "ellipse", "diamond"].includes(e.type));
+    const lined = strokeable.filter((e) => e.type !== "text" && e.type !== "entity");
+    const texts = free.filter((e) => TEXTUAL.has(e.type) && !LINEAR.has(e.type));
+    if (!strokeable.length && !stickies.length && !texts.length) return nothing;
+    // One colour row: the stroke of drawn things, the paper of sticky notes.
+    const cur = strokeable[0]?.stroke ?? (strokeable.length ? "gray" : stickies[0]?.fill ?? "yellow");
+    const sw = (c: Color, bg: string, pressed: boolean, fn: () => void) => html`<button class="sw" style="background:${bg}" aria-label=${t(`color.${c}` as any)} aria-pressed=${pressed ? "true" : "false"} @click=${keep(fn)}></button>`;
+    const sizeOf = (e: WBElement) => e.fontSize || (e.type === "text" ? 24 : e.type === "sticky" ? 18 : 20);
+    return html`<hr role="separator"><div class="fmt">
+      ${strokeable.length || stickies.length ? html`<span class="lbl">${t("wb.menu.color")}</span><div class="swatches" role="group" aria-label=${t("wb.menu.color")}>${PALETTE.map((c) => sw(c, strokeable.length ? tc(c) : tb(c), cur === c, () => this.applySel((e) => {
+        if (e.type === "sticky") e.fill = c;
+        else if (!["frame", "image", "embed"].includes(e.type)) e.stroke = c;
+      })))}</div>` : nothing}
+      ${shapes.length ? html`<span class="lbl">${t("wb.fill")}</span><div class="swatches" role="group" aria-label=${t("wb.fill")}>${PALETTE.map((c) => sw(c, tb(c), shapes[0].fill === c, () => this.applySel((e) => { if (shapes.includes(e)) e.fill = c; })))}
+        <button class="sw none" title=${t("wb.no_fill")} aria-label=${t("wb.no_fill")} aria-pressed=${!shapes[0].fill ? "true" : "false"} @click=${() => this.applySel((e) => { if (shapes.includes(e)) delete e.fill; })}>${icon("X", 11)}</button></div>` : nothing}
+      ${lined.length ? html`<div class="seg2" role="group" aria-label=${t("wb.width")}>${(["", "dashed", "dotted"] as const).map((d) => html`<button aria-pressed=${(lined[0].dash ?? "") === d ? "true" : "false"}
+        @click=${() => this.applySel((e) => { if (lined.includes(e)) { if (d) e.dash = d; else delete e.dash; } })}>${t(`wb.dash_${d || "solid"}` as any)}</button>`)}</div>` : nothing}
+      ${texts.length ? html`<div class="seg2" role="group" aria-label=${t("wb.font_size")}>${[16, 20, 28, 40].map((z, i) => html`<button aria-pressed=${sizeOf(texts[0]) === z ? "true" : "false"}
+        @click=${() => this.applySel((e) => { if (texts.includes(e)) e.fontSize = z; })}>${["S", "M", "L", "XL"][i]}</button>`)}</div>` : nothing}
+    </div>`;
+  }
+
   private stateText() {
     if (this.readOnly) return t("wb.read_only");
     if (this.status !== "connected") return t("wb.offline");
@@ -2039,11 +2340,13 @@ export class PhxWhiteboard extends LitElement {
   }
 
   render() {
+    if (this.still) return html`<div class="stage"><svg class="board" role="img" aria-label=${this.doc?.title ?? t("wb.board")}>
+      <g class="world"><g class="layer"></g><g class="pins"></g><g class="others"></g></g><g class="laser"></g></svg></div>`;
     const toolCls = this.tool === "hand" ? "t-hand" : this.tool === "laser" ? "t-laser" : this.tool === "comment" ? "t-comment" : this.tool === "select" ? "" : "t-draw";
     const open = this.openComments().length;
     return html`<div class="stage" @dragover=${(e: DragEvent) => !this.readOnly && e.preventDefault()} @drop=${this.onDrop}>
       <svg class="board ${toolCls}" tabindex="0" role="application" aria-label=${this.doc?.title ?? t("wb.board")}
-        @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp}
+        @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @contextmenu=${this.onContextMenu}
         @pointerleave=${() => { this.live?.setCursor(undefined); if (this.laserDown) { this.laserDown = false; this.laserEnd("me"); } }} @wheel=${this.onWheel}>
         <defs><pattern id="wbgrid" width="24" height="24" patternUnits="userSpaceOnUse"><circle class="grid" cx="1" cy="1" r="1"></circle></pattern></defs>
         ${this.board.background === "plain" ? nothing : html`<rect width="100%" height="100%" fill="url(#wbgrid)" style="pointer-events:none"></rect>`}
@@ -2089,6 +2392,7 @@ export class PhxWhiteboard extends LitElement {
       </div>
       ${this.panel ? this.commentPanel() : this.styleBar()}
       ${this.popoverView()}
+      ${this.menuView()}
       ${this.present >= 0 ? html`<div class="bar present" role="toolbar" aria-label=${t("wb.present")}>
         <button aria-label=${t("wb.prev")} @click=${() => this.presentAt(Math.max(0, this.present - 1))}>${icon("ChevronLeft", 16)}</button>
         <span>${this.present + 1} / ${slides(this.els()).length} · ${slides(this.els())[this.present]?.text ?? ""}</span>
@@ -2099,6 +2403,7 @@ export class PhxWhiteboard extends LitElement {
 
   updated() {
     this.toggleAttribute("presenting", this.present >= 0);
+    this.placeMenu();
     if (!this.painted && this.doc) this.paint();
     if (this.pop) (this.renderRoot.querySelector(".pop [autofocus]") as HTMLElement | null)?.focus();
   }
