@@ -118,6 +118,9 @@ type Service struct {
 	// BackupDays: how long deleted data can still be found in backups
 	// (shown when deleting an account).
 	BackupDays int
+	// PaidFeatures maps paid features to the date they become paid
+	// (PHOEDOX_PAID_FEATURES, ADR-0061); empty = everything free.
+	PaidFeatures map[string]time.Time
 	// SignupDefault opens self sign-up unless an admin changed it (PHOEDOX_SIGNUP=open).
 	SignupDefault bool
 	// AgentReleases is the base URL of agent releases (…/download/<tag>/<asset>);

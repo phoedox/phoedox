@@ -2391,4 +2391,9 @@ export const de = {
   "auto.then.task": "Aufgabe in {board}",
   "auto.then.notify": "Benachrichtigung an {to}",
   "auto.then.http": "Anfrage an {host}",
+  "feature.early": "Für euch kostenlos: Ihr wart schon vor dem {date} dabei, als diese Funktion kostenpflichtig wurde.",
+  "feature.paid": "Eigene Domains gehören seit dem {date} zu einem bezahlten Tarif. Sprecht uns an, wenn ihr sie nutzen möchtet.",
+  "validation.feature_paid": "Diese Funktion gehört zu einem bezahlten Tarif.",
+  "validation.feature_unknown": "Diese Funktion ist nicht kostenpflichtig.",
+  "validation.entitlement_source": "Die Quelle muss „grant“ oder „plan“ sein.",
 } as const;

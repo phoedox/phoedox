@@ -25,6 +25,12 @@ locale: de
 # "open" = anyone can register with a confirmed e-mail address (needs mail).
 # Admins can switch it later under Admin → Instance. When termsUrl or
 # privacyUrl is set, people must accept them on the sign-up page.
+# Paid features with the date from which they are paid (ADR-0061), e.g.
+# "custom_domains=2027-03-01". Organizations and users created before that
+# date keep the feature for free. Empty = everything free (self-hosted).
+pricing:
+  paidFeatures: ""
+
 signup:
   mode: invite
   termsUrl: ""

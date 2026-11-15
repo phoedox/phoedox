@@ -4,8 +4,10 @@ package config
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // DBDriver selects the storage backend.
@@ -55,6 +57,11 @@ type Config struct {
 	// their Phoedox account, e.g. the plugin store (PHOEDOX_IDENTITY_CLIENTS,
 	// "id|Name|https://host/callback", comma-separated; ADR-0058).
 	IdentityClients string
+	// PaidFeatures are features that are paid from a date on
+	// (PHOEDOX_PAID_FEATURES, "custom_domains=2027-03-01,ai=2027-06-01";
+	// ADR-0061). Organizations and users created before that date keep the
+	// feature for free. Empty (the default) means every feature is free.
+	PaidFeatures map[string]time.Time
 	// TermsURL and PrivacyURL are shown on the sign-up page; when set, people
 	// must accept them (PHOEDOX_TERMS_URL, PHOEDOX_PRIVACY_URL).
 	TermsURL, PrivacyURL string
@@ -268,6 +275,9 @@ func FromEnv() (Config, error) {
 	}
 	c.SMTP.Port = p
 	c.DBURL = getenv("PHOEDOX_DB_URL", c.DataDir+"/phoedox.db")
+	if c.PaidFeatures, err = ParsePaidFeatures(os.Getenv("PHOEDOX_PAID_FEATURES")); err != nil {
+		return c, err
+	}
 	return c, c.Validate()
 }
 
@@ -320,4 +330,25 @@ func getenv(k, def string) string {
 		return v
 	}
 	return def
+}
+
+var featureRe = regexp.MustCompile(`^[a-z][a-z0-9_]{1,40}$`)
+
+// ParsePaidFeatures reads "feature=YYYY-MM-DD,..." (dates are UTC midnight).
+func ParsePaidFeatures(v string) (map[string]time.Time, error) {
+	out := map[string]time.Time{}
+	for _, part := range strings.Split(v, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		name, date, ok := strings.Cut(part, "=")
+		name = strings.TrimSpace(name)
+		d, err := time.Parse(time.DateOnly, strings.TrimSpace(date))
+		if !ok || err != nil || !featureRe.MatchString(name) {
+			return nil, fmt.Errorf("PHOEDOX_PAID_FEATURES: use feature=YYYY-MM-DD, comma-separated (%q)", part)
+		}
+		out[name] = d.UTC()
+	}
+	return out, nil
 }

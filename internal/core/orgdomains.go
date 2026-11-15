@@ -74,6 +74,11 @@ func (s *Service) SetOrgDomain(ctx context.Context, a Actor, ref, domain string)
 		s.event(ctx, a, "org.domain", o.ID, map[string]any{"domain": ""})
 		return nil, nil
 	}
+	if cur, err := s.DB.GetOrgDomain(ctx, o.ID); err != nil || cur.Domain != domain {
+		if err := s.requireFeature(ctx, FeatureCustomDomains, orgSubject(o)); err != nil {
+			return nil, err
+		}
+	}
 	if !domainRe.MatchString(domain) || len(domain) > 253 {
 		return nil, invalid("validation.domain", nil, "invalid domain")
 	}
@@ -153,4 +158,18 @@ func (s *Service) AppContextFor(ctx context.Context, host string) AppContext {
 		return AppContext{}
 	}
 	return AppContext{Org: &AppOrg{ID: o.ID, Slug: o.Slug, Name: o.Name}}
+}
+
+// OrgDomainAccess tells whether the organization may use its own domain
+// (nil when custom domains are free on this instance; ADR-0061).
+func (s *Service) OrgDomainAccess(ctx context.Context, a Actor, ref string) (*FeatureAccess, error) {
+	o, err := s.org(ctx, a, ref, store.OrgAdmin)
+	if err != nil {
+		return nil, err
+	}
+	fa, err := s.Entitled(ctx, FeatureCustomDomains, orgSubject(o))
+	if err != nil || fa.Source == EntFree {
+		return nil, err
+	}
+	return &fa, nil
 }

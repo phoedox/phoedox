@@ -191,7 +191,22 @@ func parseUntil(s string) (time.Time, error) {
 
 func (a *api) orgDomain(w http.ResponseWriter, r *http.Request) {
 	d, err := a.core.OrgDomain(r.Context(), actorOf(r), chi.URLParam(r, "o"))
-	respond(w, map[string]any{"domain": d}, err)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	access, err := a.core.OrgDomainAccess(r.Context(), actorOf(r), chi.URLParam(r, "o"))
+	respond(w, map[string]any{"domain": d, "access": access}, err)
+}
+
+func (a *api) orgFeatures(w http.ResponseWriter, r *http.Request) {
+	f, err := a.core.OrgFeatures(r.Context(), actorOf(r), chi.URLParam(r, "o"))
+	respond(w, map[string]any{"features": f}, err)
+}
+
+func (a *api) myFeatures(w http.ResponseWriter, r *http.Request) {
+	f, err := a.core.MyFeatures(r.Context(), actorOf(r))
+	respond(w, map[string]any{"features": f}, err)
 }
 
 func (a *api) setOrgDomain(w http.ResponseWriter, r *http.Request) {

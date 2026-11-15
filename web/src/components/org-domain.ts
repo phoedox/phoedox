@@ -13,9 +13,11 @@ interface DomainView {
   target?: string;
 }
 
+interface Access { feature: string; allowed: boolean; source: string; paidFrom?: string }
+
 /** An organization's own app domain: choose, show DNS records, verify (org admins). */
 export class PhxOrgDomain extends LitElement {
-  static properties = { org: {}, d: { state: true }, busy: { state: true }, loaded: { state: true } };
+  static properties = { org: {}, d: { state: true }, access: { state: true }, busy: { state: true }, loaded: { state: true } };
   static styles = [base, css`
     :host { display: block; max-width: 620px; }
     form { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -28,16 +30,21 @@ export class PhxOrgDomain extends LitElement {
     .ok { color: var(--good); }
     .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
     p.hint { font-size: 13px; margin: 6px 0; }
+    .plan { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; padding: 8px 10px; border-radius: 8px; margin: 0 0 10px; background: var(--accent-soft); }
+    .plan.locked { background: var(--surface2); }
   `];
   org = "";
   d: DomainView | null = null;
+  access: Access | null = null;
   busy = false;
   loaded = false;
 
   async connectedCallback() {
     super.connectedCallback();
     try {
-      this.d = (await api<{ domain: DomainView | null }>("GET", `/orgs/${this.org}/domain`)).domain;
+      const r = await api<{ domain: DomainView | null; access?: Access | null }>("GET", `/orgs/${this.org}/domain`);
+      this.d = r.domain;
+      this.access = r.access ?? null;
     } catch {
       this.d = null;
     }
@@ -65,12 +72,17 @@ export class PhxOrgDomain extends LitElement {
   render() {
     if (!this.loaded) return html`<p class="muted">${t("app.loading")}</p>`;
     const d = this.d;
+    const a = this.access;
+    const date = a?.paidFrom ? new Date(a.paidFrom).toLocaleDateString() : "";
+    const locked = !!a && !a.allowed && !d;
     return html`
       <p class="muted hint">${t("orgdomain.intro")}</p>
-      <form @submit=${this.save}>
+      ${a?.source === "grandfathered" ? html`<p class="plan" role="note">${icon("Gift", 15)} <span>${t("feature.early", { date })}</span></p>` : ""}
+      ${a && !a.allowed ? html`<p class="plan locked" role="note">${icon("Lock", 15)} <span>${t("feature.paid", { date })}</span></p>` : ""}
+      ${locked ? "" : html`<form @submit=${this.save}>
         <input name="domain" .value=${d?.domain ?? ""} placeholder="docs.example.com" aria-label=${t("orgdomain.domain")} autocomplete="off" spellcheck="false">
         <button ?disabled=${this.busy}>${t("doc.save")}</button>
-      </form>
+      </form>`}
       ${d ? html`
         <div class="row">
           ${d.verified

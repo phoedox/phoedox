@@ -121,6 +121,7 @@ func Open(ctx context.Context) (*App, error) {
 	svc.PublicURL = cfg.PublicURL
 	svc.BackupDays = (cfg.BackupKeep*cfg.BackupHours + 23) / 24
 	svc.SignupDefault = cfg.Signup == "open"
+	svc.PaidFeatures = cfg.PaidFeatures
 	if svc.PublicURL == "" && cfg.Domain != "" {
 		svc.PublicURL = "https://" + cfg.Domain
 	}

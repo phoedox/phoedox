@@ -2393,4 +2393,9 @@ export const en: Record<keyof typeof de, string> = {
   "auto.then.task": "Task in {board}",
   "auto.then.notify": "Notification to {to}",
   "auto.then.http": "Request to {host}",
+  "feature.early": "Free for you: you were here before {date}, when this feature became paid.",
+  "feature.paid": "Custom domains are part of a paid plan since {date}. Contact us if you want to use them.",
+  "validation.feature_paid": "This feature is part of a paid plan.",
+  "validation.feature_unknown": "This feature is not a paid feature.",
+  "validation.entitlement_source": "The source must be grant or plan.",
 };

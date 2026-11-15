@@ -76,6 +76,7 @@ make build && ./bin/phoedox
 | `PHOEDOX_MASTER_KEY` | – | 32 bytes, base64 (`openssl rand -base64 32`). Encrypts secrets such as TOTP keys. Without the variable, Phoedox creates `<data>/master.key` – **back it up together with the database**; multiple server instances need the same key |
 | `PHOEDOX_PUBLIC_URL` | – | Public address, e.g. `https://docs.example.org` – for links in emails. Without it (or `PHOEDOX_DOMAIN`), there is no "forgot password" by email |
 | `PHOEDOX_DEFAULT_LOCALE` | `de` | Language for emails to users without their own language setting |
+| `PHOEDOX_PAID_FEATURES` | – | Paid features with their start date, e.g. `custom_domains=2027-03-01` (ADR-0061). Accounts and organizations created before the date keep the feature for free; `phx admin entitle` grants it to others. Empty = everything free |
 | `PHOEDOX_SIGNUP` | `invite` | `open` lets anyone create an account with a confirmed e-mail address (needs mail); admins can switch it under Admin → Instance |
 | `PHOEDOX_IDENTITY_CLIENTS` | – | Services that may sign people in with their Phoedox account and learn only id, name and e-mail, e.g. `phoedox-store\|Phoedox Store\|https://store.phoedox.com/auth/callback` (comma-separated) |
 | `PHOEDOX_TERMS_URL`, `PHOEDOX_PRIVACY_URL` | – | Terms of use and privacy policy shown on the sign-up page; when set, people must accept them |

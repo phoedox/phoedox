@@ -49,6 +49,9 @@ spec:
             - { name: PHOEDOX_PUBLIC_URL, value: {{ printf "%s://%s" (ternary "https" "http" .Values.ingress.tls.enabled) .Values.domain | quote }} }
             - { name: PHOEDOX_DEFAULT_LOCALE, value: {{ .Values.locale | quote }} }
             - { name: PHOEDOX_SIGNUP, value: {{ .Values.signup.mode | default "invite" | quote }} }
+            {{- with (.Values.pricing).paidFeatures }}
+            - { name: PHOEDOX_PAID_FEATURES, value: {{ . | quote }} }
+            {{- end }}
             {{- with .Values.identityClients }}
             - { name: PHOEDOX_IDENTITY_CLIENTS, value: {{ join "," . | quote }} }
             {{- end }}

@@ -120,6 +120,7 @@ func main() {
 		defer t.Stop()
 		for {
 			sys := store.System(ctx) // housekeeping covers all tenants
+			a.Core.GrandfatherFeatures(sys)
 			a.Core.PurgeExpiredTrash(sys, a.Config.TrashDays)
 			a.Core.CleanupUploads(sys)
 			a.Core.RemindDrafts(sys, time.Now())
