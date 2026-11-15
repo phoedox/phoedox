@@ -45,7 +45,7 @@ export class PhxFloorplan extends LitElement {
     plan: { state: true }, editing: { state: true }, tool: { state: true }, selected: { state: true }, chain: { state: true },
     cursor: { state: true }, pending: { state: true }, entities: { state: true }, model: { state: true }, box: { state: true },
     busy: { state: true }, error: { state: true }, peers: { state: true }, status: { state: true }, saving: { state: true },
-    photo: { state: true }, heat: { state: true }, speed: { state: true }, wallThickness: { state: true }, cableHeight: { state: true }, view3d: { state: true }, allFloors: { state: true }, cut: { state: true }, others: { state: true }, edges: { state: true },
+    photo: { state: true }, heat: { state: true }, speed: { state: true }, wallThickness: { state: true }, cableHeight: { state: true }, view3d: { state: true }, cut: { state: true }, others: { state: true }, edges: { state: true },
   };
   static styles = [base, css`
     :host { display: block; }
@@ -155,7 +155,7 @@ export class PhxFloorplan extends LitElement {
   cableHeight = 300;
   /** 3D view (three.js, loaded on demand). */
   view3d = false;
-  allFloors = false;
+  private plans3dCache?: [Floorplan, PlanInput[] | undefined, PlanInput[]];
   cut = false;
   /** The project's other floor plans, for the building view. */
   others?: PlanInput[];
@@ -261,13 +261,17 @@ export class PhxFloorplan extends LitElement {
     const docs = await Promise.all(list.filter((d) => d.id !== this.doc?.id).map((d) => api<Doc>("GET", `/projects/${this.project}/documents/${d.id}`).catch(() => undefined)));
     this.others = docs.filter((d): d is Doc => !!d).map((d) => {
       const plan = normalizePlan(d.content as Partial<Floorplan>);
-      return { plan, floor: plan.floor };
+      return { plan, floor: plan.floor, title: d.title };
     });
   }
 
   private plans3d(): PlanInput[] {
-    const own = { plan: this.plan, floor: this.plan.floor };
-    return this.allFloors && this.others?.length ? [own, ...this.others] : [own];
+    // All storeys of the project; the 3D view shows this page's one first.
+    const own = { plan: this.plan, floor: this.plan.floor, title: this.doc?.title, own: true };
+    if (this.plans3dCache?.[0] === own.plan && this.plans3dCache[1] === this.others) return this.plans3dCache[2];
+    const list = [own, ...(this.others ?? [])];
+    this.plans3dCache = [own.plan, this.others, list];
+    return list;
   }
 
   // ---- live session ------------------------------------------------------
@@ -1250,12 +1254,11 @@ export class PhxFloorplan extends LitElement {
             <button aria-pressed=${this.view3d ? "false" : "true"} @click=${() => this.show3d(false)}>${icon("LandPlot", 15)} 2D</button>
             <button aria-pressed=${this.view3d ? "true" : "false"} ?disabled=${this.busy} @click=${() => this.show3d(true)}>${icon("Box", 15)} 3D</button></div>
           ${!this.view3d && this.plan.measurements.length ? this.heatPicker() : ""}
-          ${this.view3d && this.others?.length ? html`<label class="check"><input type="checkbox" .checked=${this.allFloors} @change=${(e: Event) => (this.allFloors = (e.target as HTMLInputElement).checked)}> ${t("plan3d.all_floors")}</label>` : ""}
           ${this.view3d ? html`<label class="check"><input type="checkbox" .checked=${this.cut} @change=${(e: Event) => (this.cut = (e.target as HTMLInputElement).checked)}> ${t("plan3d.cut")}</label>` : ""}
           ${this.view3d ? html`<button class="ghost icon" title=${t("plan.fit")} aria-label=${t("plan.fit")} @click=${() => this.renderRoot.querySelector<HTMLElement & { resetView(): void }>("phx-plan3d")?.resetView()}>${icon("Maximize", 15)}</button>` : ""}
           <span class="spacer"></span>${this.draft || !this.canEdit ? "" : html`<button class="ghost" ?disabled=${this.busy} @click=${() => this.startEdit()}>${icon("PenTool", 14)} ${t("plan.edit")}</button>`}`}
       </div>` : ""}
-      ${this.view3d && !this.editing ? html`<phx-plan3d .project=${this.project} .plans=${this.plans3d()} .entities=${this.entities} .edges=${this.edges} ?cut=${this.cut}></phx-plan3d>` : html`
+      ${this.view3d && !this.editing ? html`<phx-plan3d .project=${this.project} .plans=${this.plans3d()} .entities=${this.entities} .edges=${this.edges} .model=${this.model} ?cut=${this.cut}></phx-plan3d>` : html`
       <div class="wrap ${this.editing ? `edit t-${this.tool}` : ""}" @keydown=${this.onKey} tabindex="-1">
         <div class="stage ${this.dropping ? "drop" : ""}" @dragover=${this.onDragOver} @dragleave=${this.onDragLeave} @drop=${this.onDrop}>
           <svg class="plan" viewBox="${b.x} ${b.y} ${b.w} ${b.h}" role="img" aria-label=${this.doc?.title ?? ""}
