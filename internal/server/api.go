@@ -300,6 +300,7 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/comments/open", a.openComments)
 			r.Get("/export", a.exportProject)
 			r.Get("/offline", a.offlineCopy)
+			r.Post("/answer", a.answer)
 			r.Get("/git", a.projectGit)
 			r.Put("/git", a.saveProjectGit)
 			r.Post("/git/sync", a.syncProjectGit)

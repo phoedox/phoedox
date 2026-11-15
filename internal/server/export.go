@@ -109,3 +109,23 @@ func (a *api) syncProjectGit(w http.ResponseWriter, r *http.Request) {
 	g, err := a.core.SyncProjectGit(r.Context(), actorOf(r), chi.URLParam(r, "p"))
 	respond(w, g, err)
 }
+
+// answer gives a short spoken answer to a question (voice assistants).
+func (a *api) answer(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Q    string `json:"q"`
+		Lang string `json:"lang"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	if in.Lang == "" {
+		in.Lang = actorOf(r).User.Locale
+	}
+	if in.Lang == "" {
+		in.Lang = a.cfg.DefaultLocale
+	}
+	res, err := a.core.Answer(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.Q, in.Lang)
+	respond(w, res, err)
+}
