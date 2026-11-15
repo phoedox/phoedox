@@ -37,6 +37,7 @@ Rules:
 | `GH_USER` – GitHub user name (only if repo/image is private) | `jan` | conditional |
 | Is a Tabby session to the server already open via SSH? As root or with sudo? | | yes |
 | Backups to S3? (endpoint, bucket – the user types the keys themselves) | Hetzner Object Storage | optional |
+| Send e-mail? Then the questions in "Setting up mail" below | own SMTP server, Microsoft 365, Gmail | optional |
 
 Minimum server size: 2 vCPU, 4 GB RAM, 40 GB SSD; Debian 12/13 or Ubuntu 22.04/24.04.
 
@@ -340,6 +341,71 @@ An update does not make an automatic backup yet – back up first in the interfa
 ```bash
 kubectl -n phoedox exec deploy/phoedox -- phx admin backup
 ```
+
+## Setting up mail
+
+Without mail, admins copy invitation and reset links by hand, notifications stay inside the app and
+the personal data export (Settings → Account) is switched off. To set it up, **ask the user these
+questions one after another** and suggest the usual answer in brackets:
+
+1. Which mail service? (own mail server, Microsoft 365, Google Workspace/Gmail, a provider such as
+   Mailbox.org, IONOS, Strato, or a relay in the own network)
+2. SMTP server name? (Microsoft 365: `smtp.office365.com`, Gmail: `smtp.gmail.com`; otherwise the
+   provider's help page names it)
+3. Port and encryption? (587 + `starttls` is the normal case; 465 + `tls`; 25 + `none` only for a
+   relay in the own network without a password)
+4. Sender address and name, e.g. `Phoedox <docs@example.org>`? It must be an address the server
+   allows to send from; for a custom domain, SPF and DKIM must be set up, otherwise mails end up as spam.
+5. User name for signing in (usually the full address)? Empty for a relay without sign-in.
+6. Does the server use a certificate from an internal or self-signed CA? If yes, the user puts the CA
+   as PEM file on the server (e.g. `/root/smtp-ca.pem`).
+7. To which address should the test mail go?
+
+Notes for the user (say them before they look for a password):
+- Microsoft 365: "Authenticated SMTP" must be enabled for the mailbox (admin center → user → Mail →
+  Manage email apps).
+- Gmail / Google Workspace: an app password is needed (Google account → Security → 2-step
+  verification → App passwords); the normal password does not work.
+
+Then, with consent and a copy of the values file first:
+
+```bash
+# The user types the password themselves; it never appears in the chat or on screen.
+read -rsp "SMTP password: " SMTP_PW; echo
+kubectl -n phoedox create secret generic phoedox-mail --from-literal=password="$SMTP_PW" --dry-run=client -o yaml | kubectl apply -f -
+unset SMTP_PW
+# only with an own CA (question 6):
+kubectl -n phoedox create secret generic smtp-ca --from-file=ca.crt=/root/smtp-ca.pem --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Add to `/root/phoedox.yaml` (values from the answers):
+
+```yaml
+mail:
+  enabled: true
+  host: smtp.example.org
+  port: 587
+  tls: starttls
+  from: "Phoedox <docs@example.org>"
+  user: docs@example.org
+  existingSecret: phoedox-mail
+  # caSecret: smtp-ca
+```
+
+```bash
+helm upgrade phoedox /root/phoedox/deploy/helm/phoedox -n phoedox -f /root/phoedox.yaml && kubectl -n phoedox rollout status deploy/phoedox --timeout=5m
+kubectl -n phoedox exec deploy/phoedox -- phx admin test-mail --email <address from question 7>
+```
+
+Check: "test mail sent to …" and the user confirms the mail arrived (also look in the spam folder).
+On an error, show the message and go through the answers again; typical causes:
+
+| Message contains | Cause |
+|---|---|
+| `connect:` / `timeout` | wrong host or port, or the server blocks outgoing connections (some hosters block port 25/465/587 – ask the hoster) |
+| `starttls` / `certificate` | wrong encryption for the port, or an own CA without `caSecret` |
+| `auth:` | wrong user or password; Microsoft 365 without authenticated SMTP; Gmail without app password |
+| `from:` / `rcpt:` | the server does not allow this sender address |
 
 ## Changing the domain
 
