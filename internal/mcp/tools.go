@@ -246,12 +246,14 @@ type decisionFields struct {
 	// Pointer so update_decision can tell "not given" from false.
 	SupersedesPartly *bool  `json:"supersedes_partly,omitempty" jsonschema:"true if this decision replaces only part of the older one; the older one is then marked partially_superseded and stays valid otherwise"`
 	SupersedesScope  string `json:"supersedes_scope,omitempty" jsonschema:"with supersedes_partly: which part is replaced, e.g. only the choice of database"`
+	// Options of a proposed decision; nil means "not given" for update_decision.
+	Options []core.ADROption `json:"options,omitempty" jsonschema:"for status proposed: the options people choose from in Phoedox (title, description in Markdown with pros and cons; id is assigned). decision may stay empty then. Replaces all options; responses stay."`
 }
 
 func (f decisionFields) adr() core.ADR {
 	return core.ADR{Status: f.Status, Date: f.Date, Deciders: f.Deciders, Context: f.Context, Decision: f.Decision,
 		Consequences: f.Consequences, Alternatives: f.Alternatives, Supersedes: f.Supersedes,
-		SupersedesPartly: f.SupersedesPartly != nil && *f.SupersedesPartly, SupersedesScope: f.SupersedesScope}
+		SupersedesPartly: f.SupersedesPartly != nil && *f.SupersedesPartly, SupersedesScope: f.SupersedesScope, Options: f.Options}
 }
 
 type listDecisionsIn struct {
@@ -607,7 +609,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		return svc.UpdateDocument(ctx, a, in.Project, cur.ID, core.DocumentPatch{Title: in.Title, Category: in.Category, Board: &b, ExpectVersion: in.ExpectVersion})
 	})
-	tool(s, "create_decision", "Record a decision (ADR) with context, decision, consequences and alternatives.", func(ctx context.Context, a core.Actor, in createDecisionIn) (any, error) {
+	tool(s, "create_decision", "Record a decision (ADR) with context, decision, consequences and alternatives. For a decision people still have to make, use status proposed with options; they choose one in Phoedox or answer that nothing fits.", func(ctx context.Context, a core.Actor, in createDecisionIn) (any, error) {
 		if in.Category == "" {
 			// Where the project keeps its decisions; "Decisions" for the first one.
 			in.Category = "Decisions"
@@ -646,6 +648,9 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		if len(f.Deciders) > 0 {
 			adr.Deciders = f.Deciders
+		}
+		if f.Options != nil {
+			adr.Options = f.Options
 		}
 		return svc.UpdateDocument(ctx, a, in.Project, cur.ID, core.DocumentPatch{Title: in.Title, Category: in.Category, ADR: &adr, ExpectVersion: in.ExpectVersion})
 	})

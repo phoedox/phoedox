@@ -138,7 +138,13 @@ export interface Decision {
   ref: string; number: number; slug: string; title: string; status: DecisionStatus; date?: string;
   category?: string; supersedes?: string; supersedesPartly?: boolean; supersedesScope?: string; supersededBy?: string; partlySupersededBy?: string[];
   version: number; updatedAt: string;
+  /** Number of options of an open decision; needsOptions: the last answer was "nothing fits". */
+  options?: number; needsOptions?: boolean;
 }
+/** An option of a proposed decision (ADR-0062). */
+export interface DecisionOption { id?: string; title: string; description?: string }
+/** An answer to a proposed decision: an option id or "none". */
+export interface DecisionResponse { choice: string; option?: string; comment?: string; by: string; byId?: string; at: string }
 /** Formats a decision number like the server: ADR-0007. */
 export const adrRef = (n: number) => `ADR-${String(n).padStart(4, "0")}`;
 export interface Hit {

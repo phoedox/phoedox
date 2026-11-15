@@ -137,7 +137,8 @@ export class PhxDecisions extends SignalWatcher(LitElement) {
         ${d.status === "partially_superseded" && d.partlySupersededBy?.length ? html`<div class="sub">${t("adr.partly_by")} ${d.partlySupersededBy.map((sl, i) => html`${i ? ", " : ""}${link(sl)}`)}</div>` : ""}
         ${d.supersedes ? html`<div class="sub">${t(d.supersedesPartly ? "adr.supersedes_partly_label" : "adr.supersedes")} ${link(d.supersedes)}${d.supersedesPartly && d.supersedesScope ? ` – ${d.supersedesScope}` : ""}</div>` : ""}
       </td>
-      <td><span class="chip status-${d.status}">${t(`adr.status.${d.status}`)}</span></td>
+      <td><span class="chip status-${d.status}">${t(`adr.status.${d.status}`)}</span>
+        ${d.status === "proposed" && d.options ? html`<div class="sub">${d.needsOptions ? t("decide.list_needs") : t("decide.list_open", { count: d.options })}</div>` : ""}</td>
       <td class="date">${d.date ?? ""}</td>
     </tr>`;
   }

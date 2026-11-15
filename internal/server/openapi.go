@@ -224,6 +224,7 @@ var apiDocs = map[string]op{
 	"DELETE /projects/{p}/documents/{d}/translations/{lang}": {Tag: "documents", Summary: "Delete a translation."},
 	"PATCH /projects/{p}/documents/{d}":                      {Tag: "documents", Summary: "Change a document (new version).", In: core.DocumentPatch{}, Out: core.DocResult{}},
 	"DELETE /projects/{p}/documents/{d}":                     {Tag: "documents", Summary: "Move to the trash.", Out: core.DocResult{}},
+	"POST /projects/{p}/documents/{d}/decide":                {Tag: "documents", Summary: "Answer a proposed decision with options (ADR-0062): choice is an option id (accepts the decision) or none (nothing fits, stays proposed), with an optional comment. Editors; not for AI clients.", In: core.DecideInput{}, Out: core.DocResult{}},
 	"GET /projects/{p}/drafts":                               {Tag: "documents", Summary: "Open drafts of the project (editors; others get an empty list).", Out: []core.DraftInfo{}},
 	"GET /projects/{p}/documents/{d}/draft":                  {Tag: "documents", Summary: "The open draft of a page (editors).", Out: core.DraftInfo{}},
 	"POST /projects/{p}/documents/{d}/draft":                 {Tag: "documents", Summary: "Start or join the draft of a Markdown page (edit session).", Out: core.DraftInfo{}},

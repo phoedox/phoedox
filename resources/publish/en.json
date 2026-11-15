@@ -24,6 +24,7 @@
   "context": "Context",
   "decision": "Decision",
   "consequences": "Consequences",
+  "options": "Options to decide",
   "alternatives": "Alternatives",
   "open_link": "Open link",
   "made_with": "Made with Phoedox",

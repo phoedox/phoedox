@@ -449,6 +449,9 @@ func (s *Site) docPage(w http.ResponseWriter, r *http.Request, p store.Publicati
 				fmt.Fprintf(&body, `<section><h2>%s</h2>%s</section>`, template.HTMLEscapeString(t[k]), Markdown(v, links))
 			}
 		}
+		if v := core.OpenOptions(d.Content); v != "" {
+			fmt.Fprintf(&body, `<section><h2>%s</h2>%s</section>`, template.HTMLEscapeString(t["options"]), Markdown(v, links))
+		}
 	case store.DocLink:
 		u := str("url")
 		fmt.Fprintf(&body, `<p><a href="%s" rel="noopener external">%s</a></p>%s`, template.HTMLEscapeString(u), template.HTMLEscapeString(t["open_link"]), Markdown(str("description"), links))
@@ -720,6 +723,9 @@ func docMarkdown(d store.Document) string {
 			if v := str(k); v != "" {
 				fmt.Fprintf(&b, "## %s\n\n%s\n\n", strings.ToUpper(k[:1])+k[1:], v)
 			}
+		}
+		if v := core.OpenOptions(d.Content); v != "" {
+			fmt.Fprintf(&b, "## Options\n\n%s\n\n", v)
 		}
 	case store.DocMarkdown:
 		md := str("markdown")

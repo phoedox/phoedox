@@ -1,5 +1,6 @@
 import { LitElement, css, html } from "lit";
-import { ApiError, api, decisionStatuses, type Decision, type Doc, type DraftInfo } from "../api";
+import { ApiError, api, decisionStatuses, type Decision, type DecisionOption, type Doc, type DraftInfo } from "../api";
+import { icon } from "../icon";
 import { t } from "../i18n";
 import { docsVersion, navigate } from "../state";
 import { base } from "./shared";
@@ -9,7 +10,7 @@ type DocResult = { applied: boolean; document?: Doc };
 
 /** Create (type set) or edit (docSlug set) a markdown page, decision or link. */
 export class PhxDocForm extends LitElement {
-  static properties = { project: {}, docSlug: {}, type: {}, doc: { state: true }, decisions: { state: true }, error: { state: true }, busy: { state: true }, live: { state: true } };
+  static properties = { project: {}, docSlug: {}, type: {}, doc: { state: true }, decisions: { state: true }, options: { state: true }, error: { state: true }, busy: { state: true }, live: { state: true } };
   static styles = [base, css`
     form { display: grid; gap: 12px; max-width: 820px; }
     .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -17,6 +18,13 @@ export class PhxDocForm extends LitElement {
     @media (max-width: 700px) { .two { grid-template-columns: 1fr; } }
       label.check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
     label.check input { width: auto; margin: 0; }
+    fieldset.opts { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 12px; display: grid; gap: 10px; margin: 0; }
+    fieldset.opts legend { padding: 0 4px; font-weight: 600; font-size: 14px; }
+    .opt { display: grid; gap: 6px; padding: 10px; border-radius: 8px; background: var(--surface2); }
+    .opt .head { display: flex; gap: 8px; align-items: center; }
+    .opt .head input { flex: 1; }
+    .opt textarea { min-height: 70px; }
+    p.hint { margin: 0; font-size: 13px; }
 `];
   project = "";
   docSlug = "";
@@ -24,6 +32,8 @@ export class PhxDocForm extends LitElement {
   doc?: Doc;
   /** Other decisions of the project, offered as "supersedes" targets. */
   decisions: Decision[] = [];
+  /** Options of a proposed decision (ADR-0062). */
+  options: DecisionOption[] = [];
   /** Markdown pages are edited live; the editor module is loaded on demand. */
   live = false;
   error = "";
@@ -38,6 +48,7 @@ export class PhxDocForm extends LitElement {
       try {
         this.doc = await api<Doc>("GET", `/projects/${this.project}/documents/${this.docSlug}`);
         this.type = this.doc.type;
+        this.options = (this.doc.content?.options ?? []).map((o: DecisionOption) => ({ ...o }));
         this.loaded = `${this.project}/${this.docSlug}/${this.type}`;
       } catch (e) {
         this.error = e instanceof ApiError ? e.text : t("error.unknown");
@@ -77,7 +88,8 @@ export class PhxDocForm extends LitElement {
           { id: "todo", name: t("board.col_todo") }, { id: "doing", name: t("board.col_doing") }, { id: "done", name: t("board.col_done"), done: true }] };
     }
     if (this.type === "adr") body.adr = { status: s("status"), date: s("date"), context: s("context"), decision: s("decision"), consequences: s("consequences"), alternatives: s("alternatives"), supersedes: s("supersedes"),
-      supersedesPartly: !!s("supersedes") && s("partly") === "1", supersedesScope: s("partly") === "1" ? s("scope") : "" };
+      supersedesPartly: !!s("supersedes") && s("partly") === "1", supersedesScope: s("partly") === "1" ? s("scope") : "",
+      options: this.options.filter((o) => o.title.trim() || (o.description ?? "").trim()) };
     this.busy = true;
     this.error = "";
     try {
@@ -122,6 +134,29 @@ export class PhxDocForm extends LitElement {
       <p class="muted" style="margin:-4px 0 0;font-size:13px">${t("adr.supersedes_hint")}</p>`;
   }
 
+  private setOption(i: number, patch: Partial<DecisionOption>) {
+    this.options = this.options.map((o, j) => (j === i ? { ...o, ...patch } : o));
+  }
+
+  /** Options people choose from while the decision is proposed. */
+  private optionsField() {
+    return html`<fieldset class="opts">
+      <legend>${t("adr.options")}</legend>
+      <p class="muted hint">${t("adr.options_hint")}</p>
+      ${this.options.map((o, i) => html`<div class="opt">
+        <div class="head">
+          <input aria-label=${t("adr.option_title", { n: i + 1 })} placeholder=${t("adr.option_title", { n: i + 1 })} .value=${o.title} maxlength="200"
+            @input=${(e: Event) => this.setOption(i, { title: (e.target as HTMLInputElement).value })}>
+          <button type="button" class="ghost icon" title=${t("adr.option_remove")} aria-label=${t("adr.option_remove")}
+            @click=${() => (this.options = this.options.filter((_, j) => j !== i))}>${icon("Trash2", 14)}</button>
+        </div>
+        <textarea aria-label=${t("adr.option_description")} placeholder=${t("adr.option_description")} .value=${o.description ?? ""}
+          @input=${(e: Event) => this.setOption(i, { description: (e.target as HTMLTextAreaElement).value })}></textarea>
+      </div>`)}
+      <div><button type="button" class="ghost" ?disabled=${this.options.length >= 12} @click=${() => (this.options = [...this.options, { title: "", description: "" }])}>${icon("Plus", 14)} ${t("adr.option_add")}</button></div>
+    </fieldset>`;
+  }
+
   render() {
     if (this.live) return html`<phx-live-editor .project=${this.project} .docSlug=${this.docSlug}></phx-live-editor>`;
     if (this.docSlug && !this.doc && !this.error) return html`<p class="muted">${t("app.loading")}</p>`;
@@ -146,7 +181,8 @@ export class PhxDocForm extends LitElement {
           <label class="field">${t("adr.date")}<input name="date" type="date" .value=${c.date ?? new Date().toISOString().slice(0, 10)} /></label>
         </div>
         <label class="field">${t("adr.context")}<textarea name="context" .value=${c.context ?? ""}></textarea></label>
-        <label class="field">${t("adr.decision")}<textarea name="decision" .value=${c.decision ?? ""} required></textarea></label>
+        ${this.optionsField()}
+        <label class="field">${t("adr.decision")}<textarea name="decision" .value=${c.decision ?? ""}></textarea></label>
         <label class="field">${t("adr.consequences")}<textarea name="consequences" .value=${c.consequences ?? ""}></textarea></label>
         <label class="field">${t("adr.alternatives")}<textarea name="alternatives" .value=${c.alternatives ?? ""}></textarea></label>
         ${this.supersedesField(d, c.supersedes ?? "", !!c.supersedesPartly, c.supersedesScope ?? "")}` : ""}

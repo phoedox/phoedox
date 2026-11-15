@@ -265,6 +265,7 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/documents/{d}", a.getDocument)
 			r.Patch("/documents/{d}", a.updateDocument)
 			r.Delete("/documents/{d}", a.deleteDocument)
+			r.Post("/documents/{d}/decide", a.decideDocument)
 			r.Get("/documents/{d}/versions", a.listVersions)
 			r.Get("/documents/{d}/translations/{lang}", a.getTranslation)
 			r.Put("/documents/{d}/translations/{lang}", a.saveTranslation)
@@ -881,6 +882,16 @@ func (a *api) updateDocument(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) deleteDocument(w http.ResponseWriter, r *http.Request) {
 	res, err := a.core.DeleteDocument(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"))
+	respond(w, res, err)
+}
+
+func (a *api) decideDocument(w http.ResponseWriter, r *http.Request) {
+	var in core.DecideInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	res, err := a.core.Decide(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"), in)
 	respond(w, res, err)
 }
 

@@ -37,6 +37,77 @@ type ADR struct {
 	// PartlySupersededBy is maintained by the server: the decisions that
 	// each replaced a part of this one, oldest first.
 	PartlySupersededBy []string `json:"partlySupersededBy,omitempty"`
+	// Options a proposed decision offers to choose from (ADR-0062). While
+	// there are options, Decision may stay empty until someone decides.
+	Options []ADROption `json:"options,omitempty"`
+	// Responses are maintained by the server: every "decide" with the
+	// chosen option or "none" (nothing fits) and a comment, oldest first.
+	Responses []ADRResponse `json:"responses,omitempty"`
+	// Chosen is maintained by the server: the id of the chosen option.
+	Chosen string `json:"chosen,omitempty"`
+}
+
+// ADROption is one option of a proposed decision.
+type ADROption struct {
+	ID          string `json:"id,omitempty"` // assigned by the server when empty (o1, o2, …)
+	Title       string `json:"title"`
+	Description string `json:"description,omitempty"` // Markdown, e.g. pros and cons
+}
+
+// ADRResponse is one answer to a proposed decision.
+type ADRResponse struct {
+	Choice  string     `json:"choice"`           // option id or "none"
+	Option  string     `json:"option,omitempty"` // title of the chosen option at that time
+	Comment string     `json:"comment,omitempty"`
+	By      string     `json:"by"`
+	ByID    string     `json:"byId,omitempty"`
+	At      store.Time `json:"at"`
+}
+
+// ChoiceNone answers a proposed decision with "nothing fits".
+const ChoiceNone = "none"
+
+const maxADROptions = 12
+
+// normalizeOptions trims options, checks them and gives every option a
+// stable id.
+func normalizeOptions(opts []ADROption) ([]ADROption, error) {
+	if len(opts) > maxADROptions {
+		return nil, invalid("validation.adr_options_max", map[string]any{"max": maxADROptions}, "at most %d options", maxADROptions)
+	}
+	used := map[string]bool{}
+	for _, o := range opts {
+		if o.ID != "" {
+			used[o.ID] = true
+		}
+	}
+	out := make([]ADROption, 0, len(opts))
+	seen := map[string]bool{}
+	n := 0
+	for _, o := range opts {
+		o.Title, o.Description, o.ID = strings.TrimSpace(o.Title), strings.TrimSpace(o.Description), strings.TrimSpace(o.ID)
+		if o.Title == "" {
+			if o.Description == "" {
+				continue
+			}
+			return nil, invalid("validation.adr_option_title", nil, "every option needs a title")
+		}
+		if len([]rune(o.Title)) > 200 {
+			return nil, invalid("validation.adr_option_title", nil, "option titles are at most 200 characters")
+		}
+		if o.ID == "" || o.ID == ChoiceNone || seen[o.ID] || len(o.ID) > 40 {
+			for {
+				n++
+				if id := fmt.Sprintf("o%d", n); !used[id] && !seen[id] {
+					o.ID = id
+					break
+				}
+			}
+		}
+		seen[o.ID] = true
+		out = append(out, o)
+	}
+	return out, nil
 }
 
 // DecisionRef formats a decision number, e.g. ADR-0007.
@@ -231,11 +302,20 @@ func content(typ, markdown string, adr *ADR, link *Link, board *Board, fp *Floor
 		if !adrStatus[adr.Status] {
 			return nil, "", invalid("validation.adr_status", nil, "adr.status must be proposed, accepted, rejected, deprecated, partially_superseded or superseded")
 		}
-		if strings.TrimSpace(adr.Decision) == "" {
-			return nil, "", invalid("validation.adr_decision_required", nil, "adr.decision is required")
+		opts, err := normalizeOptions(adr.Options)
+		if err != nil {
+			return nil, "", err
+		}
+		adr.Options = opts
+		if strings.TrimSpace(adr.Decision) == "" && (adr.Status != "proposed" || len(adr.Options) == 0) {
+			return nil, "", invalid("validation.adr_decision_required", nil, "adr.decision is required (a proposed decision may offer options instead)")
 		}
 		b, _ := json.Marshal(adr)
-		return b, strings.Join([]string{adr.Context, adr.Decision, adr.Consequences, adr.Alternatives}, "\n"), nil
+		parts := []string{adr.Context, adr.Decision, adr.Consequences, adr.Alternatives}
+		for _, o := range adr.Options {
+			parts = append(parts, o.Title, o.Description)
+		}
+		return b, strings.Join(parts, "\n"), nil
 	case store.DocLink:
 		if link == nil {
 			return nil, "", invalid("validation.link_required", nil, "link content is required for type link")
@@ -327,6 +407,7 @@ func (s *Service) CreateDocument(ctx context.Context, a Actor, ref string, in Do
 		adr := *in.ADR
 		in.ADR = &adr
 		in.ADR.SupersededBy, in.ADR.PartlySupersededBy = "", nil
+		in.ADR.Responses, in.ADR.Chosen = nil, ""
 		if _, err := s.decisionLinks(ctx, p, in.ADR, "", in.Slug, ""); err != nil {
 			return DocResult{}, err
 		}
@@ -342,6 +423,7 @@ func (s *Service) createDocument(ctx context.Context, a Actor, p store.Project, 
 	if in.Type == store.DocADR && in.ADR != nil {
 		adr := *in.ADR
 		adr.SupersededBy, adr.PartlySupersededBy = "", nil
+		adr.Responses, adr.Chosen = nil, ""
 		in.ADR = &adr
 		var err error
 		if related, err = s.decisionLinks(ctx, p, in.ADR, "", in.Slug, ""); err != nil {
@@ -470,6 +552,7 @@ func (s *Service) patched(ctx context.Context, p store.Project, cur store.Docume
 		if patch.ADR != nil {
 			next := *patch.ADR
 			next.SupersededBy, next.PartlySupersededBy = adr.SupersededBy, adr.PartlySupersededBy // server-maintained
+			next.Responses, next.Chosen = adr.Responses, adr.Chosen
 			adr = &next
 		}
 	case store.DocLink:
@@ -599,12 +682,16 @@ type DecisionSummary struct {
 	Category   string `json:"category,omitempty"`
 	Supersedes string `json:"supersedes,omitempty"`
 	// SupersedesPartly: Supersedes is only partly replaced (see SupersedesScope).
-	SupersedesPartly   bool       `json:"supersedesPartly,omitempty"`
-	SupersedesScope    string     `json:"supersedesScope,omitempty"`
-	SupersededBy       string     `json:"supersededBy,omitempty"`
-	PartlySupersededBy []string   `json:"partlySupersededBy,omitempty"`
-	Version            int        `json:"version"`
-	UpdatedAt          store.Time `json:"updatedAt"`
+	SupersedesPartly   bool     `json:"supersedesPartly,omitempty"`
+	SupersedesScope    string   `json:"supersedesScope,omitempty"`
+	SupersededBy       string   `json:"supersededBy,omitempty"`
+	PartlySupersededBy []string `json:"partlySupersededBy,omitempty"`
+	// Options is the number of options of a proposed decision; NeedsOptions
+	// is true when the last answer was "nothing fits" (ADR-0062).
+	Options      int        `json:"options,omitempty"`
+	NeedsOptions bool       `json:"needsOptions,omitempty"`
+	Version      int        `json:"version"`
+	UpdatedAt    store.Time `json:"updatedAt"`
 }
 
 // Decisions lists the decisions of a project by number, optionally only
@@ -646,7 +733,8 @@ func (s *Service) Decisions(ctx context.Context, a Actor, ref, status, query str
 		}
 		out = append(out, DecisionSummary{Ref: DecisionRef(d.Number), Number: d.Number, Slug: d.Slug, Title: d.Title, Status: c.Status, Date: c.Date,
 			Category: d.Category, Supersedes: c.Supersedes, SupersedesPartly: c.SupersedesPartly, SupersedesScope: c.SupersedesScope,
-			SupersededBy: c.SupersededBy, PartlySupersededBy: c.PartlySupersededBy, Version: d.Version, UpdatedAt: d.UpdatedAt})
+			SupersededBy: c.SupersededBy, PartlySupersededBy: c.PartlySupersededBy, Version: d.Version, UpdatedAt: d.UpdatedAt,
+			Options: len(c.Options), NeedsOptions: c.Status == "proposed" && len(c.Responses) > 0 && c.Responses[len(c.Responses)-1].Choice == ChoiceNone})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Number < out[j].Number })
 	return out, nil

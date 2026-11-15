@@ -89,6 +89,12 @@ func docMarkdown(d store.Document) string {
 				fmt.Fprintf(&b, "## %s\n\n%s\n\n", strings.ToUpper(k[:1])+k[1:], v)
 			}
 		}
+		if v := core.OpenOptions(d.Content); v != "" {
+			fmt.Fprintf(&b, "## Options (to decide)\n\n%s\n\n", v)
+		}
+		if v := core.ResponsesMarkdown(d.Content); v != "" {
+			fmt.Fprintf(&b, "## Responses\n\n%s\n\n", v)
+		}
 	case "markdown":
 		b.WriteString(str("markdown"))
 	default:

@@ -2,7 +2,7 @@ import { SignalWatcher } from "@lit-labs/signals";
 import { onProjectChange } from "../project-live";
 import { LitElement, css, html, unsafeCSS } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import { ApiError, adrRef, api, type Decision, type Doc, type DraftInfo } from "../api";
+import { ApiError, adrRef, api, type Decision, type DecisionOption, type DecisionResponse, type Doc, type DraftInfo } from "../api";
 import { diffLines, fold, type Hunk } from "../diff";
 import { languageName } from "../languages";
 import { formatDate, t } from "../i18n";
@@ -39,8 +39,29 @@ export const prose = `
 `;
 
 export class PhxDocView extends SignalWatcher(LitElement) {
-  static properties = { project: {}, docSlug: {}, kiosk: { type: Boolean }, zoom: { state: true }, doc: { state: true }, draft: { state: true }, showDiff: { state: true }, lang: { state: true }, mainDiff: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true }, archiving: { state: true } };
+  static properties = { project: {}, docSlug: {}, kiosk: { type: Boolean }, zoom: { state: true }, doc: { state: true }, draft: { state: true }, showDiff: { state: true }, lang: { state: true }, mainDiff: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true }, archiving: { state: true }, choice: { state: true }, deciding: { state: true } };
   static styles = [base, unsafeCSS(prose), css`
+    .decide { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 18px 0; background: var(--surface); }
+    .decide h2 { margin-top: 0; display: flex; gap: 8px; align-items: center; }
+    .decide fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 8px; }
+    .decide legend { padding: 0; margin-bottom: 8px; font-size: 14px; color: var(--muted); }
+    .decide .opt { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--line);
+      border-radius: 10px; cursor: pointer; transition: border-color var(--dur-fast) ease, background-color var(--dur-fast) ease; }
+    .decide .opt input { margin: 3px 0 0; width: auto; }
+    .decide .opt b { font-weight: 600; }
+    .decide .opt .prose { grid-column: 2; font-size: 14px; }
+    .decide .opt .prose > :first-child { margin-top: 0; }
+    .decide .opt .prose > :last-child { margin-bottom: 0; }
+    .decide .opt.on { border-color: var(--accent); background: var(--accent-soft); }
+    .decide .opt.none { border-style: dashed; }
+    .decide textarea { min-height: 72px; margin-top: 10px; }
+    .decide .row { margin-top: 10px; }
+    .answers { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 6px; font-size: 14px; }
+    .answers li { display: grid; gap: 2px; padding: 8px 10px; border-left: 3px solid var(--line); background: var(--surface2); border-radius: 0 8px 8px 0; }
+    .answers li.none { border-left-color: var(--signal); }
+    .answers li.chosen { border-left-color: var(--good); }
+    .answers .who { color: var(--muted); font-size: 13px; }
+    @media (hover: hover) and (pointer: fine) { .decide .opt:hover { border-color: var(--accent); } }
     /* Centred reading column; "full width" lifts the limit. */
     article { max-width: var(--reading-width, 820px); margin-inline: auto; }
     article.wide { max-width: none; }
@@ -407,7 +428,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     const part = (key: "adr.context" | "adr.decision" | "adr.consequences" | "adr.alternatives", md: string) =>
       md ? html`<section><h2>${t(key)}</h2><div class="prose">${unsafeHTML(renderMarkdown(md, this.project))}</div></section>` : "";
     return html`
-      ${part("adr.context", c.context)}${part("adr.decision", c.decision)}${part("adr.consequences", c.consequences)}${part("adr.alternatives", c.alternatives)}
+      ${part("adr.context", c.context)}${this.decidePanel(d)}${part("adr.decision", c.decision)}${part("adr.consequences", c.consequences)}${part("adr.alternatives", c.alternatives)}
+      ${this.answers(d)}
       ${c.supersedes ? html`<p class="muted">${t(c.supersedesPartly ? "adr.supersedes_partly_label" : "adr.supersedes")}: ${this.decisionLink(c.supersedes)}${c.supersedesPartly && c.supersedesScope ? html` – ${c.supersedesScope}` : ""}</p>` : ""}`;
   }
 
@@ -415,6 +437,69 @@ export class PhxDocView extends SignalWatcher(LitElement) {
   private decisionLink(slug: string) {
     const d = this.related.get(slug);
     return html`<a href="/p/${this.project}/d/${slug}">${d ? html`<span class="ref">${d.ref}</span> ${d.title}` : slug}</a>`;
+  }
+
+  /** Chosen option id (or "none") in the decide form. */
+  choice = "";
+  deciding = false;
+
+  private async decide(e: SubmitEvent, d: Doc) {
+    e.preventDefault();
+    if (!this.choice) return;
+    const form = e.target as HTMLFormElement;
+    const comment = String(new FormData(form).get("comment") ?? "").trim();
+    this.deciding = true;
+    try {
+      await api("POST", `/projects/${this.project}/documents/${d.slug}/decide`, { choice: this.choice, comment, expectVersion: d.version });
+      toast(t(this.choice === "none" ? "decide.done_none" : "decide.done"));
+      this.choice = "";
+      form.reset();
+      docsVersion.set(docsVersion.get() + 1);
+      await this.reload();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+    } finally {
+      this.deciding = false;
+    }
+  }
+
+  /** Open decision with options: choose one, or answer that nothing fits (ADR-0062). */
+  private decidePanel(d: Doc) {
+    const c = d.content ?? {};
+    const opts: DecisionOption[] = c.options ?? [];
+    if (c.status !== "proposed" || !opts.length) return "";
+    const canDecide = ["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "");
+    const opt = (id: string, title: string, desc: string, cls = "") => canDecide
+      ? html`<label class=${`opt ${cls} ${this.choice === id ? "on" : ""}`}>
+          <input type="radio" name="choice" .value=${id} .checked=${this.choice === id} @change=${() => (this.choice = id)}>
+          <b>${title}</b>${desc ? html`<div class="prose">${unsafeHTML(renderMarkdown(desc, this.project))}</div>` : ""}</label>`
+      : html`<div class=${`opt ${cls}`}><span aria-hidden="true">•</span><b>${title}</b>${desc ? html`<div class="prose">${unsafeHTML(renderMarkdown(desc, this.project))}</div>` : ""}</div>`;
+    return html`<section class="decide" aria-labelledby="decide-h">
+      <h2 id="decide-h">${icon("Scale", 18)} ${t("decide.title")}</h2>
+      <form @submit=${(e: SubmitEvent) => this.decide(e, d)}>
+        <fieldset>
+          <legend>${t(canDecide ? "decide.lead" : "decide.lead_read")}</legend>
+          ${opts.map((o) => opt(o.id ?? "", o.title, o.description ?? ""))}
+          ${canDecide ? opt("none", t("decide.none"), t("decide.none_hint"), "none") : ""}
+        </fieldset>
+        ${canDecide ? html`
+          <label class="field">${t("decide.comment")}<textarea name="comment" maxlength="4000"
+            placeholder=${t(this.choice === "none" ? "decide.comment_ph_none" : "decide.comment_ph")}></textarea></label>
+          <div class="row"><button type="submit" ?disabled=${!this.choice || this.deciding}>${icon("Check", 15)} ${t(this.choice === "none" ? "decide.submit_none" : "decide.submit")}</button></div>` : ""}
+      </form>
+    </section>`;
+  }
+
+  /** Earlier answers: who chose what, or that nothing fitted, with comments. */
+  private answers(d: Doc) {
+    const rs: DecisionResponse[] = d.content?.responses ?? [];
+    if (!rs.length) return "";
+    return html`<section><h2>${t("decide.answers")}</h2><ul class="answers">
+      ${rs.map((r) => html`<li class=${r.choice === "none" ? "none" : "chosen"}>
+        <span>${r.choice === "none" ? t("decide.answer_none") : t("decide.answer_chose", { option: r.option ?? r.choice })}</span>
+        ${r.comment ? html`<span>${r.comment}</span>` : ""}
+        <span class="who">${r.by} · ${formatDate(r.at)}</span></li>`)}
+    </ul></section>`;
   }
 
   private favoriteButtons(d: Doc) {

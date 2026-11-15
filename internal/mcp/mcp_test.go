@@ -107,6 +107,19 @@ func TestMCPTools(t *testing.T) {
 	if log := call("list_decisions", map[string]any{"project": "phoedox", "status": "accepted"}); !strings.Contains(log, `"ref": "ADR-0002"`) || strings.Contains(log, "ADR-0001") {
 		t.Fatalf("list_decisions: %s", log)
 	}
+	// Open questions: a proposed decision with options, no decision text yet.
+	out = call("create_decision", map[string]any{"project": "phoedox", "title": "Datenbank", "status": "proposed", "context": "Welche DB?",
+		"options": []map[string]any{{"title": "PostgreSQL", "description": "+ RLS"}, {"title": "SQLite"}}})
+	if !strings.Contains(out, `"applied": true`) || !strings.Contains(out, `"id": "o2"`) {
+		t.Fatalf("decision with options: %s", out)
+	}
+	call("update_decision", map[string]any{"project": "phoedox", "document": "datenbank", "context": "Welche DB für Self-Hosting?"})
+	if doc := call("get_document", map[string]any{"project": "phoedox", "document": "datenbank"}); !strings.Contains(doc, "SQLite") {
+		t.Fatalf("options lost on update: %s", doc)
+	}
+	if out := call("list_decisions", map[string]any{"project": "phoedox"}); !strings.Contains(out, `"options": 2`) {
+		t.Fatalf("list without options: %s", out)
+	}
 	call("create_document", map[string]any{"project": "phoedox", "title": "Architektur", "category": "Technik", "markdown": "Der @go-server …"})
 	call("upsert_entity", map[string]any{"project": "phoedox", "kind": "service", "name": "Go-Server", "attrs": map[string]any{"lang": "go"}})
 	bulk := call("upsert_entities", map[string]any{"project": "phoedox", "entities": []map[string]any{

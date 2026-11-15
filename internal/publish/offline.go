@@ -125,6 +125,9 @@ func WriteOffline(ctx context.Context, w io.Writer, d core.OfflineData, open fun
 					fmt.Fprintf(&b, `<h2>%s</h2>%s`, template.HTMLEscapeString(t[k]), md(v))
 				}
 			}
+			if v := core.OpenOptions(doc.Content); v != "" {
+				fmt.Fprintf(&b, `<h2>%s</h2>%s`, template.HTMLEscapeString(t["options"]), md(v))
+			}
 		case store.DocLink:
 			fmt.Fprintf(&b, `<p><a href="%s">%s</a></p>%s`, template.HTMLEscapeString(str("url")), template.HTMLEscapeString(str("url")), md(str("description")))
 		case store.DocBoard:

@@ -298,7 +298,8 @@ func mirrorMarkdown(d store.Document) string {
 		var c ADR
 		_ = json.Unmarshal(d.Content, &c)
 		fmt.Fprintf(&b, "number: %s\nstatus: %s\ndate: %s\n---\n\n# %s %s\n", DecisionRef(d.Number), c.Status, c.Date, DecisionRef(d.Number), d.Title)
-		for _, part := range [][2]string{{"Context", c.Context}, {"Decision", c.Decision}, {"Consequences", c.Consequences}, {"Alternatives", c.Alternatives}} {
+		for _, part := range [][2]string{{"Context", c.Context}, {"Decision", c.Decision}, {"Consequences", c.Consequences}, {"Alternatives", c.Alternatives},
+			{"Options (to decide)", OpenOptions(d.Content)}, {"Responses", ResponsesMarkdown(d.Content)}} {
 			if strings.TrimSpace(part[1]) != "" {
 				fmt.Fprintf(&b, "\n## %s\n\n%s\n", part[0], strings.TrimSpace(part[1]))
 			}
