@@ -4,7 +4,7 @@ import { ApiError, api, type Org, type Project } from "../api";
 import { continueTiles, matchProjects, relativeTime, type Tile } from "../home";
 import { locale, t } from "../i18n";
 import { icon } from "../icon";
-import { appOrg, currentProject, navigate } from "../state";
+import { appOrg, currentProject, currentUser, navigate, projectsPath, roleKey, setShowAllProjects, showAllProjects } from "../state";
 import { base } from "./shared";
 import { projectBadge } from "../pictures";
 import "./project-transfer";
@@ -69,6 +69,9 @@ export class PhxProjects extends SignalWatcher(LitElement) {
     a.name:focus-visible { outline: none; }
     .pcard:has(a.name:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
     .role { font-size: 12px; color: var(--muted); }
+    .role.admin { color: var(--signal); display: inline-flex; gap: 4px; align-items: center; }
+    .allsw { display: inline-flex; gap: 6px; align-items: center; font-size: 13.5px; color: var(--muted); margin: -6px 0 14px; cursor: pointer; }
+    .allsw input { width: auto; margin: 0; }
     .desc { margin: 0; font-size: 13.5px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.6em; }
     .desc a { position: relative; z-index: 1; }
     .stats { display: flex; gap: 6px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 10px; font-size: 12px; }
@@ -116,11 +119,16 @@ export class PhxProjects extends SignalWatcher(LitElement) {
   loaded = false;
   busy = false;
 
+  private toggleAll = async (e: Event) => {
+    setShowAllProjects((e.target as HTMLInputElement).checked);
+    this.projects = (await api<Project[]>("GET", projectsPath()).catch(() => [])) ?? [];
+  };
+
   async connectedCallback() {
     super.connectedCallback();
     currentProject.set(null);
     const [projects, orgs, recent, home] = await Promise.all([
-      api<Project[]>("GET", "/projects").catch(() => []),
+      api<Project[]>("GET", projectsPath()).catch(() => []),
       api<Org[]>("GET", "/orgs").catch(() => []),
       api<RecentItem[]>("GET", "/me/recent?limit=6").catch(() => []),
       api<Home>("GET", "/me/home").catch(() => undefined),
@@ -213,14 +221,14 @@ export class PhxProjects extends SignalWatcher(LitElement) {
 
   private desc(p: Project) {
     if (p.description) return p.description;
-    if (p.role === "owner") return html`<a href="/p/${p.slug}/settings">${t("projects.add_description")}</a>`;
+    if (p.role === "owner" && !p.adminAccess) return html`<a href="/p/${p.slug}/settings">${t("projects.add_description")}</a>`;
     return "";
   }
 
   private card(p: Project) {
     return html`<article class="pcard card">
       <div class="head">${projectBadge(p, 36)}
-        <span><a class="name" href="/p/${p.slug}">${p.name}</a><span class="role">${t(`settings.role.${p.role || "reader"}` as any)}</span></span>
+        <span><a class="name" href="/p/${p.slug}">${p.name}</a><span class=${p.adminAccess ? "role admin" : "role"}>${p.adminAccess ? icon("ShieldCheck", 11) : ""}${t(roleKey(p) as any)}</span></span>
         ${this.pinButton(p)}</div>
       <p class="desc">${this.desc(p)}</p>
       ${this.stats(p)}
@@ -294,6 +302,7 @@ export class PhxProjects extends SignalWatcher(LitElement) {
           <button aria-pressed=${this.layout === "list"} aria-label=${t("projects.layout_list")} title=${t("projects.layout_list")} @click=${() => this.setLayout("list")}>${icon("List", 15)}</button></span>` : ""}
         <button @click=${() => this.openDialog()}>${icon("Plus", 15)} ${t("projects.new")}</button>
       </div>
+      ${currentUser.get()?.isAdmin ? html`<label class="allsw" title=${t("projects.all_admin_hint")}><input type="checkbox" .checked=${showAllProjects()} @change=${this.toggleAll}> ${icon("ShieldCheck", 14)} ${t("projects.all_admin")}</label>` : ""}
       ${this.continueRow()}
       ${this.loaded && this.projects.length === 0 ? html`<div class="empty"><b>${t("projects.empty_title")}</b><span class="muted">${t("projects.empty")}</span>
         <div class="actions" style="justify-content:flex-start"><button @click=${() => this.openDialog()}>${icon("Plus", 15)} ${t("projects.new")}</button>

@@ -82,3 +82,27 @@ export function setFocusMode(on: boolean) {
   }
 }
 document.documentElement.classList.toggle("focus", focusMode.get());
+
+/** System admins can also list other people's projects (per device, off by default). */
+const ALL_PROJECTS = "phx.projects.all";
+export function showAllProjects(): boolean {
+  if (!currentUser.get()?.isAdmin) return false;
+  try {
+    return localStorage.getItem(ALL_PROJECTS) === "1";
+  } catch {
+    return false;
+  }
+}
+export function setShowAllProjects(on: boolean) {
+  try {
+    if (on) localStorage.setItem(ALL_PROJECTS, "1");
+    else localStorage.removeItem(ALL_PROJECTS);
+  } catch {
+    /* storage blocked */
+  }
+}
+/** Address of the project list, with other people's projects when an admin asked for them. */
+export const projectsPath = () => (showAllProjects() ? "/projects?all=1" : "/projects");
+/** Label of the own role in a project; "System admin" where the rights only come from that. */
+export const roleKey = (p: { role: string; adminAccess?: boolean }) =>
+  p.adminAccess ? "settings.role.sysadmin" : `settings.role.${["owner", "editor", "reader"].includes(p.role) ? p.role : "reader"}`;

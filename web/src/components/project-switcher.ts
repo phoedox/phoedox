@@ -3,7 +3,7 @@ import { LitElement, css, html } from "lit";
 import { api, type Project } from "../api";
 import { t } from "../i18n";
 import { icon } from "../icon";
-import { currentProject, navigate } from "../state";
+import { currentProject, navigate, projectsPath, roleKey } from "../state";
 import { base } from "./shared";
 import { projectBadge } from "../pictures";
 
@@ -67,7 +67,7 @@ export class PhxProjectSwitcher extends SignalWatcher(LitElement) {
     this.active = 0;
     this.projects = undefined;
     this.updateComplete.then(() => this.renderRoot.querySelector<HTMLInputElement>("input")?.focus());
-    this.projects = (await api<Project[]>("GET", "/projects").catch(() => [])) ?? [];
+    this.projects = (await api<Project[]>("GET", projectsPath()).catch(() => [])) ?? [];
     const cur = currentProject.get()?.slug;
     this.active = Math.max(0, this.filtered().findIndex((p) => p.slug === cur));
   }
@@ -104,7 +104,6 @@ export class PhxProjectSwitcher extends SignalWatcher(LitElement) {
     const cur = currentProject.get();
     const inProject = location.pathname.startsWith("/p/") && cur;
     const list = this.filtered();
-    const role = (r: string) => (["owner", "editor", "reader"].includes(r) ? t(`settings.role.${r as "owner" | "editor" | "reader"}`) : "");
     return html`
       <button class="btn" aria-haspopup="listbox" aria-expanded=${this.open ? "true" : "false"} aria-label=${t("switcher.label")} @click=${this.toggle}>
         ${inProject ? html`${projectBadge(cur, 24)}<span class="name">${cur.name}</span>`
@@ -121,7 +120,7 @@ export class PhxProjectSwitcher extends SignalWatcher(LitElement) {
               @pointerenter=${() => (this.active = i)} @click=${() => this.go(p)}>
               ${projectBadge(p, 24)}
               <span><div class="n">${p.name}</div>${p.description || p.orgName ? html`<div class="s">${p.orgName ? `${p.orgName} · ` : ""}${p.description}</div>` : ""}</span>
-              <span class="k">${role(p.role)}</span>
+              <span class="k">${t(roleKey(p) as any)}</span>
             </li>`)}</ul>`
           : html`<div class="empty">${t("switcher.none")}</div>`}
         <div class="foot"><a href="/" @click=${() => (this.open = false)}>${t("switcher.all")}</a><span>${t("switcher.keys")}</span></div>

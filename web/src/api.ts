@@ -77,6 +77,8 @@ export interface Project {
   image?: string;
   /** owner | editor | reader | doc (only single documents shared) */
   role: string;
+  /** Rights only from being a system admin, not from a membership. */
+  adminAccess?: boolean;
   orgId?: string; orgName?: string;
 }
 export interface Org { id: string; slug: string; name: string; usageType: "commercial" | "noncommercial"; aiEnabled: boolean; quotaMb: number; createdAt: string; role?: "admin" | "member" }

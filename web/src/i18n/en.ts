@@ -2295,4 +2295,7 @@ export const en: Record<keyof typeof de, string> = {
   "validation.identity_client": "This service is not registered for signing in with Phoedox.",
   "validation.identity_request": "The sign-in request is incomplete.",
   "validation.identity_code": "The sign-in code is invalid, expired or was already used.",
+  "settings.role.sysadmin": "System admin",
+  "projects.all_admin": "Show all projects of the instance",
+  "projects.all_admin_hint": "As a system admin you can also open other people's projects. By default you only see your own.",
 };

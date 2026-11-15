@@ -41,6 +41,9 @@ type Project struct {
 	// Role of the requesting user: owner, editor, reader, or "doc" when only
 	// single documents are shared with them.
 	Role string `json:"role,omitempty"`
+	// AdminAccess: the rights come only from being a system admin, not
+	// from a membership (the UI says "System admin" instead of the role).
+	AdminAccess bool `json:"adminAccess,omitempty"`
 }
 
 // RoleDoc means access to single shared documents only.

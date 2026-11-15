@@ -2293,4 +2293,7 @@ export const de = {
   "validation.identity_client": "Dieser Dienst ist für die Anmeldung mit Phoedox nicht eingetragen.",
   "validation.identity_request": "Die Anmeldeanfrage ist unvollständig.",
   "validation.identity_code": "Der Anmeldecode ist ungültig, abgelaufen oder schon benutzt.",
+  "settings.role.sysadmin": "System-Admin",
+  "projects.all_admin": "Alle Projekte der Instanz anzeigen",
+  "projects.all_admin_hint": "Als System-Admin kannst du auch Projekte anderer Personen öffnen. Standardmäßig siehst du nur deine eigenen.",
 } as const;

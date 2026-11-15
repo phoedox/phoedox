@@ -210,10 +210,25 @@ func (s *Service) UpdateProject(ctx context.Context, a Actor, ref string, in Pro
 
 // Projects lists projects visible to the actor.
 func (s *Service) Projects(ctx context.Context, a Actor) ([]store.Project, error) {
+	return s.listProjects(ctx, a, false)
+}
+
+// AllProjects lists every project of the instance for system admins (the
+// "show all projects" switch); others get their own projects.
+func (s *Service) AllProjects(ctx context.Context, a Actor) ([]store.Project, error) {
+	return s.listProjects(ctx, a, a.User.IsAdmin && a.Via == "web" && !a.Restricted())
+}
+
+// listProjects lists the projects the actor is a member of (or has single
+// documents shared with); all adds every other project for system admins.
+// Without all, admins see only their own projects, also on the start page,
+// in tasks and over MCP – other people's projects stay out of sight unless
+// asked for.
+func (s *Service) listProjects(ctx context.Context, a Actor, all bool) ([]store.Project, error) {
 	if a.Via == "mcp" && !s.AIEnabled(ctx) {
 		return nil, errAIDisabled()
 	}
-	ps, err := s.DB.ListProjects(ctx, a.User.ID, a.User.IsAdmin)
+	ps, err := s.DB.ListProjects(ctx, a.User.ID, all)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +238,7 @@ func (s *Service) Projects(ctx context.Context, a Actor) ([]store.Project, error
 			continue
 		}
 		if a.User.IsAdmin {
-			p.Role = store.RoleOwner
+			adminRole(&p)
 		}
 		out = append(out, p)
 	}

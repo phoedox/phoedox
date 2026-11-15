@@ -179,7 +179,7 @@ func (s *Service) project(ctx context.Context, a Actor, ref, need string) (store
 		return p, ErrForbidden
 	}
 	if a.User.IsAdmin {
-		p.Role = store.RoleOwner
+		adminRole(&p)
 		return p, nil
 	}
 	if p.Role == "" {
@@ -192,6 +192,13 @@ func (s *Service) project(ctx context.Context, a Actor, ref, need string) (store
 		return p, ErrForbidden
 	}
 	return p, nil
+}
+
+// adminRole gives system admins owner rights and marks where those rights
+// do not come from an own membership.
+func adminRole(p *store.Project) {
+	p.AdminAccess = rank[p.Role] < rank[store.RoleOwner]
+	p.Role = store.RoleOwner
 }
 
 func (s *Service) readOnly(a Actor, p store.Project) bool {

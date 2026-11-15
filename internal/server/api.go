@@ -509,7 +509,11 @@ func (a *api) search(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) listProjects(w http.ResponseWriter, r *http.Request) {
-	ps, err := a.core.Projects(r.Context(), actorOf(r))
+	list := a.core.Projects
+	if r.URL.Query().Get("all") == "1" {
+		list = a.core.AllProjects
+	}
+	ps, err := list(r.Context(), actorOf(r))
 	respond(w, ps, err)
 }
 
