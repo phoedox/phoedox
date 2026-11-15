@@ -2413,4 +2413,9 @@ export const en: Record<keyof typeof de, string> = {
   "ctx.expand": "Expand",
   "ctx.new_page": "New page here",
   "ctx.new_folder": "New folder here",
+  "project.documents_one": "1 document",
+  "model.count_one": "1 entry",
+  "table.count_one": "1 entry",
+  "block.query_count_one": "1 entry",
+  "table.delete_confirm_one": "Delete 1 entry?",
 };

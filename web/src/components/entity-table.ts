@@ -42,7 +42,7 @@ export class PhxEntityTable extends LitElement {
     .kic { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; flex: none; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
     .empty { border: 1px dashed var(--line); border-radius: 12px; padding: 28px 20px; text-align: center; display: grid; gap: 10px; justify-items: center; }
     @media (max-width: 860px) {
-      .split { grid-template-columns: 1fr; }
+      .split { grid-template-columns: minmax(0, 1fr); }
       nav.kinds { position: static; flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 6px; scrollbar-width: thin; }
       nav.kinds > div { display: contents; }
       nav.kinds .lbl { display: none; }

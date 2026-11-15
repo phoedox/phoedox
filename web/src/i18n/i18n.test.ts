@@ -15,3 +15,10 @@ describe("i18n", () => {
     expect(t("app.status", { status: "ok", version: "1.0" }, "en")).toBe("Server: ok, version 1.0");
   });
 });
+
+test("singular texts for a count of one", () => {
+  expect(t("table.count", { n: 1 }, "de")).toBe("1 Eintrag");
+  expect(t("table.count", { n: 2 }, "de")).toBe("2 Einträge");
+  expect(t("project.documents", { count: 1 }, "en")).toBe("1 document");
+  expect(t("project.documents", { count: 0 }, "en")).toBe("0 documents");
+});

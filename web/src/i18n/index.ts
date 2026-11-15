@@ -25,10 +25,15 @@ export function hasKey(key: string): key is Key {
   return key in de;
 }
 
-/** Translates a key and fills {placeholders}. Unknown placeholders stay visible. */
+/**
+ * Translates a key and fills {placeholders}. Unknown placeholders stay visible.
+ * When {count} or {n} is 1 and a "<key>_one" text exists, that one is used.
+ */
 export function t(key: Key, vars: Record<string, unknown> = {}, loc: Locale = current): string {
+  const table = tables[loc] as Record<string, string>;
+  const one = (vars.count ?? vars.n) === 1 ? table[`${key}_one`] : undefined;
   // Missing keys (only possible with dynamic keys) show the key instead of breaking the page.
-  return (tables[loc][key] ?? key).replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m));
+  return (one ?? table[key] ?? key).replace(/\{(\w+)\}/g, (m, name) => (name in vars ? String(vars[name]) : m));
 }
 
 /** A calendar day (YYYY-MM-DD or a timestamp) without time. */

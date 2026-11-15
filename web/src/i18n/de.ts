@@ -2411,4 +2411,9 @@ export const de = {
   "ctx.expand": "Aufklappen",
   "ctx.new_page": "Neue Seite hier",
   "ctx.new_folder": "Neuer Ordner hier",
+  "project.documents_one": "1 Dokument",
+  "model.count_one": "1 Eintrag",
+  "table.count_one": "1 Eintrag",
+  "block.query_count_one": "1 Eintrag",
+  "table.delete_confirm_one": "1 Eintrag löschen?",
 } as const;
