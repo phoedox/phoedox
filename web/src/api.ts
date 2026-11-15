@@ -130,11 +130,12 @@ export interface DraftInfo {
   reviewAt?: string | null;
   reviewNote?: string;
 }
-export type DecisionStatus = "proposed" | "accepted" | "rejected" | "deprecated" | "superseded";
-export const decisionStatuses: readonly DecisionStatus[] = ["proposed", "accepted", "rejected", "deprecated", "superseded"];
+export type DecisionStatus = "proposed" | "accepted" | "rejected" | "deprecated" | "partially_superseded" | "superseded";
+export const decisionStatuses: readonly DecisionStatus[] = ["proposed", "accepted", "rejected", "deprecated", "partially_superseded", "superseded"];
 export interface Decision {
   ref: string; number: number; slug: string; title: string; status: DecisionStatus; date?: string;
-  category?: string; supersedes?: string; supersededBy?: string; version: number; updatedAt: string;
+  category?: string; supersedes?: string; supersedesPartly?: boolean; supersedesScope?: string; supersededBy?: string; partlySupersededBy?: string[];
+  version: number; updatedAt: string;
 }
 /** Formats a decision number like the server: ADR-0007. */
 export const adrRef = (n: number) => `ADR-${String(n).padStart(4, "0")}`;

@@ -15,7 +15,7 @@ export class PhxNotificationBell extends LitElement {
   static properties = { items: { state: true }, unread: { state: true }, open: { state: true } };
   static styles = [base, css`
     :host { position: relative; display: inline-flex; }
-    button.bell { position: relative; padding: 6px 8px; color: var(--muted); }
+    button.bell { position: relative; height: var(--header-ctl, 34px); min-width: var(--header-ctl, 34px); box-sizing: border-box; padding: 0 8px; justify-content: center; color: var(--muted); }
     .count { position: absolute; top: 1px; right: 1px; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 999px;
       background: var(--accent); color: var(--on-color); font: 600 10px/16px var(--font-body); text-align: center; }
     .panel { position: absolute; right: 0; top: calc(100% + 6px); width: min(380px, calc(100vw - 24px)); max-height: min(520px, 70vh); overflow-y: auto; z-index: 20;

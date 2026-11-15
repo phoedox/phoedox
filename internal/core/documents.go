@@ -18,7 +18,7 @@ import (
 
 // ADR is the content of a decision record.
 type ADR struct {
-	Status       string   `json:"status"` // proposed | accepted | rejected | deprecated | superseded
+	Status       string   `json:"status"` // proposed | accepted | rejected | deprecated | partially_superseded | superseded
 	Date         string   `json:"date,omitempty"`
 	Deciders     []string `json:"deciders,omitempty"`
 	Context      string   `json:"context"`
@@ -26,9 +26,17 @@ type ADR struct {
 	Consequences string   `json:"consequences,omitempty"`
 	Alternatives string   `json:"alternatives,omitempty"`
 	Supersedes   string   `json:"supersedes,omitempty"` // slug of an older decision
+	// SupersedesPartly: this decision replaces only part of the older one
+	// (which then becomes partially_superseded); SupersedesScope says which
+	// part, e.g. "only the choice of database".
+	SupersedesPartly bool   `json:"supersedesPartly,omitempty"`
+	SupersedesScope  string `json:"supersedesScope,omitempty"`
 	// SupersededBy is maintained by the server: the slug of the decision
 	// that replaced this one. Input values are ignored.
 	SupersededBy string `json:"supersededBy,omitempty"`
+	// PartlySupersededBy is maintained by the server: the decisions that
+	// each replaced a part of this one, oldest first.
+	PartlySupersededBy []string `json:"partlySupersededBy,omitempty"`
 }
 
 // DecisionRef formats a decision number, e.g. ADR-0007.
@@ -37,17 +45,26 @@ func DecisionRef(n int) string { return fmt.Sprintf("ADR-%04d", n) }
 // adrRef matches decision references like ADR-0007, adr-7 or ADR7.
 var adrRef = regexp.MustCompile(`(?i)^adr-?0*([1-9][0-9]*)$`)
 
-// findDoc resolves a document by id, slug or decision reference (ADR-0007).
+// findDoc resolves a document by id, slug, decision reference (ADR-0007)
+// or, failing those, a title that starts with ref.
 func (s *Service) findDoc(ctx context.Context, projectID, ref string) (store.Document, error) {
 	ref = strings.TrimSpace(ref)
 	doc, err := s.DB.GetDocument(ctx, projectID, ref)
-	if errors.Is(err, store.ErrNotFound) {
-		if m := adrRef.FindStringSubmatch(ref); m != nil {
-			n, _ := strconv.Atoi(m[1])
-			return s.DB.GetDecision(ctx, projectID, n)
+	if !errors.Is(err, store.ErrNotFound) || ref == "" {
+		return doc, err
+	}
+	if m := adrRef.FindStringSubmatch(ref); m != nil {
+		n, _ := strconv.Atoi(m[1])
+		return s.DB.GetDecision(ctx, projectID, n)
+	}
+	// [[D-321]] and similar: slugs are lowercase, and identifiers from other
+	// systems often live only at the start of a title.
+	if low := strings.ToLower(ref); low != ref {
+		if doc, err = s.DB.GetDocument(ctx, projectID, low); !errors.Is(err, store.ErrNotFound) {
+			return doc, err
 		}
 	}
-	return doc, err
+	return s.DB.DocumentByTitle(ctx, projectID, ref)
 }
 
 // decisionLinks validates adr.Supersedes, normalises it to the target's slug
@@ -74,10 +91,49 @@ func (s *Service) decisionLinks(ctx context.Context, p store.Project, adr *ADR, 
 		adr.Supersedes = target.Slug
 		var old ADR
 		_ = json.Unmarshal(target.Content, &old)
-		if old.Status != "superseded" || old.SupersededBy != selfSlug {
+		before, _ := json.Marshal(old)
+		// Drop this decision from the older one's lists (also under its
+		// previous slug), then add it again as a full or partial replacement.
+		partly := old.PartlySupersededBy[:0:0]
+		for _, sl := range old.PartlySupersededBy {
+			if sl != selfSlug && (oldSlug == "" || sl != oldSlug) {
+				partly = append(partly, sl)
+			}
+		}
+		old.PartlySupersededBy = partly
+		if old.SupersededBy == selfSlug || (oldSlug != "" && old.SupersededBy == oldSlug) {
+			old.SupersededBy = ""
+		}
+		if adr.SupersedesPartly {
+			old.PartlySupersededBy = append(old.PartlySupersededBy, selfSlug)
+			if old.SupersededBy == "" && (old.Status == "superseded" || old.Status == "accepted" || old.Status == "proposed" || old.Status == "") {
+				old.Status = "partially_superseded"
+			}
+		} else {
 			old.Status, old.SupersededBy = "superseded", selfSlug
-			target.Content, _ = json.Marshal(old)
+		}
+		if after, _ := json.Marshal(old); string(after) != string(before) {
+			target.Content = after
 			related = append(related, target)
+		}
+	} else {
+		adr.SupersedesPartly, adr.SupersedesScope = false, ""
+	}
+	adr.SupersedesScope = strings.TrimSpace(adr.SupersedesScope)
+	if oldSlug != "" && oldSlug != selfSlug {
+		// Newer decisions that replace part of this one follow its new slug.
+		for _, sl := range adr.PartlySupersededBy {
+			newer, err := s.DB.GetDocument(ctx, p.ID, sl)
+			if err != nil || newer.Type != store.DocADR || newer.ID == selfID {
+				continue
+			}
+			var n ADR
+			_ = json.Unmarshal(newer.Content, &n)
+			if n.Supersedes == oldSlug {
+				n.Supersedes = selfSlug
+				newer.Content, _ = json.Marshal(n)
+				related = append(related, newer)
+			}
 		}
 	}
 	if oldSlug != "" && oldSlug != selfSlug && adr.SupersededBy != "" {
@@ -110,7 +166,7 @@ type LinkArchive struct {
 	Mime string     `json:"mime"`
 }
 
-var adrStatus = map[string]bool{"proposed": true, "accepted": true, "rejected": true, "deprecated": true, "superseded": true}
+var adrStatus = map[string]bool{"proposed": true, "accepted": true, "rejected": true, "deprecated": true, "partially_superseded": true, "superseded": true}
 
 // DocumentInput creates a document.
 type DocumentInput struct {
@@ -173,7 +229,7 @@ func content(typ, markdown string, adr *ADR, link *Link, board *Board, fp *Floor
 			adr.Status = "proposed"
 		}
 		if !adrStatus[adr.Status] {
-			return nil, "", invalid("validation.adr_status", nil, "adr.status must be proposed, accepted, rejected, deprecated or superseded")
+			return nil, "", invalid("validation.adr_status", nil, "adr.status must be proposed, accepted, rejected, deprecated, partially_superseded or superseded")
 		}
 		if strings.TrimSpace(adr.Decision) == "" {
 			return nil, "", invalid("validation.adr_decision_required", nil, "adr.decision is required")
@@ -270,7 +326,7 @@ func (s *Service) CreateDocument(ctx context.Context, a Actor, ref string, in Do
 	if in.Type == store.DocADR {
 		adr := *in.ADR
 		in.ADR = &adr
-		in.ADR.SupersededBy = ""
+		in.ADR.SupersededBy, in.ADR.PartlySupersededBy = "", nil
 		if _, err := s.decisionLinks(ctx, p, in.ADR, "", in.Slug, ""); err != nil {
 			return DocResult{}, err
 		}
@@ -285,7 +341,7 @@ func (s *Service) createDocument(ctx context.Context, a Actor, p store.Project, 
 	var related []store.Document
 	if in.Type == store.DocADR && in.ADR != nil {
 		adr := *in.ADR
-		adr.SupersededBy = ""
+		adr.SupersededBy, adr.PartlySupersededBy = "", nil
 		in.ADR = &adr
 		var err error
 		if related, err = s.decisionLinks(ctx, p, in.ADR, "", in.Slug, ""); err != nil {
@@ -413,7 +469,7 @@ func (s *Service) patched(ctx context.Context, p store.Project, cur store.Docume
 		_ = json.Unmarshal(cur.Content, adr)
 		if patch.ADR != nil {
 			next := *patch.ADR
-			next.SupersededBy = adr.SupersededBy // server-maintained
+			next.SupersededBy, next.PartlySupersededBy = adr.SupersededBy, adr.PartlySupersededBy // server-maintained
 			adr = &next
 		}
 	case store.DocLink:
@@ -534,17 +590,21 @@ func (s *Service) linkMentions(ctx context.Context, p store.Project, docID, text
 
 // DecisionSummary is one row of a project's decision log.
 type DecisionSummary struct {
-	Ref          string     `json:"ref"` // ADR-0007
-	Number       int        `json:"number"`
-	Slug         string     `json:"slug"`
-	Title        string     `json:"title"`
-	Status       string     `json:"status"`
-	Date         string     `json:"date,omitempty"`
-	Category     string     `json:"category,omitempty"`
-	Supersedes   string     `json:"supersedes,omitempty"`
-	SupersededBy string     `json:"supersededBy,omitempty"`
-	Version      int        `json:"version"`
-	UpdatedAt    store.Time `json:"updatedAt"`
+	Ref        string `json:"ref"` // ADR-0007
+	Number     int    `json:"number"`
+	Slug       string `json:"slug"`
+	Title      string `json:"title"`
+	Status     string `json:"status"`
+	Date       string `json:"date,omitempty"`
+	Category   string `json:"category,omitempty"`
+	Supersedes string `json:"supersedes,omitempty"`
+	// SupersedesPartly: Supersedes is only partly replaced (see SupersedesScope).
+	SupersedesPartly   bool       `json:"supersedesPartly,omitempty"`
+	SupersedesScope    string     `json:"supersedesScope,omitempty"`
+	SupersededBy       string     `json:"supersededBy,omitempty"`
+	PartlySupersededBy []string   `json:"partlySupersededBy,omitempty"`
+	Version            int        `json:"version"`
+	UpdatedAt          store.Time `json:"updatedAt"`
 }
 
 // Decisions lists the decisions of a project by number, optionally only
@@ -554,7 +614,7 @@ type DecisionSummary struct {
 func (s *Service) Decisions(ctx context.Context, a Actor, ref, status, query string) ([]DecisionSummary, error) {
 	words := strings.Fields(strings.ToLower(query))
 	if status != "" && !adrStatus[status] {
-		return nil, invalid("validation.adr_status", nil, "status must be proposed, accepted, rejected, deprecated or superseded")
+		return nil, invalid("validation.adr_status", nil, "status must be proposed, accepted, rejected, deprecated, partially_superseded or superseded")
 	}
 	p, err := s.project(ctx, a, ref, store.RoleDoc)
 	if err != nil {
@@ -585,7 +645,8 @@ func (s *Service) Decisions(ctx context.Context, a Actor, ref, status, query str
 			}
 		}
 		out = append(out, DecisionSummary{Ref: DecisionRef(d.Number), Number: d.Number, Slug: d.Slug, Title: d.Title, Status: c.Status, Date: c.Date,
-			Category: d.Category, Supersedes: c.Supersedes, SupersededBy: c.SupersededBy, Version: d.Version, UpdatedAt: d.UpdatedAt})
+			Category: d.Category, Supersedes: c.Supersedes, SupersedesPartly: c.SupersedesPartly, SupersedesScope: c.SupersedesScope,
+			SupersededBy: c.SupersededBy, PartlySupersededBy: c.PartlySupersededBy, Version: d.Version, UpdatedAt: d.UpdatedAt})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Number < out[j].Number })
 	return out, nil

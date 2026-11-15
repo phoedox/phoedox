@@ -15,18 +15,18 @@ export class PhxLangSwitcher extends SignalWatcher(LitElement) {
   static properties = { path: {}, open: { state: true }, active: { state: true } };
   static styles = [base, css`
     :host { position: relative; display: block; }
-    .btn { display: flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface);
+    .btn { display: flex; align-items: center; gap: 5px; height: var(--header-ctl, 34px); box-sizing: border-box; padding: 0 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface);
       color: var(--fg); font: 600 12px var(--font-mono); letter-spacing: .04em; cursor: pointer; transition: border-color var(--dur-fast) ease; }
     @media (hover: hover) and (pointer: fine) { .btn:hover { border-color: var(--muted); } }
     .btn .ico { color: var(--muted); }
-    ul { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; min-width: 200px; list-style: none; margin: 0; padding: 4px;
+    ul { position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; list-style: none; margin: 0; padding: 4px; min-width: 260px; max-width: calc(100vw - 24px);
       background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 14px 34px rgb(0 0 0 / .18);
       transform-origin: top left; transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
       @starting-style { opacity: 0; transform: scale(.97); } }
-    li { display: flex; gap: 10px; align-items: center; padding: 7px 9px; border-radius: 6px; cursor: pointer; font-size: 13.5px; }
+    li { display: flex; gap: 10px; align-items: center; min-height: 36px; box-sizing: border-box; padding: 0 10px; border-radius: 6px; cursor: pointer; font-size: 13.5px; white-space: nowrap; }
     li.act { background: var(--surface2); }
     li .code { font: 600 11px var(--font-mono); color: var(--muted); width: 26px; }
-    li .main { margin-left: auto; font-size: 11.5px; color: var(--muted); }
+    li .main { margin-left: auto; padding-left: 16px; font-size: 11.5px; color: var(--muted); }
     li[aria-selected="true"] { color: var(--accent); }
     @media (prefers-reduced-motion: reduce) { ul { transition: opacity var(--dur-fast) ease; @starting-style { opacity: 0; transform: none; } } }
   `];

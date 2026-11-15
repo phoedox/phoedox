@@ -15,7 +15,9 @@ export class PhxDocForm extends LitElement {
     .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     textarea.big { min-height: 380px; }
     @media (max-width: 700px) { .two { grid-template-columns: 1fr; } }
-  `];
+      label.check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+    label.check input { width: auto; margin: 0; }
+`];
   project = "";
   docSlug = "";
   type: Doc["type"] = "markdown";
@@ -74,7 +76,8 @@ export class PhxDocForm extends LitElement {
         : { description: s("description"), columns: [
           { id: "todo", name: t("board.col_todo") }, { id: "doing", name: t("board.col_doing") }, { id: "done", name: t("board.col_done"), done: true }] };
     }
-    if (this.type === "adr") body.adr = { status: s("status"), date: s("date"), context: s("context"), decision: s("decision"), consequences: s("consequences"), alternatives: s("alternatives"), supersedes: s("supersedes") };
+    if (this.type === "adr") body.adr = { status: s("status"), date: s("date"), context: s("context"), decision: s("decision"), consequences: s("consequences"), alternatives: s("alternatives"), supersedes: s("supersedes"),
+      supersedesPartly: !!s("supersedes") && s("partly") === "1", supersedesScope: s("partly") === "1" ? s("scope") : "" };
     this.busy = true;
     this.error = "";
     try {
@@ -93,7 +96,7 @@ export class PhxDocForm extends LitElement {
       toast(t("doc.saved"));
       const target = this.type === "adr" ? s("supersedes") : "";
       if (target && target !== (this.doc?.content?.supersedes ?? "")) {
-        toast(t("adr.marked_superseded", { ref: this.decisions.find((d) => d.slug === target)?.ref ?? target }));
+        toast(t(s("partly") === "1" ? "adr.marked_partly" : "adr.marked_superseded", { ref: this.decisions.find((d) => d.slug === target)?.ref ?? target }));
       }
       docsVersion.set(docsVersion.get() + 1);
       navigate(`/p/${this.project}/d/${res.document?.slug ?? ""}`);
@@ -104,7 +107,7 @@ export class PhxDocForm extends LitElement {
     }
   }
 
-  private supersedesField(d: Doc | undefined, current: string) {
+  private supersedesField(d: Doc | undefined, current: string, partly: boolean, scope: string) {
     const options = this.decisions.filter((o) => o.slug !== d?.slug);
     const known = !current || options.some((o) => o.slug === current);
     return html`<label class="field">${t("adr.supersedes")}
@@ -114,6 +117,8 @@ export class PhxDocForm extends LitElement {
           ${options.map((o) => html`<option value=${o.slug} ?selected=${o.slug === current}>${o.ref} · ${o.title}</option>`)}
         </select>
       </label>
+      <label class="check"><input type="checkbox" name="partly" value="1" ?checked=${partly}> ${t("adr.supersedes_partly")}</label>
+      <label class="field">${t("adr.supersedes_scope")}<input name="scope" .value=${scope} placeholder=${t("adr.supersedes_scope_ph")}></label>
       <p class="muted" style="margin:-4px 0 0;font-size:13px">${t("adr.supersedes_hint")}</p>`;
   }
 
@@ -144,7 +149,7 @@ export class PhxDocForm extends LitElement {
         <label class="field">${t("adr.decision")}<textarea name="decision" .value=${c.decision ?? ""} required></textarea></label>
         <label class="field">${t("adr.consequences")}<textarea name="consequences" .value=${c.consequences ?? ""}></textarea></label>
         <label class="field">${t("adr.alternatives")}<textarea name="alternatives" .value=${c.alternatives ?? ""}></textarea></label>
-        ${this.supersedesField(d, c.supersedes ?? "")}` : ""}
+        ${this.supersedesField(d, c.supersedes ?? "", !!c.supersedesPartly, c.supersedesScope ?? "")}` : ""}
       ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
       <div class="row">
         <button type="submit" ?disabled=${this.busy}>${d ? t("doc.save") : t("doc.create")}</button>

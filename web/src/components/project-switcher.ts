@@ -12,7 +12,7 @@ export class PhxProjectSwitcher extends SignalWatcher(LitElement) {
   static properties = { path: {}, open: { state: true }, projects: { state: true }, query: { state: true }, active: { state: true } };
   static styles = [base, css`
     :host { position: relative; display: block; min-width: 0; }
-    .btn { display: flex; align-items: center; gap: 8px; max-width: 280px; padding: 4px 10px 4px 5px; border-radius: 8px;
+    .btn { display: flex; align-items: center; gap: 8px; max-width: 280px; height: var(--header-ctl, 34px); box-sizing: border-box; padding: 0 10px 0 5px; border-radius: 8px;
       border: 1px solid var(--line); background: var(--surface); color: var(--fg); font: 500 14px var(--font-body); cursor: pointer;
       transition: border-color var(--dur-fast) ease; }
     @media (hover: hover) and (pointer: fine) { .btn:hover { border-color: var(--muted); } }
@@ -36,7 +36,7 @@ export class PhxProjectSwitcher extends SignalWatcher(LitElement) {
     .empty { padding: 8px; color: var(--muted); font-size: 13px; }
     .foot { border-top: 1px solid var(--line); padding-top: 6px; display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
     .foot a { color: var(--muted); }
-    @media (max-width: 640px) { .btn .name { display: none; } .btn { padding: 4px; } }
+    @media (max-width: 640px) { .btn .name { display: none; } .btn { padding: 0 4px; } }
     @media (prefers-reduced-motion: reduce) { .pop { transition: opacity var(--dur-fast) ease; @starting-style { opacity: 0; transform: none; } } }
   `];
   /** Current location, so the button follows navigation. */

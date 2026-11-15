@@ -6,8 +6,11 @@ Pages are CommonMark with GitHub tables, task lists and these additions.
 
 `@slug` links an entry of the same project, `@project/slug` one of another project.
 Mentions inside inline code or code blocks stay text. `@` does not work for pages:
-link a page with `[Title](/p/<project>/d/<slug>)`; published sites rewrite these
-links to their own addresses.
+link a page or decision with `[[ref]]` or `[[ref|label]]`, where ref is its slug,
+its number (`[[ADR-0255]]`) or the start of its title up to a separator
+(`[[D-321]]` finds "D-321 · iOS project …"); `[[other-project/ref]]` links across
+projects. Plain Markdown links `[Title](/p/<project>/d/<slug>)` work too.
+Published sites rewrite both to their own addresses.
 
 ## Callouts
 

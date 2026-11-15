@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -525,6 +526,20 @@ func (s *Site) links(r *http.Request, base string, site []core.PubProject, pp co
 			}
 			return ""
 		},
+		PageRef: func(ref string) string {
+			project := pp.Project.Slug
+			if pr, rest, ok := strings.Cut(ref, "/"); ok {
+				project, ref = pr, rest
+			}
+			for _, x := range site {
+				if x.Project.Slug == project {
+					if d, ok := matchDoc(x.Docs, ref); ok {
+						return base + "/" + project + "/" + d.Slug + keepLang(r)
+					}
+				}
+			}
+			return ""
+		},
 		Include: func(ref string) string {
 			_, d, err := s.Core.PubDocument(r.Context(), site, pp.Project.Slug, ref, r.URL.Query().Get("lang"))
 			if err != nil || d.Type != store.DocMarkdown {
@@ -748,4 +763,38 @@ func (s *Site) render(w http.ResponseWriter, r *http.Request, status int, pg *pa
 	if err := layout.Execute(w, pg); err != nil {
 		_, _ = io.WriteString(w, "render error")
 	}
+}
+
+var adrNumber = regexp.MustCompile(`(?i)^adr-?0*([1-9][0-9]*)$`)
+
+// matchDoc finds the page a [[ref]] means, like the app does: slug (any
+// case), decision number (ADR-0007), or a title equal to ref or starting
+// with ref and a separator ("D-321 · …"); the shortest title wins.
+func matchDoc(docs []store.Document, ref string) (store.Document, bool) {
+	ref = strings.TrimSpace(ref)
+	low := strings.ToLower(ref)
+	for _, d := range docs {
+		if d.Slug == ref || d.Slug == low {
+			return d, true
+		}
+	}
+	if m := adrNumber.FindStringSubmatch(ref); m != nil {
+		n, _ := strconv.Atoi(m[1])
+		for _, d := range docs {
+			if d.Type == store.DocADR && d.Number == n {
+				return d, true
+			}
+		}
+	}
+	var best store.Document
+	found := false
+	for _, d := range docs {
+		t := strings.ToLower(d.Title)
+		if t == low || strings.HasPrefix(t, low+" ") || strings.HasPrefix(t, low+":") || strings.HasPrefix(t, low+",") {
+			if !found || len(d.Title) < len(best.Title) {
+				best, found = d, true
+			}
+		}
+	}
+	return best, found
 }

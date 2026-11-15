@@ -11,11 +11,11 @@ export class PhxUserMenu extends SignalWatcher(LitElement) {
   static properties = { open: { state: true } };
   static styles = [base, css`
     :host { position: relative; display: inline-block; }
-    .trigger { background: var(--surface); color: var(--fg); border-color: var(--line); padding: 4px 8px 4px 4px; gap: 8px; }
+    .trigger { background: var(--surface); color: var(--fg); border-color: var(--line); height: var(--header-ctl, 34px); box-sizing: border-box; padding: 0 8px 0 4px; gap: 8px; }
     .avatar { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--fg);
       font: 600 11px var(--font-mono); }
     .name { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
-    @media (max-width: 700px) { .name, .chev { display: none; } .trigger { padding: 3px; } }
+    @media (max-width: 700px) { .name, .chev { display: none; } .trigger { padding: 0 3px; } }
 
     /* Opened a few times a day: short, from the trigger corner. */
     [role="menu"] { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; min-width: 230px; padding: 6px;

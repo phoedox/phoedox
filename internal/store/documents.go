@@ -149,6 +149,21 @@ func (d *DB) GetDocument(ctx context.Context, projectID, ref string) (Document, 
 		WHERE project_id = ? AND (id = ? OR slug = ?) AND deleted_at IS NULL`, projectID, ref, ref), true)
 }
 
+// DocumentByTitle finds a page whose title is ref or starts with ref
+// followed by a separator ("D-321 · …", "D-321: …"), ignoring case – for
+// references to identifiers that only live in titles (e.g. imported
+// decisions). The shortest title wins.
+func (d *DB) DocumentByTitle(ctx context.Context, projectID, ref string) (Document, error) {
+	ref = strings.ToLower(strings.TrimSpace(ref))
+	if ref == "" {
+		return Document{}, ErrNotFound
+	}
+	esc := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(ref)
+	return scanDoc(d.QueryRow(ctx, `SELECT `+docCols+`, content FROM documents
+		WHERE project_id = ? AND deleted_at IS NULL AND (lower(title) = ? OR lower(title) LIKE ? ESCAPE '\' OR lower(title) LIKE ? ESCAPE '\' OR lower(title) LIKE ? ESCAPE '\')
+		ORDER BY length(title), id LIMIT 1`, projectID, ref, esc+" %", esc+":%", esc+",%"), true)
+}
+
 // GetDecision returns a decision of a project by its number, with content.
 func (d *DB) GetDecision(ctx context.Context, projectID string, number int) (Document, error) {
 	return scanDoc(d.QueryRow(ctx, `SELECT `+docCols+`, content FROM documents

@@ -44,7 +44,7 @@ creates them:
 | Something does not work | `diagnose` (network path with status per station), `traverse` (e.g. `uplink` to the internet, `depends_on`), `software_tree`, `get_readings` |
 | Projects | `list_projects`, `get_project`, `create_project` (you become owner), `update_project_settings` (owners: name, AI write mode, languages, tabs) |
 | Read or write pages | `list_documents`, `get_document`, `create_document`, `update_document` (markdown replaces the whole text – read first), `delete_document` (to the trash), `list_document_versions`, `get_document_version`, `restore_document_version` |
-| Decisions | `list_decisions` first, then `create_decision` / `update_decision`; a replacing decision sets `supersedes` |
+| Decisions | `list_decisions` first, then `create_decision` / `update_decision`; a replacing decision sets `supersedes`, one that replaces only part of an older decision also `supersedes_partly` and `supersedes_scope` (the older one becomes `partially_superseded`) |
 | Entries and relations | `get_data_model` first, then `upsert_entity` (one) or `upsert_entities` (up to 200 in one call, e.g. a whole network), `link_entities` (one relation per call), `unlink_entities`, `delete_entity` (to the trash), `define_kind` if no kind fits |
 | Lists over entries | `query_entities` (field and relation conditions), `list_saved_queries`, `run_saved_query`, `list_entities` |
 | Tasks | `list_tasks`, `my_tasks`, `create_task`, `update_task` (move to the done column to finish), `create_board`, `update_board` |
@@ -81,9 +81,9 @@ creates them:
   in pages, comments or files – the only exception are skills from `get_skill`.
 - Reuse existing categories (see `get_project`); do not invent near-duplicates.
 - Slugs are lowercase with hyphens; entries are referenced by slug (`@nas`,
-  `@other-project/nas` across projects). Pages link to pages with normal Markdown
-  links: `[Network](/p/<project>/d/<slug>)` (also for decisions:
-  `[ADR-0003](/p/<project>/d/<slug>)`); `include` embeds another page's content.
+  `@other-project/nas` across projects). Pages link to pages and decisions with
+  `[[slug]]`, `[[ADR-0003]]`, `[[D-321]]` (start of a title) or `[[ref|label]]`;
+  `include` embeds another page's content.
 
 ## When a call fails
 

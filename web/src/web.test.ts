@@ -90,3 +90,11 @@ describe("page building blocks (ADR-0031)", () => {
     expect(out).toContain("<phx-mermaid><pre>flowchart LR\n  A --&gt; B</pre></phx-mermaid>");
   });
 });
+
+test("page links [[ref]] and [[ref|label]]", () => {
+  const out = markdownHTML("Siehe [[D-321]], [[ADR-0255|die Swift-Brücke]] und [[other/netz]]. `[[code]]` bleibt.", "somaro");
+  expect(out).toContain('<a href="/p/somaro/d/D-321" class="pagelink">D-321</a>');
+  expect(out).toContain('<a href="/p/somaro/d/ADR-0255" class="pagelink">die Swift-Brücke</a>');
+  expect(out).toContain('<a href="/p/other/d/netz" class="pagelink">other/netz</a>');
+  expect(out).toContain("<code>[[code]]</code>");
+});

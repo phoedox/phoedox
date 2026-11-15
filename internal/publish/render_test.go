@@ -2,6 +2,8 @@ package publish
 
 import (
 	"strings"
+
+	"github.com/phoedox/phoedox/internal/store"
 	"testing"
 )
 
@@ -54,5 +56,36 @@ func TestIncludeAndQueryBlocks(t *testing.T) {
 	}
 	if out := Markdown("```include\nsafety\n```", Links{}); strings.Contains(out, "safety") {
 		t.Fatalf("include without a resolver: %s", out)
+	}
+}
+
+func TestWikiLinks(t *testing.T) {
+	links := Links{PageRef: func(ref string) string {
+		if ref == "D-321" || ref == "ADR-0255" {
+			return "/pub/docs/somaro/d-321"
+		}
+		return ""
+	}}
+	out := Markdown("Siehe [[D-321]], [[ADR-0255|die Swift-Brücke]] und [[fehlt]]. `[[code]]` bleibt.", links)
+	for _, want := range []string{`href="/pub/docs/somaro/d-321" rel="nofollow">D-321</a>`, `href="/pub/docs/somaro/d-321" rel="nofollow">die Swift-Brücke</a>`, `<span class="wikilink">fehlt</span>`, `<code>[[code]]</code>`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in %s", want, out)
+		}
+	}
+}
+
+func TestMatchDoc(t *testing.T) {
+	docs := []store.Document{
+		{Slug: "netz", Title: "Netz"},
+		{Slug: "swift", Title: "D-321 · iOS project and Swift bridge", Type: store.DocADR, Number: 255},
+		{Slug: "d-3210", Title: "D-3210 · Something else"},
+	}
+	for ref, want := range map[string]string{"netz": "netz", "NETZ": "netz", "ADR-0255": "swift", "adr-255": "swift", "D-321": "swift", "d-3210": "d-3210"} {
+		if d, ok := matchDoc(docs, ref); !ok || d.Slug != want {
+			t.Errorf("%s: got %q %v, want %q", ref, d.Slug, ok, want)
+		}
+	}
+	if _, ok := matchDoc(docs, "D-32"); ok {
+		t.Error("prefix of an identifier must not match")
 	}
 }

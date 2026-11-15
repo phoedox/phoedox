@@ -49,6 +49,8 @@ export class PhxProjects extends SignalWatcher(LitElement) {
     h2.sec a { color: inherit; text-decoration: none; }
     h2.sec .n { text-transform: none; letter-spacing: 0; font-weight: 500; }
     .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+    /* Without a heading in between, the projects must not stick to the tiles. */
+    .tiles + .grid, .tiles + .list { margin-top: 24px; }
     .tile { display: flex; gap: 10px; align-items: center; padding: 9px 12px; text-decoration: none; color: var(--fg); min-width: 0; }
     .tile > span { min-width: 0; }
     .tile b, .tile small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -298,7 +300,7 @@ export class PhxProjects extends SignalWatcher(LitElement) {
         <button class="ghost" @click=${() => this.openDialog("import")}>${icon("ArrowRightLeft", 15)} ${t("transfer.title")}</button></div></div>` : ""}
       ${this.q && visible.length === 0 ? html`<p class="muted">${t("projects.no_match")}</p>` : ""}
       ${this.section(pinnedList.length ? html`${icon("Star", 13)} ${t("projects.pinned")}` : "", pinnedList)}
-      ${main.map(([name, slug, ps]) => this.section(name ? html`${icon(slug ? "Building2" : "UserRound", 13)} ${slug ? html`<a href="/orgs/${slug}">${name}</a>` : name}` : pinnedList.length ? t("projects.all") : "", ps))}
+      ${main.map(([name, slug, ps]) => this.section(name ? html`${icon(slug ? "Building2" : "UserRound", 13)} ${slug ? html`<a href="/orgs/${slug}">${name}</a>` : name}` : pinnedList.length || this.recent.length ? t("projects.all") : "", ps))}
       ${other.length ? html`<details style="margin-top:18px"><summary style="cursor:pointer;font-weight:600">${t("projects.other")}</summary>
         ${other.map(([name, slug, ps]) => this.section(html`${icon("Building2", 13)} <a href="/orgs/${slug}">${name}</a>`, ps))}</details>` : ""}
       ${this.dialog()}

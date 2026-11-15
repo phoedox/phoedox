@@ -19,6 +19,7 @@
   "status_accepted": "angenommen",
   "status_rejected": "abgelehnt",
   "status_deprecated": "veraltet",
+  "status_partially_superseded": "teilweise ersetzt",
   "status_superseded": "ersetzt",
   "context": "Kontext",
   "decision": "Entscheidung",

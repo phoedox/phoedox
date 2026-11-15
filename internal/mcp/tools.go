@@ -235,7 +235,7 @@ type updateBoardIn struct {
 }
 
 type decisionFields struct {
-	Status       string   `json:"status,omitempty" jsonschema:"proposed, accepted, rejected, deprecated or superseded"`
+	Status       string   `json:"status,omitempty" jsonschema:"proposed, accepted, rejected, deprecated, partially_superseded or superseded (the last two are set automatically by supersedes)"`
 	Date         string   `json:"date,omitempty" jsonschema:"YYYY-MM-DD"`
 	Deciders     []string `json:"deciders,omitempty"`
 	Context      string   `json:"context,omitempty" jsonschema:"situation and forces, Markdown"`
@@ -243,16 +243,20 @@ type decisionFields struct {
 	Consequences string   `json:"consequences,omitempty" jsonschema:"Markdown"`
 	Alternatives string   `json:"alternatives,omitempty" jsonschema:"considered options, Markdown"`
 	Supersedes   string   `json:"supersedes,omitempty" jsonschema:"slug or number (ADR-0003) of the decision this one replaces; it is marked superseded automatically"`
+	// Pointer so update_decision can tell "not given" from false.
+	SupersedesPartly *bool  `json:"supersedes_partly,omitempty" jsonschema:"true if this decision replaces only part of the older one; the older one is then marked partially_superseded and stays valid otherwise"`
+	SupersedesScope  string `json:"supersedes_scope,omitempty" jsonschema:"with supersedes_partly: which part is replaced, e.g. only the choice of database"`
 }
 
 func (f decisionFields) adr() core.ADR {
 	return core.ADR{Status: f.Status, Date: f.Date, Deciders: f.Deciders, Context: f.Context, Decision: f.Decision,
-		Consequences: f.Consequences, Alternatives: f.Alternatives, Supersedes: f.Supersedes}
+		Consequences: f.Consequences, Alternatives: f.Alternatives, Supersedes: f.Supersedes,
+		SupersedesPartly: f.SupersedesPartly != nil && *f.SupersedesPartly, SupersedesScope: f.SupersedesScope}
 }
 
 type listDecisionsIn struct {
 	Project string `json:"project" jsonschema:"project slug"`
-	Status  string `json:"status,omitempty" jsonschema:"only decisions with this status: proposed, accepted, rejected, deprecated or superseded"`
+	Status  string `json:"status,omitempty" jsonschema:"only decisions with this status: proposed, accepted, rejected, deprecated, partially_superseded or superseded"`
 	Query   string `json:"query,omitempty" jsonschema:"only decisions whose number, title or text contain all these words"`
 }
 
@@ -603,7 +607,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		adr := in.adr()
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocADR, Title: in.Title, Slug: in.Slug, Category: in.Category, ADR: &adr})
 	})
-	tool(s, "list_decisions", "The decision log of a project: number (ADR-0003), title, status, date and which decision supersedes which, ordered by number.", func(ctx context.Context, a core.Actor, in listDecisionsIn) (any, error) {
+	tool(s, "list_decisions", "The decision log of a project: number (ADR-0003), title, status, date and which decision supersedes which (fully, or partly with a scope), ordered by number.", func(ctx context.Context, a core.Actor, in listDecisionsIn) (any, error) {
 		return svc.Decisions(ctx, a, in.Project, in.Status, in.Query)
 	})
 	tool(s, "update_decision", "Update a decision. Given fields replace the current ones, others stay.", func(ctx context.Context, a core.Actor, in updateDecisionIn) (any, error) {
@@ -621,6 +625,10 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		setIf(&adr.Consequences, &f.Consequences)
 		setIf(&adr.Alternatives, &f.Alternatives)
 		setIf(&adr.Supersedes, &f.Supersedes)
+		setIf(&adr.SupersedesScope, &f.SupersedesScope)
+		if f.SupersedesPartly != nil {
+			adr.SupersedesPartly = *f.SupersedesPartly
+		}
 		if len(f.Deciders) > 0 {
 			adr.Deciders = f.Deciders
 		}

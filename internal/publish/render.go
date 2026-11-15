@@ -29,6 +29,29 @@ type Links struct {
 	Board func(ref string) string
 	// Include renders an included page (```include) or returns "".
 	Include func(ref string) string
+	// PageRef resolves a [[page]] link (slug, ADR-0007 or the start of a
+	// title, optionally "project/ref") to its URL, or "" if it is not part
+	// of the publication.
+	PageRef func(ref string) string
+}
+
+// wikiLink is a page link: [[ref]] or [[ref|label]].
+var wikiLink = regexp.MustCompile(`\[\[([^\]|\n]+?)(?:\|([^\]\n]+))?\]\]`)
+
+func wikiLinks(s string, links Links) string {
+	return wikiLink.ReplaceAllStringFunc(s, func(m string) string {
+		p := wikiLink.FindStringSubmatch(m)
+		ref, label := strings.TrimSpace(p[1]), strings.TrimSpace(p[2])
+		if label == "" {
+			label = ref
+		}
+		if links.PageRef != nil {
+			if u := links.PageRef(ref); u != "" {
+				return `<a href="` + html.EscapeString(u) + `">` + html.EscapeString(label) + `</a>`
+			}
+		}
+		return `<span class="wikilink">` + html.EscapeString(label) + `</span>`
+	})
 }
 
 var (
@@ -45,19 +68,20 @@ var (
 )
 
 // inline applies the inline extensions outside code spans.
-func inline(line string) string {
+func inline(line string, links Links) string {
 	var out strings.Builder
 	last := 0
 	for _, m := range codeSpan.FindAllStringIndex(line, -1) {
-		out.WriteString(inlineText(line[last:m[0]]))
+		out.WriteString(inlineText(line[last:m[0]], links))
 		out.WriteString(line[m[0]:m[1]])
 		last = m[1]
 	}
-	out.WriteString(inlineText(line[last:]))
+	out.WriteString(inlineText(line[last:], links))
 	return out.String()
 }
 
-func inlineText(s string) string {
+func inlineText(s string, links Links) string {
+	s = wikiLinks(s, links)
 	s = colorSpan.ReplaceAllStringFunc(s, func(m string) string {
 		p := colorSpan.FindStringSubmatch(m)
 		var cls []string
@@ -80,7 +104,7 @@ func inlineText(s string) string {
 
 // preprocess turns callouts and inline extensions into HTML that goldmark
 // passes through; fenced code stays untouched.
-func preprocess(md string) string {
+func preprocess(md string, links Links) string {
 	lines := strings.Split(strings.ReplaceAll(md, "\r\n", "\n"), "\n")
 	var out []string
 	fence := ""
@@ -120,12 +144,12 @@ func preprocess(md string) string {
 					body = append(body, strings.TrimPrefix(strings.TrimPrefix(lines[i], ">"), " "))
 				}
 				out = append(out, `<div class="callout cb-`+color+`" data-kind="`+m[1]+`"><span class="ci`+iconColor+`" data-icon="`+icon+`"></span><div class="cc">`, "")
-				out = append(out, strings.Split(preprocess(strings.Join(body, "\n")), "\n")...)
+				out = append(out, strings.Split(preprocess(strings.Join(body, "\n"), links), "\n")...)
 				out = append(out, "", `</div></div>`, "")
 				continue
 			}
 		}
-		out = append(out, inline(l))
+		out = append(out, inline(l, links))
 	}
 	return strings.Join(out, "\n")
 }
@@ -205,7 +229,7 @@ func Markdown(md string, links Links) string {
 		goldmark.WithRendererOptions(ghtml.WithUnsafe(), renderer.WithNodeRenderers(util.Prioritized(fenceRenderer{links}, 100))),
 	)
 	var buf bytes.Buffer
-	if err := g.Convert([]byte(preprocess(md)), &buf); err != nil {
+	if err := g.Convert([]byte(preprocess(md, links)), &buf); err != nil {
 		return "<p>" + html.EscapeString(md) + "</p>"
 	}
 	out := policy.Sanitize(buf.String())

@@ -44,6 +44,8 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: va
   --dur-drawer: 260ms;
   /* Height of the sticky app bar; sticky elements below it use this. */
   --header-h: 53px;
+  /* Height of every control in the top bar, so they line up. */
+  --header-ctl: 34px;
 }
 /* Focus mode hides the top bar. */
 :root.focus {

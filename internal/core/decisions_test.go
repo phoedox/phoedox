@@ -146,6 +146,35 @@ func TestDecisions(t *testing.T) {
 		t.Fatalf("search without match: %+v", q)
 	}
 
+	// partial supersession: the older decision stays valid in parts
+	uiDoc := decide("UI-Stack", ADR{Status: "accepted", Decision: "Lit und Vite, Icons aus Lucide"})
+	iconsDoc := decide("Icons", ADR{Status: "accepted", Decision: "Icons aus Heroicons", Supersedes: uiDoc.Slug, SupersedesPartly: true, SupersedesScope: "nur die Icons"})
+	if a := adrOf(t, get(uiDoc.Slug)); a.Status != "partially_superseded" || a.SupersededBy != "" || len(a.PartlySupersededBy) != 1 || a.PartlySupersededBy[0] != iconsDoc.Slug {
+		t.Fatalf("partly superseded: %+v", a)
+	}
+	build := decide("Build", ADR{Status: "accepted", Decision: "Bun statt npm", Supersedes: uiDoc.Slug, SupersedesPartly: true})
+	if a := adrOf(t, get(uiDoc.Slug)); len(a.PartlySupersededBy) != 2 || a.PartlySupersededBy[1] != build.Slug {
+		t.Fatalf("second partial: %+v", a)
+	}
+	if ps, _ := s.Decisions(ctx, reader, p.Slug, "partially_superseded", ""); len(ps) != 1 || ps[0].Slug != uiDoc.Slug || len(ps[0].PartlySupersededBy) != 2 {
+		t.Fatalf("partially_superseded filter: %+v", ps)
+	}
+	if a := adrOf(t, get(iconsDoc.Slug)); !a.SupersedesPartly || a.SupersedesScope != "nur die Icons" {
+		t.Fatalf("newer keeps scope: %+v", a)
+	}
+	// renaming the partial successor follows in the older decision's list
+	if _, err := s.UpdateDocument(ctx, owner, p.Slug, iconsDoc.Slug, DocumentPatch{Slug: strp("icons-heroicons")}); err != nil {
+		t.Fatal(err)
+	}
+	if a := adrOf(t, get(uiDoc.Slug)); a.PartlySupersededBy[0] != "icons-heroicons" && a.PartlySupersededBy[1] != "icons-heroicons" {
+		t.Fatalf("renamed partial successor: %+v", a)
+	}
+	// a later full replacement wins
+	decide("UI neu", ADR{Status: "accepted", Decision: "Alles neu", Supersedes: uiDoc.Slug})
+	if a := adrOf(t, get(uiDoc.Slug)); a.Status != "superseded" || a.SupersededBy != "ui-neu" {
+		t.Fatalf("full after partial: %+v", a)
+	}
+
 	// AI suggestions supersede only when accepted
 	ai := Actor{User: owner.User, Via: "mcp", TokenID: "tok"}
 	res, err := s.CreateDocument(ctx, ai, p.Slug, DocumentInput{Type: "adr", Title: "Web Components", ADR: &ADR{Decision: "Lit bleibt", Supersedes: "adr-3"}})
@@ -159,7 +188,7 @@ func TestDecisions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n := acc.(DocResult).Document.Number; n != 5 {
+	if n := acc.(DocResult).Document.Number; n != 9 {
 		t.Fatalf("accepted number: %d", n)
 	}
 	if a := adrOf(t, get("ADR-0003")); a.Status != "superseded" || a.SupersededBy != "web-components" {

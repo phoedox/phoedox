@@ -51,9 +51,9 @@ export class PhxApp extends SignalWatcher(LitElement) {
     .pi { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; color: var(--surface); background: var(--accent); font: 600 10px var(--font-mono); }
     nav { margin-left: auto; display: flex; gap: 6px; align-items: center; }
     nav a, nav button { font-size: 13px; }
-    nav a { color: var(--muted); text-decoration: none; display: inline-flex; gap: 6px; align-items: center; padding: 6px 8px; border-radius: 6px; }
+    nav a { color: var(--muted); text-decoration: none; display: inline-flex; gap: 6px; align-items: center; height: var(--header-ctl, 34px); box-sizing: border-box; padding: 0 8px; border-radius: 6px; }
     @media (hover: hover) and (pointer: fine) { nav a:hover { color: var(--fg); } }
-    button.search { font-weight: 500; color: var(--muted); padding: 5px 10px; }
+    button.search { font-weight: 500; color: var(--muted); height: var(--header-ctl, 34px); box-sizing: border-box; padding: 0 10px; }
     kbd { font: 11px var(--font-mono); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; color: var(--muted); }
     .crumb { min-width: 0; } .crumb .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     /* Phones: icons only in the bar, the labels stay as accessible names. */

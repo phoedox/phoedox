@@ -42,6 +42,7 @@ export const base = css`
   .error { color: var(--bad); font-size: 13px; }
   .status-accepted { color: var(--good); }
   .status-rejected, .status-deprecated, .status-superseded { color: var(--bad); }
+  .status-partially_superseded { color: var(--signal); }
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 
   /* Content swap between documents (tens of times a day): barely-there fade. */

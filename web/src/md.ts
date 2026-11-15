@@ -9,6 +9,21 @@ import { CALLOUT_START, COLOR_SPAN, INLINE_MATH, TIME, UNDERLINE, parseCallout, 
 const mentionAt = /^@(?:([a-z0-9-]+)\/)?([a-z0-9]+(?:-[a-z0-9]+)*)/;
 const mentionStart = /(^|[^\w@./-])@[a-z0-9]/g;
 
+const WIKI_LINK = /^\[\[([^\]|\n]+?)(?:\|([^\]\n]+))?\]\]/;
+
+/** URL of a [[ref]] link: /p/<project>/d/<ref>; the server resolves slugs
+ * in any case, ADR numbers and title prefixes. */
+export function wikiHref(ref: string, project: string): string {
+  let p = project;
+  let r = ref.trim();
+  const slash = r.indexOf("/");
+  if (slash > 0 && /^[a-z0-9-]+$/.test(r.slice(0, slash))) {
+    p = r.slice(0, slash);
+    r = r.slice(slash + 1);
+  }
+  return `/p/${encodeURIComponent(p)}/d/${encodeURIComponent(r)}`;
+}
+
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 // Request blocks (```request or ```http) become interactive elements; the
@@ -89,6 +104,20 @@ const marked = new Marked({
     },
     renderer(tok: any) {
       return `<phx-time datetime="${escape(tok.datetime)}" data-kind="${tok.kind}">${escape(tok.text)}</phx-time>`;
+    },
+  }, {
+    // [[ref]] or [[ref|label]]: a link to a page or decision of this project
+    // (or "project/ref"). ref is a slug, a decision number (ADR-0007) or the
+    // start of a title ("D-321"); the page route resolves it.
+    name: "wikilink",
+    level: "inline",
+    start: (src: string) => startAt(src, /\[\[/),
+    tokenizer(src: string) {
+      const m = WIKI_LINK.exec(src);
+      return m ? { type: "wikilink", raw: m[0], ref: m[1].trim(), label: (m[2] ?? "").trim() } : undefined;
+    },
+    renderer(tok: any) {
+      return `<a href="${escape(wikiHref(tok.ref, context.project))}" class="pagelink">${escape(tok.label || tok.ref)}</a>`;
     },
   }, {
     name: "mention",

@@ -156,7 +156,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         this.lang = proj?.mainLocale ? contentLocale.get() || proj.mainLocale : "";
         this.mainDiff = undefined;
         const doc = await api<Doc>("GET", `/projects/${this.project}/documents/${this.docSlug}${this.lang ? `?lang=${this.lang}` : ""}`);
-        if (doc.type === "adr" && (doc.content?.supersedes || doc.content?.supersededBy)) {
+        if (doc.type === "adr" && (doc.content?.supersedes || doc.content?.supersededBy || doc.content?.partlySupersededBy?.length)) {
           const all = await api<Decision[]>("GET", `/projects/${this.project}/decisions`).catch(() => []);
           this.related = new Map(all.map((d) => [d.slug, d]));
         }
@@ -406,7 +406,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       md ? html`<section><h2>${t(key)}</h2><div class="prose">${unsafeHTML(renderMarkdown(md, this.project))}</div></section>` : "";
     return html`
       ${part("adr.context", c.context)}${part("adr.decision", c.decision)}${part("adr.consequences", c.consequences)}${part("adr.alternatives", c.alternatives)}
-      ${c.supersedes ? html`<p class="muted">${t("adr.supersedes")}: ${this.decisionLink(c.supersedes)}</p>` : ""}`;
+      ${c.supersedes ? html`<p class="muted">${t(c.supersedesPartly ? "adr.supersedes_partly_label" : "adr.supersedes")}: ${this.decisionLink(c.supersedes)}${c.supersedesPartly && c.supersedesScope ? html` – ${c.supersedesScope}` : ""}</p>` : ""}`;
   }
 
   /** Link to another decision as "ADR-0003 Title" (slug if unknown). */
@@ -469,6 +469,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       </header>
       ${d.type === "adr" && c.status === "superseded" && c.supersededBy
         ? html`<p class="notice" role="note">${t("adr.superseded_notice")} ${t("adr.superseded_by")}: ${this.decisionLink(c.supersededBy)}</p>` : ""}
+      ${d.type === "adr" && c.status === "partially_superseded" && c.partlySupersededBy?.length
+        ? html`<p class="notice" role="note">${t("adr.partly_notice")} ${t("adr.partly_by")}: ${(c.partlySupersededBy as string[]).map((sl, i) => html`${i ? ", " : ""}${this.decisionLink(sl)}`)}</p>` : ""}
       ${this.languageNotes(d)}
       ${this.draftNotice(d)}
       <phx-page-rules .project=${this.project} .doc=${d.id} .version=${d.version} ?canEdit=${canEdit}></phx-page-rules>
