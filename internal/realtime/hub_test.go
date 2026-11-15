@@ -191,3 +191,51 @@ func TestLib0(t *testing.T) {
 		t.Fatal("short bytes accepted")
 	}
 }
+
+// TestHubReadOnly: watchers of a whiteboard get every change but cannot
+// write, compact or bootstrap.
+func TestHubReadOnly(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, store.SQLite, filepath.Join(t.TempDir(), "rt.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	u, _ := db.CreateUser(ctx, store.User{ID: string(graph.NewID()), Email: "a@b.de", Name: "A"})
+	p, _ := db.CreateProject(ctx, store.Project{ID: string(graph.NewID()), Slug: "p", Name: "P", Short: "P", PrimaryColor: "#F26A1B", AIWriteMode: "suggest", OwnerID: u.ID})
+	doc, _ := db.CreateDocument(ctx, store.Document{ID: string(graph.NewID()), ProjectID: p.ID, Type: store.DocWhiteboard, Slug: "w", Title: "W", Content: store.JSON(`{}`), CreatedBy: u.ID}, "t")
+	hub := NewHub(db)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hub.Serve(w, r, doc.ID, r.URL.Query().Get("name"), r.URL.Query().Get("ro") == "1")
+	}))
+	defer srv.Close()
+	dial := func(q string) *wsClient {
+		t.Helper()
+		c, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(srv.URL, "http")+"?"+q, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { c.CloseNow() })
+		return &wsClient{t: t, conn: c}
+	}
+	expect := func(c *wsClient, want ...string) {
+		t.Helper()
+		for _, w := range want {
+			if got := kind(c.read()); !strings.HasPrefix(got, w) {
+				t.Fatalf("want %q, got %q", w, got)
+			}
+		}
+	}
+	// A watcher on an empty board is not asked to bootstrap.
+	v := dial("name=V&ro=1")
+	expect(v, "step1", "step2")
+	v.write(update("EVIL"))
+	time.Sleep(50 * time.Millisecond)
+	if ups, _ := db.DocUpdates(ctx, doc.ID); len(ups) != 0 {
+		t.Fatalf("read-only update stored: %d", len(ups))
+	}
+	e := dial("name=E")
+	expect(e, "step1", "control:bootstrap", "step2")
+	e.write(update("DRAW"))
+	expect(v, "update:DRAW")
+}

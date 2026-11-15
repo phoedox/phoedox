@@ -2697,4 +2697,10 @@ export const de = {
   "plan3d.open_device": "Zum Gerät",
   "plan3d.open_room": "Zum Raum",
   "plan3d.open_entry": "Zum Eintrag",
+  "validation.whiteboard": "Das Whiteboard ist ungültig: {what}.",
+  "validation.not_whiteboard": "Dieses Dokument ist kein Whiteboard.",
+  "validation.whiteboard_ops": "Bitte 1 bis 500 Operationen senden.",
+  "validation.whiteboard_op": "Operation {n}: {msg}",
+  "validation.diagram": "Diagramm: {msg}",
+  "validation.comment_text": "Die Antwort braucht einen Text.",
 } as const;

@@ -25,6 +25,7 @@ creates them:
 | `link` | external documentation | `create_link` |
 | `board` | a task board; its cards are tasks | `create_board` |
 | `floorplan` | the floor plan of one floor | `save_floorplan` |
+| `whiteboard` | a canvas drawn together live (shapes, arrows, sticky notes, embeds, comments) | `draw_diagram` (without `document`) or `save_whiteboard` |
 
 ## Start of a conversation
 
@@ -50,6 +51,7 @@ creates them:
 | Tasks | `list_tasks`, `my_tasks`, `create_task`, `update_task` (move to the done column to finish; `documents` links pages and decisions to the card, several at once), `create_board`, `update_board` |
 | Code on task cards | `list_code_repos` (GitHub or Gitea repositories of the project), `search_commits` (by SHA or message), `link_task_code` (commit, pull request or release on a card; the first release containing a linked commit is added by Phoedox) |
 | Floor plans | create room and device entries first, then `save_floorplan` with the whole plan (read it first when changing) |
+| Whiteboards | `get_whiteboard` (elements, frames, open comments), `draw_diagram` (nodes and edges – Phoedox lays them out), `edit_whiteboard` (add, update, delete single elements), `reply_comment`, `save_whiteboard` (whole board, e.g. imports) |
 | Quality | `find_documentation_gaps`, `list_duplicates`, `merge_entities`, `change_summary` |
 | Locations, household, network | `list_locations`, `household_overview`, `ip_addresses` |
 | Monitoring and APIs | `list_environment`, `run_request` (reading requests only), `list_checks`, `create_check`, `get_readings` |

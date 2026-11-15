@@ -57,6 +57,9 @@ type client struct {
 	name   string
 	aware  map[uint64]awarenessEntry // latest awareness per Yjs client id
 	closed bool
+	// readOnly clients (viewers of a whiteboard) receive every change and
+	// share their cursor, but their updates are dropped.
+	readOnly bool
 }
 
 // Control is a JSON message to clients (type 100).
@@ -84,14 +87,15 @@ func (h *Hub) room(id string) *room {
 }
 
 // Serve upgrades the request and runs a live editing session for the
-// document. The caller has checked that the user may edit it.
-func (h *Hub) Serve(w http.ResponseWriter, r *http.Request, documentID, userName string) {
+// document. The caller has checked that the user may edit it, or passes
+// readOnly for people who may only watch.
+func (h *Hub) Serve(w http.ResponseWriter, r *http.Request, documentID, userName string, readOnly ...bool) {
 	conn, err := websocket.Accept(w, r, nil) // checks Origin == Host
 	if err != nil {
 		return
 	}
 	conn.SetReadLimit(maxMessage)
-	c := &client{conn: conn, send: make(chan []byte, sendBuffer), name: userName, aware: map[uint64]awarenessEntry{}}
+	c := &client{conn: conn, send: make(chan []byte, sendBuffer), name: userName, aware: map[uint64]awarenessEntry{}, readOnly: len(readOnly) > 0 && readOnly[0]}
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 	go c.writeLoop(ctx, cancel)
@@ -185,7 +189,7 @@ func (h *Hub) join(ctx context.Context, r *room, c *client) error {
 	for _, u := range ups {
 		r.queue(c, syncMsg(syncUpdate, u.Data))
 	}
-	if len(ups) == 0 && r.bootstrapper == nil {
+	if len(ups) == 0 && r.bootstrapper == nil && !c.readOnly {
 		r.bootstrapper = c
 		r.queue(c, controlMsg(Control{Type: "bootstrap"}))
 	}
@@ -263,6 +267,9 @@ func (h *Hub) handle(ctx context.Context, r *room, c *client, data []byte) error
 			if err != nil {
 				return err
 			}
+			if c.readOnly {
+				return nil
+			}
 			return h.store(ctx, r, c, update)
 		}
 	case msgAwareness:
@@ -289,6 +296,9 @@ func (h *Hub) handle(ctx context.Context, r *room, c *client, data []byte) error
 		r.broadcast(c, data)
 		r.mu.Unlock()
 	case msgSnapshot:
+		if c.readOnly {
+			return nil
+		}
 		upto, err := d.uint()
 		if err != nil {
 			return err

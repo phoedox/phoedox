@@ -37,15 +37,34 @@ type publishingKey struct{}
 // the browser, Markdown pages and floor plans, and only while a draft is open (live editing
 // always works on the draft, ADR-0027).
 func (s *Service) LiveDocument(ctx context.Context, a Actor, ref, docRef string) (store.Document, error) {
-	_, doc, err := s.docAccess(ctx, a, ref, docRef, store.RoleEditor)
-	if err != nil {
-		return doc, err
+	doc, _, err := s.LiveSession(ctx, a, ref, docRef)
+	return doc, err
+}
+
+// LiveSession is LiveDocument that also lets people who may only read
+// watch a whiteboard live (readOnly). Whiteboards have no draft: the live
+// session is the board itself (ADR-0068).
+func (s *Service) LiveSession(ctx context.Context, a Actor, ref, docRef string) (store.Document, bool, error) {
+	if a.Via != "web" {
+		return store.Document{}, false, ErrForbidden
 	}
-	if !hasDrafts(doc.Type) || a.Via != "web" {
-		return doc, ErrForbidden
+	p, doc, err := s.docAccess(ctx, a, ref, docRef, store.RoleReader)
+	if err != nil {
+		return doc, false, err
+	}
+	if doc.Type == store.DocWhiteboard {
+		editor := rank[p.Role] >= rank[store.RoleEditor] && !s.readOnly(a, p) && !s.needsApproval(ctx, p)
+		return doc, !editor, nil
+	}
+	_, doc, err = s.docAccess(ctx, a, ref, docRef, store.RoleEditor)
+	if err != nil {
+		return doc, false, err
+	}
+	if !hasDrafts(doc.Type) {
+		return doc, false, ErrForbidden
 	}
 	if _, err := s.DB.GetDraft(ctx, doc.ID); err != nil {
-		return doc, err
+		return doc, false, err
 	}
-	return doc, nil
+	return doc, false, nil
 }

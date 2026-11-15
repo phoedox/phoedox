@@ -291,6 +291,8 @@ func (a *api) routes(r chi.Router) {
 			r.Put("/documents/{d}/draft", a.saveDraft)
 			r.Delete("/documents/{d}/draft", a.cancelDraft)
 			r.Post("/documents/{d}/draft/publish", a.publishDraft)
+			r.Put("/documents/{d}/whiteboard", a.saveWhiteboard)
+			r.Get("/embed-preview", a.embedPreview)
 			r.Post("/documents/{d}/draft/review", a.requestReview)
 			r.Post("/documents/{d}/draft/reject", a.rejectReview)
 			r.Get("/documents/{d}/skill", a.pageSkill)

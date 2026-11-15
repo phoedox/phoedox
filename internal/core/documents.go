@@ -241,7 +241,7 @@ var adrStatus = map[string]bool{"proposed": true, "accepted": true, "rejected": 
 
 // DocumentInput creates a document.
 type DocumentInput struct {
-	Type     string `json:"type"` // markdown | adr | link | board | floorplan
+	Type     string `json:"type"` // markdown | adr | link | board | floorplan | whiteboard
 	Title    string `json:"title"`
 	Slug     string `json:"slug,omitempty"`
 	Category string `json:"category,omitempty"`
@@ -252,6 +252,8 @@ type DocumentInput struct {
 	Board    *Board `json:"board,omitempty"`
 	// Floorplan is the content of a floor plan document.
 	Floorplan *Floorplan `json:"floorplan,omitempty"`
+	// Whiteboard is the content of a whiteboard document.
+	Whiteboard *Whiteboard `json:"whiteboard,omitempty"`
 	// Parent makes the document part of a page (slug or id), e.g. a board
 	// created from the page's "/" menu; it stays out of the sidebar.
 	Parent string `json:"parent,omitempty"`
@@ -259,16 +261,17 @@ type DocumentInput struct {
 
 // DocumentPatch changes a document; nil fields stay as they are.
 type DocumentPatch struct {
-	Title         *string    `json:"title,omitempty"`
-	Slug          *string    `json:"slug,omitempty"`
-	Category      *string    `json:"category,omitempty"`
-	Position      *int       `json:"position,omitempty"`
-	Markdown      *string    `json:"markdown,omitempty"`
-	ADR           *ADR       `json:"adr,omitempty"`
-	Link          *Link      `json:"link,omitempty"`
-	Board         *Board     `json:"board,omitempty"`
-	Floorplan     *Floorplan `json:"floorplan,omitempty"`
-	ExpectVersion int        `json:"expectVersion,omitempty"`
+	Title         *string     `json:"title,omitempty"`
+	Slug          *string     `json:"slug,omitempty"`
+	Category      *string     `json:"category,omitempty"`
+	Position      *int        `json:"position,omitempty"`
+	Markdown      *string     `json:"markdown,omitempty"`
+	ADR           *ADR        `json:"adr,omitempty"`
+	Link          *Link       `json:"link,omitempty"`
+	Board         *Board      `json:"board,omitempty"`
+	Floorplan     *Floorplan  `json:"floorplan,omitempty"`
+	Whiteboard    *Whiteboard `json:"whiteboard,omitempty"`
+	ExpectVersion int         `json:"expectVersion,omitempty"`
 }
 
 // DocResult is either an applied change or a pending suggestion.
@@ -283,8 +286,14 @@ type DocResult struct {
 
 // content builds and validates the JSON content for a type and returns the
 // text used for mention extraction.
-func content(typ, markdown string, adr *ADR, link *Link, board *Board, fp *Floorplan) (store.JSON, string, error) {
+func content(typ, markdown string, adr *ADR, link *Link, board *Board, fp *Floorplan, wb ...*Whiteboard) (store.JSON, string, error) {
 	switch typ {
+	case store.DocWhiteboard:
+		var w *Whiteboard
+		if len(wb) > 0 {
+			w = wb[0]
+		}
+		return whiteboardContent(w)
 	case store.DocBoard:
 		return boardContent(board)
 	case store.DocFloorplan:
@@ -327,7 +336,7 @@ func content(typ, markdown string, adr *ADR, link *Link, board *Board, fp *Floor
 		b, _ := json.Marshal(link)
 		return b, link.Description, nil
 	default:
-		return nil, "", invalid("validation.doc_type", nil, "type must be markdown, adr, link, board or floorplan")
+		return nil, "", invalid("validation.doc_type", nil, "type must be markdown, adr, link, board, floorplan or whiteboard")
 	}
 }
 
@@ -395,8 +404,13 @@ func (s *Service) CreateDocument(ctx context.Context, a Actor, ref string, in Do
 	if err := graph.ValidateSlug(in.Slug); err != nil {
 		return DocResult{}, invalid("validation.slug", nil, "slug: %v", err)
 	}
-	if _, _, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board, in.Floorplan); err != nil {
+	if _, _, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board, in.Floorplan, in.Whiteboard); err != nil {
 		return DocResult{}, err
+	}
+	if in.Type == store.DocWhiteboard {
+		if err := s.wbFiles(ctx, p, in.Whiteboard); err != nil {
+			return DocResult{}, err
+		}
 	}
 	if in.Type == store.DocFloorplan {
 		if err := s.planFiles(ctx, p, in.Floorplan); err != nil {
@@ -430,7 +444,7 @@ func (s *Service) createDocument(ctx context.Context, a Actor, p store.Project, 
 			return DocResult{}, err
 		}
 	}
-	c, text, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board, in.Floorplan)
+	c, text, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board, in.Floorplan, in.Whiteboard)
 	if err != nil {
 		return DocResult{}, err
 	}
@@ -521,7 +535,17 @@ func (s *Service) patched(ctx context.Context, p store.Project, cur store.Docume
 	var link *Link
 	var board *Board
 	var fp *Floorplan
+	var wb *Whiteboard
 	switch cur.Type {
+	case store.DocWhiteboard:
+		wb = &Whiteboard{}
+		_ = json.Unmarshal(cur.Content, wb)
+		if patch.Whiteboard != nil {
+			wb = patch.Whiteboard
+			if err := s.wbFiles(ctx, p, wb); err != nil {
+				return doc, "", nil, err
+			}
+		}
 	case store.DocFloorplan:
 		fp = &Floorplan{}
 		_ = json.Unmarshal(cur.Content, fp)
@@ -573,7 +597,7 @@ func (s *Service) patched(ctx context.Context, p store.Project, cur store.Docume
 			return doc, "", nil, err
 		}
 	}
-	c, text, err := content(cur.Type, md, adr, link, board, fp)
+	c, text, err := content(cur.Type, md, adr, link, board, fp, wb)
 	doc.Content = c
 	return doc, text, related, err
 }

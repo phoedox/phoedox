@@ -13,12 +13,12 @@ import (
 func (a *api) live(hub *realtime.Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		actor := actorOf(r)
-		doc, err := a.core.LiveDocument(r.Context(), actor, chi.URLParam(r, "p"), chi.URLParam(r, "d"))
+		doc, readOnly, err := a.core.LiveSession(r.Context(), actor, chi.URLParam(r, "p"), chi.URLParam(r, "d"))
 		if err != nil {
 			writeErr(w, err)
 			return
 		}
-		hub.Serve(w, r, doc.ID, actor.User.Name)
+		hub.Serve(w, r, doc.ID, actor.User.Name, readOnly)
 	}
 }
 
@@ -54,4 +54,22 @@ func (a *api) publishDraft(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) cancelDraft(w http.ResponseWriter, r *http.Request) {
 	respond(w, map[string]bool{"ok": true}, a.core.CancelDraft(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d")))
+}
+
+// saveWhiteboard stores the board from the live editor (published at once, ADR-0068).
+func (a *api) saveWhiteboard(w http.ResponseWriter, r *http.Request) {
+	var in core.Whiteboard
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	doc, err := a.core.SaveWhiteboard(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"), &in)
+	respond(w, map[string]any{"version": doc.Version, "updatedAt": doc.UpdatedAt}, err)
+}
+
+// embedPreview fetches title, description and site of an address for a
+// whiteboard embed.
+func (a *api) embedPreview(w http.ResponseWriter, r *http.Request) {
+	pv, kind, err := a.core.EmbedPreview(r.Context(), actorOf(r), chi.URLParam(r, "p"), r.URL.Query().Get("url"))
+	respond(w, map[string]any{"kind": kind, "preview": pv}, err)
 }

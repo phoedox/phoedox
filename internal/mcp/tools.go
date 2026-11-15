@@ -70,6 +70,40 @@ type saveFloorplanIn struct {
 	Floorplan core.Floorplan `json:"floorplan" jsonschema:"the whole plan in millimetres: width, height, rooms (id, name, entity slug of a room entry, points [[x,y],…] clockwise, color gray|red|orange|yellow|green|blue|purple|pink), devices (id, entity slug, x, y), floor (slug of a floor entry). Saving links devices located_in the room they stand in."`
 }
 
+type wbDocIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Document string `json:"document" jsonschema:"whiteboard slug or id"`
+}
+
+type editWhiteboardIn struct {
+	Project  string      `json:"project" jsonschema:"project slug"`
+	Document string      `json:"document" jsonschema:"whiteboard slug or id"`
+	Ops      []core.WBOp `json:"ops" jsonschema:"operations in order: {op: add, element: {...}} | {op: update, id, element: {changed fields, null removes}} | {op: delete, id}"`
+}
+
+type drawDiagramIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Document string `json:"document,omitempty" jsonschema:"whiteboard to draw on (slug); empty creates a new whiteboard"`
+	Title    string `json:"title,omitempty" jsonschema:"title of a new whiteboard"`
+	Category string `json:"category,omitempty"`
+	core.DiagramInput
+}
+
+type replyCommentIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Document string `json:"document" jsonschema:"whiteboard slug or id"`
+	Comment  string `json:"comment" jsonschema:"comment id from get_whiteboard"`
+	Text     string `json:"text"`
+}
+
+type saveWhiteboardIn struct {
+	Project    string          `json:"project" jsonschema:"project slug"`
+	Document   string          `json:"document,omitempty" jsonschema:"slug of an existing whiteboard to replace; empty creates a new one"`
+	Title      string          `json:"title,omitempty" jsonschema:"title of a new whiteboard"`
+	Category   string          `json:"category,omitempty"`
+	Whiteboard core.Whiteboard `json:"whiteboard" jsonschema:"the whole board: elements (see edit_whiteboard) and comments"`
+}
+
 type createBoardIn struct {
 	Project     string             `json:"project" jsonschema:"project slug"`
 	Title       string             `json:"title"`
@@ -563,6 +597,24 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 			return svc.UpdateDocument(ctx, a, in.Project, in.Document, core.DocumentPatch{Floorplan: &in.Floorplan})
 		}
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocFloorplan, Title: in.Title, Category: in.Category, Floorplan: &in.Floorplan})
+	})
+	tool(s, "get_whiteboard", "Read a whiteboard (document type whiteboard): elements with id, type, text, box [x,y,w,h] or points, bound ends (from/to), frames with their content, linked entries, embeds with title and status, and the open comments with the element they point to. Coordinates are board units (about pixels at 100 %); y grows downwards.", func(ctx context.Context, a core.Actor, in wbDocIn) (any, error) {
+		return svc.WhiteboardView(ctx, a, in.Project, in.Document)
+	})
+	tool(s, "edit_whiteboard", "Change a whiteboard with operations; everyone on the board sees them at once. Elements: type rect|ellipse|diamond|text|sticky|frame|line|arrow|pen|image|embed|entity; boxes have x, y, w, h; lines and arrows have points [[x,y],...] (waypoints between the ends) and bind their ends with start/end {element} (towards the centre) or {element, fx, fy} (fixed point, 0–1 of the box); round: true for smooth corners. text, stroke and fill colours gray|red|orange|yellow|green|blue|purple|pink, dash dashed|dotted, frame (id of a frame), entity (entry slug: shows the entry), doc (page slug), url (embed: a video, pull request, issue or website; kind and preview are filled in), file (image: a project file id). For diagrams prefer draw_diagram. Read the board first with get_whiteboard.", func(ctx context.Context, a core.Actor, in editWhiteboardIn) (any, error) {
+		return svc.EditWhiteboard(ctx, a, in.Project, in.Document, in.Ops)
+	})
+	tool(s, "draw_diagram", "Draw a diagram on a whiteboard from its structure; Phoedox lays it out (layers in direction right or down), places it next to what is on the board and binds the arrows. nodes: {id, text, shape rect|ellipse|diamond|sticky, color, entity (entry slug), group}; edges: {from, to, label, dashed, line (no arrow head)}; groups: {id, label} become frames; title frames the whole diagram. Without document a new whiteboard is created.", func(ctx context.Context, a core.Actor, in drawDiagramIn) (any, error) {
+		return svc.DrawDiagram(ctx, a, in.Project, in.Document, in.Title, in.Category, in.DiagramInput)
+	})
+	tool(s, "reply_comment", "Answer a comment on a whiteboard (ids from get_whiteboard). People mark comments as done themselves.", func(ctx context.Context, a core.Actor, in replyCommentIn) (any, error) {
+		return svc.ReplyWhiteboardComment(ctx, a, in.Project, in.Document, in.Comment, in.Text)
+	})
+	tool(s, "save_whiteboard", "Create or replace a whole whiteboard (e.g. an import). For changes use edit_whiteboard, for diagrams draw_diagram.", func(ctx context.Context, a core.Actor, in saveWhiteboardIn) (any, error) {
+		if in.Document != "" {
+			return svc.UpdateDocument(ctx, a, in.Project, in.Document, core.DocumentPatch{Whiteboard: &in.Whiteboard})
+		}
+		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocWhiteboard, Title: in.Title, Category: in.Category, Whiteboard: &in.Whiteboard})
 	})
 	tool(s, "create_board", "Create a task board (a document of type board with columns).", func(ctx context.Context, a core.Actor, in createBoardIn) (any, error) {
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocBoard, Title: in.Title, Category: in.Category, Board: &core.Board{Description: in.Description, Columns: in.Columns}})

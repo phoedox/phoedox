@@ -248,6 +248,8 @@ var apiDocs = map[string]op{
 	"POST /projects/{p}/documents/{d}/draft":                 {Tag: "documents", Summary: "Start or join the draft of a Markdown page (edit session).", Out: core.DraftInfo{}},
 	"PUT /projects/{p}/documents/{d}/draft":                  {Tag: "documents", Summary: "Save the draft (Markdown, title, category); the published page stays unchanged.", In: core.DraftPatch{}, Out: core.DraftInfo{}},
 	"DELETE /projects/{p}/documents/{d}/draft":               {Tag: "documents", Summary: "Cancel the draft: discards the changes of all participants and ends the session.", Out: ok{}},
+	"PUT /projects/{p}/documents/{d}/whiteboard":             {Tag: "documents", Summary: "Save a whiteboard from the live editor (published at once; saves of the same person within 10 minutes update one version).", In: core.Whiteboard{}, Out: map[string]any{}},
+	"GET /projects/{p}/embed-preview":                        {Tag: "documents", Summary: "Title, description and site of an address for a whiteboard embed (?url=…).", Out: map[string]any{}},
 	"POST /projects/{p}/documents/{d}/draft/review":          {Tag: "documents", Summary: "Ask the owners to approve the draft (approval workflow).", In: noteIn{}, Out: core.DraftInfo{}},
 	"POST /projects/{p}/documents/{d}/draft/reject":          {Tag: "documents", Summary: "Send the draft back with a note (owners).", In: noteIn{}, Out: core.DraftInfo{}},
 	"GET /projects/{p}/documents/{d}/rules":                  {Tag: "documents", Summary: "Review date and required reading of a page.", Out: core.PageRuleInfo{}},

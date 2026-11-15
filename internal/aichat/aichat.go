@@ -36,6 +36,7 @@ var mcpTools = []string{
 	"list_tasks", "list_comments", "add_comment", "list_skills", "get_skill",
 	"change_summary", "find_documentation_gaps", "list_maintenance_plans",
 	"household_overview", "list_locations", "ip_addresses", "list_checks", "get_readings",
+	"get_whiteboard", "edit_whiteboard", "draw_diagram", "reply_comment",
 }
 
 // maxSteps limits model calls for one message of the person.

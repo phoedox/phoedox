@@ -461,6 +461,8 @@ func (s *Site) docPage(w http.ResponseWriter, r *http.Request, p store.Publicati
 	case store.DocFloorplan:
 		body.WriteString(Markdown(str("description"), links))
 		body.WriteString(floorplanSVG(d, links.File))
+	case store.DocWhiteboard:
+		body.WriteString(whiteboardSVG(d, links.File))
 	}
 	pg := &page{T: t, Base: base, Pub: p, Site: site, Project: &pp, Doc: &d, Title: d.Title + " – " + p.Title, Body: template.HTML(body.String()),
 		Nav: nav(base, pp, d.Slug, t, lang), Canonical: s.absolute(r, base+"/"+pp.Project.Slug+"/"+d.Slug), Lang: pp.Project.MainLocale}

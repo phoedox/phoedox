@@ -136,6 +136,8 @@ func WriteOffline(ctx context.Context, w io.Writer, d core.OfflineData, open fun
 		case store.DocFloorplan:
 			b.WriteString(md(str("description")))
 			b.WriteString(floorplanSVG(doc, "files/"))
+		case store.DocWhiteboard:
+			b.WriteString(whiteboardSVG(doc, "files/"))
 		}
 		if err := write(page(doc.Slug), doc.Title, b.String()); err != nil {
 			return err
