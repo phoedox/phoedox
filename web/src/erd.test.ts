@@ -51,3 +51,29 @@ test("blocks take tables from the project schema", () => {
   expect(refs.map((t) => [t.name, t.columns.map((c) => c.name)])).toEqual([["orgs", ["id"]]]);
   expect(missing).toEqual(["ghosts"]);
 });
+
+test("migrations in order give the end state", () => {
+  const sql = `-- file: 001.sql
+CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT NOT NULL, old TEXT);
+CREATE TABLE notes (id TEXT PRIMARY KEY, body TEXT);
+-- file: 002.sql
+ALTER TABLE users ADD COLUMN name TEXT NOT NULL DEFAULT '';
+ALTER TABLE users DROP COLUMN old;
+ALTER TABLE notes ADD COLUMN user_id TEXT REFERENCES users(id);
+ALTER TABLE notes RENAME COLUMN body TO text;
+ALTER TABLE users ADD CONSTRAINT x UNIQUE (email);
+DROP TABLE IF EXISTS gone;
+CREATE TABLE gone (id int);
+DROP TABLE gone;`;
+  const t = parseDDL(sql);
+  expect(t.map((x) => x.name)).toEqual(["users", "notes"]);
+  expect(t[0].columns.map((c) => c.name)).toEqual(["id", "email", "name"]);
+  expect(t[1].columns.map((c) => c.name)).toEqual(["id", "text", "user_id"]);
+  expect(t[1].columns[2].ref).toEqual({ table: "users", column: "id" });
+});
+
+test("repo source line", async () => {
+  const { repoSource } = await import("./erd");
+  expect(repoSource("from acme/app db/migrations/postgres\n-- tables: users")).toEqual({ repo: "acme/app", path: "db/migrations/postgres" });
+  expect(repoSource("CREATE TABLE x (id int);")).toBeUndefined();
+});

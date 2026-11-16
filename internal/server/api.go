@@ -473,6 +473,7 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/autolinks", a.autoLinks)
 			r.Get("/snapshots", a.snapshots)
 			r.Get("/glossary", a.glossary)
+			r.Get("/code/dbmodel", a.repoDBModel)
 			r.Put("/glossary", a.setGlossary)
 			r.Get("/documents/{d}/glossary-check", a.glossaryCheck)
 			r.Post("/snapshots", a.createSnapshot)

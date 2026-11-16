@@ -58,3 +58,9 @@ func (a *api) glossaryCheck(w http.ResponseWriter, r *http.Request) {
 	v, err := a.core.GlossaryCheck(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"), r.URL.Query().Get("lang"))
 	respond(w, v, err)
 }
+
+func (a *api) repoDBModel(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	sql, err := a.core.RepoDBModel(r.Context(), actorOf(r), chi.URLParam(r, "p"), q.Get("repo"), q.Get("path"))
+	respond(w, map[string]string{"sql": sql}, err)
+}

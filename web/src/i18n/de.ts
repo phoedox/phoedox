@@ -4033,4 +4033,7 @@ export const de = {
   "glossary.empty": "Noch keine Begriffe.",
   "validation.glossary_count": "Höchstens {max} Begriffe.",
   "validation.glossary_term": "Begriff {n} ist leer, zu lang oder doppelt.",
+  "block.dbmodel_from_repo": "Aus den Migrationen in {path} von {repo} (aktueller Stand).",
+  "validation.repo_not_connected": "Das Repository {repo} ist nicht mit diesem Projekt verbunden (Projekteinstellungen → Code & Git).",
+  "validation.repo_path": "Der Ordner oder die Datei {path} konnte nicht gelesen werden: {error}",
 } as const;

@@ -2,7 +2,7 @@
 // pages (doc view, shared view, editor) and only load what they need.
 
 import { LitElement, css, html, type PropertyValues } from "lit";
-import { api, type Doc } from "../api";
+import { ApiError, api, type Doc } from "../api";
 import { locale, t } from "../i18n";
 import { icon, iconSVG } from "../icon";
 import { attrLabel } from "../model";
@@ -403,10 +403,25 @@ export class PhxDbModel extends HTMLElement {
   }
 
   private async render() {
-    const src = this.dataset.src ?? this.querySelector("pre")?.textContent ?? "";
+    let src = this.dataset.src ?? this.querySelector("pre")?.textContent ?? "";
     if (src === this.done) return;
     this.done = src;
-    const { parseDDL, toMermaid, shownTables, withSchema } = await import("../erd");
+    const { parseDDL, toMermaid, shownTables, withSchema, repoSource } = await import("../erd");
+    // "from owner/repo path": the schema the repository's migrations build.
+    const fromRepo = repoSource(src);
+    let repoNote = "";
+    if (fromRepo && this.dataset.project) {
+      const escText = (x: string) => x.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+      try {
+        const r = await api<{ sql: string }>("GET", `/projects/${this.dataset.project}/code/dbmodel?repo=${encodeURIComponent(fromRepo.repo)}&path=${encodeURIComponent(fromRepo.path)}`);
+        src = r.sql + "\n" + src.replace(/^\s*from\s+\S+\s+\S+\s*$/im, "");
+        repoNote = `<p class="note">${escText(t("block.dbmodel_from_repo", { repo: fromRepo.repo, path: fromRepo.path }))}</p>`;
+      } catch (e) {
+        const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
+        root.innerHTML = `<p style="color:var(--bad)">${escText(e instanceof ApiError ? e.text : t("error.unknown"))}</p>`;
+        return;
+      }
+    }
     const own = parseDDL(src);
     const shown = shownTables(src);
     // References to tables of other blocks (and "-- tables:") use the
@@ -430,6 +445,7 @@ export class PhxDbModel extends HTMLElement {
       return b ? `<a href="/p/${encodeURIComponent(project)}/d/${encodeURIComponent(b.documentId)}">${esc(name)}</a>` : esc(name);
     };
     const notes = [
+      repoNote,
       refs.length ? `<p class="note">${esc(t("block.dbmodel_refs"))} ${refs.map((r) => link(r.name)).join(", ")}</p>` : "",
       missing.length ? `<p class="note warn">${esc(t("block.dbmodel_missing", { tables: missing.join(", ") }))}</p>` : "",
     ].join("");

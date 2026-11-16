@@ -231,10 +231,25 @@ func checkMermaid(body string) []BlockProblem {
 	return out
 }
 
+var repoFromLine = regexp.MustCompile(`(?i)^\s*from\s+[\w.-]+/[\w.-]+\s+\S+\s*$`)
+
+func firstLine(s string) string {
+	for _, l := range strings.Split(s, "\n") {
+		if strings.TrimSpace(l) != "" {
+			return l
+		}
+	}
+	return ""
+}
+
 // checkDBModel returns problems of one dbmodel block; schema are the tables
 // of the whole project (all dbmodel blocks).
 func checkDBModel(body string, schema map[string][]string) []BlockProblem {
 	var out []BlockProblem
+	// "from owner/repo path" reads the schema from a repository's migrations.
+	if repoFromLine.MatchString(firstLine(body)) {
+		return nil
+	}
 	own := ddlTables(body)
 	shown := dbShown(body)
 	if len(own) == 0 && len(shown) == 0 {

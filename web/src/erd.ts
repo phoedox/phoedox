@@ -23,13 +23,39 @@ function splitTop(s: string): string[] {
   return out.map((x) => x.trim()).filter(Boolean);
 }
 
-/** Parses CREATE TABLE statements (common SQL of Postgres, MySQL, SQLite). */
+/** Parses CREATE TABLE statements (common SQL of Postgres, MySQL, SQLite)
+ * and applies later ALTER TABLE (add, drop, rename columns; rename table)
+ * and DROP TABLE in order, so a folder of migrations gives the end state. */
 export function parseDDL(sql: string): Table[] {
   const clean = sql.replace(/--[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
-  const tables: Table[] = [];
-  const re = /create\s+(?:temporary\s+|temp\s+)?table\s+(?:if\s+not\s+exists\s+)?([`"[\]\w.]+)\s*\(/gi;
+  let tables: Table[] = [];
+  const find = (n: string) => tables.find((t) => t.name.toLowerCase() === ident(n).toLowerCase());
+  const re = /create\s+(?:temporary\s+|temp\s+)?table\s+(?:if\s+not\s+exists\s+)?([`"[\]\w.]+)\s*\(|alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?([`"[\]\w.]+)\s+([^;]*);?|drop\s+table\s+(?:if\s+exists\s+)?([`"[\]\w.,\s]+?)\s*(?:cascade|restrict)?\s*;/gi;
   let m: RegExpExecArray | null;
   while ((m = re.exec(clean))) {
+    if (m[4]) {
+      const drop = m[4].split(",").map((x) => ident(x).toLowerCase());
+      tables = tables.filter((t) => !drop.includes(t.name.toLowerCase()));
+      continue;
+    }
+    if (m[2]) {
+      const t = find(m[2]);
+      if (!t) continue;
+      for (const action of splitTop(m[3])) {
+        const ren = /^rename\s+to\s+([`"[\]\w.]+)/i.exec(action);
+        if (ren) { t.name = ident(ren[1]); continue; }
+        const rc = /^rename\s+(?:column\s+)?([`"[\]\w]+)\s+to\s+([`"[\]\w]+)/i.exec(action);
+        if (rc) { const c = t.columns.find((x) => x.name === ident(rc[1])); if (c) c.name = ident(rc[2]); continue; }
+        const dc = /^drop\s+(?:column\s+)?(?:if\s+exists\s+)?([`"[\]\w]+)/i.exec(action);
+        if (dc && !/^drop\s+(constraint|default|not\s+null)/i.test(action)) { t.columns = t.columns.filter((x) => x.name !== ident(dc[1])); continue; }
+        const ac = /^add\s+(?:column\s+)?(?:if\s+not\s+exists\s+)?(.+)$/is.exec(action);
+        if (ac && !/^add\s+(constraint|primary|foreign|unique|check|index)/i.test(action)) {
+          const c = columnOf(ac[1]);
+          if (c && !t.columns.some((x) => x.name === c.name)) t.columns.push(c);
+        }
+      }
+      continue;
+    }
     // Find the matching closing parenthesis.
     let depth = 1;
     let i = re.lastIndex;
@@ -42,7 +68,6 @@ export function parseDDL(sql: string): Table[] {
     const pks: string[] = [];
     const fks: [string, string, string][] = [];
     for (const part of splitTop(body)) {
-      const low = part.toLowerCase();
       const pk = /^(?:constraint\s+\S+\s+)?primary\s+key\s*\(([^)]*)\)/i.exec(part);
       if (pk) {
         pks.push(...pk[1].split(",").map(ident));
@@ -53,23 +78,36 @@ export function parseDDL(sql: string): Table[] {
         fks.push([ident(fk[1]), ident(fk[2]), fk[3] ? ident(fk[3]) : "id"]);
         continue;
       }
-      if (/^(constraint|unique|check|index|key)\b/i.test(low)) continue;
-      const col = /^([`"[\]\w]+)\s+(\w+(?:\s*\([^)]*\))?)/.exec(part);
-      if (!col) continue;
-      const c: Column = { name: ident(col[1]), type: col[2].replace(/\s+/g, ""), pk: /\bprimary\s+key\b/i.test(part), notNull: /\bnot\s+null\b/i.test(part) };
-      const ref = /\breferences\s+([`"[\]\w.]+)\s*(?:\(([^)]*)\))?/i.exec(part);
-      if (ref) c.ref = { table: ident(ref[1]), column: ref[2] ? ident(ref[2]) : "id" };
-      t.columns.push(c);
+      if (/^(constraint|unique|check|index|key)\b/i.test(part)) continue;
+      const c = columnOf(part);
+      if (c) t.columns.push(c);
     }
     for (const c of t.columns) if (pks.includes(c.name)) c.pk = true;
     for (const [col, table, column] of fks) {
       const c = t.columns.find((x) => x.name === col);
       if (c) c.ref = { table, column };
     }
+    const old = find(t.name);
+    if (old) tables = tables.filter((x) => x !== old);
     tables.push(t);
     re.lastIndex = i;
   }
   return tables;
+}
+
+function columnOf(part: string): Column | undefined {
+  const col = /^([`"[\]\w]+)\s+(\w+(?:\s*\([^)]*\))?)/.exec(part.trim());
+  if (!col) return undefined;
+  const c: Column = { name: ident(col[1]), type: col[2].replace(/\s+/g, ""), pk: /\bprimary\s+key\b/i.test(part), notNull: /\bnot\s+null\b/i.test(part) };
+  const ref = /\breferences\s+([`"[\]\w.]+)\s*(?:\(([^)]*)\))?/i.exec(part);
+  if (ref) c.ref = { table: ident(ref[1]), column: ref[2] ? ident(ref[2]) : "id" };
+  return c;
+}
+
+/** "from owner/repo path" as the first line of a dbmodel block. */
+export function repoSource(src: string): { repo: string; path: string } | undefined {
+  const m = /^\s*from\s+([\w.-]+\/[\w.-]+)\s+(\S+)\s*$/im.exec(src.split("\n").find((l) => l.trim()) ?? "");
+  return m ? { repo: m[1], path: m[2] } : undefined;
 }
 
 /** Tables a block takes from the project schema ("-- tables: users, sessions"). */

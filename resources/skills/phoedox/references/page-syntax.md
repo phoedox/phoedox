@@ -96,6 +96,17 @@ elsewhere, list them in an SQL comment – no placeholder tables needed:
 CREATE TABLE devices (id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id));
 ```
 
+**From a repository:** a block whose first line is `from owner/repo path` shows the
+schema that the SQL migrations in that folder of a connected repository build
+(project settings → Code & Git), in file order with `ALTER TABLE` and `DROP TABLE`
+applied and down parts (goose, dbmate, `*.down.sql`) left out. It stays current
+with the repository, so prefer it to copying `CREATE TABLE`s when the code lives
+in a connected repository:
+
+```dbmodel
+from acme/app db/migrations/postgres
+```
+
 ## Images and files
 
 Images are files of the project: `![alt](/api/v1/files/<id>)`. `list_files` shows what

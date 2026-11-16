@@ -174,3 +174,22 @@ func TestTaskCodeLinks(t *testing.T) {
 		t.Fatalf("links after disconnect: %+v", links)
 	}
 }
+
+func TestUpSQL(t *testing.T) {
+	in := "-- +goose Up\nCREATE TABLE a (id int);\n-- +goose Down\nDROP TABLE a;\n"
+	if got := upSQL(in); strings.Contains(got, "DROP") || !strings.Contains(got, "CREATE TABLE a") {
+		t.Fatalf("goose: %q", got)
+	}
+	if got := upSQL("-- migrate:up\ncreate table b (x int);\n-- migrate:down\ndrop table b;"); strings.Contains(got, "drop") {
+		t.Fatalf("dbmate: %q", got)
+	}
+}
+
+func TestDBModelFromRepoIsNotAProblem(t *testing.T) {
+	if ps := checkDBModel("from acme/app db/migrations\n", map[string][]string{}); len(ps) != 0 {
+		t.Fatalf("from line: %+v", ps)
+	}
+	if ps := checkDBModel("hello\n", map[string][]string{}); len(ps) != 1 {
+		t.Fatalf("plain text still is: %+v", ps)
+	}
+}

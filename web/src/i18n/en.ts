@@ -4035,4 +4035,7 @@ export const en: Record<keyof typeof de, string> = {
   "glossary.empty": "No terms yet.",
   "validation.glossary_count": "At most {max} terms.",
   "validation.glossary_term": "Term {n} is empty, too long or listed twice.",
+  "block.dbmodel_from_repo": "From the migrations in {path} of {repo} (current state).",
+  "validation.repo_not_connected": "The repository {repo} is not connected to this project (project settings → Code & Git).",
+  "validation.repo_path": "The folder or file {path} could not be read: {error}",
 };
