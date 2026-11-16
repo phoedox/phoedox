@@ -20,15 +20,24 @@ type ProjectPoint struct {
 }
 
 // ProjectPoints lists the newest changes of a project (points in time).
-func (s *Service) ProjectPoints(ctx context.Context, a Actor, ref string, before time.Time, limit int) ([]ProjectPoint, error) {
+// docRef limits the list to one document (slug, id or ADR number).
+func (s *Service) ProjectPoints(ctx context.Context, a Actor, ref, docRef string, before time.Time, limit int) ([]ProjectPoint, error) {
 	p, err := s.project(ctx, a, ref, store.RoleEditor)
 	if err != nil {
 		return nil, err
 	}
+	docID := ""
+	if docRef != "" {
+		d, err := s.findDoc(ctx, p.ID, docRef)
+		if err != nil {
+			return nil, err
+		}
+		docID = d.ID
+	}
 	if limit <= 0 || limit > 300 {
 		limit = 100
 	}
-	vs, err := s.DB.ProjectVersions(ctx, p.ID, store.Time{Time: before}, limit)
+	vs, err := s.DB.ProjectVersions(ctx, p.ID, docID, store.Time{Time: before}, limit)
 	if err != nil {
 		return nil, err
 	}

@@ -18,10 +18,13 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString(document.document
 /** Project history: every saved change is a point; look at the project as it
  * was right after it and roll every page back to that point. */
 export class PhxProjectHistory extends LitElement {
-  static properties = { project: {}, points: { state: true }, sel: { state: true }, state: { state: true }, busy: { state: true }, confirming: { state: true }, more: { state: true } };
+  static properties = { project: {}, docs: { state: true }, doc: { state: true }, points: { state: true }, sel: { state: true }, state: { state: true }, busy: { state: true }, confirming: { state: true }, more: { state: true } };
   static styles = [base, css`
     :host { display: block; }
-    .lead { color: var(--muted); max-width: 70ch; margin: 4px 0 18px; }
+    .lead { color: var(--muted); max-width: 70ch; margin: 4px 0 14px; }
+    .filter { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px; }
+    .filter label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+    .filter select { min-width: 260px; max-width: 100%; }
     .cols { display: grid; grid-template-columns: minmax(260px, 360px) minmax(0, 1fr); gap: 24px; align-items: start; }
     @media (max-width: 860px) { .cols { grid-template-columns: 1fr; } }
     .points { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); max-height: calc(100dvh - var(--header-h) - 180px); overflow: auto; }
@@ -48,6 +51,9 @@ export class PhxProjectHistory extends LitElement {
   `];
 
   project = "";
+  /** Filter: only the changes of one document (id; "" = all). */
+  doc = new URLSearchParams(location.search).get("doc") ?? "";
+  docs: { id: string; title: string; category?: string; type: string }[] = [];
   points: Point[] = [];
   sel?: Point;
   state?: StateAt;
@@ -59,18 +65,31 @@ export class PhxProjectHistory extends LitElement {
   async willUpdate() {
     if (this.project && this.project !== this.loaded) {
       this.loaded = this.project;
+      void api<{ id: string; title: string; category?: string; type: string; parentId?: string }[]>("GET", `/projects/${this.project}/documents`)
+        .then((d) => (this.docs = d.filter((x) => !x.parentId).sort((a, b) => a.title.localeCompare(b.title)))).catch(() => {});
       await this.load();
     }
   }
 
   private async load(before?: string) {
     try {
-      const page = await api<Point[]>("GET", `/projects/${this.project}/history/points?limit=100${before ? `&before=${encodeURIComponent(before)}` : ""}`);
+      const page = await api<Point[]>("GET", `/projects/${this.project}/history/points?limit=100${this.doc ? `&doc=${encodeURIComponent(this.doc)}` : ""}${before ? `&before=${encodeURIComponent(before)}` : ""}`);
       this.points = before ? [...this.points, ...page] : page;
       this.more = page.length === 100;
     } catch (e) {
       toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
     }
+  }
+
+  private async filter(id: string) {
+    this.doc = id;
+    const u = new URL(location.href);
+    if (id) u.searchParams.set("doc", id); else u.searchParams.delete("doc");
+    history.replaceState(history.state, "", u);
+    this.sel = undefined;
+    this.state = undefined;
+    this.points = [];
+    await this.load();
   }
 
   private async pick(p: Point) {
@@ -153,6 +172,12 @@ export class PhxProjectHistory extends LitElement {
   render() {
     return html`<h1>${t("phist.title")}</h1>
       <p class="lead">${t("phist.lead")}</p>
+      <div class="filter"><label>${t("phist.filter")}
+        <select @change=${(e: Event) => this.filter((e.target as HTMLSelectElement).value)}>
+          <option value="" ?selected=${!this.doc}>${t("phist.all")}</option>
+          ${this.docs.map((d) => html`<option value=${d.id} ?selected=${d.id === this.doc}>${d.title}${d.category ? ` · ${d.category}` : ""}</option>`)}
+        </select></label>
+        ${this.doc ? html`<a class="btn ghost" href="/p/${this.project}/d/${this.doc}/history">${icon("History", 14)} ${t("phist.page_history")}</a>` : ""}</div>
       ${this.points.length ? html`<div class="cols">${this.pointList()}${this.panel()}</div>` : html`<p class="muted">${t("phist.none")}</p>`}`;
   }
 }

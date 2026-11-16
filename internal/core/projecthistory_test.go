@@ -29,7 +29,10 @@ func TestProjectRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pts, err := s.ProjectPoints(ctx, owner, p.Slug, time.Time{}, 10)
+	if only, err := s.ProjectPoints(ctx, owner, p.Slug, "intro", time.Time{}, 10); err != nil || len(only) != 2 || only[0].Title != "Intro" {
+		t.Fatalf("points of one page: %v %+v", err, only)
+	}
+	pts, err := s.ProjectPoints(ctx, owner, p.Slug, "", time.Time{}, 10)
 	if err != nil || len(pts) < 4 || pts[0].Title != "News" {
 		t.Fatalf("points: %v %+v", err, pts)
 	}

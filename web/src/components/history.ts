@@ -130,6 +130,7 @@ export class PhxHistory extends LitElement {
     const removed = this.hunks.filter((h) => h.op === "-").length;
     return html`<div class="enter">
       <a href="/p/${this.project}/d/${d.id}" class="muted" style="font-size:14px;text-decoration:none">${icon("ArrowLeft", 14)} ${t("history.back")}</a>
+      <a href="/p/${this.project}/history?doc=${d.id}" class="muted" style="font-size:14px;text-decoration:none;margin-left:14px">${icon("History", 14)} ${t("phist.in_project")}</a>
       <h1 style="margin-top:8px">${t("history.title")}: ${d.title}</h1>
       <div class="layout">
         <ol aria-label=${t("history.title")}>

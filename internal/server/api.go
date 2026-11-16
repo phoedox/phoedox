@@ -1355,7 +1355,7 @@ func (a *api) projectPoints(w http.ResponseWriter, r *http.Request) {
 		before = t
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	list, err := a.core.ProjectPoints(r.Context(), actorOf(r), chi.URLParam(r, "p"), before, limit)
+	list, err := a.core.ProjectPoints(r.Context(), actorOf(r), chi.URLParam(r, "p"), r.URL.Query().Get("doc"), before, limit)
 	respond(w, list, err)
 }
 

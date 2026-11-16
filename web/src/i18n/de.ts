@@ -3171,4 +3171,8 @@ export const de = {
   "ctx.folder_name_prompt": "Name von „{name}“ auf {lang} (leer: wie in der Hauptsprache):",
   "nav.more": "Mehr…",
   "nav.less": "Weniger",
+  "phist.filter": "Änderungen zeigen von",
+  "phist.all": "Allen Seiten und Entscheidungen",
+  "phist.page_history": "Versionen dieser Seite",
+  "phist.in_project": "Im Projektverlauf",
 } as const;

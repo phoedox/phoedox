@@ -113,10 +113,14 @@ type ProjectVersion struct {
 
 // ProjectVersions lists the newest document versions of a project, newest
 // first, before a time (zero = now).
-func (d *DB) ProjectVersions(ctx context.Context, projectID string, before Time, limit int) ([]ProjectVersion, error) {
+func (d *DB) ProjectVersions(ctx context.Context, projectID, documentID string, before Time, limit int) ([]ProjectVersion, error) {
 	q := `SELECT v.document_id, doc.slug, doc.doc_type, v.version, v.title, v.actor, v.created_at FROM document_versions v
 		JOIN documents doc ON doc.id = v.document_id WHERE doc.project_id = ?`
 	args := []any{projectID}
+	if documentID != "" {
+		q += ` AND v.document_id = ?`
+		args = append(args, documentID)
+	}
 	if !before.IsZero() {
 		q += ` AND v.created_at < ?`
 		args = append(args, before)

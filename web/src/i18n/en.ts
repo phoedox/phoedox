@@ -3173,4 +3173,8 @@ export const en: Record<keyof typeof de, string> = {
   "ctx.folder_name_prompt": "Name of \"{name}\" in {lang} (empty: same as the main language):",
   "nav.more": "More…",
   "nav.less": "Less",
+  "phist.filter": "Show changes of",
+  "phist.all": "All pages and decisions",
+  "phist.page_history": "Versions of this page",
+  "phist.in_project": "In the project history",
 };
