@@ -116,7 +116,8 @@ type createBoardIn struct {
 
 type getDocIn struct {
 	docRef
-	Lang string `json:"lang,omitempty" jsonschema:"language of a multilingual project (e.g. de); empty = main language"`
+	Lang    string `json:"lang,omitempty" jsonschema:"language of a multilingual project (e.g. de); empty = main language"`
+	Heading string `json:"heading,omitempty" jsonschema:"read only one section of a page: a heading's text or its number (e.g. 6.4 or Backups); the section runs to the next heading of the same or a higher level. Unknown headings return the page's outline"`
 }
 
 type translateIn struct {
@@ -659,10 +660,25 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		return out, nil
 	})
-	tool(s, "get_document", "Read a document with its full content (the published version). If the page has an open draft, it is returned as \"draft\" too – your writes go into it. In multilingual projects, lang picks a translation; \"translation.sourceVersion\" lower than \"version\" means the translation is outdated.", func(ctx context.Context, a core.Actor, in getDocIn) (any, error) {
+	tool(s, "get_document", "Read a document with its full content (the published version); heading reads one section only. If the page has an open draft, it is returned as \"draft\" too – your writes go into it. In multilingual projects, lang picks a translation; \"translation.sourceVersion\" lower than \"version\" means the translation is outdated.", func(ctx context.Context, a core.Actor, in getDocIn) (any, error) {
 		d, err := svc.LocalizedDocument(ctx, a, in.Project, in.Document, in.Lang)
 		if err != nil {
 			return nil, err
+		}
+		if in.Heading != "" {
+			var c struct {
+				Markdown string `json:"markdown"`
+			}
+			_ = json.Unmarshal(d.Content, &c)
+			sec, outline, ok := core.Section(c.Markdown, in.Heading)
+			out := map[string]any{"id": d.ID, "projectId": d.ProjectID, "type": d.Type, "slug": d.Slug, "title": d.Title, "version": d.Version}
+			if ok {
+				out["section"] = sec
+			} else {
+				out["error"] = "no heading matches; pick one from outline"
+				out["outline"] = outline
+			}
+			return out, nil
 		}
 		v := view(d)
 		if dr, err := svc.Draft(ctx, a, in.Project, d.ID); err == nil {
