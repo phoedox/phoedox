@@ -45,10 +45,20 @@ for (const b of document.querySelectorAll<HTMLButtonElement>("button[data-copy]"
     const label = b.querySelector("span");
     try {
       await navigator.clipboard.writeText(text);
-      if (label) {
+      if (label && !b.dataset.busy) {
+        // Feedback: the label and the icon say it worked, then switch back.
+        b.dataset.busy = "1";
         const before = label.textContent;
+        const ico = b.querySelector("svg");
+        const check = createElement(Check);
+        for (const a of ["width", "height", "aria-hidden", "class"]) check.setAttribute(a, ico?.getAttribute(a) ?? "");
         label.textContent = b.dataset.done ?? before;
-        setTimeout(() => (label.textContent = before), 1600);
+        ico?.replaceWith(check);
+        setTimeout(() => {
+          label.textContent = before;
+          if (ico) check.replaceWith(ico);
+          delete b.dataset.busy;
+        }, 1600);
       }
     } catch {
       /* clipboard not allowed: the text stays selectable */
@@ -88,24 +98,36 @@ const qbox = document.getElementById("netQ");
 if (data && svg && qbox) {
   const text = JSON.parse(data.textContent ?? "{}") as NetText;
   const W = 150, H = 44;
-  const draw = (qi: number) => {
+  // Built once; a question only switches classes, so the colour transitions
+  // in site.css show the path changing instead of the graph being redrawn.
+  const edges = E.map(([a, b]) => {
+    const [x1, y1] = N[a], [x2, y2] = N[b];
+    const line = el("line", { class: "edge", x1, y1, x2, y2 });
+    svg.append(line);
+    return line;
+  });
+  const nodes: Record<string, SVGGElement> = {};
+  for (const [k, [x, y]] of Object.entries(N)) {
+    const [label, sub] = text.nodes[k] ?? [k, ""];
+    const g = el("g", { class: "node" });
+    g.append(el("rect", { x: x - W / 2, y: y - H / 2, width: W, height: H, rx: 8 }));
+    g.append(el("text", { class: "t", x: x - W / 2 + 10, y: y - 3 }, label));
+    g.append(el("text", { class: "s", x: x - W / 2 + 10, y: y + 13 }, sub));
+    svg.append(g);
+    nodes[k] = g;
+  }
+  const answer = document.getElementById("netA")!;
+  const draw = (qi: number, first = false) => {
     const q = Q[qi];
-    svg.replaceChildren();
-    E.forEach(([a, b], i) => {
-      const [x1, y1] = N[a], [x2, y2] = N[b];
-      svg.append(el("line", { class: "edge" + (q.path.includes(i) ? " hot" : ""), x1, y1, x2, y2 }));
-    });
-    for (const [k, [x, y]] of Object.entries(N)) {
-      const [label, sub] = text.nodes[k] ?? [k, ""];
-      const g = el("g", { class: "node" + (q.hot.includes(k) ? " hot" : q.fix.includes(k) ? " fix" : "") });
-      g.append(el("rect", { x: x - W / 2, y: y - H / 2, width: W, height: H, rx: 8 }));
-      g.append(el("text", { class: "t", x: x - W / 2 + 10, y: y - 3 }, label));
-      g.append(el("text", { class: "s", x: x - W / 2 + 10, y: y + 13 }, sub));
-      svg.append(g);
+    edges.forEach((line, i) => line.classList.toggle("hot", q.path.includes(i)));
+    for (const [k, g] of Object.entries(nodes)) {
+      g.classList.toggle("hot", q.hot.includes(k));
+      g.classList.toggle("fix", !q.hot.includes(k) && q.fix.includes(k));
     }
     const t = text.questions[qi];
-    document.getElementById("netA")!.innerHTML = t.answer;
+    answer.innerHTML = t.answer;
     document.getElementById("netT")!.textContent = t.trace;
+    if (!first) answer.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: "cubic-bezier(0.23, 1, 0.32, 1)" });
     qbox.querySelectorAll("button").forEach((b, i) => b.setAttribute("aria-pressed", String(i === qi)));
   };
   text.questions.forEach((t, i) => {
@@ -116,5 +138,10 @@ if (data && svg && qbox) {
     b.addEventListener("click", () => draw(i));
     qbox.append(b);
   });
-  draw(0);
+  draw(0, true);
+  // The flowing path only runs while the demo is on screen.
+  const net = svg.closest(".net");
+  if (net && "IntersectionObserver" in window) {
+    new IntersectionObserver(([e]) => net.classList.toggle("off", !e.isIntersecting)).observe(net);
+  }
 }

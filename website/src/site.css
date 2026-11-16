@@ -71,6 +71,17 @@ nav.main a:hover { color: var(--fg); }
 .hero { border-bottom: 1px solid var(--line); }
 .hero .in { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 44px; align-items: center; padding-block: 64px 60px; }
 .hero-t { display: flex; flex-direction: column; gap: 18px; }
+/* First impression only: the hero text and the demo rise in, staggered. CSS
+   animations run off the main thread while fonts and scripts load. */
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes fade { from { opacity: 0; } }
+.hero-t > *, .hero .net { animation: rise .45s var(--ease-out) both; }
+.hero-t > :nth-child(2) { animation-delay: 60ms; }
+.hero-t > :nth-child(3) { animation-delay: 120ms; }
+.hero-t > :nth-child(4) { animation-delay: 180ms; }
+.hero-t > :nth-child(5) { animation-delay: 240ms; }
+.hero .net { animation-duration: .5s; animation-delay: 150ms; }
+@media (prefers-reduced-motion: reduce) { .hero-t > *, .hero .net { animation-name: fade; animation-duration: .3s; } }
 .hero h1 { font-size: clamp(38px, 5.2vw, 60px); font-weight: 800; letter-spacing: -0.025em; line-height: 1.02; }
 .hero h1 em { font-style: normal; color: var(--accent); }
 .lead { font-size: 18.5px; color: var(--muted); max-width: 34em; }
@@ -83,7 +94,7 @@ nav.main a:hover { color: var(--fg); }
 .qbtn[aria-pressed="true"] { background: var(--accent-soft); color: var(--fg); border-color: var(--accent); }
 .net-g { padding: 6px 10px 2px; }
 .net svg { display: block; width: 100%; height: auto; }
-.net .edge { stroke: var(--line); stroke-width: 2; }
+.net .edge { transition: stroke .25s ease, stroke-width .25s ease; stroke: var(--line); stroke-width: 2; }
 .net .edge.hot { stroke: var(--accent); stroke-width: 2.6; stroke-dasharray: 7 5; animation: flow 1s linear infinite; }
 @keyframes flow { to { stroke-dashoffset: -12; } }
 .net .node rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; transition: fill .25s, stroke .25s; }
@@ -93,7 +104,9 @@ nav.main a:hover { color: var(--fg); }
 .net .node .s { font: 11px var(--mono); fill: var(--muted); }
 .net-a { border-top: 1px solid var(--line); padding: 14px 16px; font-size: 14.5px; min-height: 110px; display: flex; flex-direction: column; gap: 8px; }
 .trace { font: 12px var(--mono); color: var(--muted); }
-@media (prefers-reduced-motion: reduce) { .net .edge.hot { animation: none; } .qbtn, .net .node rect { transition: none; } }
+.net.off .edge.hot { animation-play-state: paused; }
+/* Reduced motion: no flowing path; the colour changes stay, they explain the path. */
+@media (prefers-reduced-motion: reduce) { .net .edge.hot { animation: none; } }
 
 /* sections */
 .sec .in { padding-block: 64px; display: flex; flex-direction: column; gap: 20px; }
