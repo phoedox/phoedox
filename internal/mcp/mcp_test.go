@@ -162,8 +162,67 @@ func TestMCPTools(t *testing.T) {
 	}
 
 	// links and boards can be changed through MCP
-	if l := call("update_document", map[string]any{"project": "phoedox", "document": "riverpod", "description": "State management"}); !strings.Contains(l, "State management") || !strings.Contains(l, "riverpod.dev") {
+	if l := call("update_document", map[string]any{"project": "phoedox", "document": "riverpod", "description": "State management", "verbose": true}); !strings.Contains(l, "State management") || !strings.Contains(l, "riverpod.dev") {
 		t.Fatalf("update link: %s", l)
+	}
+
+	// Long pages: edits, short answers, block checks, order, translations
+	// that keep their text, batches (feedback of an AI client).
+	page := call("create_document", map[string]any{"project": "phoedox", "title": "Long", "category": "Technik",
+		"markdown": "Alpha beta gamma.\n\n```mermaid\nsequenceDiagram\n  participant Off\n```\n"})
+	if !strings.Contains(page, `"blockProblems"`) || !strings.Contains(page, "Mermaid keyword") || strings.Contains(page, "Alpha beta") {
+		t.Fatalf("create_document brief with block problems: %s", page)
+	}
+	if e := call("update_document", map[string]any{"project": "phoedox", "document": "long", "edits": []map[string]any{{"old": "beta", "new": "delta"}, {"old": "participant Off", "new": "participant Remote"}}}); !strings.Contains(e, `"version": 2`) || strings.Contains(e, "blockProblems") {
+		t.Fatalf("edits: %s", e)
+	}
+	if d := call("get_document", map[string]any{"project": "phoedox", "document": "long"}); !strings.Contains(d, "Alpha delta gamma") || !strings.Contains(d, "participant Remote") {
+		t.Fatalf("edited text: %s", d)
+	}
+	if res, _ := session.CallTool(ctx, &sdk.CallToolParams{Name: "update_document", Arguments: map[string]any{"project": "phoedox", "document": "long", "edits": []map[string]any{{"old": "a", "new": "b"}}}}); !res.IsError || !strings.Contains(res.Content[0].(*sdk.TextContent).Text, "occurs") {
+		t.Fatalf("ambiguous edit accepted")
+	}
+	call("translate_document", map[string]any{"project": "phoedox", "document": "long", "lang": "de", "title": "Lang", "markdown": "Alpha Delta Gamma (de)."})
+	// Only the title: the text stays (it was deleted before).
+	if tr := call("translate_document", map[string]any{"project": "phoedox", "document": "long", "lang": "de", "title": "Lang (de)"}); !strings.Contains(tr, `"outdated": false`) || strings.Contains(tr, "Gamma") {
+		t.Fatalf("title-only translation: %s", tr)
+	}
+	if d := call("get_document", map[string]any{"project": "phoedox", "document": "long", "lang": "de"}); !strings.Contains(d, "Alpha Delta Gamma (de).") || !strings.Contains(d, "Lang (de)") {
+		t.Fatalf("translation text lost: %s", d)
+	}
+	// A new title in the main language, then only the translated title: current again.
+	b := call("batch_update", map[string]any{"project": "phoedox", "operations": []map[string]any{
+		{"action": "update", "document": "long", "title": "Long page"},
+		{"action": "translate", "document": "long", "lang": "de", "title": "Lange Seite"},
+	}})
+	if !strings.Contains(b, `"applied": 2`) || !strings.Contains(b, `"outdated": false`) {
+		t.Fatalf("batch: %s", b)
+	}
+	if bad, _ := session.CallTool(ctx, &sdk.CallToolParams{Name: "batch_update", Arguments: map[string]any{"project": "phoedox", "operations": []map[string]any{
+		{"action": "update", "document": "long", "title": "Nope"},
+		{"action": "update", "document": "missing-page", "title": "x"},
+	}}}); !bad.IsError || !strings.Contains(bad.Content[0].(*sdk.TextContent).Text, "nothing was written") {
+		t.Fatalf("invalid batch accepted: %v", bad.Content[0].(*sdk.TextContent).Text)
+	}
+	if d := call("get_document", map[string]any{"project": "phoedox", "document": "long"}); !strings.Contains(d, `"title": "Long page"`) {
+		t.Fatalf("invalid batch wrote something: %s", d)
+	}
+	// Text change in the main language makes the translation stale.
+	call("update_document", map[string]any{"project": "phoedox", "document": "long", "edits": []map[string]any{{"old": "gamma", "new": "epsilon"}}})
+	if l := call("list_documents", map[string]any{"project": "phoedox", "translation": "stale"}); !strings.Contains(l, `"slug": "long"`) || !strings.Contains(l, `"de": "outdated"`) {
+		t.Fatalf("stale translations: %s", l)
+	}
+	call("translate_document", map[string]any{"project": "phoedox", "document": "long", "lang": "de", "edits": []map[string]any{{"old": "Gamma", "new": "Epsilon"}}})
+	if l := call("list_documents", map[string]any{"project": "phoedox", "translation": "outdated"}); strings.Contains(l, `"slug": "long"`) {
+		t.Fatalf("translation still stale: %s", l)
+	}
+	// Order: a page right after another one.
+	call("create_document", map[string]any{"project": "phoedox", "title": "Short", "markdown": "x", "after": "architektur"})
+	if l := call("list_documents", map[string]any{"project": "phoedox", "category": "Technik"}); strings.Index(l, `"architektur"`) > strings.Index(l, `"short"`) || strings.Index(l, `"short"`) > strings.Index(l, `"long"`) {
+		t.Fatalf("after: %s", l)
+	}
+	if v := call("validate_blocks", map[string]any{"project": "phoedox", "markdown": "```mermaid\nflowhart TD\n```\n```dbmodel\n-- tables: ghosts\n```"}); !strings.Contains(v, "unknown diagram type") || !strings.Contains(v, `ghosts\" is not defined`) {
+		t.Fatalf("validate_blocks: %s", v)
 	}
 	call("create_board", map[string]any{"project": "phoedox", "title": "Plan"})
 	card := call("create_task", map[string]any{"project": "phoedox", "board": "plan", "title": "Erste Karte", "documents": []string{"ADR-0001", "go-version"}})

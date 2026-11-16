@@ -16,19 +16,26 @@ import (
 const maxImageBytes = 512 << 10
 
 // imageMime checks the bytes (not the declared type) and returns the type.
-func imageMime(data []byte) (string, error) {
-	bad := invalid("validation.image", nil, "the picture must be a PNG, JPEG or WebP of at most 512 KB and 1024×1024 px")
+func imageMime(data []byte) ([]byte, string, error) {
+	bad := invalid("validation.image", nil, "the picture must be a PNG, JPEG, WebP or SVG of at most 512 KB and 1024×1024 px")
 	if len(data) == 0 || len(data) > maxImageBytes {
-		return "", bad
+		return nil, "", bad
+	}
+	if looksSVG(data) {
+		clean, err := cleanSVG(data)
+		if err != nil {
+			return nil, "", bad
+		}
+		return clean, "image/svg+xml", nil
 	}
 	if len(data) > 12 && string(data[:4]) == "RIFF" && string(data[8:12]) == "WEBP" {
-		return "image/webp", nil
+		return data, "image/webp", nil
 	}
 	cfg, format, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil || cfg.Width > 1024 || cfg.Height > 1024 || (format != "png" && format != "jpeg") {
-		return "", bad
+		return nil, "", bad
 	}
-	return "image/" + format, nil
+	return data, "image/" + format, nil
 }
 
 // SetAvatar stores the actor's profile picture.
@@ -36,7 +43,7 @@ func (s *Service) SetAvatar(ctx context.Context, a Actor, data []byte) (string, 
 	if a.Via == "mcp" {
 		return "", ErrForbidden
 	}
-	mime, err := imageMime(data)
+	data, mime, err := imageMime(data)
 	if err != nil {
 		return "", err
 	}
@@ -62,7 +69,7 @@ func (s *Service) SetProjectImage(ctx context.Context, a Actor, ref string, data
 	if err != nil {
 		return "", err
 	}
-	mime, err := imageMime(data)
+	data, mime, err := imageMime(data)
 	if err != nil {
 		return "", err
 	}

@@ -196,6 +196,8 @@ var apiDocs = map[string]op{
 	"GET /projects/{p}/trash":                      {Tag: "projects", Summary: "Deleted pages, entries and files.", Out: []store.TrashItem{}},
 	"PUT /projects/{p}/category-names":             {Tag: "projects", Summary: "Name a folder (category path) in one of the project's further languages; an empty name removes it.", Out: store.Project{}},
 	"POST /projects/{p}/category-names/rename":     {Tag: "projects", Summary: "Move the folder names of a renamed folder (from, to) to the new path."},
+	"GET /projects/{p}/dbschema":                   {Tag: "documents", Summary: "All dbmodel blocks of the project's pages: together the project's database schema (a block can show tables of other pages).", Out: []core.DBSchemaBlock{}},
+	"POST /projects/{p}/validate-blocks":           {Tag: "documents", Summary: "Check mermaid and dbmodel blocks of a page (document) or of Markdown (markdown).", Out: []core.BlockProblem{}},
 	"GET /projects/{p}/history/points":             {Tag: "projects", Summary: "The newest saved changes of the project's documents (points to look at or roll back to); doc (one document), before, limit.", Out: []core.ProjectPoint{}},
 	"GET /projects/{p}/history/at":                 {Tag: "projects", Summary: "What differs between a point in time (at, RFC 3339) and now: changed, deleted and new documents.", Out: core.ProjectAt{}},
 	"POST /projects/{p}/history/rollback":          {Tag: "projects", Summary: "Owners: bring every document back to its state at a point in time (new versions; deleted pages return, new ones go to the trash).", Out: core.RollbackResult{}},

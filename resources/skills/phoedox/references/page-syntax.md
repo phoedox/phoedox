@@ -73,13 +73,26 @@ Each is a fenced code block with this info string:
 
 Mermaid ids must not be Mermaid keywords: in a `sequenceDiagram`, a participant called
 `Off`, `End`, `Loop`, `Alt` or `Note` breaks the diagram (`participant Remote as Off-site`
-works). Pages show such an error in the block; check the page after writing a diagram.
+works). Pages show such an error in the block. `validate_blocks` checks mermaid and
+dbmodel blocks before or after saving (common mistakes, not the full Mermaid parser);
+`create_document` and `update_document` return the same findings as `blockProblems`.
+
+**One database schema per project.** All `dbmodel` blocks of a project together form its
+schema. A block draws its own `CREATE TABLE`s; a reference to a table defined on another
+page is drawn too (reduced to its keys, with a link to that page). To show tables defined
+elsewhere, list them in an SQL comment – no placeholder tables needed:
+
+```dbmodel
+-- tables: users, sessions
+CREATE TABLE devices (id INTEGER PRIMARY KEY, user_id INTEGER REFERENCES users(id));
+```
 
 ## Images and files
 
 Images are files of the project: `![alt](/api/v1/files/<id>)`. `list_files` shows what
-exists. To add a picture yourself (screenshot, photo, diagram), send it as base64 with
-`upload_image`:
+exists. To add a picture yourself (screenshot, photo, diagram, logo), send it as base64 with
+`upload_image` (PNG, JPEG, GIF, WebP or SVG; SVGs are cleaned – scripts, event handlers and
+outside links are removed):
 
 - with `task`: the picture is stored with the card's board and appended to the card's
   description (it becomes the card's cover if it is the first picture);

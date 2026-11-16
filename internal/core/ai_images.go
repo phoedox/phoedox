@@ -22,13 +22,13 @@ import (
 
 // Pictures sent as base64 text, for clients that cannot send files, above
 // all AI clients over MCP: screenshots or photos on task cards, pictures of
-// devices, project logos. Only raster images are accepted (no SVG: it can
-// carry scripts).
+// devices, project logos. Raster images, and SVG after cleaning (scripts,
+// event handlers and outside links removed, see svgclean.go).
 
 // MaxInlineImage is the largest decoded picture accepted as base64.
 const MaxInlineImage = 8 << 20
 
-var inlineImageTypes = map[string]string{"image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp"}
+var inlineImageTypes = map[string]string{"image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp", "image/svg+xml": ".svg"}
 
 // ImageUpload is a picture sent as base64 (optionally as a data: URL) and
 // where it belongs: a page, an entity, or a task card (the picture is stored
@@ -89,9 +89,16 @@ func inlineImage(data string) ([]byte, string, error) {
 	if len(b) > MaxInlineImage {
 		return nil, "", invalid("validation.image_too_large", map[string]any{"max": MaxInlineImage >> 20}, "the picture is larger than %d MB", MaxInlineImage>>20)
 	}
+	if looksSVG(b) {
+		clean, err := cleanSVG(b)
+		if err != nil {
+			return nil, "", invalid("validation.image_type", nil, "the SVG picture cannot be read")
+		}
+		return clean, "image/svg+xml", nil
+	}
 	mime := sniffMime("", b)
 	if _, ok := inlineImageTypes[mime]; !ok {
-		return nil, "", invalid("validation.image_type", nil, "only PNG, JPEG, GIF or WebP pictures can be uploaded this way")
+		return nil, "", invalid("validation.image_type", nil, "only PNG, JPEG, GIF, WebP or SVG pictures can be uploaded this way")
 	}
 	if _, _, err := image.DecodeConfig(bytes.NewReader(b)); err != nil {
 		return nil, "", invalid("validation.image_type", nil, "the picture cannot be read")

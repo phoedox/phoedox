@@ -334,6 +334,18 @@ export const blockStyles = `
   .tc-${c} { color: var(--tc-${c}); } .tb-${c} { background: var(--tb-${c}); border-radius: 3px; padding: 0 2px; }`).join("")}
 `;
 
+interface SchemaBlock { documentId: string; slug: string; title: string; sql: string }
+const schemas = new Map<string, { at: number; p: Promise<SchemaBlock[]> }>();
+
+/** All dbmodel blocks of a project (cached for a minute per page view). */
+function projectSchema(project: string): Promise<SchemaBlock[]> {
+  const hit = schemas.get(project);
+  if (hit && Date.now() - hit.at < 60_000) return hit.p;
+  const p = api<SchemaBlock[]>("GET", `/projects/${project}/dbschema`).catch(() => []);
+  schemas.set(project, { at: Date.now(), p });
+  return p;
+}
+
 /** ```dbmodel: SQL CREATE TABLE statements shown as an ER diagram with a table list. */
 export class PhxDbModel extends HTMLElement {
   private done = "";
@@ -353,8 +365,15 @@ export class PhxDbModel extends HTMLElement {
     const src = this.dataset.src ?? this.querySelector("pre")?.textContent ?? "";
     if (src === this.done) return;
     this.done = src;
-    const { parseDDL, toMermaid } = await import("../erd");
-    const tables = parseDDL(src);
+    const { parseDDL, toMermaid, shownTables, withSchema } = await import("../erd");
+    const own = parseDDL(src);
+    const shown = shownTables(src);
+    // References to tables of other blocks (and "-- tables:") use the
+    // project's schema: all dbmodel blocks of its pages.
+    const project = this.dataset.project ?? "";
+    const needSchema = project && (shown.length > 0 || own.some((tb) => tb.columns.some((c) => c.ref && !own.some((o) => o.name.toLowerCase() === c.ref!.table.toLowerCase()))));
+    const schema = needSchema ? await projectSchema(project) : [];
+    const { tables, refs, missing } = withSchema(own, shown, schema.flatMap((b) => parseDDL(b.sql)));
     const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
     const esc = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
     if (!tables.length) {
@@ -364,12 +383,22 @@ export class PhxDbModel extends HTMLElement {
     const rows = tables.map((tb) => `<details><summary><b>${esc(tb.name)}</b> <span class="m">${tables.length ? tb.columns.length : 0} ${esc(t("block.dbmodel_columns"))}</span></summary>
       <table><thead><tr><th>${esc(t("block.dbmodel_column"))}</th><th>${esc(t("block.dbmodel_type"))}</th><th></th></tr></thead><tbody>${tb.columns.map((c) =>
         `<tr><td>${esc(c.name)}</td><td class="m">${esc(c.type)}${c.notNull ? " NOT NULL" : ""}</td><td>${c.pk ? "PK " : ""}${c.ref ? `→ ${esc(c.ref.table)}.${esc(c.ref.column)}` : ""}</td></tr>`).join("")}</tbody></table></details>`).join("");
+    const from = (name: string) => schema.find((b) => parseDDL(b.sql).some((tb) => tb.name.toLowerCase() === name.toLowerCase()));
+    const link = (name: string) => {
+      const b = from(name);
+      return b ? `<a href="/p/${encodeURIComponent(project)}/d/${encodeURIComponent(b.documentId)}">${esc(name)}</a>` : esc(name);
+    };
+    const notes = [
+      refs.length ? `<p class="note">${esc(t("block.dbmodel_refs"))} ${refs.map((r) => link(r.name)).join(", ")}</p>` : "",
+      missing.length ? `<p class="note warn">${esc(t("block.dbmodel_missing", { tables: missing.join(", ") }))}</p>` : "",
+    ].join("");
     root.innerHTML = `<style>:host{display:block;margin:.8em 0}details{border-top:1px solid var(--line);padding:6px 0}summary{cursor:pointer}
-      .m{color:var(--muted);font-family:var(--font-mono);font-size:12px}table{border-collapse:collapse;margin:6px 0;font-size:13px}td,th{border:1px solid var(--line);padding:3px 8px;text-align:left}</style>
-      ${rows}`;
+      .m{color:var(--muted);font-family:var(--font-mono);font-size:12px}table{border-collapse:collapse;margin:6px 0;font-size:13px}td,th{border:1px solid var(--line);padding:3px 8px;text-align:left}
+      .note{color:var(--muted);font-size:13px;margin:4px 0}.note a{color:var(--accent)}.warn{color:var(--bad)}</style>
+      ${notes}${rows}`;
     // The source must be set before the element connects (else Mermaid renders "").
     const diagram = document.createElement("phx-mermaid");
-    diagram.setAttribute("data-src", toMermaid(tables));
+    diagram.setAttribute("data-src", toMermaid([...tables, ...refs]));
     root.insertBefore(diagram, root.querySelector("details"));
   }
 }

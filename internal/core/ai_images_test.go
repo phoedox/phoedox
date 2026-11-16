@@ -73,10 +73,13 @@ func TestUploadImageBase64(t *testing.T) {
 		t.Fatalf("entity: %+v %v", r.File, err)
 	}
 
-	// No SVG, no other files, no broken base64.
-	svg := base64.StdEncoding.EncodeToString([]byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`))
-	if _, err := s.UploadImage(ctx, ai, p.Slug, ImageUpload{Data: svg}); invalidKey(err) != "validation.image_type" {
-		t.Fatalf("svg: %v", err)
+	// SVG is cleaned (scripts removed); broken SVG and broken base64 fail.
+	svg := base64.StdEncoding.EncodeToString([]byte(`<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script><rect width="1" height="1"/></svg>`))
+	if r, err := s.UploadImage(ctx, ai, p.Slug, ImageUpload{Name: "logo", Data: svg}); err != nil || r.File.Mime != "image/svg+xml" || r.File.Size != int64(len(`<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><rect width="1" height="1"></rect></svg>`)) {
+		t.Fatalf("svg: %+v %v", r.File, err)
+	}
+	if _, err := s.UploadImage(ctx, ai, p.Slug, ImageUpload{Data: base64.StdEncoding.EncodeToString([]byte(`<svg><rect></svg>`))}); invalidKey(err) != "validation.image_type" {
+		t.Fatalf("broken svg: %v", err)
 	}
 	if _, err := s.UploadImage(ctx, ai, p.Slug, ImageUpload{Data: "%%%"}); invalidKey(err) != "validation.base64" {
 		t.Fatalf("base64: %v", err)

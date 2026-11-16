@@ -290,8 +290,8 @@ func (s *Service) draftWrite(ctx context.Context, a Actor, p store.Project, cur 
 		return DocResult{}, true, err
 	}
 	// Slug and position are not part of the draft: they change right away.
-	if patch.Slug != nil || patch.Position != nil {
-		if _, err := s.publishPatch(ctx, a, p, cur, DocumentPatch{Slug: patch.Slug, Position: patch.Position}); err != nil {
+	if patch.Slug != nil || patch.Position != nil || patch.After != "" {
+		if _, err := s.publishPatch(ctx, a, p, cur, DocumentPatch{Slug: patch.Slug, Position: patch.Position, After: patch.After}); err != nil {
 			return DocResult{}, true, err
 		}
 	}

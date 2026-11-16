@@ -72,6 +72,42 @@ export function parseDDL(sql: string): Table[] {
   return tables;
 }
 
+/** Tables a block takes from the project schema ("-- tables: users, sessions"). */
+export function shownTables(sql: string): string[] {
+  const out: string[] = [];
+  for (const m of sql.matchAll(/^\s*--\s*tables?\s*:\s*(.+)$/gim)) out.push(...m[1].split(",").map(ident).filter(Boolean));
+  return out;
+}
+
+/** The tables a block draws: its own, the ones it takes from the project
+ * schema, and – reduced to their keys – tables they reference that are
+ * defined elsewhere in the project. */
+export function withSchema(own: Table[], shown: string[], schema: Table[]): { tables: Table[]; refs: Table[]; missing: string[] } {
+  const byName = new Map<string, Table>();
+  for (const t of schema) {
+    const k = t.name.toLowerCase();
+    if ((byName.get(k)?.columns.length ?? -1) < t.columns.length) byName.set(k, t);
+  }
+  const tables = [...own];
+  const has = (n: string) => tables.some((t) => t.name.toLowerCase() === n.toLowerCase());
+  const missing: string[] = [];
+  for (const n of shown) {
+    if (has(n)) continue;
+    const t = byName.get(n.toLowerCase());
+    if (t) tables.push(t);
+    else missing.push(n);
+  }
+  const refs: Table[] = [];
+  for (const t of tables) {
+    for (const c of t.columns) {
+      if (!c.ref || has(c.ref.table) || refs.some((r) => r.name.toLowerCase() === c.ref!.table.toLowerCase())) continue;
+      const other = byName.get(c.ref.table.toLowerCase());
+      if (other) refs.push({ name: other.name, columns: other.columns.filter((x) => x.pk || x.name === c.ref!.column) });
+    }
+  }
+  return { tables, refs, missing };
+}
+
 const safe = (s: string) => s.replace(/[^\w]/g, "_");
 
 /** Mermaid erDiagram source for tables. */

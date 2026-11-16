@@ -360,6 +360,8 @@ func (a *api) routes(r chi.Router) {
 			r.Put("/category-names", a.setCategoryName)
 			r.Post("/category-names/rename", a.renameCategoryNames)
 			r.Get("/history/points", a.projectPoints)
+			r.Get("/dbschema", a.dbSchema)
+			r.Post("/validate-blocks", a.validateBlocks)
 			r.Get("/history/at", a.projectAt)
 			r.Post("/history/rollback", a.rollbackProject)
 			r.Delete("/trash/{id}", a.purgeTrash)
@@ -1356,6 +1358,24 @@ func (a *api) projectPoints(w http.ResponseWriter, r *http.Request) {
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	list, err := a.core.ProjectPoints(r.Context(), actorOf(r), chi.URLParam(r, "p"), r.URL.Query().Get("doc"), before, limit)
+	respond(w, list, err)
+}
+
+func (a *api) dbSchema(w http.ResponseWriter, r *http.Request) {
+	list, err := a.core.DBSchema(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, list, err)
+}
+
+func (a *api) validateBlocks(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Document string  `json:"document"`
+		Markdown *string `json:"markdown"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	list, err := a.core.ValidateBlocks(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.Document, in.Markdown)
 	respond(w, list, err)
 }
 

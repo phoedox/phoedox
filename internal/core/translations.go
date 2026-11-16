@@ -39,6 +39,74 @@ type TranslationInput struct {
 	// import of German originals), not translated. It is never shown as
 	// machine translation; the event records who said so.
 	Original bool `json:"original,omitempty"`
+	// Edits change exact passages of the existing translation (Field for
+	// decisions) instead of sending the whole text.
+	Edits []TextEdit `json:"edits,omitempty"`
+}
+
+// bodyGiven: the input brings translated text (not only the title).
+func (in TranslationInput) bodyGiven() bool {
+	return in.Markdown != nil || in.Context != nil || in.Decision != nil || in.Consequences != nil || in.Alternatives != nil ||
+		in.Description != nil || in.SupersedesScope != nil || len(in.Edits) > 0
+}
+
+// mergeTranslation fills the fields the input leaves out (nil) from the
+// existing translation and applies edits: a missing field keeps its text,
+// only an explicit empty string clears it.
+func mergeTranslation(typ string, old store.JSON, in *TranslationInput) error {
+	var prev map[string]string
+	_ = json.Unmarshal(old, &prev)
+	keep := func(dst **string, key string) {
+		if *dst == nil {
+			if v, ok := prev[key]; ok {
+				*dst = &v
+			}
+		}
+	}
+	keep(&in.Markdown, "markdown")
+	keep(&in.Description, "description")
+	keep(&in.Context, "context")
+	keep(&in.Decision, "decision")
+	keep(&in.Consequences, "consequences")
+	keep(&in.Alternatives, "alternatives")
+	keep(&in.SupersedesScope, "supersedesScope")
+	for i, e := range in.Edits {
+		var f **string
+		switch typ {
+		case store.DocMarkdown:
+			f = &in.Markdown
+		case store.DocADR:
+			switch e.Field {
+			case "context":
+				f = &in.Context
+			case "decision":
+				f = &in.Decision
+			case "consequences":
+				f = &in.Consequences
+			case "alternatives":
+				f = &in.Alternatives
+			default:
+				return invalid("validation.edit_field", map[string]any{"fields": strings.Join(adrFields, ", ")}, "decisions: field must be one of %s", strings.Join(adrFields, ", "))
+			}
+		default:
+			f = &in.Description
+		}
+		base := ""
+		if *f != nil {
+			base = **f
+		}
+		t, err := applyEdits(base, []TextEdit{e})
+		if err != nil {
+			var ie *InvalidError
+			if errors.As(err, &ie) {
+				ie.Params["n"] = i + 1
+			}
+			return err
+		}
+		*f = &t
+	}
+	in.Edits = nil
+	return nil
 }
 
 // adrText are the translatable parts of a decision.
@@ -183,29 +251,78 @@ func (s *Service) Translation(ctx context.Context, a Actor, ref, docRef, locale 
 // SaveTranslation creates or replaces a translation. It refers to the
 // current version of the main language, so it is up to date afterwards.
 func (s *Service) SaveTranslation(ctx context.Context, a Actor, ref, docRef, locale string, in TranslationInput) (TranslationInfo, error) {
-	p, doc, err := s.docAccess(ctx, a, ref, docRef, store.RoleEditor)
+	t, doc, err := s.prepareTranslation(ctx, a, ref, docRef, locale, in)
 	if err != nil {
 		return TranslationInfo{}, err
 	}
-	if err := translatable(p, locale); err != nil {
-		return TranslationInfo{}, err
-	}
-	in.Title = strings.TrimSpace(in.Title)
-	if in.Title == "" {
-		return TranslationInfo{}, invalid("validation.title_required", nil, "title is required")
-	}
-	c, err := translationContent(doc.Type, in)
-	if err != nil {
-		return TranslationInfo{}, err
-	}
-	t := store.Translation{DocumentID: doc.ID, Locale: locale, Title: in.Title, Content: c, SourceVersion: doc.Version,
-		Machine: !in.Original && (in.Machine || a.Via == "mcp"), Original: in.Original, UpdatedBy: a.String(), UpdatedAt: store.Now()}
 	if err := s.DB.SaveTranslation(ctx, t); err != nil {
 		return TranslationInfo{}, err
 	}
 	s.event(ctx, a, "document.translation", doc.ID, map[string]any{"locale": locale, "machine": t.Machine, "original": t.Original, "sourceVersion": t.SourceVersion})
 	s.indexDocument(ctx, doc)
-	return TranslationInfo{Translation: t, MainVersion: doc.Version}, nil
+	return TranslationInfo{Translation: t, Outdated: outdated(doc, t), MainVersion: doc.Version}, nil
+}
+
+// CheckTranslation validates a translation without saving it.
+func (s *Service) CheckTranslation(ctx context.Context, a Actor, ref, docRef, locale string, in TranslationInput) error {
+	_, _, err := s.prepareTranslation(ctx, a, ref, docRef, locale, in)
+	return err
+}
+
+// prepareTranslation builds the translation to store.
+func (s *Service) prepareTranslation(ctx context.Context, a Actor, ref, docRef, locale string, in TranslationInput) (store.Translation, store.Document, error) {
+	fail := func(err error) (store.Translation, store.Document, error) {
+		return store.Translation{}, store.Document{}, err
+	}
+	p, doc, err := s.docAccess(ctx, a, ref, docRef, store.RoleEditor)
+	if err != nil {
+		return fail(err)
+	}
+	if err := translatable(p, locale); err != nil {
+		return fail(err)
+	}
+	prev, err := s.DB.GetTranslation(ctx, doc.ID, locale)
+	exists := err == nil
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return fail(err)
+	}
+	in.Title = strings.TrimSpace(in.Title)
+	if in.Title == "" && exists {
+		in.Title = prev.Title
+	}
+	if in.Title == "" {
+		return fail(invalid("validation.title_required", nil, "title is required"))
+	}
+	if len(in.Edits) > 0 && !exists {
+		return fail(invalid("validation.edit_no_translation", map[string]any{"locale": locale}, "there is no %s translation to edit yet; send the whole text", locale))
+	}
+	// The version of the main language this translation now matches: the
+	// current one when text comes with it; for a title-only change, the
+	// current one only if the main text did not change since the old
+	// translation (otherwise it stays outdated).
+	source := doc.Version
+	if exists {
+		if !in.bodyGiven() {
+			source = prev.SourceVersion
+			if prev.SourceVersion < doc.Version {
+				if v, err := s.DB.GetVersion(ctx, doc.ID, prev.SourceVersion); err == nil &&
+					store.TranslatableText(doc.Type, "", v.Content) == store.TranslatableText(doc.Type, "", doc.Content) {
+					source = doc.Version
+				}
+			}
+			in.Original = in.Original || prev.Original
+		}
+		if err := mergeTranslation(doc.Type, prev.Content, &in); err != nil {
+			return fail(err)
+		}
+	}
+	c, err := translationContent(doc.Type, in)
+	if err != nil {
+		return fail(err)
+	}
+	t := store.Translation{DocumentID: doc.ID, Locale: locale, Title: in.Title, Content: c, SourceVersion: source,
+		Machine: !in.Original && (in.Machine || a.Via == "mcp"), Original: in.Original, UpdatedBy: a.String(), UpdatedAt: store.Now()}
+	return t, doc, nil
 }
 
 // DeleteTranslation removes a translation.
@@ -220,4 +337,36 @@ func (s *Service) DeleteTranslation(ctx context.Context, a Actor, ref, docRef, l
 	s.event(ctx, a, "document.translation_delete", doc.ID, map[string]any{"locale": locale})
 	s.unindex(ctx, store.TranslationRef(doc.ID, locale))
 	return nil
+}
+
+// TranslationStates tells for each document and further language whether
+// its translation is "current", "outdated" or "missing" (nil when the
+// project is not multilingual).
+func (s *Service) TranslationStates(ctx context.Context, a Actor, ref string, docs []store.Document) (map[string]map[string]string, error) {
+	p, err := s.project(ctx, a, ref, store.RoleDoc)
+	if err != nil || p.MainLocale == "" || len(p.Locales) == 0 {
+		return nil, err
+	}
+	all, err := s.DB.ProjectTranslations(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]map[string]string{}
+	for _, d := range docs {
+		st := map[string]string{}
+		for _, l := range p.Locales {
+			st[l] = "missing"
+		}
+		for _, t := range all[d.ID] {
+			if _, ok := st[t.Locale]; !ok {
+				continue
+			}
+			st[t.Locale] = "current"
+			if t.SourceVersion < d.Version {
+				st[t.Locale] = "outdated"
+			}
+		}
+		out[d.ID] = st
+	}
+	return out, nil
 }

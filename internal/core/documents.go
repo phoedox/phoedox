@@ -287,6 +287,9 @@ type DocumentInput struct {
 	Parent string `json:"parent,omitempty"`
 	// ExtRef is the document's own number in another system ("D-640").
 	ExtRef string `json:"extRef,omitempty"`
+	// After places the new document right after another one (slug or id);
+	// without a category it goes into that document's category.
+	After string `json:"after,omitempty"`
 }
 
 // DocumentPatch changes a document; nil fields stay as they are.
@@ -303,6 +306,11 @@ type DocumentPatch struct {
 	Whiteboard    *Whiteboard `json:"whiteboard,omitempty"`
 	ExtRef        *string     `json:"extRef,omitempty"`
 	ExpectVersion int         `json:"expectVersion,omitempty"`
+	// Edits change exact passages instead of sending the whole text.
+	Edits []TextEdit `json:"edits,omitempty"`
+	// After moves the document right after another one (slug or id) in
+	// its category.
+	After string `json:"after,omitempty"`
 }
 
 // DocResult is either an applied change or a pending suggestion.
@@ -483,6 +491,17 @@ func (s *Service) createDocument(ctx context.Context, a Actor, p store.Project, 
 	if err != nil {
 		return DocResult{}, err
 	}
+	if in.After != "" {
+		cat := strings.TrimSpace(in.Category)
+		if cat == "" {
+			cat = "\x00" // the category of the document it follows
+		}
+		pos, c, err := s.placeAfter(ctx, a, p, cat, in.After, "")
+		if err != nil {
+			return DocResult{}, err
+		}
+		in.Position, in.Category, in.After = pos, c, ""
+	}
 	parentID := ""
 	if in.Parent != "" {
 		parent, err := s.DB.GetDocument(ctx, p.ID, in.Parent)
@@ -525,6 +544,9 @@ func (s *Service) UpdateDocument(ctx context.Context, a Actor, ref, docRef strin
 	if err != nil {
 		return DocResult{}, err
 	}
+	if err := s.resolveEdits(ctx, cur, &patch); err != nil {
+		return DocResult{}, err
+	}
 	if _, _, _, err := s.patched(ctx, p, cur, patch); err != nil {
 		return DocResult{}, err
 	}
@@ -540,6 +562,36 @@ func (s *Service) UpdateDocument(ctx context.Context, a Actor, ref, docRef strin
 		return DocResult{Suggestion: sug}, err
 	}
 	return s.updateDocument(ctx, a, p, cur, patch)
+}
+
+// CheckUpdate validates a change without writing it (for batches).
+func (s *Service) CheckUpdate(ctx context.Context, a Actor, ref, docRef string, patch DocumentPatch) error {
+	p, cur, err := s.docAccess(ctx, a, ref, docRef, store.RoleEditor)
+	if err != nil {
+		return err
+	}
+	patch.Edits = slices.Clone(patch.Edits)
+	if err := s.resolveEdits(ctx, cur, &patch); err != nil {
+		return err
+	}
+	if patch.After != "" {
+		after, err := s.findDoc(ctx, p.ID, patch.After)
+		cat := cur.Category
+		if patch.Category != nil {
+			cat = strings.TrimSpace(*patch.Category)
+		}
+		if err != nil {
+			return invalid("validation.after", map[string]any{"after": patch.After}, "document %q to insert after not found", patch.After)
+		}
+		if after.Category != cat {
+			return invalid("validation.after_category", map[string]any{"after": after.Title}, "%q is in another category", after.Title)
+		}
+	}
+	if patch.ExpectVersion > 0 && patch.ExpectVersion != cur.Version {
+		return store.ErrConflict
+	}
+	_, _, _, err = s.patched(ctx, p, cur, patch)
+	return err
 }
 
 // patched returns the document with the patch applied, the mention text and
@@ -662,6 +714,17 @@ func (s *Service) updateDocument(ctx context.Context, a Actor, p store.Project, 
 
 // publishPatch changes the published content and stores a version.
 func (s *Service) publishPatch(ctx context.Context, a Actor, p store.Project, cur store.Document, patch DocumentPatch) (DocResult, error) {
+	if patch.After != "" {
+		cat := cur.Category
+		if patch.Category != nil {
+			cat = strings.TrimSpace(*patch.Category)
+		}
+		pos, _, err := s.placeAfter(ctx, a, p, cat, patch.After, cur.ID)
+		if err != nil {
+			return DocResult{}, err
+		}
+		patch.Position, patch.After = &pos, ""
+	}
 	doc, text, related, err := s.patched(ctx, p, cur, patch)
 	if err != nil {
 		return DocResult{}, err

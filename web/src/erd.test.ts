@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseDDL, toMermaid } from "./erd";
+import { parseDDL, toMermaid, shownTables, withSchema } from "./erd";
 
 describe("dbmodel", () => {
   const sql = `
@@ -41,4 +41,13 @@ CREATE TABLE members (project_id TEXT, user_id TEXT,
     expect(m).toContain('users ||--o{ projects : "owner_id"');
     expect(m).toContain('projects ||--o{ members : "project_id"');
   });
+});
+
+test("blocks take tables from the project schema", () => {
+  const schema = parseDDL("create table users (id int primary key, name text); create table orgs (id int primary key, name text)");
+  const own = parseDDL("-- tables: users, ghosts\ncreate table sessions (id int primary key, user_id int references users(id), org_id int references orgs(id))");
+  const { tables, refs, missing } = withSchema(own, shownTables("-- tables: users, ghosts\n"), schema);
+  expect(tables.map((t) => t.name)).toEqual(["sessions", "users"]);
+  expect(refs.map((t) => [t.name, t.columns.map((c) => c.name)])).toEqual([["orgs", ["id"]]]);
+  expect(missing).toEqual(["ghosts"]);
 });

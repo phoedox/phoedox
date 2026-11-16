@@ -376,3 +376,16 @@ func (d *DB) MentionedEntities(ctx context.Context, projectID string) (map[strin
 	}
 	return out, rows.Err()
 }
+
+// SetPositions changes the order of documents (id → position) without a
+// new version: the order is not part of the content.
+func (d *DB) SetPositions(ctx context.Context, projectID string, pos map[string]int) error {
+	return d.InTx(ctx, func(tx *Tx) error {
+		for id, p := range pos {
+			if _, err := tx.Exec(ctx, `UPDATE documents SET position = ? WHERE id = ? AND project_id = ?`, p, id, projectID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}

@@ -122,16 +122,18 @@ type getDocIn struct {
 type translateIn struct {
 	docRef
 	Lang         string  `json:"lang" jsonschema:"one of the project's further languages (see get_project: locales)"`
-	Title        string  `json:"title"`
-	Markdown     *string `json:"markdown,omitempty" jsonschema:"pages: the whole translated Markdown; keep @mentions, links, code and {{variables}} unchanged"`
+	Title        string  `json:"title,omitempty" jsonschema:"translated title; may be left out when the translation exists (keeps its title)"`
+	Markdown     *string `json:"markdown,omitempty" jsonschema:"pages: the whole translated Markdown; keep @mentions, links, code and {{variables}} unchanged. Left out = the existing translated text stays; only an empty string clears it"`
 	Context      *string `json:"context,omitempty" jsonschema:"decisions: translated context"`
 	Decision     *string `json:"decision,omitempty" jsonschema:"decisions: translated decision"`
 	Consequences *string `json:"consequences,omitempty"`
 	Alternatives *string `json:"alternatives,omitempty"`
 	Description  *string `json:"description,omitempty" jsonschema:"links: translated description"`
 	// SupersedesScope and Original as in translationIn.
-	SupersedesScope *string `json:"supersedes_scope,omitempty" jsonschema:"decisions that replace part of an older one: the translated scope"`
-	Original        bool    `json:"original,omitempty" jsonschema:"true only when this language is the user's own original text (e.g. importing their German originals), not a translation you made; otherwise it is shown as machine translation until a person reviews it"`
+	SupersedesScope *string         `json:"supersedes_scope,omitempty" jsonschema:"decisions that replace part of an older one: the translated scope"`
+	Original        bool            `json:"original,omitempty" jsonschema:"true only when this language is the user's own original text (e.g. importing their German originals), not a translation you made; otherwise it is shown as machine translation until a person reviews it"`
+	Edits           []core.TextEdit `json:"edits,omitempty" jsonschema:"change exact passages of the existing translation instead of sending it whole: {old, new} where old occurs exactly once (field for decisions: context, decision, consequences, alternatives); all or nothing"`
+	Verbose         bool            `json:"verbose,omitempty" jsonschema:"true returns the whole translation; default: only its state"`
 }
 
 // translationIn is one language of a document created together with it.
@@ -265,10 +267,11 @@ type updateProjectIn struct {
 }
 
 type listDocsIn struct {
-	Project  string `json:"project" jsonschema:"project slug"`
-	Type     string `json:"type,omitempty" jsonschema:"markdown, adr, link, board or floorplan"`
-	Category string `json:"category,omitempty"`
-	Lang     string `json:"lang,omitempty" jsonschema:"multilingual projects: show titles in this translation where one exists"`
+	Project     string `json:"project" jsonschema:"project slug"`
+	Type        string `json:"type,omitempty" jsonschema:"markdown, adr, link, board or floorplan"`
+	Category    string `json:"category,omitempty"`
+	Lang        string `json:"lang,omitempty" jsonschema:"multilingual projects: show titles in this translation where one exists"`
+	Translation string `json:"translation,omitempty" jsonschema:"multilingual projects: only documents whose translation is outdated, missing or either (stale) in some further language (or in lang)"`
 }
 
 type createDocIn struct {
@@ -278,20 +281,25 @@ type createDocIn struct {
 	Category     string                   `json:"category,omitempty" jsonschema:"sidebar group; a / makes sub-folders, e.g. Architecture/Backend. Titles should not repeat the folder name"`
 	Slug         string                   `json:"slug,omitempty" jsonschema:"optional, derived from title"`
 	Position     int                      `json:"position,omitempty" jsonschema:"order within the category"`
+	After        string                   `json:"after,omitempty" jsonschema:"slug or id of a page to insert this one right after (the pages below move down; without category it goes into that page's category)"`
 	Translations map[string]translationIn `json:"translations,omitempty" jsonschema:"multilingual projects: language (one of the further locales) → title and markdown, saved together with the page"`
+	Verbose      bool                     `json:"verbose,omitempty" jsonschema:"true returns the whole document; default: id, slug, version and url"`
 }
 
 type updateDocIn struct {
-	Project       string  `json:"project" jsonschema:"project slug"`
-	Document      string  `json:"document" jsonschema:"document slug or id"`
-	Title         *string `json:"title,omitempty"`
-	Markdown      *string `json:"markdown,omitempty" jsonschema:"replaces the whole markdown content"`
-	Category      *string `json:"category,omitempty"`
-	Slug          *string `json:"slug,omitempty"`
-	Position      *int    `json:"position,omitempty"`
-	URL           *string `json:"url,omitempty" jsonschema:"links only: the new address"`
-	Description   *string `json:"description,omitempty" jsonschema:"links only: the new description"`
-	ExpectVersion int     `json:"expect_version,omitempty" jsonschema:"fail if the document changed since this version"`
+	Project       string          `json:"project" jsonschema:"project slug"`
+	Document      string          `json:"document" jsonschema:"document slug or id"`
+	Title         *string         `json:"title,omitempty"`
+	Markdown      *string         `json:"markdown,omitempty" jsonschema:"replaces the whole markdown content; for small changes to long pages use edits"`
+	Edits         []core.TextEdit `json:"edits,omitempty" jsonschema:"change exact passages instead of sending the whole text: {old, new} pairs applied in order; old must occur exactly once (add context if needed); all or nothing. Decisions: field context, decision, consequences or alternatives. Applies to the open draft if there is one"`
+	Category      *string         `json:"category,omitempty"`
+	Slug          *string         `json:"slug,omitempty"`
+	Position      *int            `json:"position,omitempty"`
+	After         string          `json:"after,omitempty" jsonschema:"slug or id of a page in the same category to move this one right after"`
+	URL           *string         `json:"url,omitempty" jsonschema:"links only: the new address"`
+	Description   *string         `json:"description,omitempty" jsonschema:"links only: the new description"`
+	ExpectVersion int             `json:"expect_version,omitempty" jsonschema:"fail if the document changed since this version"`
+	Verbose       bool            `json:"verbose,omitempty" jsonschema:"true returns the whole document; default: id, slug, version, url and draft/suggestion state"`
 }
 
 type updateBoardIn struct {
@@ -621,8 +629,35 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		upd.MainLocale, upd.Locales, upd.Features = in.MainLocale, in.Locales, in.Features
 		return svc.UpdateProject(ctx, a, p.Slug, upd)
 	})
-	tool(s, "list_documents", "List documents of a project (without content), optionally filtered by type or category.", func(ctx context.Context, a core.Actor, in listDocsIn) (any, error) {
-		return svc.Documents(ctx, a, in.Project, store.DocFilter{Type: in.Type, Category: in.Category, Locale: in.Lang})
+	tool(s, "list_documents", "List documents of a project (without content), optionally filtered by type or category. Multilingual projects: translationState per further language (current, outdated, missing); translation: stale lists only those that need work.", func(ctx context.Context, a core.Actor, in listDocsIn) (any, error) {
+		docs, err := svc.Documents(ctx, a, in.Project, store.DocFilter{Type: in.Type, Category: in.Category, Locale: in.Lang})
+		if err != nil {
+			return nil, err
+		}
+		states, err := svc.TranslationStates(ctx, a, in.Project, docs)
+		if err != nil || states == nil {
+			return docs, err
+		}
+		out := []docWithTranslations{}
+		for _, d := range docs {
+			st := states[d.ID]
+			if in.Translation != "" {
+				hit := false
+				for l, v := range st {
+					if in.Lang != "" && l != in.Lang {
+						continue
+					}
+					if v == in.Translation || in.Translation == "stale" && v != "current" {
+						hit = true
+					}
+				}
+				if !hit {
+					continue
+				}
+			}
+			out = append(out, docWithTranslations{Document: d, TranslationState: st})
+		}
+		return out, nil
 	})
 	tool(s, "get_document", "Read a document with its full content (the published version). If the page has an open draft, it is returned as \"draft\" too – your writes go into it. In multilingual projects, lang picks a translation; \"translation.sourceVersion\" lower than \"version\" means the translation is outdated.", func(ctx context.Context, a core.Actor, in getDocIn) (any, error) {
 		d, err := svc.LocalizedDocument(ctx, a, in.Project, in.Document, in.Lang)
@@ -643,10 +678,28 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		return v, nil
 	})
-	tool(s, "translate_document", "Write the translation of a document into one of the project's further languages (multilingual projects, see get_project). Read the main language with get_document first. The translation refers to the current main version and is marked as machine translation until a person reviews it. Number, status, slug and category stay shared.", func(ctx context.Context, a core.Actor, in translateIn) (any, error) {
-		return svc.SaveTranslation(ctx, a, in.Project, in.Document, in.Lang, core.TranslationInput{Title: in.Title, Markdown: in.Markdown,
+	tool(s, "translate_document", "Write the translation of a document into one of the project's further languages (multilingual projects, see get_project). Read the main language with get_document first. Fields you leave out keep their translated text (only an empty string clears one); edits change exact passages. With text or edits the translation counts as current; a title-only change keeps the text and is current only if the main text did not change since (the answer says outdated). Machine translation until a person reviews it. Number, status, slug and category stay shared.", func(ctx context.Context, a core.Actor, in translateIn) (any, error) {
+		t, err := svc.SaveTranslation(ctx, a, in.Project, in.Document, in.Lang, core.TranslationInput{Title: in.Title, Markdown: in.Markdown,
 			Context: in.Context, Decision: in.Decision, Consequences: in.Consequences, Alternatives: in.Alternatives, Description: in.Description,
-			SupersedesScope: in.SupersedesScope, Original: in.Original})
+			SupersedesScope: in.SupersedesScope, Original: in.Original, Edits: in.Edits})
+		if err != nil || in.Verbose {
+			return t, err
+		}
+		t.Content = nil
+		return t, nil
+	})
+	tool(s, "validate_blocks", "Check the mermaid and dbmodel blocks of a page (its open draft if any) or of Markdown you are about to save: unknown diagram types, Mermaid keywords used as names, unclosed blocks, unbalanced brackets or quotes, dbmodel tables that are not defined anywhere in the project. The Mermaid check catches common mistakes, not everything the renderer rejects. create_document and update_document return the same findings as blockProblems.", func(ctx context.Context, a core.Actor, in validateBlocksIn) (any, error) {
+		if in.Document == "" && in.Markdown == nil {
+			return nil, errors.New("give document or markdown")
+		}
+		ps, err := svc.ValidateBlocks(ctx, a, in.Project, in.Document, in.Markdown)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"ok": len(ps) == 0, "problems": ps}, nil
+	})
+	tool(s, "batch_update", "Several changes in one call: update (title, markdown or edits, category, position/after of the main language) and translate (title, text or edits of one language) operations, up to 100, applied in order. Every operation is checked first; if one is invalid, nothing is written. Answers are short (id, version, translation state).", func(ctx context.Context, a core.Actor, in batchIn) (any, error) {
+		return batchUpdate(ctx, svc, a, in)
 	})
 	tool(s, "translate_category", "Name a folder (category, e.g. Architecture/Backend) in one of the project's further languages, so the sidebar shows it in that language; the name is the last part only (Backend → Hintergrund). An empty name removes it. Only where AI writes directly.", func(ctx context.Context, a core.Actor, in translateCategoryIn) (any, error) {
 		p, err := svc.SetCategoryName(ctx, a, in.Project, in.Category, in.Lang, in.Name)
@@ -710,14 +763,21 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		return svc.RestoreVersion(ctx, a, in.Project, in.Document, in.Version)
 	})
 	tool(s, "create_document", "Create a Markdown page.", func(ctx context.Context, a core.Actor, in createDocIn) (any, error) {
-		res, err := svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocMarkdown, Title: in.Title, Slug: in.Slug, Category: in.Category, Position: in.Position, Markdown: in.Markdown})
+		res, err := svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocMarkdown, Title: in.Title, Slug: in.Slug, Category: in.Category, Position: in.Position, Markdown: in.Markdown, After: in.After})
 		if err != nil {
 			return nil, err
 		}
-		return withTranslations{DocResult: res, Translations: saveTranslations(ctx, svc, a, in.Project, res, in.Translations)}, nil
+		tr := saveTranslations(ctx, svc, a, in.Project, res, in.Translations)
+		if !in.Verbose {
+			out := briefResult(res, tr)
+			checkBlocks(ctx, svc, a, in.Project, res, &in.Markdown, &out)
+			return out, nil
+		}
+		return withTranslations{DocResult: res, Translations: tr}, nil
 	})
-	tool(s, "update_document", "Update a Markdown page or a link. Only given fields change; markdown replaces the whole content; url and description apply to links. If the page has an open draft (someone is editing it), the change goes into the draft and is published together with it by a person; the result then contains \"draft\".", func(ctx context.Context, a core.Actor, in updateDocIn) (any, error) {
-		patch := core.DocumentPatch{Title: in.Title, Markdown: in.Markdown, Category: in.Category, Slug: in.Slug, Position: in.Position, ExpectVersion: in.ExpectVersion}
+	tool(s, "update_document", "Update a Markdown page, a decision's texts (via edits) or a link. Only given fields change; markdown replaces the whole content, edits change exact passages (cheaper for long pages); url and description apply to links. The answer is short (id, version, url) unless verbose. If the page has an open draft (someone is editing it), the change goes into the draft and is published together with it by a person; the result then contains \"draft\".", func(ctx context.Context, a core.Actor, in updateDocIn) (any, error) {
+		patch := core.DocumentPatch{Title: in.Title, Markdown: in.Markdown, Category: in.Category, Slug: in.Slug, Position: in.Position, ExpectVersion: in.ExpectVersion,
+			Edits: in.Edits, After: in.After}
 		if in.URL != nil || in.Description != nil {
 			cur, err := svc.Document(ctx, a, in.Project, in.Document)
 			if err != nil {
@@ -732,7 +792,15 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 			setIf(&link.Description, in.Description)
 			patch.Link = &link
 		}
-		return svc.UpdateDocument(ctx, a, in.Project, in.Document, patch)
+		res, err := svc.UpdateDocument(ctx, a, in.Project, in.Document, patch)
+		if err != nil || in.Verbose {
+			return res, err
+		}
+		out := briefResult(res, nil)
+		if in.Markdown != nil || len(in.Edits) > 0 {
+			checkBlocks(ctx, svc, a, in.Project, res, in.Markdown, &out)
+		}
+		return out, nil
 	})
 	tool(s, "update_board", "Change a board: title, category, description above it, or its columns (rename, reorder, add; remove only empty ones). Only given fields change.", func(ctx context.Context, a core.Actor, in updateBoardIn) (any, error) {
 		cur, err := svc.Document(ctx, a, in.Project, in.Board)
@@ -1023,14 +1091,14 @@ func subtasksOf(titles []string) []store.Subtask {
 }
 
 // overviewMaxDocs: above this, get_project counts documents per category.
-const overviewMaxDocs = 150
+const overviewMaxDocs = 80
 
 // maxBulkDecisions caps create_decisions.
 const maxBulkDecisions = 50
 
 type getProjectIn struct {
 	Project   string `json:"project" jsonschema:"project slug"`
-	Documents string `json:"documents,omitempty" jsonschema:"full: every document by category; summary: only the number per category (the default for projects with more than 150 documents)"`
+	Documents string `json:"documents,omitempty" jsonschema:"full: every document by category; summary: only the number per category (the default for projects with more than 80 documents)"`
 }
 
 // withTranslations is a created document with the result per language.
@@ -1110,4 +1178,167 @@ type translateCategoryIn struct {
 	Category string `json:"category" jsonschema:"the folder path in the main language, e.g. Architecture/Backend"`
 	Lang     string `json:"lang" jsonschema:"one of the project's further languages"`
 	Name     string `json:"name" jsonschema:"the folder's own name in that language (the last part of the path, no /); empty removes it"`
+}
+
+// briefDoc is the short answer to a write: enough to refer to the
+// document again and link it.
+type briefDoc struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"projectId"`
+	Type      string `json:"type"`
+	Slug      string `json:"slug"`
+	Title     string `json:"title"`
+	Ref       string `json:"ref,omitempty"`
+	Version   int    `json:"version"`
+}
+
+type briefDocResult struct {
+	Applied      bool              `json:"applied"`
+	Document     *briefDoc         `json:"document,omitempty"`
+	Suggestion   any               `json:"suggestion,omitempty"`
+	Draft        any               `json:"draft,omitempty"`
+	Translations map[string]string `json:"translations,omitempty"`
+	// BlockProblems are findings in mermaid and dbmodel blocks of the page.
+	BlockProblems []core.BlockProblem `json:"blockProblems,omitempty"`
+}
+
+// checkBlocks adds the findings in diagram blocks to a write's answer: of
+// the saved page (or its draft), or of the suggested text.
+func checkBlocks(ctx context.Context, svc *core.Service, a core.Actor, project string, res core.DocResult, md *string, out *briefDocResult) {
+	var ps []core.BlockProblem
+	switch {
+	case res.Applied && res.Document != nil && res.Document.Type == store.DocMarkdown:
+		ps, _ = svc.ValidateBlocks(ctx, a, project, res.Document.ID, nil)
+	case md != nil:
+		ps, _ = svc.ValidateBlocks(ctx, a, project, "", md)
+	}
+	out.BlockProblems = ps
+}
+
+// briefResult drops the content from a write's answer (verbose: false).
+func briefResult(res core.DocResult, translations map[string]string) briefDocResult {
+	out := briefDocResult{Applied: res.Applied, Translations: translations}
+	if res.Suggestion != nil {
+		out.Suggestion = map[string]any{"id": res.Suggestion.ID, "status": res.Suggestion.Status, "note": "pending: a person accepts it in Phoedox"}
+	}
+	if res.Draft != nil {
+		out.Draft = map[string]any{"note": "written into the open draft; a person publishes it", "updatedAt": res.Draft.UpdatedAt}
+	}
+	if d := res.Document; d != nil {
+		out.Document = &briefDoc{ID: d.ID, ProjectID: d.ProjectID, Type: d.Type, Slug: d.Slug, Title: d.Title, Ref: decisionRef(*d), Version: d.Version}
+	}
+	return out
+}
+
+// docWithTranslations is a list entry with the state of its translations.
+type docWithTranslations struct {
+	store.Document
+	TranslationState map[string]string `json:"translationState,omitempty"`
+}
+
+// batchOp is one operation of batch_update.
+type batchOp struct {
+	Action        string          `json:"action" jsonschema:"update (the main language) or translate (one further language)"`
+	Document      string          `json:"document" jsonschema:"document slug, id or decision number"`
+	Lang          string          `json:"lang,omitempty" jsonschema:"translate: the language"`
+	Title         *string         `json:"title,omitempty"`
+	Markdown      *string         `json:"markdown,omitempty" jsonschema:"the whole text; prefer edits for small changes"`
+	Edits         []core.TextEdit `json:"edits,omitempty" jsonschema:"{old, new} pairs; old must occur exactly once (field for decisions)"`
+	Category      *string         `json:"category,omitempty" jsonschema:"update only"`
+	Position      *int            `json:"position,omitempty" jsonschema:"update only"`
+	After         string          `json:"after,omitempty" jsonschema:"update only: move right after this page"`
+	ExpectVersion int             `json:"expect_version,omitempty" jsonschema:"update only"`
+	Context       *string         `json:"context,omitempty" jsonschema:"translate, decisions"`
+	Decision      *string         `json:"decision,omitempty" jsonschema:"translate, decisions"`
+	Consequences  *string         `json:"consequences,omitempty" jsonschema:"translate, decisions"`
+	Alternatives  *string         `json:"alternatives,omitempty" jsonschema:"translate, decisions"`
+	Description   *string         `json:"description,omitempty" jsonschema:"translate, links"`
+}
+
+type batchIn struct {
+	Project    string    `json:"project" jsonschema:"project slug"`
+	Operations []batchOp `json:"operations" jsonschema:"up to 100 operations, applied in order"`
+}
+
+const batchMax = 100
+
+func (o batchOp) patch() core.DocumentPatch {
+	return core.DocumentPatch{Title: o.Title, Markdown: o.Markdown, Edits: o.Edits, Category: o.Category, Position: o.Position, After: o.After, ExpectVersion: o.ExpectVersion}
+}
+
+func (o batchOp) translation() core.TranslationInput {
+	in := core.TranslationInput{Markdown: o.Markdown, Edits: o.Edits, Context: o.Context, Decision: o.Decision, Consequences: o.Consequences,
+		Alternatives: o.Alternatives, Description: o.Description}
+	if o.Title != nil {
+		in.Title = *o.Title
+	}
+	return in
+}
+
+// batchUpdate checks every operation first and writes only when all are
+// valid; then it applies them in order.
+func batchUpdate(ctx context.Context, svc *core.Service, a core.Actor, in batchIn) (any, error) {
+	if len(in.Operations) == 0 || len(in.Operations) > batchMax {
+		return nil, fmt.Errorf("send 1 to %d operations", batchMax)
+	}
+	seen := map[string]int{}
+	for i, o := range in.Operations {
+		key := o.Action + "\x00" + o.Document + "\x00" + o.Lang
+		if j, ok := seen[key]; ok {
+			return nil, fmt.Errorf("operation %d: same document and action as operation %d; combine them into one", i+1, j+1)
+		}
+		seen[key] = i
+		var err error
+		switch o.Action {
+		case "update":
+			if o.Lang != "" {
+				err = errors.New("update changes the main language; use action translate with lang")
+			} else {
+				err = svc.CheckUpdate(ctx, a, in.Project, o.Document, o.patch())
+			}
+		case "translate":
+			if o.Category != nil || o.Position != nil || o.After != "" {
+				err = errors.New("category and position belong to the document; change them with an update operation")
+			} else {
+				err = svc.CheckTranslation(ctx, a, in.Project, o.Document, o.Lang, o.translation())
+			}
+		default:
+			err = errors.New(`action must be "update" or "translate"`)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("operation %d (%s %s): %v; nothing was written", i+1, o.Action, o.Document, friendly(err))
+		}
+	}
+	results := make([]any, 0, len(in.Operations))
+	for i, o := range in.Operations {
+		var r any
+		var err error
+		if o.Action == "update" {
+			var res core.DocResult
+			if res, err = svc.UpdateDocument(ctx, a, in.Project, o.Document, o.patch()); err == nil {
+				b := briefResult(res, nil)
+				if o.Markdown != nil || len(o.Edits) > 0 {
+					checkBlocks(ctx, svc, a, in.Project, res, o.Markdown, &b)
+				}
+				r = b
+			}
+		} else {
+			var t core.TranslationInfo
+			if t, err = svc.SaveTranslation(ctx, a, in.Project, o.Document, o.Lang, o.translation()); err == nil {
+				r = map[string]any{"document": o.Document, "lang": o.Lang, "title": t.Title, "sourceVersion": t.SourceVersion, "outdated": t.Outdated, "machine": t.Machine}
+			}
+		}
+		if err != nil {
+			return map[string]any{"applied": i, "results": results,
+				"error": fmt.Sprintf("operation %d (%s %s) failed after the check: %v; operations before it were written, later ones were not", i+1, o.Action, o.Document, err)}, nil
+		}
+		results = append(results, r)
+	}
+	return map[string]any{"applied": len(results), "results": results}, nil
+}
+
+type validateBlocksIn struct {
+	Project  string  `json:"project" jsonschema:"project slug"`
+	Document string  `json:"document,omitempty" jsonschema:"page slug or id to check"`
+	Markdown *string `json:"markdown,omitempty" jsonschema:"or: Markdown to check before saving"`
 }
