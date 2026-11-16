@@ -75,8 +75,12 @@ func entityText(e store.Entity) string {
 // indexDocument indexes a document and its translations (each its own
 // entry, so a search in either language finds the page).
 func (s *Service) indexDocument(ctx context.Context, doc store.Document) {
+	title := doc.Title
+	if doc.ExtRef != "" && !strings.Contains(title, doc.ExtRef) {
+		title = doc.ExtRef + " · " + title // found by its own number too
+	}
 	if err := s.DB.IndexPut(ctx, store.IndexEntry{RefID: doc.ID, Kind: "document", ProjectID: doc.ProjectID, Slug: doc.Slug,
-		Subtype: doc.Type, Title: doc.Title, Body: documentText(doc)}); err != nil {
+		Subtype: doc.Type, Title: title, Body: documentText(doc)}); err != nil {
 		slog.Warn("search index update failed", "document", doc.ID, "err", err)
 	}
 	ts, err := s.DB.Translations(ctx, doc.ID)

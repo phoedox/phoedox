@@ -97,6 +97,8 @@ export interface Doc {
   category: string; position: number; version: number; updatedAt: string; content?: any;
   /** Decisions only: per-project number, never reused. */
   number?: number;
+  /** Own number from another system (e.g. "D-640"); links and search find it too. */
+  extRef?: string;
   /** Visible only to owners and people or groups it is shared with. */
   restricted?: boolean;
   /** The requesting user's role for this page. */
@@ -126,7 +128,7 @@ export interface TaskDoc { id: string; slug: string; title: string; type: Doc["t
 export interface CodeRepo { id: string; provider: "github" | "gitea"; webUrl: string; owner: string; name: string; tokenVar?: string; lastCheck?: string; lastError?: string }
 export interface CodeLink { id: string; taskId: string; repoId: string; repo: string; kind: "commit" | "release" | "pull"; ref: string; title?: string; url?: string; at?: string; auto?: boolean }
 export interface CodeItem { kind: string; ref: string; title: string; url: string; at?: string; prerelease?: boolean }
-export interface TranslationMeta { documentId: string; locale: string; title: string; sourceVersion: number; machine: boolean; updatedAt: string }
+export interface TranslationMeta { documentId: string; locale: string; title: string; sourceVersion: number; machine: boolean; original?: boolean; updatedAt: string }
 export interface TranslationInfo extends TranslationMeta { content?: any; outdated: boolean; mainVersion: number }
 /** A draft of a Markdown page (ADR-0027); shared by everyone editing it. */
 export interface DraftParticipant { actor: string; name: string; ai?: boolean }
@@ -147,7 +149,7 @@ export interface DraftInfo {
 export type DecisionStatus = "proposed" | "accepted" | "rejected" | "deprecated" | "partially_superseded" | "superseded";
 export const decisionStatuses: readonly DecisionStatus[] = ["proposed", "accepted", "rejected", "deprecated", "partially_superseded", "superseded"];
 export interface Decision {
-  ref: string; number: number; slug: string; title: string; status: DecisionStatus; date?: string;
+  ref: string; number: number; extRef?: string; slug: string; title: string; status: DecisionStatus; date?: string;
   category?: string; supersedes?: string; supersedesPartly?: boolean; supersedesScope?: string; supersededBy?: string; partlySupersededBy?: string[];
   version: number; updatedAt: string;
   /** Number of options of an open decision; needsOptions: the last answer was "nothing fits". */

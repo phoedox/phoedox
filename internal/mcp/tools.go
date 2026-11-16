@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -128,6 +129,26 @@ type translateIn struct {
 	Consequences *string `json:"consequences,omitempty"`
 	Alternatives *string `json:"alternatives,omitempty"`
 	Description  *string `json:"description,omitempty" jsonschema:"links: translated description"`
+	// SupersedesScope and Original as in translationIn.
+	SupersedesScope *string `json:"supersedes_scope,omitempty" jsonschema:"decisions that replace part of an older one: the translated scope"`
+	Original        bool    `json:"original,omitempty" jsonschema:"true only when this language is the user's own original text (e.g. importing their German originals), not a translation you made; otherwise it is shown as machine translation until a person reviews it"`
+}
+
+// translationIn is one language of a document created together with it.
+type translationIn struct {
+	Title           string  `json:"title"`
+	Markdown        *string `json:"markdown,omitempty" jsonschema:"pages: the translated Markdown"`
+	Context         *string `json:"context,omitempty"`
+	Decision        *string `json:"decision,omitempty"`
+	Consequences    *string `json:"consequences,omitempty"`
+	Alternatives    *string `json:"alternatives,omitempty"`
+	SupersedesScope *string `json:"supersedes_scope,omitempty"`
+	Original        bool    `json:"original,omitempty" jsonschema:"true only when this text is the user's own original in this language, not your translation"`
+}
+
+func (t translationIn) input() core.TranslationInput {
+	return core.TranslationInput{Title: t.Title, Markdown: t.Markdown, Context: t.Context, Decision: t.Decision, Consequences: t.Consequences,
+		Alternatives: t.Alternatives, SupersedesScope: t.SupersedesScope, Original: t.Original}
 }
 
 type versionRef struct {
@@ -251,12 +272,13 @@ type listDocsIn struct {
 }
 
 type createDocIn struct {
-	Project  string `json:"project" jsonschema:"project slug"`
-	Title    string `json:"title"`
-	Markdown string `json:"markdown" jsonschema:"page content in Markdown; mention entities with @slug"`
-	Category string `json:"category,omitempty" jsonschema:"sidebar group; a / makes sub-folders, e.g. Architecture/Backend. Titles should not repeat the folder name"`
-	Slug     string `json:"slug,omitempty" jsonschema:"optional, derived from title"`
-	Position int    `json:"position,omitempty" jsonschema:"order within the category"`
+	Project      string                   `json:"project" jsonschema:"project slug"`
+	Title        string                   `json:"title"`
+	Markdown     string                   `json:"markdown" jsonschema:"page content in Markdown; mention entities with @slug"`
+	Category     string                   `json:"category,omitempty" jsonschema:"sidebar group; a / makes sub-folders, e.g. Architecture/Backend. Titles should not repeat the folder name"`
+	Slug         string                   `json:"slug,omitempty" jsonschema:"optional, derived from title"`
+	Position     int                      `json:"position,omitempty" jsonschema:"order within the category"`
+	Translations map[string]translationIn `json:"translations,omitempty" jsonschema:"multilingual projects: language (one of the further locales) → title and markdown, saved together with the page"`
 }
 
 type updateDocIn struct {
@@ -311,11 +333,23 @@ type listDecisionsIn struct {
 }
 
 type createDecisionIn struct {
-	Project  string `json:"project" jsonschema:"project slug"`
-	Title    string `json:"title"`
-	Category string `json:"category,omitempty" jsonschema:"defaults to the category of the project's other decisions, else Decisions"`
-	Slug     string `json:"slug,omitempty"`
+	Project string `json:"project" jsonschema:"project slug"`
+	decisionItem
+}
+
+// decisionItem is one decision to create (create_decision, create_decisions).
+type decisionItem struct {
+	Title        string                   `json:"title"`
+	Category     string                   `json:"category,omitempty" jsonschema:"defaults to the category of the project's other decisions, else Decisions"`
+	Slug         string                   `json:"slug,omitempty"`
+	ExtRef       string                   `json:"ext_ref,omitempty" jsonschema:"the decision's own number in another system, e.g. D-640 (letters, digits, . _ : # / -). Phoedox still assigns ADR-0001…; links like [[D-640]], search and every tool that takes a document find it by this number too"`
+	Translations map[string]translationIn `json:"translations,omitempty" jsonschema:"multilingual projects: language (one of the further locales) → title and translated text, saved together with the decision"`
 	decisionFields
+}
+
+type createDecisionsIn struct {
+	Project   string         `json:"project" jsonschema:"project slug"`
+	Decisions []decisionItem `json:"decisions" jsonschema:"up to 50 decisions, created in this order (an item may supersede an earlier one of the same call)"`
 }
 
 type updateDecisionIn struct {
@@ -323,6 +357,7 @@ type updateDecisionIn struct {
 	Document      string  `json:"document" jsonschema:"decision slug, id or number like ADR-0003"`
 	Title         *string `json:"title,omitempty"`
 	Category      *string `json:"category,omitempty"`
+	ExtRef        *string `json:"ext_ref,omitempty" jsonschema:"own number in another system, e.g. D-640; empty removes it"`
 	ExpectVersion int     `json:"expect_version,omitempty"`
 	decisionFields
 }
@@ -478,7 +513,9 @@ type empty struct{}
 // projectOverview is what get_project returns.
 type projectOverview struct {
 	Project            store.Project           `json:"project"`
-	Categories         map[string][]docSummary `json:"documentsByCategory"`
+	Categories         map[string][]docSummary `json:"documentsByCategory,omitempty"`
+	CategoryCounts     map[string]int          `json:"documentCountsByCategory,omitempty"`
+	Documents          int                     `json:"documents"`
 	EntityKinds        map[string]int          `json:"entityKinds"`
 	PendingSuggestions int                     `json:"pendingSuggestions"`
 	Hint               string                  `json:"hint,omitempty"`
@@ -486,6 +523,7 @@ type projectOverview struct {
 
 type docSummary struct {
 	Ref     string `json:"ref,omitempty"` // ADR-0003 for decisions
+	ExtRef  string `json:"extRef,omitempty"`
 	Slug    string `json:"slug"`
 	Title   string `json:"title"`
 	Type    string `json:"type"`
@@ -516,7 +554,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "list_projects", "List all projects you can read, with your role.", func(ctx context.Context, a core.Actor, _ empty) (any, error) {
 		return svc.Projects(ctx, a)
 	})
-	tool(s, "get_project", "Overview of a project: settings, documents grouped by category, entity kinds, pending suggestions. Start here.", func(ctx context.Context, a core.Actor, in projectRef) (any, error) {
+	tool(s, "get_project", "Overview of a project: settings, documents grouped by category, entity kinds, pending suggestions. Start here. Projects with many documents get only the number of documents per category; list them with list_documents (category) or set documents: full.", func(ctx context.Context, a core.Actor, in getProjectIn) (any, error) {
 		p, err := svc.Project(ctx, a, in.Project)
 		if err != nil {
 			return nil, err
@@ -525,13 +563,24 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		if err != nil {
 			return nil, err
 		}
-		ov := projectOverview{Project: p, Categories: map[string][]docSummary{}, EntityKinds: map[string]int{}}
+		ov := projectOverview{Project: p, EntityKinds: map[string]int{}, Documents: len(docs)}
+		// Large projects: counts per category keep the answer small.
+		summary := in.Documents == "summary" || in.Documents != "full" && len(docs) > overviewMaxDocs
+		if summary {
+			ov.CategoryCounts = map[string]int{}
+		} else {
+			ov.Categories = map[string][]docSummary{}
+		}
 		for _, d := range docs {
 			cat := d.Category
 			if cat == "" {
-				cat = "(ohne Kategorie)"
+				cat = "(no category)"
 			}
-			ov.Categories[cat] = append(ov.Categories[cat], docSummary{Ref: decisionRef(d), Slug: d.Slug, Title: d.Title, Type: d.Type, Version: d.Version})
+			if summary {
+				ov.CategoryCounts[cat]++
+				continue
+			}
+			ov.Categories[cat] = append(ov.Categories[cat], docSummary{Ref: decisionRef(d), ExtRef: d.ExtRef, Slug: d.Slug, Title: d.Title, Type: d.Type, Version: d.Version})
 		}
 		ents, err := svc.Entities(ctx, a, p.Slug, "")
 		if err != nil {
@@ -545,6 +594,9 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		if p.AIWriteMode == "suggest" {
 			ov.Hint = "Writes in this project become suggestions that a human must accept."
+		}
+		if summary {
+			ov.Hint = strings.TrimSpace(ov.Hint + " Documents are counted per category only; list them with list_documents (category, type) or list_decisions.")
 		}
 		return ov, nil
 	})
@@ -593,7 +645,8 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "translate_document", "Write the translation of a document into one of the project's further languages (multilingual projects, see get_project). Read the main language with get_document first. The translation refers to the current main version and is marked as machine translation until a person reviews it. Number, status, slug and category stay shared.", func(ctx context.Context, a core.Actor, in translateIn) (any, error) {
 		return svc.SaveTranslation(ctx, a, in.Project, in.Document, in.Lang, core.TranslationInput{Title: in.Title, Markdown: in.Markdown,
-			Context: in.Context, Decision: in.Decision, Consequences: in.Consequences, Alternatives: in.Alternatives, Description: in.Description})
+			Context: in.Context, Decision: in.Decision, Consequences: in.Consequences, Alternatives: in.Alternatives, Description: in.Description,
+			SupersedesScope: in.SupersedesScope, Original: in.Original})
 	})
 	tool(s, "list_tasks", "List tasks (cards on boards) of a project, optionally of one board, column or assignee. Boards are documents of type board; their columns are in the board's content.", func(ctx context.Context, a core.Actor, in listTasksIn) (any, error) {
 		return svc.Tasks(ctx, a, in.Project, in.Board, in.Column, in.Assignee, in.Open)
@@ -650,7 +703,11 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		return svc.RestoreVersion(ctx, a, in.Project, in.Document, in.Version)
 	})
 	tool(s, "create_document", "Create a Markdown page.", func(ctx context.Context, a core.Actor, in createDocIn) (any, error) {
-		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocMarkdown, Title: in.Title, Slug: in.Slug, Category: in.Category, Position: in.Position, Markdown: in.Markdown})
+		res, err := svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocMarkdown, Title: in.Title, Slug: in.Slug, Category: in.Category, Position: in.Position, Markdown: in.Markdown})
+		if err != nil {
+			return nil, err
+		}
+		return withTranslations{DocResult: res, Translations: saveTranslations(ctx, svc, a, in.Project, res, in.Translations)}, nil
 	})
 	tool(s, "update_document", "Update a Markdown page or a link. Only given fields change; markdown replaces the whole content; url and description apply to links. If the page has an open draft (someone is editing it), the change goes into the draft and is published together with it by a person; the result then contains \"draft\".", func(ctx context.Context, a core.Actor, in updateDocIn) (any, error) {
 		patch := core.DocumentPatch{Title: in.Title, Markdown: in.Markdown, Category: in.Category, Slug: in.Slug, Position: in.Position, ExpectVersion: in.ExpectVersion}
@@ -698,20 +755,45 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		return svc.UpdateDocument(ctx, a, in.Project, cur.ID, core.DocumentPatch{Title: in.Title, Category: in.Category, Board: &b, ExpectVersion: in.ExpectVersion})
 	})
-	tool(s, "create_decision", "Record a decision (ADR) with context, decision, consequences and alternatives. For a decision people still have to make, use status proposed with options; they choose one in Phoedox or answer that nothing fits.", func(ctx context.Context, a core.Actor, in createDecisionIn) (any, error) {
-		if in.Category == "" {
-			// Where the project keeps its decisions; "Decisions" for the first one.
-			in.Category = "Decisions"
-			if docs, err := svc.Documents(ctx, a, in.Project, store.DocFilter{Type: store.DocADR}); err == nil {
-				for _, d := range docs {
-					if d.Category != "" && d.Number > 0 {
-						in.Category = d.Category
-					}
-				}
-			}
+	tool(s, "create_decision", "Record a decision (ADR) with context, decision, consequences and alternatives. For a decision people still have to make, use status proposed with options; they choose one in Phoedox or answer that nothing fits. In multilingual projects pass translations to save them in the same call; for many decisions use create_decisions.", func(ctx context.Context, a core.Actor, in createDecisionIn) (any, error) {
+		cat, err := decisionCategory(ctx, svc, a, in.Project)
+		if err != nil {
+			return nil, err
 		}
-		adr := in.adr()
-		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocADR, Title: in.Title, Slug: in.Slug, Category: in.Category, ADR: &adr})
+		res, err := createDecision(ctx, svc, a, in.Project, in.decisionItem, cat)
+		if err != nil {
+			return nil, err
+		}
+		return withTranslations{DocResult: res, Translations: saveTranslations(ctx, svc, a, in.Project, res, in.Translations)}, nil
+	})
+	tool(s, "create_decisions", "Record many decisions in one call (up to 50, e.g. when importing a decision log), each with its translations. Items are created in order, so one may supersede an earlier item. An item that fails is reported and the others continue. Returns per item: ref, slug, ext_ref, url, translations, or error.", func(ctx context.Context, a core.Actor, in createDecisionsIn) (any, error) {
+		if len(in.Decisions) == 0 || len(in.Decisions) > maxBulkDecisions {
+			return nil, fmt.Errorf("give 1 to %d decisions per call", maxBulkDecisions)
+		}
+		cat, err := decisionCategory(ctx, svc, a, in.Project)
+		if err != nil {
+			return nil, err
+		}
+		out := bulkDecisions{Results: make([]bulkDecision, 0, len(in.Decisions))}
+		for i, item := range in.Decisions {
+			r := bulkDecision{Index: i, Title: item.Title, Type: store.DocADR}
+			res, err := createDecision(ctx, svc, a, in.Project, item, cat)
+			switch {
+			case err != nil:
+				r.Error = err.Error()
+				out.Failed++
+			case res.Document != nil:
+				d := res.Document
+				r.ProjectID, r.Slug, r.Title, r.Ref, r.ExtRef = d.ProjectID, d.Slug, d.Title, decisionRef(*d), d.ExtRef
+				r.Translations = saveTranslations(ctx, svc, a, in.Project, res, item.Translations)
+				out.Created++
+			default:
+				r.Suggestion = res.Suggestion
+				out.Suggested++
+			}
+			out.Results = append(out.Results, r)
+		}
+		return out, nil
 	})
 	tool(s, "list_decisions", "The decision log of a project: number (ADR-0003), title, status, date and which decision supersedes which (fully, or partly with a scope), ordered by number.", func(ctx context.Context, a core.Actor, in listDecisionsIn) (any, error) {
 		return svc.Decisions(ctx, a, in.Project, in.Status, in.Query)
@@ -741,7 +823,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		if f.Options != nil {
 			adr.Options = f.Options
 		}
-		return svc.UpdateDocument(ctx, a, in.Project, cur.ID, core.DocumentPatch{Title: in.Title, Category: in.Category, ADR: &adr, ExpectVersion: in.ExpectVersion})
+		return svc.UpdateDocument(ctx, a, in.Project, cur.ID, core.DocumentPatch{Title: in.Title, Category: in.Category, ADR: &adr, ExtRef: in.ExtRef, ExpectVersion: in.ExpectVersion})
 	})
 	tool(s, "create_link", "Add a link to external documentation (shown in the sidebar with an external-link icon).", func(ctx context.Context, a core.Actor, in createLinkIn) (any, error) {
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocLink, Title: in.Title, Category: in.Category, Link: &core.Link{URL: in.URL, Description: in.Description}})
@@ -929,6 +1011,88 @@ func subtasksOf(titles []string) []store.Subtask {
 	out := make([]store.Subtask, 0, len(titles))
 	for _, t := range titles {
 		out = append(out, store.Subtask{Title: t})
+	}
+	return out
+}
+
+// overviewMaxDocs: above this, get_project counts documents per category.
+const overviewMaxDocs = 150
+
+// maxBulkDecisions caps create_decisions.
+const maxBulkDecisions = 50
+
+type getProjectIn struct {
+	Project   string `json:"project" jsonschema:"project slug"`
+	Documents string `json:"documents,omitempty" jsonschema:"full: every document by category; summary: only the number per category (the default for projects with more than 150 documents)"`
+}
+
+// withTranslations is a created document with the result per language.
+type withTranslations struct {
+	core.DocResult
+	Translations map[string]string `json:"translations,omitempty"`
+}
+
+type bulkDecision struct {
+	Index        int               `json:"index"`
+	Ref          string            `json:"ref,omitempty"`
+	ExtRef       string            `json:"extRef,omitempty"`
+	Slug         string            `json:"slug,omitempty"`
+	Title        string            `json:"title"`
+	Type         string            `json:"type"`
+	ProjectID    string            `json:"projectId,omitempty"`
+	Translations map[string]string `json:"translations,omitempty"`
+	Suggestion   *store.Suggestion `json:"suggestion,omitempty"`
+	Error        string            `json:"error,omitempty"`
+}
+
+type bulkDecisions struct {
+	Created   int            `json:"created"`
+	Suggested int            `json:"suggested,omitempty"`
+	Failed    int            `json:"failed,omitempty"`
+	Results   []bulkDecision `json:"results"`
+}
+
+// decisionCategory is where the project keeps its decisions; "Decisions"
+// for the first one.
+func decisionCategory(ctx context.Context, svc *core.Service, a core.Actor, project string) (string, error) {
+	cat := "Decisions"
+	docs, err := svc.Documents(ctx, a, project, store.DocFilter{Type: store.DocADR})
+	if err != nil {
+		return "", err
+	}
+	for _, d := range docs {
+		if d.Category != "" && d.Number > 0 {
+			cat = d.Category
+		}
+	}
+	return cat, nil
+}
+
+func createDecision(ctx context.Context, svc *core.Service, a core.Actor, project string, in decisionItem, defaultCategory string) (core.DocResult, error) {
+	if in.Category == "" {
+		in.Category = defaultCategory
+	}
+	adr := in.adr()
+	return svc.CreateDocument(ctx, a, project, core.DocumentInput{Type: store.DocADR, Title: in.Title, Slug: in.Slug, Category: in.Category, ExtRef: in.ExtRef, ADR: &adr})
+}
+
+// saveTranslations stores the translations of a document just created:
+// "saved" or the error per language. A suggestion has no document yet.
+func saveTranslations(ctx context.Context, svc *core.Service, a core.Actor, project string, res core.DocResult, tr map[string]translationIn) map[string]string {
+	if len(tr) == 0 {
+		return nil
+	}
+	out := map[string]string{}
+	for lang, t := range tr {
+		if res.Document == nil {
+			out[lang] = "not saved: the document is a pending suggestion; translate it after a person accepts it"
+			continue
+		}
+		if _, err := svc.SaveTranslation(ctx, a, project, res.Document.ID, lang, t.input()); err != nil {
+			out[lang] = "error: " + err.Error()
+			continue
+		}
+		out[lang] = "saved"
 	}
 	return out
 }

@@ -3118,4 +3118,11 @@ export const en: Record<keyof typeof de, string> = {
   "wb.menu.delete_point": "Delete point",
   "wb.menu.delete_arrow": "Delete whole arrow",
   "wb.menu.delete_line": "Delete whole line",
+  "doc.ext_ref": "Own number (optional)",
+  "doc.ext_ref_help": "The decision's number in another system, e.g. D-640. Links like [[D-640]] and the search find it.",
+  "doc.ext_ref_hint": "Own number",
+  "lang.original": "Written in {lang} as the original text, not translated.",
+  "lang.original_check": "This is the original text in {lang} (not a translation)",
+  "validation.ext_ref": "Own number \"{ref}\": use letters, digits and . _ : # / - (up to 40 characters); numbers like ADR-0001 are Phoedox's own.",
+  "validation.ext_ref_taken": "\"{ref}\" is already the number of \"{title}\".",
 };

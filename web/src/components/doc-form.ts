@@ -25,6 +25,7 @@ export class PhxDocForm extends LitElement {
     .opt .head input { flex: 1; }
     .opt textarea { min-height: 70px; }
     p.hint { margin: 0; font-size: 13px; }
+    label.field .hint { font-size: 12.5px; color: var(--muted); font-weight: 400; }
 `];
   project = "";
   docSlug = "";
@@ -88,6 +89,7 @@ export class PhxDocForm extends LitElement {
         : { description: s("description"), columns: [
           { id: "todo", name: t("board.col_todo") }, { id: "doing", name: t("board.col_doing") }, { id: "done", name: t("board.col_done"), done: true }] };
     }
+    if (this.type === "adr") body.extRef = s("extRef").trim();
     if (this.type === "adr") body.adr = { status: s("status"), date: s("date"), context: s("context"), decision: s("decision"), consequences: s("consequences"), alternatives: s("alternatives"), supersedes: s("supersedes"),
       supersedesPartly: !!s("supersedes") && s("partly") === "1", supersedesScope: s("partly") === "1" ? s("scope") : "",
       options: this.options.filter((o) => o.title.trim() || (o.description ?? "").trim()) };
@@ -181,6 +183,8 @@ export class PhxDocForm extends LitElement {
           <label class="field">${t("adr.status")}<select name="status">${decisionStatuses.map((st) => html`<option value=${st} ?selected=${(c.status ?? "proposed") === st}>${t(`adr.status.${st}`)}</option>`)}</select></label>
           <label class="field">${t("adr.date")}<input name="date" type="date" .value=${c.date ?? new Date().toISOString().slice(0, 10)} /></label>
         </div>
+        <label class="field">${t("doc.ext_ref")}<input name="extRef" .value=${d?.extRef ?? ""} maxlength="40" placeholder="D-640" autocomplete="off" spellcheck="false" />
+          <span class="hint">${t("doc.ext_ref_help")}</span></label>
         <label class="field">${t("adr.context")}<textarea name="context" .value=${c.context ?? ""}></textarea></label>
         ${this.optionsField()}
         <label class="field">${t("adr.decision")}<textarea name="decision" .value=${c.decision ?? ""}></textarea></label>

@@ -16,15 +16,18 @@ type Translation struct {
 	Content       JSON   `json:"content,omitempty"`
 	SourceVersion int    `json:"sourceVersion"`
 	Machine       bool   `json:"machine"`
-	UpdatedBy     string `json:"-"`
-	UpdatedAt     Time   `json:"updatedAt"`
+	// Original: text the user wrote in this language (not a translation of
+	// the main language); never shown as machine translation.
+	Original  bool   `json:"original,omitempty"`
+	UpdatedBy string `json:"-"`
+	UpdatedAt Time   `json:"updatedAt"`
 }
 
-const translationCols = `document_id, locale, title, content, source_version, machine, updated_by, updated_at`
+const translationCols = `document_id, locale, title, content, source_version, machine, updated_by, updated_at, original`
 
 func scanTranslation(r interface{ Scan(...any) error }) (Translation, error) {
 	var t Translation
-	err := r.Scan(&t.DocumentID, &t.Locale, &t.Title, &t.Content, &t.SourceVersion, &t.Machine, &t.UpdatedBy, &t.UpdatedAt)
+	err := r.Scan(&t.DocumentID, &t.Locale, &t.Title, &t.Content, &t.SourceVersion, &t.Machine, &t.UpdatedBy, &t.UpdatedAt, &t.Original)
 	if errors.Is(err, sql.ErrNoRows) {
 		return t, ErrNotFound
 	}
@@ -58,7 +61,7 @@ func (d *DB) Translations(ctx context.Context, documentID string) ([]Translation
 // ProjectTranslations maps document id to its locales with source versions,
 // for marking outdated translations in lists.
 func (d *DB) ProjectTranslations(ctx context.Context, projectID string) (map[string][]Translation, error) {
-	rows, err := d.Query(ctx, `SELECT t.document_id, t.locale, t.source_version, t.machine FROM document_translations t
+	rows, err := d.Query(ctx, `SELECT t.document_id, t.locale, t.source_version, t.machine, t.original FROM document_translations t
 		JOIN documents doc ON doc.id = t.document_id WHERE doc.project_id = ? AND doc.deleted_at IS NULL`, projectID)
 	if err != nil {
 		return nil, err
@@ -67,7 +70,7 @@ func (d *DB) ProjectTranslations(ctx context.Context, projectID string) (map[str
 	out := map[string][]Translation{}
 	for rows.Next() {
 		var t Translation
-		if err := rows.Scan(&t.DocumentID, &t.Locale, &t.SourceVersion, &t.Machine); err != nil {
+		if err := rows.Scan(&t.DocumentID, &t.Locale, &t.SourceVersion, &t.Machine, &t.Original); err != nil {
 			return nil, err
 		}
 		out[t.DocumentID] = append(out[t.DocumentID], t)
@@ -77,11 +80,11 @@ func (d *DB) ProjectTranslations(ctx context.Context, projectID string) (map[str
 
 // SaveTranslation creates or replaces a language version.
 func (d *DB) SaveTranslation(ctx context.Context, t Translation) error {
-	_, err := d.Exec(ctx, `INSERT INTO document_translations (document_id, locale, tenant_id, title, content, source_version, machine, updated_by, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := d.Exec(ctx, `INSERT INTO document_translations (document_id, locale, tenant_id, title, content, source_version, machine, updated_by, updated_at, original)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (document_id, locale) DO UPDATE SET title = excluded.title, content = excluded.content, source_version = excluded.source_version,
-		  machine = excluded.machine, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
-		t.DocumentID, t.Locale, TenantOf(ctx), t.Title, t.Content, t.SourceVersion, t.Machine, t.UpdatedBy, t.UpdatedAt)
+		  machine = excluded.machine, updated_by = excluded.updated_by, updated_at = excluded.updated_at, original = excluded.original`,
+		t.DocumentID, t.Locale, TenantOf(ctx), t.Title, t.Content, t.SourceVersion, t.Machine, t.UpdatedBy, t.UpdatedAt, t.Original)
 	return err
 }
 

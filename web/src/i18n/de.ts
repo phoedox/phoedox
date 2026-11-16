@@ -3116,4 +3116,11 @@ export const de = {
   "wb.menu.delete_point": "Punkt löschen",
   "wb.menu.delete_arrow": "Ganzen Pfeil löschen",
   "wb.menu.delete_line": "Ganze Linie löschen",
+  "doc.ext_ref": "Eigene Nummer (optional)",
+  "doc.ext_ref_help": "Die Nummer der Entscheidung in einem anderen System, z. B. D-640. Links wie [[D-640]] und die Suche finden sie.",
+  "doc.ext_ref_hint": "Eigene Nummer",
+  "lang.original": "Auf {lang} als Originaltext geschrieben, nicht übersetzt.",
+  "lang.original_check": "Das ist der Originaltext auf {lang} (keine Übersetzung)",
+  "validation.ext_ref": "Eigene Nummer „{ref}“: Buchstaben, Ziffern und . _ : # / - (bis 40 Zeichen); Nummern wie ADR-0001 vergibt Phoedox selbst.",
+  "validation.ext_ref_taken": "„{ref}“ ist schon die Nummer von „{title}“.",
 } as const;

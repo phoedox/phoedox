@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 )
@@ -28,6 +29,9 @@ type Document struct {
 	Position  int    `json:"position"`
 	Content   JSON   `json:"content,omitempty"`
 	Number    int    `json:"number,omitempty"` // decisions only, per project, never reused
+	// ExtRef is a decision's own number from another system ("D-640"):
+	// links, search and the API find the decision by it too.
+	ExtRef string `json:"extRef,omitempty"`
 	// Restricted documents are visible only to project owners and people or groups they are shared with.
 	Restricted bool `json:"restricted,omitempty"`
 	// ParentID is the page a document belongs to (a board made inside a
@@ -47,13 +51,13 @@ type Document struct {
 	UpdatedAt    Time          `json:"updatedAt"`
 }
 
-const docCols = `id, project_id, doc_type, slug, title, category, position, version, created_by, created_at, updated_at, number, restricted, parent_id`
+const docCols = `id, project_id, doc_type, slug, title, category, position, version, created_by, created_at, updated_at, number, restricted, parent_id, ext_ref`
 
 func scanDoc(r interface{ Scan(...any) error }, withContent bool) (Document, error) {
 	var doc Document
 	var number sql.NullInt64
 	var parent sql.NullString
-	dest := []any{&doc.ID, &doc.ProjectID, &doc.Type, &doc.Slug, &doc.Title, &doc.Category, &doc.Position, &doc.Version, &doc.CreatedBy, &doc.CreatedAt, &doc.UpdatedAt, &number, &doc.Restricted, &parent}
+	dest := []any{&doc.ID, &doc.ProjectID, &doc.Type, &doc.Slug, &doc.Title, &doc.Category, &doc.Position, &doc.Version, &doc.CreatedBy, &doc.CreatedAt, &doc.UpdatedAt, &number, &doc.Restricted, &parent, &doc.ExtRef}
 	if withContent {
 		dest = append(dest, &doc.Content)
 	}
@@ -85,8 +89,8 @@ func (d *DB) CreateDocument(ctx context.Context, doc Document, actor string, rel
 			}
 			number = doc.Number
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO documents (id, tenant_id, project_id, doc_type, slug, title, category, position, content, version, created_by, created_at, updated_at, number, parent_id)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, doc.ID, TenantOf(ctx), doc.ProjectID, doc.Type, doc.Slug, doc.Title, doc.Category, doc.Position, doc.Content, doc.Version, doc.CreatedBy, now, now, number, nullable(doc.ParentID)); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO documents (id, tenant_id, project_id, doc_type, slug, title, category, position, content, version, created_by, created_at, updated_at, number, parent_id, ext_ref)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, doc.ID, TenantOf(ctx), doc.ProjectID, doc.Type, doc.Slug, doc.Title, doc.Category, doc.Position, doc.Content, doc.Version, doc.CreatedBy, now, now, number, nullable(doc.ParentID), doc.ExtRef); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO document_versions (document_id, version, title, content, actor, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
@@ -124,7 +128,9 @@ func updateRelated(ctx context.Context, tx *Tx, related []Document, actor string
 
 func updateDoc(ctx context.Context, tx *Tx, doc Document, expectVersion int, actor string, now Time) (Document, error) {
 	var cur int
-	if err := tx.QueryRow(ctx, `SELECT version FROM documents WHERE id = ? AND deleted_at IS NULL`, doc.ID).Scan(&cur); err != nil {
+	var oldType, oldTitle string
+	var oldContent JSON
+	if err := tx.QueryRow(ctx, `SELECT version, doc_type, title, content FROM documents WHERE id = ? AND deleted_at IS NULL`, doc.ID).Scan(&cur, &oldType, &oldTitle, &oldContent); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return doc, ErrNotFound
 		}
@@ -135,9 +141,16 @@ func updateDoc(ctx context.Context, tx *Tx, doc Document, expectVersion int, act
 	}
 	doc.Version = cur + 1
 	doc.UpdatedAt = now
-	if _, err := tx.Exec(ctx, `UPDATE documents SET slug = ?, title = ?, category = ?, position = ?, content = ?, version = ?, updated_at = ? WHERE id = ?`,
-		doc.Slug, doc.Title, doc.Category, doc.Position, doc.Content, doc.Version, now, doc.ID); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE documents SET slug = ?, title = ?, category = ?, position = ?, content = ?, version = ?, updated_at = ?, ext_ref = ? WHERE id = ?`,
+		doc.Slug, doc.Title, doc.Category, doc.Position, doc.Content, doc.Version, now, doc.ExtRef, doc.ID); err != nil {
 		return doc, err
+	}
+	// Only status, links or other metadata changed: translations that were
+	// current stay current (ADR-0028), so they are not shown as outdated.
+	if TranslatableText(oldType, oldTitle, oldContent) == TranslatableText(doc.Type, doc.Title, doc.Content) {
+		if _, err := tx.Exec(ctx, `UPDATE document_translations SET source_version = ? WHERE document_id = ? AND source_version = ?`, doc.Version, doc.ID, cur); err != nil {
+			return doc, err
+		}
 	}
 	_, err := tx.Exec(ctx, `INSERT INTO document_versions (document_id, version, title, content, actor, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
 		doc.ID, doc.Version, doc.Title, doc.Content, actor, now)
@@ -290,6 +303,32 @@ func (d *DB) SetDocumentLinks(ctx context.Context, documentID string, entityIDs 
 		}
 		return nil
 	})
+}
+
+// DocumentByExtRef finds a document by its own number from another system
+// (case-insensitive).
+func (d *DB) DocumentByExtRef(ctx context.Context, projectID, ref string) (Document, error) {
+	return scanDoc(d.QueryRow(ctx, `SELECT `+docCols+`, content FROM documents
+		WHERE project_id = ? AND ext_ref <> '' AND lower(ext_ref) = ? AND deleted_at IS NULL`, projectID, strings.ToLower(strings.TrimSpace(ref))), true)
+}
+
+// TranslatableText is what translations of a document translate: the title
+// and the text fields of its content (not status, dates, links or options).
+// When it does not change, existing translations stay current.
+func TranslatableText(docType, title string, content JSON) string {
+	var c map[string]any
+	_ = json.Unmarshal(content, &c)
+	keys := []string{"markdown", "description"}
+	if docType == DocADR {
+		keys = []string{"context", "decision", "consequences", "alternatives", "supersedesScope"}
+	}
+	var b strings.Builder
+	b.WriteString(title)
+	for _, k := range keys {
+		v, _ := c[k].(string)
+		b.WriteString("\x00" + v)
+	}
+	return b.String()
 }
 
 // DocumentsMentioning returns documents that mention an entity.

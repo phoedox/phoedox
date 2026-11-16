@@ -363,7 +363,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         ${this.mainDiff ? html`<div class="diff" role="region" aria-label=${t("lang.show_main_changes")}>${this.mainDiff.map((h) =>
           h.op === "…" ? html`<div class="fold">${h.count === 1 ? t("history.unchanged_one") : t("history.unchanged", { count: h.count })}</div>`
           : html`<div class=${h.op === "+" ? "add" : h.op === "-" ? "del" : ""}>${h.text}</div>`)}</div>` : ""}` : ""}
-      ${tr?.machine ? html`<p class="notice" role="note">${icon("Bot", 14)} ${t("lang.machine")}</p>` : ""}`;
+      ${tr?.machine ? html`<p class="notice" role="note">${icon("Bot", 14)} ${t("lang.machine")}</p>` : ""}
+      ${tr?.original ? html`<p class="notice small-note" role="note">${icon("Languages", 14)} ${t("lang.original", { lang: languageName(wanted) })}</p>` : ""}`;
   }
 
   /** "Translate" next to "Edit" when a further language is chosen. */
@@ -541,6 +542,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
           <h1>${d.title}</h1>
           <div class="meta">
             ${d.number ? html`<span class="chip ref">${adrRef(d.number)}</span>` : ""}
+            ${d.extRef ? html`<span class="chip ref" title=${t("doc.ext_ref_hint")}>${d.extRef}</span>` : ""}
             <span class="chip">${t(`doc.type.${d.type}` as any)}</span>
             ${d.type === "adr" ? html`<span class="chip status-${c.status}">${t(`adr.status.${c.status}` as any)}</span>${c.date ? html`<span class="chip">${c.date}</span>` : ""}` : ""}
             <span class="chip">${t("doc.version", { version: d.version })}</span>

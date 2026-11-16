@@ -29,9 +29,16 @@ type TranslationInput struct {
 	Consequences *string `json:"consequences,omitempty"`
 	Alternatives *string `json:"alternatives,omitempty"`
 	Description  *string `json:"description,omitempty"`
+	// SupersedesScope translates which part of an older decision this one
+	// replaces (partial supersede).
+	SupersedesScope *string `json:"supersedesScope,omitempty"`
 	// Machine marks an unreviewed machine translation. AI clients always
 	// write machine translations; people clear the mark by saving.
 	Machine bool `json:"machine,omitempty"`
+	// Original: the text was written in this language by the user (e.g. an
+	// import of German originals), not translated. It is never shown as
+	// machine translation; the event records who said so.
+	Original bool `json:"original,omitempty"`
 }
 
 // adrText are the translatable parts of a decision.
@@ -40,6 +47,8 @@ type adrText struct {
 	Decision     string `json:"decision"`
 	Consequences string `json:"consequences,omitempty"`
 	Alternatives string `json:"alternatives,omitempty"`
+	// SupersedesScope is only translated when the decision has one.
+	SupersedesScope string `json:"supersedesScope,omitempty"`
 }
 
 // normalizeLocales checks main and further languages of a project.
@@ -85,10 +94,9 @@ func translationContent(typ string, in TranslationInput) (store.JSON, error) {
 	case store.DocMarkdown:
 		v = map[string]string{"markdown": str(in.Markdown)}
 	case store.DocADR:
-		if strings.TrimSpace(str(in.Decision)) == "" {
-			return nil, invalid("validation.adr_decision_required", nil, "decision is required")
-		}
-		v = adrText{Context: str(in.Context), Decision: str(in.Decision), Consequences: str(in.Consequences), Alternatives: str(in.Alternatives)}
+		// Proposed decisions may have no decision text yet.
+		v = adrText{Context: str(in.Context), Decision: str(in.Decision), Consequences: str(in.Consequences), Alternatives: str(in.Alternatives),
+			SupersedesScope: strings.TrimSpace(str(in.SupersedesScope))}
 	case store.DocLink, store.DocBoard, store.DocFloorplan, store.DocWhiteboard:
 		v = map[string]string{"description": str(in.Description)}
 	default:
@@ -191,11 +199,11 @@ func (s *Service) SaveTranslation(ctx context.Context, a Actor, ref, docRef, loc
 		return TranslationInfo{}, err
 	}
 	t := store.Translation{DocumentID: doc.ID, Locale: locale, Title: in.Title, Content: c, SourceVersion: doc.Version,
-		Machine: in.Machine || a.Via == "mcp", UpdatedBy: a.String(), UpdatedAt: store.Now()}
+		Machine: !in.Original && (in.Machine || a.Via == "mcp"), Original: in.Original, UpdatedBy: a.String(), UpdatedAt: store.Now()}
 	if err := s.DB.SaveTranslation(ctx, t); err != nil {
 		return TranslationInfo{}, err
 	}
-	s.event(ctx, a, "document.translation", doc.ID, map[string]any{"locale": locale, "machine": t.Machine, "sourceVersion": t.SourceVersion})
+	s.event(ctx, a, "document.translation", doc.ID, map[string]any{"locale": locale, "machine": t.Machine, "original": t.Original, "sourceVersion": t.SourceVersion})
 	s.indexDocument(ctx, doc)
 	return TranslationInfo{Translation: t, MainVersion: doc.Version}, nil
 }

@@ -136,6 +136,31 @@ func TestMCPTools(t *testing.T) {
 	if !strings.Contains(ov, `"Decisions"`) || !strings.Contains(ov, `"Technik"`) || !strings.Contains(ov, `"service": 3`) {
 		t.Fatalf("overview: %s", ov)
 	}
+	if sum := call("get_project", map[string]any{"project": "phoedox", "documents": "summary"}); !strings.Contains(sum, `"documentCountsByCategory"`) || strings.Contains(sum, `"documentsByCategory"`) {
+		t.Fatalf("overview summary: %s", sum)
+	}
+
+	// Many decisions at once, with own numbers and translations (multilingual project).
+	call("update_project_settings", map[string]any{"project": "phoedox", "main_locale": "en", "locales": []string{"de"}})
+	many := call("create_decisions", map[string]any{"project": "phoedox", "decisions": []map[string]any{
+		{"title": "Use Lit", "ext_ref": "D-1", "status": "accepted", "decision": "Lit for the web",
+			"translations": map[string]any{"de": map[string]any{"title": "Lit verwenden", "decision": "Lit fürs Web", "original": true}}},
+		{"title": "Use Lit 4", "ext_ref": "D-2", "status": "accepted", "decision": "Lit 4", "supersedes": "D-1", "supersedes_partly": true, "supersedes_scope": "the version"},
+		{"title": "Broken", "ext_ref": "ADR-0099", "decision": "x"},
+	}})
+	if !strings.Contains(many, `"created": 2`) || !strings.Contains(many, `"failed": 1`) || !strings.Contains(many, `"de": "saved"`) ||
+		!strings.Contains(many, `"extRef": "D-2"`) || !strings.Contains(many, "/p/phoedox/d/use-lit-4") {
+		t.Fatalf("create_decisions: %s", many)
+	}
+	if d := call("get_document", map[string]any{"project": "phoedox", "document": "D-1", "lang": "de"}); !strings.Contains(d, "Lit fürs Web") || !strings.Contains(d, `"original": true`) || strings.Contains(d, `"machine": true`) {
+		t.Fatalf("original translation: %s", d)
+	}
+	one := call("create_decision", map[string]any{"project": "phoedox", "title": "Bun", "decision": "Bun", "status": "accepted",
+		"translations": map[string]any{"de": map[string]any{"title": "Bun", "decision": "Bun nutzen"}, "fr": map[string]any{"title": "Bun", "decision": "Bun"}}})
+	if !strings.Contains(one, `"de": "saved"`) || !strings.Contains(one, `"fr": "error:`) {
+		t.Fatalf("create_decision with translations: %s", one)
+	}
+
 	// links and boards can be changed through MCP
 	if l := call("update_document", map[string]any{"project": "phoedox", "document": "riverpod", "description": "State management"}); !strings.Contains(l, "State management") || !strings.Contains(l, "riverpod.dev") {
 		t.Fatalf("update link: %s", l)

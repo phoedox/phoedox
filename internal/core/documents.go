@@ -128,6 +128,10 @@ func (s *Service) findDoc(ctx context.Context, projectID, ref string) (store.Doc
 		n, _ := strconv.Atoi(m[1])
 		return s.DB.GetDecision(ctx, projectID, n)
 	}
+	// The document's own number from another system ("D-640").
+	if doc, err = s.DB.DocumentByExtRef(ctx, projectID, ref); !errors.Is(err, store.ErrNotFound) {
+		return doc, err
+	}
 	// [[D-321]] and similar: slugs are lowercase, and identifiers from other
 	// systems often live only at the start of a title.
 	if low := strings.ToLower(ref); low != ref {
@@ -136,6 +140,30 @@ func (s *Service) findDoc(ctx context.Context, projectID, ref string) (store.Doc
 		}
 	}
 	return s.DB.DocumentByTitle(ctx, projectID, ref)
+}
+
+// extRefRe: own numbers from other systems – letters, digits and . _ : # / -,
+// starting with a letter or digit, at most 40 characters.
+var extRefRe = regexp.MustCompile(`^[\p{L}\p{N}][\p{L}\p{N}._:#/-]{0,39}$`)
+
+// checkExtRef validates a document's own number: its format, that it is not
+// one of Phoedox's numbers (ADR-0007) and that no other document of the
+// project uses it.
+func (s *Service) checkExtRef(ctx context.Context, p store.Project, ref, selfID string) error {
+	if ref == "" {
+		return nil
+	}
+	if !extRefRe.MatchString(ref) || adrRef.MatchString(ref) {
+		return invalid("validation.ext_ref", map[string]any{"ref": ref}, "own number %q: letters, digits and . _ : # / - (up to 40), not ADR-0000", ref)
+	}
+	other, err := s.DB.DocumentByExtRef(ctx, p.ID, ref)
+	if err == nil && other.ID != selfID {
+		return invalid("validation.ext_ref_taken", map[string]any{"ref": ref, "title": other.Title}, "%q is already the number of %q", ref, other.Title)
+	}
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return err
+	}
+	return nil
 }
 
 // decisionLinks validates adr.Supersedes, normalises it to the target's slug
@@ -257,6 +285,8 @@ type DocumentInput struct {
 	// Parent makes the document part of a page (slug or id), e.g. a board
 	// created from the page's "/" menu; it stays out of the sidebar.
 	Parent string `json:"parent,omitempty"`
+	// ExtRef is the document's own number in another system ("D-640").
+	ExtRef string `json:"extRef,omitempty"`
 }
 
 // DocumentPatch changes a document; nil fields stay as they are.
@@ -271,6 +301,7 @@ type DocumentPatch struct {
 	Board         *Board      `json:"board,omitempty"`
 	Floorplan     *Floorplan  `json:"floorplan,omitempty"`
 	Whiteboard    *Whiteboard `json:"whiteboard,omitempty"`
+	ExtRef        *string     `json:"extRef,omitempty"`
 	ExpectVersion int         `json:"expectVersion,omitempty"`
 }
 
@@ -407,6 +438,10 @@ func (s *Service) CreateDocument(ctx context.Context, a Actor, ref string, in Do
 	if _, _, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board, in.Floorplan, in.Whiteboard); err != nil {
 		return DocResult{}, err
 	}
+	in.ExtRef = strings.TrimSpace(in.ExtRef)
+	if err := s.checkExtRef(ctx, p, in.ExtRef, ""); err != nil {
+		return DocResult{}, err
+	}
 	if in.Type == store.DocWhiteboard {
 		if err := s.wbFiles(ctx, p, in.Whiteboard); err != nil {
 			return DocResult{}, err
@@ -460,7 +495,7 @@ func (s *Service) createDocument(ctx context.Context, a Actor, p store.Project, 
 		}
 	}
 	doc, err := s.DB.CreateDocument(ctx, store.Document{ID: newID(), ProjectID: p.ID, Type: in.Type, Slug: in.Slug, Title: in.Title,
-		Category: strings.TrimSpace(in.Category), Position: in.Position, Content: c, CreatedBy: a.User.ID, ParentID: parentID}, a.String(), related...)
+		Category: strings.TrimSpace(in.Category), Position: in.Position, Content: c, CreatedBy: a.User.ID, ParentID: parentID, ExtRef: in.ExtRef}, a.String(), related...)
 	if err != nil {
 		return DocResult{}, err
 	}
@@ -528,6 +563,12 @@ func (s *Service) patched(ctx context.Context, p store.Project, cur store.Docume
 	}
 	if patch.Position != nil {
 		doc.Position = *patch.Position
+	}
+	if patch.ExtRef != nil {
+		doc.ExtRef = strings.TrimSpace(*patch.ExtRef)
+		if err := s.checkExtRef(ctx, p, doc.ExtRef, cur.ID); err != nil {
+			return doc, "", nil, err
+		}
 	}
 	// Start from the current content and replace what the patch brings.
 	var md string
@@ -699,6 +740,7 @@ func (s *Service) linkMentions(ctx context.Context, p store.Project, docID, text
 type DecisionSummary struct {
 	Ref        string `json:"ref"` // ADR-0007
 	Number     int    `json:"number"`
+	ExtRef     string `json:"extRef,omitempty"` // own number from another system (D-640)
 	Slug       string `json:"slug"`
 	Title      string `json:"title"`
 	Status     string `json:"status"`
@@ -750,12 +792,12 @@ func (s *Service) Decisions(ctx context.Context, a Actor, ref, status, query str
 			continue
 		}
 		if len(words) > 0 {
-			text := strings.ToLower(strings.Join([]string{DecisionRef(d.Number), d.Title, c.Context, c.Decision, c.Consequences, c.Alternatives}, "\n"))
+			text := strings.ToLower(strings.Join([]string{DecisionRef(d.Number), d.ExtRef, d.Title, c.Context, c.Decision, c.Consequences, c.Alternatives}, "\n"))
 			if !containsAll(text, words) {
 				continue
 			}
 		}
-		out = append(out, DecisionSummary{Ref: DecisionRef(d.Number), Number: d.Number, Slug: d.Slug, Title: d.Title, Status: c.Status, Date: c.Date,
+		out = append(out, DecisionSummary{Ref: DecisionRef(d.Number), Number: d.Number, ExtRef: d.ExtRef, Slug: d.Slug, Title: d.Title, Status: c.Status, Date: c.Date,
 			Category: d.Category, Supersedes: c.Supersedes, SupersedesPartly: c.SupersedesPartly, SupersedesScope: c.SupersedesScope,
 			SupersededBy: c.SupersededBy, PartlySupersededBy: c.PartlySupersededBy, Version: d.Version, UpdatedAt: d.UpdatedAt,
 			Options: len(c.Options), NeedsOptions: c.Status == "proposed" && len(c.Responses) > 0 && c.Responses[len(c.Responses)-1].Choice == ChoiceNone})

@@ -12,7 +12,7 @@ import { base } from "./shared";
 import { toast } from "./toasts";
 
 
-type Field = "markdown" | "context" | "decision" | "consequences" | "alternatives" | "description";
+type Field = "markdown" | "context" | "decision" | "consequences" | "alternatives" | "description" | "supersedesScope";
 const fieldsOf: Record<Doc["type"], Field[]> = {
   markdown: ["markdown"],
   adr: ["context", "decision", "consequences", "alternatives"],
@@ -28,6 +28,7 @@ export class PhxTranslate extends LitElement {
   static styles = [base, unsafeCSS(prose), css`
     .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
     @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+    label.check { display: flex; gap: 8px; align-items: center; font-size: 14px; margin: 4px 0; }
     .src { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
     .src h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-family: var(--font-body); margin: 0 0 8px; }
     .src h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 14px 0 4px; }
@@ -63,7 +64,13 @@ export class PhxTranslate extends LitElement {
     const d = this.doc!;
     const form = this.renderRoot.querySelector("form")!;
     (form.elements.namedItem("title") as HTMLInputElement).value = d.title;
-    for (const f of fieldsOf[d.type]) (form.elements.namedItem(f) as HTMLTextAreaElement).value = d.content?.[f] ?? "";
+    for (const f of this.fields(d)) (form.elements.namedItem(f) as HTMLTextAreaElement).value = d.content?.[f] ?? "";
+  }
+
+  /** The fields to translate; a partial supersede adds its scope. */
+  private fields(d: Doc): Field[] {
+    const f = fieldsOf[d.type];
+    return d.type === "adr" && d.content?.supersedesPartly && d.content?.supersedesScope ? [...f, "supersedesScope"] : f;
   }
 
   private async save(e: SubmitEvent) {
@@ -71,7 +78,8 @@ export class PhxTranslate extends LitElement {
     const d = this.doc!;
     const f = new FormData(e.target as HTMLFormElement);
     const body: Record<string, unknown> = { title: f.get("title") };
-    for (const k of fieldsOf[d.type]) body[k] = f.get(k) ?? "";
+    for (const k of this.fields(d)) body[k] = f.get(k) ?? "";
+    body.original = f.get("original") === "1";
     this.busy = true;
     try {
       await api("PUT", `/projects/${this.project}/documents/${d.id}/translations/${this.lang}`, body);
@@ -104,7 +112,7 @@ export class PhxTranslate extends LitElement {
     if (!d) return html`<p class="muted">${t("app.loading")}</p>`;
     const main = currentProject.get()?.mainLocale ?? "";
     const tc = this.tr?.content ?? {};
-    const label = (f: Field) => (f === "markdown" ? "" : f === "description" ? t("link.description") : t(`adr.${f}` as any));
+    const label = (f: Field) => (f === "markdown" ? "" : f === "description" ? t("link.description") : f === "supersedesScope" ? t("adr.supersedes_scope") : t(`adr.${f}` as any));
     return html`<div class="enter">
       <a href="/p/${this.project}/d/${d.slug}" class="muted" style="font-size:14px;text-decoration:none">${icon("ArrowLeft", 14)} ${d.title}</a>
       <h1 style="margin:8px 0 14px">${t("lang.translate_title", { lang: languageName(this.lang) })}</h1>
@@ -113,12 +121,13 @@ export class PhxTranslate extends LitElement {
         <section class="src" aria-label=${t("lang.source", { lang: languageName(main) })}>
           <h2>${t("lang.source", { lang: languageName(main) })}</h2>
           <h1 style="font-size:22px;margin:0 0 10px">${d.title}</h1>
-          ${fieldsOf[d.type].map((f) => html`${label(f) ? html`<h3>${label(f)}</h3>` : ""}<div class="prose">${unsafeHTML(renderMarkdown(d.content?.[f] ?? "", this.project))}</div>`)}
+          ${this.fields(d).map((f) => html`${label(f) ? html`<h3>${label(f)}</h3>` : ""}<div class="prose">${unsafeHTML(renderMarkdown(d.content?.[f] ?? "", this.project))}</div>`)}
         </section>
         <form @submit=${this.save} aria-label=${t("lang.target", { lang: languageName(this.lang) })}>
           <label class="field">${t("doc.title")}<input name="title" required .value=${this.tr?.title ?? ""} lang=${this.lang}></label>
-          ${fieldsOf[d.type].map((f) => html`<label class="field">${label(f) || t("lang.target", { lang: languageName(this.lang) })}
+          ${this.fields(d).map((f) => html`<label class="field">${label(f) || t("lang.target", { lang: languageName(this.lang) })}
             <textarea name=${f} class=${f === "markdown" ? "big" : ""} lang=${this.lang} spellcheck="true" .value=${tc[f] ?? ""}></textarea></label>`)}
+          <label class="check"><input type="checkbox" name="original" value="1" ?checked=${!!this.tr?.original}> <span>${t("lang.original_check", { lang: languageName(this.lang) })}</span></label>
           <p class="note">${t("lang.hint", { version: d.version })}</p>
           <div class="actions">
             <button ?disabled=${this.busy}>${icon("Check", 14)} ${this.tr?.machine ? t("lang.save_reviewed") : t("doc.save")}</button>

@@ -130,7 +130,7 @@ export class PhxDecisions extends SignalWatcher(LitElement) {
       return html`<a href="/p/${this.project}/d/${slug}" title=${o?.title ?? slug}>${o ? adrRef(o.number) : slug}</a>`;
     };
     return html`<tr class=${d.status}>
-      <td class="num">${d.ref}</td>
+      <td class="num">${d.ref}${d.extRef ? html`<div class="sub">${d.extRef}</div>` : ""}</td>
       <td>
         <a class="title" href="/p/${this.project}/d/${d.slug}">${d.title}</a>
         ${d.status === "superseded" && d.supersededBy ? html`<div class="sub">${t("adr.superseded_by")} ${link(d.supersededBy)}</div>` : ""}
