@@ -470,6 +470,8 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/feedback/attachments/{id}", a.feedbackAttachment)
 			r.Put("/feedback/quota", a.setFeedbackQuota)
 			r.Put("/theme", a.setProjectTheme)
+			r.Get("/autolinks", a.autoLinks)
+			r.Put("/autolinks", a.setAutoLinks)
 			r.Post("/apps/preview", a.previewApp)
 			r.Post("/apps/{doc}/open", a.openApp)
 			r.Put("/apps/{doc}/grant", a.grantApp)

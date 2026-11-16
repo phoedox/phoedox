@@ -1,4 +1,5 @@
 import { SignalWatcher } from "@lit-labs/signals";
+import { applyAutoLinks, projectAutoLinks } from "../autolinks";
 import { onProjectChange } from "../project-live";
 import { LitElement, css, html, unsafeCSS } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
@@ -237,6 +238,9 @@ export class PhxDocView extends SignalWatcher(LitElement) {
 
   updated() {
     this.markBlocks();
+    // References in the text become links (decision numbers, ext refs, §6.4, own rules).
+    const prose = [...this.renderRoot.querySelectorAll<HTMLElement>(".prose")];
+    if (prose.length && this.project) void projectAutoLinks(this.project).then((al) => prose.forEach((p) => p.isConnected && applyAutoLinks(p, al)));
   }
 
   private onComments(e: CustomEvent<CommentThread[]>) {
@@ -388,6 +392,18 @@ export class PhxDocView extends SignalWatcher(LitElement) {
 
   /** Pictures in the text open large. */
   private onClick = (e: Event) => {
+    // Links to sections of this page (§6.4) scroll inside the page.
+    const a = e.composedPath().find((n): n is HTMLAnchorElement => n instanceof HTMLAnchorElement);
+    const hash = a?.getAttribute("href") ?? "";
+    if (hash.startsWith("#") && hash.length > 1) {
+      const target = this.renderRoot.querySelector<HTMLElement>(`[id="${CSS.escape(hash.slice(1))}"]`);
+      if (target) {
+        e.preventDefault();
+        history.replaceState(history.state, "", hash);
+        target.scrollIntoView({ block: "start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+        return;
+      }
+    }
     const img = e.composedPath().find((n): n is HTMLImageElement => n instanceof HTMLImageElement);
     if (!img || !img.closest(".prose") || img.closest("a")) return;
     this.zoom = { src: img.currentSrc || img.src, alt: img.alt };

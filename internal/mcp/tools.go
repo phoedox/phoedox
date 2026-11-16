@@ -275,14 +275,15 @@ type createProjectIn struct {
 }
 
 type updateProjectIn struct {
-	Project      string    `json:"project" jsonschema:"project slug"`
-	Name         *string   `json:"name,omitempty"`
-	Description  *string   `json:"description,omitempty"`
-	PrimaryColor *string   `json:"primary_color,omitempty"`
-	AIWriteMode  *string   `json:"ai_write_mode,omitempty" jsonschema:"suggest or direct (owner only)"`
-	MainLocale   *string   `json:"main_locale,omitempty" jsonschema:"main language of the content, e.g. en (makes the project multilingual)"`
-	Locales      *[]string `json:"locales,omitempty" jsonschema:"further languages with translations, e.g. [de]"`
-	Features     *[]string `json:"features,omitempty" jsonschema:"optional tabs shown in the web app: decisions, graph, model, files (the full list replaces the old one)"`
+	Project      string               `json:"project" jsonschema:"project slug"`
+	Name         *string              `json:"name,omitempty"`
+	Description  *string              `json:"description,omitempty"`
+	PrimaryColor *string              `json:"primary_color,omitempty"`
+	AIWriteMode  *string              `json:"ai_write_mode,omitempty" jsonschema:"suggest or direct (owner only)"`
+	MainLocale   *string              `json:"main_locale,omitempty" jsonschema:"main language of the content, e.g. en (makes the project multilingual)"`
+	Locales      *[]string            `json:"locales,omitempty" jsonschema:"further languages with translations, e.g. [de]"`
+	Features     *[]string            `json:"features,omitempty" jsonschema:"optional tabs shown in the web app: decisions, graph, model, files (the full list replaces the old one)"`
+	AutoLinks    *[]core.AutoLinkRule `json:"auto_links,omitempty" jsonschema:"own auto-link rules (the full list replaces the old one): {pattern (regular expression, e.g. JIRA-\\d+), to url|ref, url (https://… or /…, $0 = match, $1… groups; for to=url), note}. to=ref links the match to the document with that ext ref. Built in, without rules: decision numbers (ADR-0012), ext refs and §6.4 section numbers."`
 }
 
 type listDocsIn struct {
@@ -615,6 +616,37 @@ type docView struct {
 	store.Document
 	Ref     string `json:"ref,omitempty"`
 	Content any    `json:"content"`
+	// Review is the page's review interval and next review date, if set.
+	Review *reviewView `json:"review,omitempty"`
+}
+
+type reviewView struct {
+	EveryDays       int    `json:"everyDays,omitempty"`
+	LastReviewed    string `json:"lastReviewed,omitempty"`
+	Due             string `json:"due,omitempty"`
+	Overdue         bool   `json:"overdue,omitempty"`
+	RequiredReading bool   `json:"requiredReading,omitempty"`
+}
+
+type reviewIn struct {
+	Project         string `json:"project" jsonschema:"project slug"`
+	Document        string `json:"document" jsonschema:"page slug or id"`
+	EveryDays       *int   `json:"everyDays,omitempty" jsonschema:"review the page every N days (0 = no review date)"`
+	RequiredReading *bool  `json:"requiredReading,omitempty" jsonschema:"members must confirm they read the current version"`
+	Reviewed        bool   `json:"reviewed,omitempty" jsonschema:"mark the page as reviewed now (only after you checked that it is still correct)"`
+}
+
+func withReview(ctx context.Context, svc *core.Service, a core.Actor, project string, v docView) docView {
+	r, err := svc.PageRules(ctx, a, project, v.ID)
+	if err != nil || (r.ReviewDays == 0 && !r.RequiredReading) {
+		return v
+	}
+	rv := &reviewView{EveryDays: r.ReviewDays, Due: r.ReviewDue, Overdue: r.Overdue, RequiredReading: r.RequiredReading}
+	if !r.ReviewedAt.IsZero() {
+		rv.LastReviewed = r.ReviewedAt.Format(time.DateOnly)
+	}
+	v.Review = rv
+	return v
 }
 
 func view(d store.Document) docView {
@@ -688,7 +720,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		return svc.CreateProject(ctx, a, core.ProjectInput{Name: in.Name, Slug: in.Slug, Description: in.Description, PrimaryColor: in.PrimaryColor, AIWriteMode: in.AIWriteMode,
 			Features: features, Template: in.Template, TemplateLocale: in.Language})
 	})
-	tool(s, "update_project_settings", "Change name, description, color, AI write mode, languages or optional tabs (features) of a project (owner only).", func(ctx context.Context, a core.Actor, in updateProjectIn) (any, error) {
+	tool(s, "update_project_settings", "Change name, description, color, AI write mode, languages, optional tabs (features) or own auto-link rules of a project (owner only).", func(ctx context.Context, a core.Actor, in updateProjectIn) (any, error) {
 		p, err := svc.Project(ctx, a, in.Project)
 		if err != nil {
 			return nil, err
@@ -699,6 +731,11 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		setIf(&upd.PrimaryColor, in.PrimaryColor)
 		setIf(&upd.AIWriteMode, in.AIWriteMode)
 		upd.MainLocale, upd.Locales, upd.Features = in.MainLocale, in.Locales, in.Features
+		if in.AutoLinks != nil {
+			if _, err := svc.SetAutoLinkRules(ctx, a, p.Slug, *in.AutoLinks); err != nil {
+				return nil, err
+			}
+		}
 		return svc.UpdateProject(ctx, a, p.Slug, upd)
 	})
 	tool(s, "list_documents", "List documents of a project (without content), optionally filtered by type or category. Multilingual projects: translationState per further language (current, outdated, missing); translation: stale lists only those that need work.", func(ctx context.Context, a core.Actor, in listDocsIn) (any, error) {
@@ -751,7 +788,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 			}
 			return out, nil
 		}
-		v := view(d)
+		v := withReview(ctx, svc, a, in.Project, view(d))
 		if dr, err := svc.Draft(ctx, a, in.Project, d.ID); err == nil {
 			draft := map[string]any{
 				"title": dr.Title, "category": dr.Category, "markdown": dr.Markdown, "updatedAt": dr.UpdatedAt,
@@ -764,6 +801,17 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 			return map[string]any{"document": v, "draft": draft}, nil
 		}
 		return v, nil
+	})
+	tool(s, "set_page_review", "Set a page's review interval (everyDays, 0 = none) and required reading, or mark it as reviewed now (reviewed: true – only after checking that the page is still correct). get_document shows review.due; find_documentation_gaps lists pages whose review is due (review_due).", func(ctx context.Context, a core.Actor, in reviewIn) (any, error) {
+		if in.EveryDays != nil || in.RequiredReading != nil {
+			if _, err := svc.SetPageRules(ctx, a, in.Project, in.Document, core.PageRulesInput{ReviewDays: in.EveryDays, RequiredReading: in.RequiredReading}); err != nil {
+				return nil, err
+			}
+		}
+		if in.Reviewed {
+			return svc.MarkReviewed(ctx, a, in.Project, in.Document)
+		}
+		return svc.PageRules(ctx, a, in.Project, in.Document)
 	})
 	tool(s, "translate_document", "Write the translation of a document into one of the project's further languages (multilingual projects, see get_project). Read the main language with get_document first. Fields you leave out keep their translated text (only an empty string clears one); edits change exact passages. With text or edits the translation counts as current; a title-only change keeps the text and is current only if the main text did not change since (the answer says outdated). Machine translation until a person reviews it. Number, status, slug and category stay shared.", func(ctx context.Context, a core.Actor, in translateIn) (any, error) {
 		t, err := svc.SaveTranslation(ctx, a, in.Project, in.Document, in.Lang, core.TranslationInput{Title: in.Title, Markdown: in.Markdown,

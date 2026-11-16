@@ -14,6 +14,13 @@ is written in – `[[ADR-0001]]` in project A never reaches ADR-0001 of project 
 write `[[b/ADR-0001]]` there. Plain Markdown links `[Title](/p/<project>/d/<slug>)` work too.
 Published sites rewrite both to their own addresses.
 
+**Auto-links:** plain references become links when a page is shown, without
+changing the text: decision numbers (`ADR-0012`), documents' own numbers (ext refs
+such as `D-640`) and section numbers (`§6.4` → the heading "6.4 …" of the same
+page). Projects add own rules (e.g. `JIRA-\d+` → the issue tracker) with
+`update_project_settings` `auto_links`. So you need no `[[…]]` for these; use it
+for links with another label or to other projects.
+
 ## Callouts
 
 ```markdown

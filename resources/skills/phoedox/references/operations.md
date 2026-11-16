@@ -30,6 +30,10 @@ batteries, certificates) with an interval and the entries it applies to.
 - `find_documentation_gaps`: failing checks, rule violations, pages and entries whose
   review date passed (`review_due`), broken mentions, devices without a location,
   undocumented and incomplete entries, empty and stale pages.
+- Review dates: `get_document` shows `review` (interval, last review, `due`,
+  `overdue`). `set_page_review` sets the interval (`everyDays`) and required
+  reading; with `reviewed: true` it marks the page as checked – only after you
+  verified that it is still correct (e.g. while working through `review_due`).
 - `list_duplicates` → `merge_entities` (only where AI writes directly).
 - `change_summary` for "what changed this week".
 - `archive_link` keeps a copy of a manual a link page points to.

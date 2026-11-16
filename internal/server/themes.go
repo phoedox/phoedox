@@ -105,3 +105,20 @@ func (a *api) setInstanceTheme(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, nil, a.core.SetInstanceTheme(r.Context(), actorOf(r), in.ThemeID))
 }
+
+func (a *api) autoLinks(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.ProjectAutoLinks(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, v, err)
+}
+
+func (a *api) setAutoLinks(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Rules []core.AutoLinkRule `json:"rules"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.SetAutoLinkRules(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.Rules)
+	respond(w, map[string]any{"rules": v}, err)
+}
