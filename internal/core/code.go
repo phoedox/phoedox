@@ -332,6 +332,12 @@ func (s *Service) RunCodeReleases(ctx context.Context, now time.Time) {
 				continue
 			}
 			msg := ""
+			// Each release tag names the docs' state at that time (snapshot).
+			if f, err := s.forge(tctx, r); err == nil {
+				if rels, err := f.releases(tctx); err == nil {
+					s.codeSnapshotsFor(tctx, r, rels)
+				}
+			}
 			if err := s.codeReleasesFor(tctx, r); err != nil {
 				msg = err.Error()
 				slog.Warn("code releases", "repo", r.Owner+"/"+r.Name, "err", err)

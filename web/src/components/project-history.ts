@@ -5,6 +5,7 @@ import { icon } from "../icon";
 import { currentProject, docsVersion } from "../state";
 import { base } from "./shared";
 import { toast } from "./toasts";
+import "./snapshots";
 
 interface Point { documentId: string; slug: string; type: string; version: number; title: string; actor: string; actorName?: string; viaAI?: boolean; createdAt: string }
 interface Change { id: string; slug: string; type: string; title: string; category: string; number?: number; change: "changed" | "deleted" | "created"; versionAt: number; version: number }
@@ -172,6 +173,7 @@ export class PhxProjectHistory extends LitElement {
   render() {
     return html`<h1>${t("phist.title")}</h1>
       <p class="lead">${t("phist.lead")}</p>
+      <phx-snapshots .project=${this.project} ?canEdit=${["editor", "owner"].includes(currentProject.get()?.role ?? "")} ?owner=${currentProject.get()?.role === "owner"}></phx-snapshots>
       <div class="filter"><label>${t("phist.filter")}
         <select @change=${(e: Event) => this.filter((e.target as HTMLSelectElement).value)}>
           <option value="" ?selected=${!this.doc}>${t("phist.all")}</option>

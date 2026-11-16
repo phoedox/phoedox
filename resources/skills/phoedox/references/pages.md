@@ -14,6 +14,12 @@ request blocks, live blocks, diagrams) is in `page-syntax.md`.
   `outline`, so you can pick the right one.
 - `list_document_versions`, `get_document_version`, `restore_document_version` for
   the history of one page (restoring stores a new version).
+- `snapshots`: named points in the project history, e.g. the docs at release
+  0.27.4 (release tags of a connected repository become snapshots by
+  themselves). Without name it lists them; with name it shows the documents as
+  they were then (read one with `get_document_version`); `create: true` names
+  the current point; `compare_to` lists what changed since another snapshot or
+  "now" – useful for release notes of the documentation.
 
 ## Write
 

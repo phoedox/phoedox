@@ -628,6 +628,15 @@ type reviewView struct {
 	RequiredReading bool   `json:"requiredReading,omitempty"`
 }
 
+type snapshotIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Name    string `json:"name,omitempty" jsonschema:"snapshot name, e.g. 0.27.4; empty lists all snapshots"`
+	Note    string `json:"note,omitempty"`
+	At      string `json:"at,omitempty" jsonschema:"create: point in time (RFC 3339), default now"`
+	Create  bool   `json:"create,omitempty" jsonschema:"true creates the snapshot name (editors)"`
+	Compare string `json:"compare_to,omitempty" jsonschema:"compare name with this snapshot; \"now\" compares with the current state"`
+}
+
 type reviewIn struct {
 	Project         string `json:"project" jsonschema:"project slug"`
 	Document        string `json:"document" jsonschema:"page slug or id"`
@@ -801,6 +810,21 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 			return map[string]any{"document": v, "draft": draft}, nil
 		}
 		return v, nil
+	})
+	tool(s, "snapshots", "Documentation snapshots: named points in the project history, e.g. the docs at release 0.27.4. Without name: list them. With name: the documents as they were then, each with its version (read one with get_document_version). create: true names the current point (or at). compare_to: what changed since another snapshot or \"now\". Release tags of a connected repository become snapshots by themselves.", func(ctx context.Context, a core.Actor, in snapshotIn) (any, error) {
+		switch {
+		case in.Name == "":
+			return svc.Snapshots(ctx, a, in.Project)
+		case in.Create:
+			return svc.CreateSnapshot(ctx, a, in.Project, core.SnapshotInput{Name: in.Name, Note: in.Note, At: in.At})
+		case in.Compare != "":
+			to := in.Compare
+			if to == "now" {
+				to = ""
+			}
+			return svc.CompareSnapshots(ctx, a, in.Project, in.Name, to)
+		}
+		return svc.Snapshot(ctx, a, in.Project, in.Name)
 	})
 	tool(s, "set_page_review", "Set a page's review interval (everyDays, 0 = none) and required reading, or mark it as reviewed now (reviewed: true – only after checking that the page is still correct). get_document shows review.due; find_documentation_gaps lists pages whose review is due (review_due).", func(ctx context.Context, a core.Actor, in reviewIn) (any, error) {
 		if in.EveryDays != nil || in.RequiredReading != nil {
