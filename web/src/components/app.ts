@@ -15,6 +15,7 @@ import "./lang-switcher";
 import { base } from "./shared";
 import "./auth-pages";
 import "./kiosk";
+import "./print";
 import "./login";
 import "./profile";
 import "./publications";
@@ -80,6 +81,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/login", render: () => html`<phx-login></phx-login>` },
     { path: "/identify", render: () => html`<phx-identify></phx-identify>` },
     { path: "/kiosk/:project/:doc", render: ({ project, doc }) => html`<phx-kiosk .project=${project!} .doc=${doc!}></phx-kiosk>` },
+    { path: "/print/:project", render: ({ project }) => html`<phx-print .project=${project!}></phx-print>` },
     // The website's "Start for free" links here; signed-in people go to their projects.
     { path: "/signup", render: () => {
       if (!currentUser.get()) return html`<phx-signup></phx-signup>`;
@@ -192,7 +194,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     if (!this.ready) return html`<p class="muted" style="padding:24px">${t("app.loading")}</p>`;
     const user = currentUser.get();
     // Shared pages and the wall display show no app header.
-    const shared = location.pathname.startsWith("/s/") || location.pathname.startsWith("/kiosk/");
+    const shared = location.pathname.startsWith("/s/") || location.pathname.startsWith("/kiosk/") || location.pathname.startsWith("/print/");
     return html`
       ${user && !shared && focusMode.get()
         ? html`<button class="ghost unfocus" @click=${() => setFocusMode(false)} title=${t("focus.leave_hint", { key: comboLabel(comboFor("focus")) })}>${icon("Minimize2", 14)} ${t("focus.leave")}</button>`

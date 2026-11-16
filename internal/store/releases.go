@@ -98,3 +98,43 @@ func (d *DB) DocumentsAt(ctx context.Context, projectID string, at Time) ([]Docu
 	}
 	return out, nil
 }
+
+// ProjectVersion is one saved version of a document of a project, for the
+// project history (points to look at or roll back to).
+type ProjectVersion struct {
+	DocumentID string `json:"documentId"`
+	Slug       string `json:"slug"`
+	Type       string `json:"type"`
+	Version    int    `json:"version"`
+	Title      string `json:"title"`
+	Actor      string `json:"actor"`
+	CreatedAt  Time   `json:"createdAt"`
+}
+
+// ProjectVersions lists the newest document versions of a project, newest
+// first, before a time (zero = now).
+func (d *DB) ProjectVersions(ctx context.Context, projectID string, before Time, limit int) ([]ProjectVersion, error) {
+	q := `SELECT v.document_id, doc.slug, doc.doc_type, v.version, v.title, v.actor, v.created_at FROM document_versions v
+		JOIN documents doc ON doc.id = v.document_id WHERE doc.project_id = ?`
+	args := []any{projectID}
+	if !before.IsZero() {
+		q += ` AND v.created_at < ?`
+		args = append(args, before)
+	}
+	q += ` ORDER BY v.created_at DESC, v.version DESC LIMIT ?`
+	args = append(args, limit)
+	rows, err := d.Query(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ProjectVersion{}
+	for rows.Next() {
+		var v ProjectVersion
+		if err := rows.Scan(&v.DocumentID, &v.Slug, &v.Type, &v.Version, &v.Title, &v.Actor, &v.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}

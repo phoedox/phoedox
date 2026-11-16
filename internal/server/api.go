@@ -357,6 +357,9 @@ func (a *api) routes(r chi.Router) {
 			r.Post("/documents/{d}/versions/{n}/restore", a.restoreVersion)
 			r.Get("/trash", a.listTrash)
 			r.Post("/trash/{id}/restore", a.restoreTrash)
+			r.Get("/history/points", a.projectPoints)
+			r.Get("/history/at", a.projectAt)
+			r.Post("/history/rollback", a.rollbackProject)
 			r.Delete("/trash/{id}", a.purgeTrash)
 			r.Get("/favorites", a.listFavorites)
 			r.Put("/favorites", a.reorderFavorites)
@@ -1328,4 +1331,55 @@ func (l *limiter) allow(key string) bool {
 	}
 	l.hits[key] = append(recent, now)
 	return true
+}
+
+// historyTime reads a point in time (RFC 3339).
+func historyTime(v string) (time.Time, error) {
+	t, err := time.Parse(time.RFC3339Nano, v)
+	if err != nil {
+		return time.Time{}, core.Invalid("validation.history_time", nil, "give the point in time as RFC 3339")
+	}
+	return t, nil
+}
+
+func (a *api) projectPoints(w http.ResponseWriter, r *http.Request) {
+	var before time.Time
+	if v := r.URL.Query().Get("before"); v != "" {
+		t, err := historyTime(v)
+		if err != nil {
+			writeErr(w, err)
+			return
+		}
+		before = t
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	list, err := a.core.ProjectPoints(r.Context(), actorOf(r), chi.URLParam(r, "p"), before, limit)
+	respond(w, list, err)
+}
+
+func (a *api) projectAt(w http.ResponseWriter, r *http.Request) {
+	at, err := historyTime(r.URL.Query().Get("at"))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	res, err := a.core.ProjectStateAt(r.Context(), actorOf(r), chi.URLParam(r, "p"), at)
+	respond(w, res, err)
+}
+
+func (a *api) rollbackProject(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		At string `json:"at"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	at, err := historyTime(in.At)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	res, err := a.core.RollbackProject(r.Context(), actorOf(r), chi.URLParam(r, "p"), at)
+	respond(w, res, err)
 }

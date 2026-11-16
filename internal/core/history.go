@@ -100,6 +100,18 @@ func (s *Service) RestoreVersion(ctx context.Context, a Actor, ref, docRef strin
 		var c Link
 		_ = json.Unmarshal(v.Content, &c)
 		patch.Link = &c
+	case store.DocBoard:
+		var c Board
+		_ = json.Unmarshal(v.Content, &c)
+		patch.Board = &c
+	case store.DocFloorplan:
+		var c Floorplan
+		_ = json.Unmarshal(v.Content, &c)
+		patch.Floorplan = &c
+	case store.DocWhiteboard:
+		var c Whiteboard
+		_ = json.Unmarshal(v.Content, &c)
+		patch.Whiteboard = &c
 	}
 	res, err := s.UpdateDocument(ctx, a, ref, doc.ID, patch)
 	if err == nil && res.Applied {

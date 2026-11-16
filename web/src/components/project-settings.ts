@@ -359,6 +359,7 @@ export class PhxProjectSettings extends LitElement {
       case "data": return html`${pageHead(t("sx.p.data"), "")}
         ${this.storageSection(owner)}
         ${scard(t("sx.p.take_along"), "", html`
+          ${srow(t("print.project"), t("print.project_hint"), html`<a class="btn ghost" href="/print/${this.project}" target="_blank" rel="noopener">${icon("FileDown", 14)} ${t("print.save")}</a>`)}
           ${srow(t("offline.title"), t("offline.hint"), html`<a class="btn ghost" href=${`/api/v1/projects/${this.project}/offline`} download>${icon("HardDriveDownload", 14)} ${t("offline.download")}</a>`)}
           ${owner ? srow(t("transfer.settings_title"), t("transfer.export_hint"), html`<a class="btn ghost" href="/api/v1/projects/${this.project}/export" download>${icon("Download", 14)} ${t("transfer.export")}</a>`) : ""}`)}`;
       case "activity": return owner ? html`${pageHead(t("audit.project_title"), t("sx.p.activity_text"))}

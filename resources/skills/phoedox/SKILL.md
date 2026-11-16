@@ -145,6 +145,13 @@ instead of rebuilding them in pages:
 - **Deleting a project** (project settings → Transfer & delete): only owners, in the
   browser; the project stays in the trash for 30 days and can be restored from the
   project list. AI clients cannot delete or restore projects – point people there.
+- **Project history** (sidebar → History): every saved change is a point; people see
+  what changed since, open each page as it was and – owners only – roll the whole
+  project back to that point (new versions, nothing lost). AI clients cannot roll
+  back; for one page use `list_document_versions` and `restore_document_version`.
+- **PDF**: the PDF button on a page, or the whole project with cover and contents
+  (project settings → Storage & export → "Whole project as PDF"); it opens a print
+  view where the browser saves the PDF.
 - **Wall display** (kiosk mode) for a page, and **voice questions** through Home
   Assistant Assist ("Where is the NAS?").
 - **Publishing** a project as a website, **share links**, sharing single pages.

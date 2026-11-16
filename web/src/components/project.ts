@@ -24,6 +24,7 @@ import "./decisions";
 import "./history";
 import "./translate";
 import "./trash";
+import "./project-history";
 import "./entity-view";
 import "./entity-form";
 import "./knowledge";
@@ -181,6 +182,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "d/:doc/translate/:lang", render: ({ doc, lang }) => html`<phx-translate .project=${this.slug} .docSlug=${doc!} .lang=${lang!}></phx-translate>` },
     { path: "d/:doc/history", render: ({ doc }) => html`<phx-history .project=${this.slug} .docSlug=${doc!}></phx-history>` },
     { path: "trash", render: () => html`<phx-trash .project=${this.slug}></phx-trash>` },
+    { path: "history", render: () => html`<phx-project-history .project=${this.slug}></phx-project-history>` },
     { path: "d/:doc", render: ({ doc }) => html`<phx-doc-view .project=${this.slug} .docSlug=${doc!}></phx-doc-view>` },
     { path: "new/:type", render: ({ type }) => html`<phx-doc-form .project=${this.slug} .type=${type!}></phx-doc-form>` },
     { path: "e/:entity/edit", render: ({ entity }) => html`<phx-entity-form .project=${this.slug} .entity=${entity!}></phx-entity-form>` },
@@ -421,6 +423,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     if (doc) return doc.title;
     if (here.endsWith("/decisions")) return t("nav.decisions");
     if (here.endsWith("/trash")) return t("nav.trash");
+    if (here.endsWith(`/p/${this.slug}/history`)) return t("phist.title");
     if (this.inKnowledge(here)) return t("nav.graph");
     if (here.endsWith("/files")) return t("nav.files");
     if (here.endsWith("/new-entity")) return t("entity.new");
@@ -727,6 +730,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
               ${hasFeature(proj, "graph") || hasFeature(proj, "model") ? html`<a role="menuitem" href="/p/${this.slug}/new-entity" @click=${() => (this.newOpen = false)}>${icon("Plus", 15)} ${t("entity.new")}</a>` : ""}
             </div>` : ""}
           </div>
+          <a href="/p/${this.slug}/history" class=${here === `/p/${this.slug}/history` ? "on" : ""}>${icon("History", 15)} ${t("phist.nav")}</a>
           <a href="/p/${this.slug}/trash" class=${here.endsWith("/trash") ? "on" : ""}>${icon("Trash2", 15)} ${t("nav.trash")}</a>` : ""}
           ${docOnly || !hasFeature(proj, "household") ? "" : html`<a href="/p/${this.slug}/household" class=${here.endsWith("/household") ? "on" : ""}>${icon("House", 15)} ${t("house.title")}</a>`}
           ${this.aiChat && !docOnly ? html`<button class="collapse" aria-pressed=${this.chatOpen ? "true" : "false"} @click=${() => this.setChat(!this.chatOpen)}>${icon("BotMessageSquare", 15)} ${t("ai_chat.title")}</button>` : ""}

@@ -72,7 +72,9 @@ export class PhxHistory extends LitElement {
     try {
       this.doc = await api<Doc>("GET", `/projects/${this.project}/documents/${this.docSlug}`);
       this.versions = await api<VersionInfo[]>("GET", `/projects/${this.project}/documents/${this.docSlug}/versions`);
-      await this.select(this.versions[0]?.version ?? 0);
+      // ?v=3 opens a version directly (e.g. from the project history).
+      const want = Number(new URLSearchParams(location.search).get("v"));
+      await this.select(this.versions.some((v) => v.version === want) ? want : this.versions[0]?.version ?? 0);
     } catch (e) {
       this.error = e instanceof ApiError ? e.text : t("error.unknown");
     }
