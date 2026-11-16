@@ -104,7 +104,7 @@ export class PhxHistory extends LitElement {
       const res = await api<{ applied: boolean; document?: Doc }>("POST", `/projects/${this.project}/documents/${this.docSlug}/versions/${this.selected}/restore`);
       toast(t("history.restored", { version: this.selected }));
       docsVersion.set(docsVersion.get() + 1);
-      if (res.applied) navigate(`/p/${this.project}/d/${res.document?.slug ?? this.docSlug}`);
+      if (res.applied) navigate(`/p/${this.project}/d/${res.document?.id ?? this.docSlug}`);
     } catch (e) {
       toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
     } finally {
@@ -129,7 +129,7 @@ export class PhxHistory extends LitElement {
     const added = this.hunks.filter((h) => h.op === "+").length;
     const removed = this.hunks.filter((h) => h.op === "-").length;
     return html`<div class="enter">
-      <a href="/p/${this.project}/d/${d.slug}" class="muted" style="font-size:14px;text-decoration:none">${icon("ArrowLeft", 14)} ${t("history.back")}</a>
+      <a href="/p/${this.project}/d/${d.id}" class="muted" style="font-size:14px;text-decoration:none">${icon("ArrowLeft", 14)} ${t("history.back")}</a>
       <h1 style="margin-top:8px">${t("history.title")}: ${d.title}</h1>
       <div class="layout">
         <ol aria-label=${t("history.title")}>

@@ -42,7 +42,7 @@ const typeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scal
 
 /** Project layout: sidebar with documents by category + nested routes. */
 export class PhxProject extends SignalWatcher(LitElement) {
-  static properties = { slug: {}, root: {}, docs: { state: true }, drafts: { state: true }, collapsed: { state: true }, newOpen: { state: true }, error: { state: true }, menuOpen: { state: true }, dropTarget: { state: true }, ctx: { state: true }, sideWidth: { state: true }, sideHidden: { type: Boolean, reflect: true, attribute: "sidehidden" },
+  static properties = { slug: {}, root: {}, docs: { state: true }, drafts: { state: true }, collapsed: { state: true }, newOpen: { state: true }, moreOpen: { state: true }, error: { state: true }, menuOpen: { state: true }, dropTarget: { state: true }, ctx: { state: true }, sideWidth: { state: true }, sideHidden: { type: Boolean, reflect: true, attribute: "sidehidden" },
     aiChat: { state: true }, chatOpen: { type: Boolean, reflect: true, attribute: "chatopen" } };
   static styles = [base, css`
     :host { display: grid; grid-template-columns: var(--side-w, 260px) minmax(0, 1fr); min-height: calc(100vh - var(--header-h)); }
@@ -103,6 +103,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
     aside a.drop { box-shadow: inset 0 2px 0 var(--accent); }
     .tools { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px 10px; border-top: 1px solid var(--line); background: var(--surface); }
     .tools .new { position: relative; }
+    .tools .more-btn { display: none; width: 100%; justify-content: flex-start; color: var(--muted); border-color: transparent; }
+    .tools .rest { display: contents; }
     .tools .new > button { width: 100%; justify-content: flex-start; }
     .tools .menu { position: absolute; bottom: calc(100% + 4px); left: 0; right: 0; z-index: 10; display: flex; flex-direction: column; gap: 1px; padding: 4px;
       background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgb(0 0 0 / .12);
@@ -126,6 +128,9 @@ export class PhxProject extends SignalWatcher(LitElement) {
       :host([sidehidden]) aside { display: flex; }
       .resize, .collapse, :host([sidehidden]) .reopen { display: none; }
       main { padding: 18px 16px 48px; }
+      .tools .more-btn { display: flex; }
+      .tools .rest { display: none; }
+      .tools.open .rest { display: flex; flex-direction: column; gap: 1px; }
       :host([chatopen]), :host([chatopen][sidehidden]) { grid-template-columns: 1fr; }
       phx-ai-chat { position: fixed; inset: 0; z-index: 40; height: 100dvh; border-left: 0; }
       .mbar { display: flex; align-items: center; gap: 10px; position: sticky; top: var(--header-h); z-index: 5;
@@ -161,6 +166,13 @@ export class PhxProject extends SignalWatcher(LitElement) {
   /** Collapsed category paths (remembered per browser and project). */
   collapsed = new Set<string>();
   newOpen = false;
+  /** Phones: the links under "New" are shown (remembered). */
+  moreOpen: boolean | undefined = ({ 1: true, 0: false } as Record<number, boolean>)[readSide("phx.sidemore", -1)];
+
+  private setMore(open: boolean) {
+    this.moreOpen = open;
+    writeSide("phx.sidemore", open ? 1 : 0);
+  }
   error = "";
   /** Drawer state on small screens; ignored on wide screens. */
   menuOpen = false;
@@ -381,8 +393,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
       ${favs.map((f) => {
         const d = byId.get(f.documentId)!;
         const movable = f.personal || canEdit;
-        return html`<a href="/p/${this.slug}/d/${d.slug}" data-fav="${f.personal ? "me" : "p"}-${d.id}"
-          class=${[here.startsWith(`/p/${this.slug}/d/${d.slug}`) ? "on" : "", this.dropTarget === `${f.personal}-${d.id}` ? "drop" : ""].join(" ")}
+        return html`<a href="/p/${this.slug}/d/${d.id}" data-fav="${f.personal ? "me" : "p"}-${d.id}"
+          class=${[this.isOpen(d, here) ? "on" : "", this.dropTarget === `${f.personal}-${d.id}` ? "drop" : ""].join(" ")}
           draggable=${movable ? "true" : "false"} title=${movable ? t("fav.reorder_hint") : ""}
           @keydown=${(e: KeyboardEvent) => { if (movable) this.onFavKey(e, f); this.openCtx(e, { doc: d }); }}
           @contextmenu=${(e: MouseEvent) => this.openCtx(e, { doc: d })}
@@ -419,7 +431,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
 
   /** Label of the current page for the mobile bar. */
   private where(here: string) {
-    const doc = this.docs.find((d) => here.startsWith(`/p/${this.slug}/d/${d.slug}`));
+    const doc = this.docs.find((d) => this.isOpen(d, here));
     if (doc) return doc.title;
     if (here.endsWith("/decisions")) return t("nav.decisions");
     if (here.endsWith("/trash")) return t("nav.trash");
@@ -554,6 +566,14 @@ export class PhxProject extends SignalWatcher(LitElement) {
     this.ctxRun(() => api("PATCH", `/projects/${this.slug}/documents/${d.slug}`, { category }), t("settings.saved"));
   }
 
+  /** Whether the address shows this document (by id, or by slug for old links). */
+  private isOpen(d: Doc, here: string) {
+    const prefix = `/p/${this.slug}/d/`;
+    if (!here.startsWith(prefix)) return false;
+    const ref = decodeURIComponent(here.slice(prefix.length).split("/")[0]);
+    return ref === d.id || ref === d.slug;
+  }
+
   /** A folder's name in the chosen content language (falls back to its own). */
   private folderName(path: string) {
     const p = currentProject.get();
@@ -600,7 +620,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
 
   private async trashDoc(d: Doc) {
     if (!confirm(`${d.title}: ${t("doc.delete_confirm")}`)) return this.closeCtx(true);
-    const open = location.pathname.startsWith(`/p/${this.slug}/d/${d.slug}`);
+    const open = this.isOpen(d, location.pathname);
     const slug = this.slug;
     await this.ctxRun(() => api("DELETE", `/projects/${slug}/documents/${d.slug}`));
     if (open) navigate(`/p/${slug}`);
@@ -612,7 +632,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
 
   private copyLink(d: Doc) {
     this.closeCtx(true);
-    const url = `${location.origin}/p/${this.slug}/d/${d.slug}`;
+    const url = `${location.origin}/p/${this.slug}/d/${d.id}`;
     navigator.clipboard?.writeText(url).then(() => toast(t("ctx.link_copied")), () => toast(url));
   }
 
@@ -632,14 +652,14 @@ export class PhxProject extends SignalWatcher(LitElement) {
         this.ctxRun(() => api(on ? "PUT" : "DELETE", `/projects/${this.slug}/favorites/${d.id}?scope=${personal ? "me" : "project"}`));
       const external = d.type === "link" && d.content?.url;
       items = html`
-        ${item("ExternalLink", t("ctx.open_tab"), () => { this.closeCtx(); open(external ? d.content.url : `/p/${this.slug}/d/${d.slug}`, "_blank", "noopener"); })}
+        ${item("ExternalLink", t("ctx.open_tab"), () => { this.closeCtx(); open(external ? d.content.url : `/p/${this.slug}/d/${d.id}`, "_blank", "noopener"); })}
         ${external ? "" : item("Link", t("ctx.copy_link"), () => this.copyLink(d))}
         <hr>
         ${item("Star", t(mine ? "fav.remove_me" : "fav.add_me"), () => fav(true, !mine))}
         ${canEdit ? item("Pin", t(pinned ? "fav.remove_project" : "fav.add_project"), () => fav(false, !pinned)) : ""}
         ${canEdit ? html`<hr>
           ${item("Pencil", t("ctx.rename"), () => this.renameDoc(d))}
-          ${external ? "" : item("SquarePen", t("ctx.edit"), () => { this.closeCtx(); navigate(`/p/${this.slug}/d/${d.slug}/edit`); })}
+          ${external ? "" : item("SquarePen", t("ctx.edit"), () => { this.closeCtx(); navigate(`/p/${this.slug}/d/${d.id}/edit`); })}
           ${item("FolderInput", t("ctx.move"), () => this.moveDoc(d))}
           <hr>
           ${item("Trash2", t("ctx.delete"), () => this.trashDoc(d), "danger")}` : ""}`;
@@ -660,7 +680,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
   private docLink(d: Doc, here: string) {
     return d.type === "link" && d.content?.url
       ? html`<a href=${d.content.url} target="_blank" rel="noopener external" title=${t("nav.external")} @contextmenu=${(e: MouseEvent) => this.openCtx(e, { doc: d })} @keydown=${(e: KeyboardEvent) => this.openCtx(e, { doc: d })}>${icon("Link", 15)} ${d.title}<span class="ext">${icon("ExternalLink", 13)}</span></a>`
-      : html`<a href="/p/${this.slug}/d/${d.slug}" class=${here.startsWith(`/p/${this.slug}/d/${d.slug}`) ? "on" : ""} @contextmenu=${(e: MouseEvent) => this.openCtx(e, { doc: d })} @keydown=${(e: KeyboardEvent) => this.openCtx(e, { doc: d })}>${icon(typeIcon[d.type], 15)} ${d.title}${this.drafts.has(d.id) ? html`<span class="ext" title=${t("draft.sidebar")} aria-label=${t("draft.sidebar")}>${icon("FilePen", 11)}</span>` : ""}${d.restricted ? html`<span class="ext" title=${t("share.restricted")}>${icon("Lock", 11)}</span>` : ""}</a>`;
+      : html`<a href="/p/${this.slug}/d/${d.id}" class=${this.isOpen(d, here) ? "on" : ""} @contextmenu=${(e: MouseEvent) => this.openCtx(e, { doc: d })} @keydown=${(e: KeyboardEvent) => this.openCtx(e, { doc: d })}>${icon(typeIcon[d.type], 15)} ${d.title}${this.drafts.has(d.id) ? html`<span class="ext" title=${t("draft.sidebar")} aria-label=${t("draft.sidebar")}>${icon("FilePen", 11)}</span>` : ""}${d.restricted ? html`<span class="ext" title=${t("share.restricted")}>${icon("Lock", 11)}</span>` : ""}</a>`;
   }
 
   /**
@@ -731,6 +751,9 @@ export class PhxProject extends SignalWatcher(LitElement) {
     const canEdit = ["editor", "owner"].includes(currentProject.get()?.role ?? "");
     // Only single pages are shared with this person: no project-wide views.
     const docOnly = currentProject.get()?.role === "doc";
+    // Phones: the links below "New" fold behind "More…" (open when one of them is shown).
+    const rest = ["history", "trash", "household", "insights", "monitoring", "suggestions", "settings"];
+    const moreOpen = this.moreOpen ?? rest.some((r) => here === `/p/${this.slug}/${r}` || here.startsWith(`/p/${this.slug}/${r}/`));
     return html`
       <div class="mbar">
         <button class="ghost" aria-expanded=${this.menuOpen} aria-controls="nav" @click=${() => this.setMenu(!this.menuOpen)}>${icon("Menu", 16)} ${t("nav.menu")}</button>
@@ -747,13 +770,13 @@ export class PhxProject extends SignalWatcher(LitElement) {
         <div class="scroll" @scroll=${this.ctxDismiss}>
           ${this.favoritesGroup(here)}
           <div class="grp"><a href="/p/${this.slug}" class=${here === `/p/${this.slug}` ? "on" : ""}>${icon("House", 15)} ${t("project.overview")}</a>
-            ${!hasFeature(proj, "decisions") ? "" : html`<a href="/p/${this.slug}/decisions" class=${here === `/p/${this.slug}/decisions` || this.docs.some((d) => d.type === "adr" && here.startsWith(`/p/${this.slug}/d/${d.slug}`)) ? "on" : ""}>${icon("ListChecks", 15)} ${t("nav.decisions")}
+            ${!hasFeature(proj, "decisions") ? "" : html`<a href="/p/${this.slug}/decisions" class=${here === `/p/${this.slug}/decisions` || this.docs.some((d) => d.type === "adr" && this.isOpen(d, here)) ? "on" : ""}>${icon("ListChecks", 15)} ${t("nav.decisions")}
               ${decisions ? html`<span class="num">${decisions}</span>` : ""}</a>`}
             ${docOnly || !hasFeature(proj, "graph") ? "" : html`<a href="/p/${this.slug}/graph" class=${this.inKnowledge(here) ? "on" : ""}>${icon("Waypoints", 15)} ${t("nav.graph")}</a>`}
             ${docOnly || !hasFeature(proj, "files") ? "" : html`<a href="/p/${this.slug}/files" class=${here === `/p/${this.slug}/files` ? "on" : ""}>${icon("Paperclip", 15)} ${t("nav.files")}</a>`}</div>
           ${this.tree(here, canEdit)}
         </div>
-        <div class="tools">
+        <div class=${moreOpen ? "tools open" : "tools"}>
           ${canEdit ? html`<div class="new">
             <button class="ghost" aria-expanded=${this.newOpen ? "true" : "false"} aria-haspopup="menu" @click=${(e: Event) => { e.stopPropagation(); this.newOpen = !this.newOpen; }}>${icon("Plus", 15)} ${t("create.new")}</button>
             ${this.newOpen ? html`<div class="menu" role="menu" @keydown=${(e: KeyboardEvent) => e.key === "Escape" && (this.newOpen = false)}>
@@ -763,8 +786,11 @@ export class PhxProject extends SignalWatcher(LitElement) {
               ${hasFeature(proj, "decisions") ? html`<a role="menuitem" href="/p/${this.slug}/new/adr" @click=${() => (this.newOpen = false)}>${icon("Scale", 15)} ${t("doc.type.adr")}</a>` : ""}
               ${hasFeature(proj, "graph") || hasFeature(proj, "model") ? html`<a role="menuitem" href="/p/${this.slug}/new-entity" @click=${() => (this.newOpen = false)}>${icon("Plus", 15)} ${t("entity.new")}</a>` : ""}
             </div>` : ""}
-          </div>
-          <a href="/p/${this.slug}/history" class=${here === `/p/${this.slug}/history` ? "on" : ""}>${icon("History", 15)} ${t("phist.nav")}</a>
+          </div>` : ""}
+          <button class="ghost more-btn" aria-expanded=${moreOpen ? "true" : "false"} aria-controls="side-more" @click=${() => this.setMore(!moreOpen)}>
+            ${icon(moreOpen ? "ChevronsDownUp" : "ChevronsUpDown", 15)} ${moreOpen ? t("nav.less") : t("nav.more")}</button>
+          <div class="rest" id="side-more">
+          ${canEdit ? html`<a href="/p/${this.slug}/history" class=${here === `/p/${this.slug}/history` ? "on" : ""}>${icon("History", 15)} ${t("phist.nav")}</a>
           <a href="/p/${this.slug}/trash" class=${here.endsWith("/trash") ? "on" : ""}>${icon("Trash2", 15)} ${t("nav.trash")}</a>` : ""}
           ${docOnly || !hasFeature(proj, "household") ? "" : html`<a href="/p/${this.slug}/household" class=${here.endsWith("/household") ? "on" : ""}>${icon("House", 15)} ${t("house.title")}</a>`}
           ${this.aiChat && !docOnly ? html`<button class="collapse" aria-pressed=${this.chatOpen ? "true" : "false"} @click=${() => this.setChat(!this.chatOpen)}>${icon("BotMessageSquare", 15)} ${t("ai_chat.title")}</button>` : ""}
@@ -774,6 +800,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
           <a href="/p/${this.slug}/settings" class=${here.endsWith("/settings") ? "on" : ""}>${icon("Settings", 15)} ${t("nav.settings")}</a>`}
           <button class="collapse" aria-controls="nav" aria-expanded="true" @click=${() => this.setSideHidden(true)}>${icon("PanelLeftClose", 15)} ${t("nav.sidebar_hide")}
             ${comboFor("sidebar") ? html`<kbd>${comboLabel(comboFor("sidebar"))}</kbd>` : ""}</button>
+          </div>
         </div>
         <phx-create-dialog .project=${this.slug}></phx-create-dialog>
         ${this.ctxMenu()}

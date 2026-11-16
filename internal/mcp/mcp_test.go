@@ -91,7 +91,7 @@ func TestMCPTools(t *testing.T) {
 	if !strings.Contains(out, `"applied": true`) {
 		t.Fatalf("decision not applied: %s", out)
 	}
-	if !strings.Contains(out, `"url": "https://docs.example.org/p/phoedox/d/go-version"`) {
+	if !strings.Contains(out, `"url": "https://docs.example.org/p/phoedox/d/01`) { // addresses use the id
 		t.Fatalf("decision without url: %s", out)
 	}
 	call("update_decision", map[string]any{"project": "phoedox", "document": "go-version", "consequences": "Dockerfile und CI mitziehen."})
@@ -149,7 +149,7 @@ func TestMCPTools(t *testing.T) {
 		{"title": "Broken", "ext_ref": "ADR-0099", "decision": "x"},
 	}})
 	if !strings.Contains(many, `"created": 2`) || !strings.Contains(many, `"failed": 1`) || !strings.Contains(many, `"de": "saved"`) ||
-		!strings.Contains(many, `"extRef": "D-2"`) || !strings.Contains(many, "/p/phoedox/d/use-lit-4") {
+		!strings.Contains(many, `"extRef": "D-2"`) || !strings.Contains(many, `"slug": "use-lit-4"`) || !strings.Contains(many, "/p/phoedox/d/01") {
 		t.Fatalf("create_decisions: %s", many)
 	}
 	if d := call("get_document", map[string]any{"project": "phoedox", "document": "D-1", "lang": "de"}); !strings.Contains(d, "Lit fürs Web") || !strings.Contains(d, `"original": true`) || strings.Contains(d, `"machine": true`) {
@@ -168,7 +168,7 @@ func TestMCPTools(t *testing.T) {
 	call("create_board", map[string]any{"project": "phoedox", "title": "Plan"})
 	card := call("create_task", map[string]any{"project": "phoedox", "board": "plan", "title": "Erste Karte", "documents": []string{"ADR-0001", "go-version"}})
 	if !strings.Contains(card, `"url": "https://docs.example.org/p/phoedox/d/plan?task=`) || strings.Count(card, `"slug": "go-version"`) != 1 ||
-		!strings.Contains(card, `"url": "https://docs.example.org/p/phoedox/d/go-version"`) {
+		!strings.Contains(card, `"url": "https://docs.example.org/p/phoedox/d/01`) {
 		t.Fatalf("card with documents: %s", card)
 	}
 	if _, err := session.CallTool(ctx, &sdk.CallToolParams{Name: "update_board", Arguments: map[string]any{"project": "phoedox", "board": "plan",

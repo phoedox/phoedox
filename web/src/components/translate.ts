@@ -87,7 +87,7 @@ export class PhxTranslate extends LitElement {
       rememberLocale(this.project, this.lang);
       contentLocale.set(this.lang);
       docsVersion.set(docsVersion.get() + 1);
-      navigate(`/p/${this.project}/d/${d.slug}`);
+      navigate(`/p/${this.project}/d/${d.id}`);
     } catch (err) {
       toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
     } finally {
@@ -100,7 +100,7 @@ export class PhxTranslate extends LitElement {
     try {
       await api("DELETE", `/projects/${this.project}/documents/${this.doc!.id}/translations/${this.lang}`);
       toast(t("lang.deleted"));
-      navigate(`/p/${this.project}/d/${this.doc!.slug}`);
+      navigate(`/p/${this.project}/d/${this.doc!.id}`);
     } catch (err) {
       toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
     }
@@ -114,7 +114,7 @@ export class PhxTranslate extends LitElement {
     const tc = this.tr?.content ?? {};
     const label = (f: Field) => (f === "markdown" ? "" : f === "description" ? t("link.description") : f === "supersedesScope" ? t("adr.supersedes_scope") : t(`adr.${f}` as any));
     return html`<div class="enter">
-      <a href="/p/${this.project}/d/${d.slug}" class="muted" style="font-size:14px;text-decoration:none">${icon("ArrowLeft", 14)} ${d.title}</a>
+      <a href="/p/${this.project}/d/${d.id}" class="muted" style="font-size:14px;text-decoration:none">${icon("ArrowLeft", 14)} ${d.title}</a>
       <h1 style="margin:8px 0 14px">${t("lang.translate_title", { lang: languageName(this.lang) })}</h1>
       ${this.tr?.outdated ? html`<p class="notice" role="note">${icon("TriangleAlert", 14)} ${t("lang.outdated", { main: languageName(main) })}</p>` : ""}
       <div class="cols">

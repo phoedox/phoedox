@@ -3171,4 +3171,6 @@ export const en: Record<keyof typeof de, string> = {
   "validation.ai_category_direct": "AI clients name folders only in projects where AI writes directly.",
   "ctx.folder_names": "Names in other languages",
   "ctx.folder_name_prompt": "Name of \"{name}\" in {lang} (empty: same as the main language):",
+  "nav.more": "More…",
+  "nav.less": "Less",
 };

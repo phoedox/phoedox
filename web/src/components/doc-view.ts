@@ -192,6 +192,17 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         if (this.loaded !== key) return; // a newer load started meanwhile
         this.doc = doc;
         recordView(this.project, "document", doc.id);
+        // Addresses use the id, not the (main-language) slug: old links and
+        // [[slug]] links end up at the same address.
+        if (!this.kiosk) {
+          const prefix = `/p/${this.project}/d/`;
+          const here = location.pathname;
+          if (here.startsWith(prefix)) {
+            const rest = here.slice(prefix.length);
+            const ref = decodeURIComponent(rest.split("/")[0]);
+            if (ref !== doc.id) history.replaceState(history.state, "", prefix + doc.id + rest.slice(rest.split("/")[0].length) + location.search + location.hash);
+          }
+        }
       } catch (e) {
         if (this.loaded !== key) return;
         this.error = e instanceof ApiError ? e.text : t("error.unknown");
@@ -372,7 +383,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     const proj = currentProject.get();
     if (!proj?.mainLocale || !this.lang || this.lang === proj.mainLocale) return "";
     const label = d.translation ? t("lang.edit_translation") : t("lang.translate");
-    return html`<a class="btn ghost icon" href="/p/${this.project}/d/${d.slug}/translate/${this.lang}" title=${label} aria-label=${label}>${icon("Languages", 15)}</a>`;
+    return html`<a class="btn ghost icon" href="/p/${this.project}/d/${d.id}/translate/${this.lang}" title=${label} aria-label=${label}>${icon("Languages", 15)}</a>`;
   }
 
   /** Pictures in the text open large. */
@@ -407,7 +418,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         <span class="who">${icon("FilePen", 15)} ${t("draft.open_notice", { names, date: formatDate(dr.updatedAt) })}</span>
         <span class="row">
           <button class="ghost" aria-expanded=${this.showDiff ? "true" : "false"} @click=${() => (this.showDiff = !this.showDiff)}>${t(this.showDiff ? "draft.hide_changes" : "draft.show_changes")}</button>
-          <a class="btn" href="/p/${this.project}/d/${d.slug}/edit">${icon("Pencil", 14)} ${t("draft.continue")}</a>
+          <a class="btn" href="/p/${this.project}/d/${d.id}/edit">${icon("Pencil", 14)} ${t("draft.continue")}</a>
         </span>
       </div>
       ${this.showDiff ? html`<div class="diff" role="region" aria-label=${t("draft.changes")}>${hunks.some((h) => h.op === "+" || h.op === "-") ? hunks.map((h) =>
@@ -554,12 +565,12 @@ export class PhxDocView extends SignalWatcher(LitElement) {
           ${this.favoriteButtons(d)}
           ${d.type === "board" || d.type === "floorplan" || d.type === "whiteboard" ? "" : html`<button class="ghost icon" aria-pressed=${wide ? "true" : "false"} title=${t(wide ? "doc.narrow" : "doc.wide")} aria-label=${t(wide ? "doc.narrow" : "doc.wide")}
             @click=${() => setWideReading(!wide)}>${icon(wide ? "Minimize2" : "Maximize2", 15)}</button>`}
-          <a class="btn ghost" href="/p/${this.project}/d/${d.slug}/history">${icon("History", 14)} ${t("doc.history")}</a>
+          <a class="btn ghost" href="/p/${this.project}/d/${d.id}/history">${icon("History", 14)} ${t("doc.history")}</a>
           ${d.type === "link" ? "" : html`<a class="btn ghost icon" href="/kiosk/${this.project}/${d.slug}" target="_blank" rel="noopener" title=${t("kiosk.open")} aria-label=${t("kiosk.open")}>${icon("MonitorPlay", 15)}</a>`}
-          <a class="btn ghost icon" href="/print/${this.project}?doc=${encodeURIComponent(d.slug)}" target="_blank" rel="noopener" title=${t("print.page")} aria-label=${t("print.page")}>${icon("FileDown", 15)}</a>
+          <a class="btn ghost icon" href="/print/${this.project}?doc=${encodeURIComponent(d.id)}" target="_blank" rel="noopener" title=${t("print.page")} aria-label=${t("print.page")}>${icon("FileDown", 15)}</a>
           ${canEdit ? html`<button class="ghost" @click=${() => this.renderRoot.querySelector<PhxDocShare>("phx-doc-share")!.open()}>${icon("Share2", 14)} ${t("share.button")}</button>
           ${this.translateButton(d)}
-          ${this.draft && d.type !== "floorplan" ? "" : html`<a class="btn ghost" href="/p/${this.project}/d/${d.slug}/edit">${icon("Pencil", 14)} ${t("doc.edit")}</a>`}
+          ${this.draft && d.type !== "floorplan" ? "" : html`<a class="btn ghost" href="/p/${this.project}/d/${d.id}/edit">${icon("Pencil", 14)} ${t("doc.edit")}</a>`}
           ${this.confirming
             ? html`<span class="muted">${t("doc.delete_confirm")}</span><button class="danger" @click=${this.deleteDoc}>${t("doc.delete")}</button><button class="ghost" @click=${() => (this.confirming = false)}>${t("doc.cancel")}</button>`
             : html`<button class="danger" @click=${() => (this.confirming = true)}>${icon("Trash2", 14)} ${t("doc.delete")}</button>`}` : ""}

@@ -74,7 +74,7 @@ export class PhxTaskDocs extends LitElement {
     return html`<h3>${icon("Link", 13)} ${t("taskdocs.title")}</h3>
       ${this.docs.length ? html`<ul>${this.docs.map((d) => html`<li>
         ${icon(docTypeIcon[d.type] as any, 14)}
-        <a href="/p/${this.project}/d/${d.slug}">${this.label(d) ? html`<span class="ref">${this.label(d)}</span> ` : ""}${d.title}</a>
+        <a href="/p/${this.project}/d/${d.id}">${this.label(d) ? html`<span class="ref">${this.label(d)}</span> ` : ""}${d.title}</a>
         ${this.canEdit ? html`<button type="button" class="ghost icon" ?disabled=${this.busy} title=${t("taskdocs.remove")} aria-label=${t("taskdocs.remove")}
           @click=${() => this.save(this.docs.filter((x) => x.id !== d.id))}>${icon("X", 13)}</button>` : ""}
       </li>`)}</ul>` : html`<p class="muted hint">${t("taskdocs.empty")}</p>`}

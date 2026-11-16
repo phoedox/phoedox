@@ -105,7 +105,7 @@ export class PhxDocForm extends LitElement {
       if (this.type === "markdown" && !this.doc) {
         // New pages continue in the live editor.
         docsVersion.set(docsVersion.get() + 1);
-        navigate(`/p/${this.project}/d/${res.document?.slug ?? ""}/edit`);
+        navigate(`/p/${this.project}/d/${res.document?.id ?? ""}/edit`);
         return;
       }
       toast(t("doc.saved"));
@@ -114,7 +114,7 @@ export class PhxDocForm extends LitElement {
         toast(t(s("partly") === "1" ? "adr.marked_partly" : "adr.marked_superseded", { ref: this.decisions.find((d) => d.slug === target)?.ref ?? target }));
       }
       docsVersion.set(docsVersion.get() + 1);
-      navigate(`/p/${this.project}/d/${res.document?.slug ?? ""}`);
+      navigate(`/p/${this.project}/d/${res.document?.id ?? ""}`);
     } catch (err) {
       this.error = err instanceof ApiError ? err.text : t("error.unknown");
     } finally {
@@ -165,7 +165,7 @@ export class PhxDocForm extends LitElement {
     if (this.docSlug && !this.doc && !this.error) return html`<p class="muted">${t("app.loading")}</p>`;
     const d = this.doc;
     const c = d?.content ?? {};
-    const cancel = d ? `/p/${this.project}/d/${d.slug}` : `/p/${this.project}`;
+    const cancel = d ? `/p/${this.project}/d/${d.id}` : `/p/${this.project}`;
     return html`<form class="enter" @submit=${this.submit}>
       <h1>${d ? d.title : t(`doc.type.${this.type}` as any)}</h1>
       <div class="two">

@@ -738,6 +738,7 @@ func (s *Service) linkMentions(ctx context.Context, p store.Project, docID, text
 
 // DecisionSummary is one row of a project's decision log.
 type DecisionSummary struct {
+	ID         string `json:"id"`
 	Ref        string `json:"ref"` // ADR-0007
 	Number     int    `json:"number"`
 	ExtRef     string `json:"extRef,omitempty"` // own number from another system (D-640)
@@ -797,7 +798,7 @@ func (s *Service) Decisions(ctx context.Context, a Actor, ref, status, query str
 				continue
 			}
 		}
-		out = append(out, DecisionSummary{Ref: DecisionRef(d.Number), Number: d.Number, ExtRef: d.ExtRef, Slug: d.Slug, Title: d.Title, Status: c.Status, Date: c.Date,
+		out = append(out, DecisionSummary{ID: d.ID, Ref: DecisionRef(d.Number), Number: d.Number, ExtRef: d.ExtRef, Slug: d.Slug, Title: d.Title, Status: c.Status, Date: c.Date,
 			Category: d.Category, Supersedes: c.Supersedes, SupersedesPartly: c.SupersedesPartly, SupersedesScope: c.SupersedesScope,
 			SupersededBy: c.SupersededBy, PartlySupersededBy: c.PartlySupersededBy, Version: d.Version, UpdatedAt: d.UpdatedAt,
 			Options: len(c.Options), NeedsOptions: c.Status == "proposed" && len(c.Responses) > 0 && c.Responses[len(c.Responses)-1].Choice == ChoiceNone})

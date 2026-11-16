@@ -137,8 +137,8 @@ export class PhxProjectHistory extends LitElement {
         </div>
         <ul class="ch">${st.changes.map((c) => html`<li>
           ${icon(typeIcon[c.type] ?? "FileText", 15)}
-          ${c.change === "created" ? html`<a href="/p/${this.project}/d/${c.slug}">${c.title}</a>`
-            : html`<a href="/p/${this.project}/d/${c.slug}/history?v=${c.versionAt}" title=${t("phist.view_then")}>${c.title}</a>`}
+          ${c.change === "created" ? html`<a href="/p/${this.project}/d/${c.id}">${c.title}</a>`
+            : html`<a href="/p/${this.project}/d/${c.id}/history?v=${c.versionAt}" title=${t("phist.view_then")}>${c.title}</a>`}
           <span class="chip ${c.change}">${t(`phist.${c.change}` as any, { from: c.versionAt, to: c.version })}</span></li>`)}</ul>
         ${owner ? this.confirming ? html`<div class="confirm" role="alertdialog" aria-label=${t("phist.rollback")}>
             <p style="margin:0">${t("phist.confirm", { count: st.changes.length })}</p>

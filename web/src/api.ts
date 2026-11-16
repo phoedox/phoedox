@@ -151,7 +151,7 @@ export interface DraftInfo {
 export type DecisionStatus = "proposed" | "accepted" | "rejected" | "deprecated" | "partially_superseded" | "superseded";
 export const decisionStatuses: readonly DecisionStatus[] = ["proposed", "accepted", "rejected", "deprecated", "partially_superseded", "superseded"];
 export interface Decision {
-  ref: string; number: number; extRef?: string; slug: string; title: string; status: DecisionStatus; date?: string;
+  id: string; ref: string; number: number; extRef?: string; slug: string; title: string; status: DecisionStatus; date?: string;
   category?: string; supersedes?: string; supersedesPartly?: boolean; supersedesScope?: string; supersededBy?: string; partlySupersededBy?: string[];
   version: number; updatedAt: string;
   /** Number of options of an open decision; needsOptions: the last answer was "nothing fits". */

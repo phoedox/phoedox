@@ -3169,4 +3169,6 @@ export const de = {
   "validation.ai_category_direct": "KI-Clients benennen Ordner nur in Projekten, in denen KI direkt schreibt.",
   "ctx.folder_names": "Namen in anderen Sprachen",
   "ctx.folder_name_prompt": "Name von „{name}“ auf {lang} (leer: wie in der Hauptsprache):",
+  "nav.more": "Mehr…",
+  "nav.less": "Weniger",
 } as const;

@@ -791,7 +791,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 				out.Failed++
 			case res.Document != nil:
 				d := res.Document
-				r.ProjectID, r.Slug, r.Title, r.Ref, r.ExtRef = d.ProjectID, d.Slug, d.Title, decisionRef(*d), d.ExtRef
+				r.ID, r.ProjectID, r.Slug, r.Title, r.Ref, r.ExtRef = d.ID, d.ProjectID, d.Slug, d.Title, decisionRef(*d), d.ExtRef
 				r.Translations = saveTranslations(ctx, svc, a, in.Project, res, item.Translations)
 				out.Created++
 			default:
@@ -1041,6 +1041,7 @@ type withTranslations struct {
 
 type bulkDecision struct {
 	Index        int               `json:"index"`
+	ID           string            `json:"id,omitempty"`
 	Ref          string            `json:"ref,omitempty"`
 	ExtRef       string            `json:"extRef,omitempty"`
 	Slug         string            `json:"slug,omitempty"`

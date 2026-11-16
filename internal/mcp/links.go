@@ -84,7 +84,12 @@ func (l *linker) walk(n any, project string) {
 			}
 		case docTypes[str(x, "type")] && slug != "" && str(x, "title") != "":
 			if !has {
-				x["url"] = l.base + "/p/" + project + "/d/" + slug
+				// Addresses use the id (the slug follows the main language).
+				ref := str(x, "id")
+				if ref == "" {
+					ref = slug
+				}
+				x["url"] = l.base + "/p/" + project + "/d/" + ref
 			}
 		case str(x, "kind") != "" && slug != "" && str(x, "name") != "" && str(x, "projectId") != "":
 			if !has {

@@ -132,7 +132,7 @@ export class PhxDecisions extends SignalWatcher(LitElement) {
     return html`<tr class=${d.status}>
       <td class="num">${d.ref}${d.extRef ? html`<div class="sub">${d.extRef}</div>` : ""}</td>
       <td>
-        <a class="title" href="/p/${this.project}/d/${d.slug}">${d.title}</a>
+        <a class="title" href="/p/${this.project}/d/${d.id}">${d.title}</a>
         ${d.status === "superseded" && d.supersededBy ? html`<div class="sub">${t("adr.superseded_by")} ${link(d.supersededBy)}</div>` : ""}
         ${d.status === "partially_superseded" && d.partlySupersededBy?.length ? html`<div class="sub">${t("adr.partly_by")} ${d.partlySupersededBy.map((sl, i) => html`${i ? ", " : ""}${link(sl)}`)}</div>` : ""}
         ${d.supersedes ? html`<div class="sub">${t(d.supersedesPartly ? "adr.supersedes_partly_label" : "adr.supersedes")} ${link(d.supersedes)}${d.supersedesPartly && d.supersedesScope ? ` – ${d.supersedesScope}` : ""}</div>` : ""}

@@ -267,7 +267,7 @@ export class PhxLiveEditor extends LitElement {
       toast(t(key, { by }));
     }
     docsVersion.set(docsVersion.get() + 1);
-    navigate(reason === "deleted" ? `/p/${this.project}` : `/p/${this.project}/d/${this.doc?.slug ?? this.docSlug}`);
+    navigate(reason === "deleted" ? `/p/${this.project}` : `/p/${this.project}/d/${this.doc?.id ?? this.docSlug}`);
   }
 
   private onSource(value: string) {
@@ -744,7 +744,7 @@ export class PhxLiveEditor extends LitElement {
     }
     toast(t("draft.saved_toast"));
     docsVersion.set(docsVersion.get() + 1);
-    navigate(`/p/${this.project}/d/${this.doc?.slug ?? this.docSlug}`);
+    navigate(`/p/${this.project}/d/${this.doc?.id ?? this.docSlug}`);
   }
 
   private async publish() {
@@ -756,7 +756,7 @@ export class PhxLiveEditor extends LitElement {
       this.ended = true;
       toast(t("draft.published_toast"));
       docsVersion.set(docsVersion.get() + 1);
-      navigate(`/p/${this.project}/d/${res.document?.slug ?? this.doc?.slug ?? this.docSlug}`);
+      navigate(`/p/${this.project}/d/${res.document?.id ?? this.doc?.id ?? this.docSlug}`);
     } catch (e) {
       this.leaving = false;
       toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
@@ -771,7 +771,7 @@ export class PhxLiveEditor extends LitElement {
       await api("DELETE", `/projects/${this.project}/documents/${this.doc!.id}/draft`);
       toast(t("draft.cancelled_toast"));
       docsVersion.set(docsVersion.get() + 1);
-      navigate(`/p/${this.project}/d/${this.doc?.slug ?? this.docSlug}`);
+      navigate(`/p/${this.project}/d/${this.doc?.id ?? this.docSlug}`);
     } catch (e) {
       this.ended = false;
       this.leaving = false;

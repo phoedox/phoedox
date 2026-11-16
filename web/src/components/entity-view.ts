@@ -167,7 +167,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
     try {
       const r = await api<{ applied: boolean; document?: Doc }>("POST", `/projects/${this.project}/documents`, { type: "markdown", title: e.name, markdown: `@${e.slug}\n\n` });
       docsVersion.set(docsVersion.get() + 1);
-      if (r.document) navigate(`/p/${this.project}/d/${r.document.slug}/edit`);
+      if (r.document) navigate(`/p/${this.project}/d/${r.document.id}/edit`);
       else toast(t("suggestion.created"));
     } catch (err) {
       toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
@@ -326,7 +326,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
             ${extra.map(([n, v]) => html`<dt><code>${n}</code></dt><dd class="mono">${formatValue(undefined, v)}</dd>`)}
           </dl>` : html`<p class="muted">${t("entity.none")}</p>`}
           <h2 style="margin-top:12px">${t("entity.mentioned_in")}</h2>
-          ${documents.length ? html`<ul>${documents.map((d) => html`<li><a href="/p/${this.project}/d/${d.slug}">${icon("FileText", 14)} ${d.title}</a></li>`)}</ul>` : html`<p class="muted">${t("entity.none")}</p>`}
+          ${documents.length ? html`<ul>${documents.map((d) => html`<li><a href="/p/${this.project}/d/${d.id}">${icon("FileText", 14)} ${d.title}</a></li>`)}</ul>` : html`<p class="muted">${t("entity.none")}</p>`}
           ${this.vulns(e.attrs ?? {})}
           ${["server", "vm", "lxc", "stack"].includes(e.kind) ? html`<phx-software-tree style="margin-top:12px" .project=${this.project} .entity=${e.slug}></phx-software-tree>` : ""}
           <phx-attachments style="margin-top:12px" .project=${this.project} .entity=${e.id} .editable=${edit}></phx-attachments>
