@@ -7,6 +7,8 @@ import { icon } from "../icon";
 import { renderMarkdown } from "../md";
 import { docsVersion } from "../state";
 import { base } from "./shared";
+import "./member-budgets";
+import type { PhxBudgetRequest } from "./member-budgets";
 import { toast } from "./toasts";
 
 interface Choice { picked: number[]; other: string }
@@ -393,8 +395,18 @@ export class PhxAIChat extends LitElement {
       ${part(t("ai_chat.budget_you"), s.userUsed, s.userLimit, s.userPercent)}
       ${s.orgLimit || s.orgUsed ? part(t("ai_chat.budget_org"), s.orgUsed, s.orgLimit, s.orgPercent) : nothing}
       ${s.orgBudget ? part(t("ai_chat.budget_org_all"), s.orgSpent, s.orgBudget, s.orgBudgetPercent) : nothing}
+      ${s.canRequest ? (s.requestPending ? html`<span>${t("budget_req.pending_mine")}</span>`
+        : html`<button class="ghost" style="padding:1px 8px;font-size:12px" @click=${this.askMore}>${t("budget_req.ask")}</button>`) : nothing}
     </div>`;
   }
+
+  private askMore = () => {
+    const d = this.renderRoot.querySelector<PhxBudgetRequest>("phx-budget-request");
+    if (!d || !this.status?.orgSlug) return;
+    d.org = this.status.orgSlug;
+    d.orgName = this.status.orgName ?? "";
+    d.show();
+  };
 
   private empty() {
     const starters = this.doc ? ["ai_chat.start.concept", "ai_chat.start.improve", "ai_chat.start.cards"] : ["ai_chat.start.new_concept", "ai_chat.start.plan", "ai_chat.start.overview"];
@@ -426,6 +438,7 @@ export class PhxAIChat extends LitElement {
         ${close}
       </header>
       ${this.budget()}
+      <phx-budget-request @sent=${() => { if (this.status) this.status = { ...this.status, requestPending: true }; }}></phx-budget-request>
       <div class="log" role="log" aria-live="polite" aria-busy=${this.busy ? "true" : "false"}>
         ${!this.view?.messages.length && !this.pending ? this.empty() : nothing}
         ${(this.view?.messages ?? []).map((m) => this.message(m, results))}

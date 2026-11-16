@@ -2,7 +2,9 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -132,4 +134,132 @@ func (d *DB) MarkBudgetWarning(ctx context.Context, scope, month string, level i
 	}
 	n, err := res.RowsAffected()
 	return n > 0, err
+}
+
+// MemberAI is a member's own AI limit in an organization (Budget nil = the
+// organization's default) and an extra amount granted for one month.
+type MemberAI struct {
+	UserID     string `json:"userId"`
+	Budget     *int   `json:"budgetCents"`
+	ExtraCents int64  `json:"extraCents"`
+	ExtraMonth string `json:"extraMonth"`
+}
+
+// OrgMemberAIs lists the AI limits of an organization's members.
+func (d *DB) OrgMemberAIs(ctx context.Context, orgID string) (map[string]MemberAI, error) {
+	rows, err := d.Query(ctx, `SELECT user_id, ai_budget_cents, ai_extra_cents, ai_extra_month FROM org_members WHERE org_id = ?`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]MemberAI{}
+	for rows.Next() {
+		var m MemberAI
+		var b sql.NullInt64
+		if err := rows.Scan(&m.UserID, &b, &m.ExtraCents, &m.ExtraMonth); err != nil {
+			return nil, err
+		}
+		m.Budget = nullInt(b)
+		out[m.UserID] = m
+	}
+	return out, rows.Err()
+}
+
+// OrgMemberAI is one member's AI limit (ErrNotFound for non-members).
+func (d *DB) OrgMemberAI(ctx context.Context, orgID, userID string) (MemberAI, error) {
+	m := MemberAI{UserID: userID}
+	var b sql.NullInt64
+	err := d.QueryRow(ctx, `SELECT ai_budget_cents, ai_extra_cents, ai_extra_month FROM org_members WHERE org_id = ? AND user_id = ?`, orgID, userID).Scan(&b, &m.ExtraCents, &m.ExtraMonth)
+	if errors.Is(err, sql.ErrNoRows) {
+		return m, ErrNotFound
+	}
+	m.Budget = nullInt(b)
+	return m, err
+}
+
+// SetOrgMemberAI stores a member's AI limit and monthly extra.
+func (d *DB) SetOrgMemberAI(ctx context.Context, orgID string, m MemberAI) error {
+	res, err := d.Exec(ctx, `UPDATE org_members SET ai_budget_cents = ?, ai_extra_cents = ?, ai_extra_month = ? WHERE org_id = ? AND user_id = ?`,
+		intOrNull(m.Budget), m.ExtraCents, m.ExtraMonth, orgID, m.UserID)
+	return affected(res, err)
+}
+
+// BudgetRequest is a member's request for more AI usage.
+type BudgetRequest struct {
+	ID           string `json:"id"`
+	OrgID        string `json:"orgId"`
+	UserID       string `json:"userId"`
+	UserName     string `json:"userName,omitempty"`
+	Percent      int    `json:"percent"`
+	Scope        string `json:"scope"` // month | permanent
+	Reason       string `json:"reason"`
+	Status       string `json:"status"` // pending | approved | rejected
+	GrantedCents int64  `json:"grantedCents,omitempty"`
+	Note         string `json:"note,omitempty"`
+	DecidedBy    string `json:"decidedBy,omitempty"`
+	DecidedAt    *Time  `json:"decidedAt,omitempty"`
+	CreatedAt    Time   `json:"createdAt"`
+}
+
+const budgetRequestCols = `r.id, r.org_id, r.user_id, COALESCE(u.name, ''), r.percent, r.scope, r.reason, r.status, r.granted_cents, r.note, r.decided_by, r.decided_at, r.created_at`
+
+func scanBudgetRequest(r interface{ Scan(...any) error }) (BudgetRequest, error) {
+	var b BudgetRequest
+	var decided sql.Null[Time]
+	err := r.Scan(&b.ID, &b.OrgID, &b.UserID, &b.UserName, &b.Percent, &b.Scope, &b.Reason, &b.Status, &b.GrantedCents, &b.Note, &b.DecidedBy, &decided, &b.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return b, ErrNotFound
+	}
+	if decided.Valid {
+		b.DecidedAt = &decided.V
+	}
+	return b, err
+}
+
+// AddBudgetRequest stores a request.
+func (d *DB) AddBudgetRequest(ctx context.Context, b BudgetRequest) error {
+	_, err := d.Exec(ctx, `INSERT INTO ai_budget_requests (id, tenant_id, org_id, user_id, percent, scope, reason, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		b.ID, TenantOf(ctx), b.OrgID, b.UserID, b.Percent, b.Scope, b.Reason, b.Status, b.CreatedAt)
+	return err
+}
+
+// BudgetRequests lists an organization's requests (status "" = all; userID
+// "" = everyone), newest first.
+func (d *DB) BudgetRequests(ctx context.Context, orgID, userID, status string) ([]BudgetRequest, error) {
+	q := `SELECT ` + budgetRequestCols + ` FROM ai_budget_requests r LEFT JOIN users u ON u.id = r.user_id WHERE r.org_id = ?`
+	args := []any{orgID}
+	if userID != "" {
+		q += ` AND r.user_id = ?`
+		args = append(args, userID)
+	}
+	if status != "" {
+		q += ` AND r.status = ?`
+		args = append(args, status)
+	}
+	rows, err := d.Query(ctx, q+` ORDER BY r.created_at DESC LIMIT 200`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []BudgetRequest{}
+	for rows.Next() {
+		b, err := scanBudgetRequest(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
+// GetBudgetRequest reads one request of an organization.
+func (d *DB) GetBudgetRequest(ctx context.Context, orgID, id string) (BudgetRequest, error) {
+	return scanBudgetRequest(d.QueryRow(ctx, `SELECT `+budgetRequestCols+` FROM ai_budget_requests r LEFT JOIN users u ON u.id = r.user_id WHERE r.org_id = ? AND r.id = ?`, orgID, id))
+}
+
+// DecideBudgetRequest stores the decision on a pending request.
+func (d *DB) DecideBudgetRequest(ctx context.Context, b BudgetRequest) error {
+	res, err := d.Exec(ctx, `UPDATE ai_budget_requests SET status = ?, granted_cents = ?, note = ?, decided_by = ?, decided_at = ?, percent = ?, scope = ? WHERE id = ? AND status = 'pending'`,
+		b.Status, b.GrantedCents, b.Note, b.DecidedBy, b.DecidedAt, b.Percent, b.Scope, b.ID)
+	return affected(res, err)
 }

@@ -4,10 +4,12 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { base } from "./shared";
 import { pageHead } from "./settings-ui";
+import "./member-budgets";
+import type { PhxBudgetRequest } from "./member-budgets";
 
 type Level = "project" | "org" | "admin" | "me";
 interface Line { id: string; name: string; slug?: string; calls: number; inputTokens: number; outputTokens: number; chargedCents: number; costCents?: number; ownKeyCents?: number }
-interface Budget { key: string; name?: string; usedCents: number; limitCents: number; percent: number; hasLimit: boolean; usedTokens?: number; limitTokens?: number }
+interface Budget { key: string; name?: string; usedCents: number; limitCents: number; percent: number; hasLimit: boolean; usedTokens?: number; limitTokens?: number; orgSlug?: string; canRequest?: boolean; pending?: boolean }
 interface Storage { id: string; name: string; slug?: string; usedBytes: number; limitBytes: number }
 interface Report {
   level: Level; name: string; since: string; chargedCents: number; costCents?: number; budgets: Budget[];
@@ -90,7 +92,9 @@ export class PhxUsage extends LitElement {
     else if (hidden) value = b.hasLimit ? html`${pct} %` : html`<small>${t("usage.no_limit")}</small>`;
     else value = html`${money(b.usedCents)} <small>${b.limitCents ? t("usage.of", { limit: money(b.limitCents) }) : t("usage.no_limit")}</small>`;
     return html`<div class="tile"><span class="k">${name}</span><span class="v">${value}</span>
-      ${b.hasLimit ? html`${this.meter(b.percent, name)}${hidden && !b.limitTokens ? nothing : html`<span class="meta">${t("usage.percent_used", { p: pct })}</span>`}` : nothing}</div>`;
+      ${b.hasLimit ? html`${this.meter(b.percent, name)}${hidden && !b.limitTokens ? nothing : html`<span class="meta">${t("usage.percent_used", { p: pct })}</span>`}` : nothing}
+      ${b.canRequest ? (b.pending ? html`<span class="meta">${icon("Clock", 13)} ${t("budget_req.pending_mine")}</span>`
+        : html`<div><button class="ghost" style="padding:3px 8px;font-size:13px" @click=${() => this.ask(b)}>${icon("Plus", 13)} ${t("budget_req.ask")}</button></div>`) : nothing}</div>`;
   }
 
   private table(title: string, ic: string, rows: Line[] | undefined, first: string, link?: (l: Line) => string, cost = false) {
@@ -106,6 +110,14 @@ export class PhxUsage extends LitElement {
           <td class="n">${num(r.calls)}</td><td class="n">${num(r.inputTokens + r.outputTokens)}</td>
           <td class="n">${hidden ? "" : money(r.chargedCents)}<span class="share" aria-hidden="true"><span style="width:${(amount(r) / max) * 100}%"></span></span></td>
           ${cost ? html`<td class="n">${money(r.costCents ?? 0)}</td>` : nothing}</tr>`)}</tbody></table>` : html`<p class="empty">${t("usage.none")}</p>`}</div>`;
+  }
+
+  private ask(b: Budget) {
+    const d = this.renderRoot.querySelector<PhxBudgetRequest>("phx-budget-request");
+    if (!d || !b.orgSlug) return;
+    d.org = b.orgSlug;
+    d.orgName = b.name ?? "";
+    d.show();
   }
 
   private storageTiles(r: Report) {
@@ -156,7 +168,8 @@ export class PhxUsage extends LitElement {
     }
     return html`${head}
       <div class="grid">${this.aiTiles(r)}${r.budgets.map((b) => this.budgetTile(b, r.pricesHidden))}${this.storageTiles(r)}</div>
-      ${this.tables(r)}${note}`;
+      ${this.tables(r)}${note}
+      <phx-budget-request @sent=${() => { this.loaded = ""; this.requestUpdate(); }}></phx-budget-request>`;
   }
 }
 customElements.get("phx-usage") || customElements.define("phx-usage", PhxUsage);

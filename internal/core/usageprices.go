@@ -39,6 +39,9 @@ func applyOrgPrices(a Actor, o *store.Org, in OrgInput) error {
 	if in.PricesHidden != nil {
 		o.PricesHidden = *in.PricesHidden
 	}
+	if in.AIRequests != nil {
+		o.AIRequests = *in.AIRequests
+	}
 	if in.Warn != nil {
 		parts := []string{}
 		for _, p := range strings.Split(*in.Warn, ",") {

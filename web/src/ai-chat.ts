@@ -19,6 +19,10 @@ export interface ChatStatus {
   userPercent?: number;
   orgPercent?: number;
   orgBudgetPercent?: number;
+  orgSlug?: string;
+  orgName?: string;
+  canRequest?: boolean;
+  requestPending?: boolean;
 }
 
 /** What one conversation used (cents only when prices are visible). */

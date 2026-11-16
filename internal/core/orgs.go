@@ -33,6 +33,8 @@ type OrgInput struct {
 	PricesHidden      *bool   `json:"pricesHidden,omitempty"`
 	IncludedTokens    *int64  `json:"includedTokens,omitempty"`
 	Warn              *string `json:"warn,omitempty"`
+	// AIRequests lets members ask for more AI usage (organization admins).
+	AIRequests *bool `json:"aiRequests,omitempty"`
 }
 
 // OrgDetail is an organization with members and groups (for its members).

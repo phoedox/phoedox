@@ -181,6 +181,7 @@ type OrgAIChat struct {
 	PricesHidden      bool   `json:"pricesHidden"`
 	IncludedTokens    int64  `json:"includedTokens"`
 	Warn              string `json:"warn"`
+	AIRequests        bool   `json:"aiRequests"`
 }
 
 // OrgAIChatInfo returns the chat settings of an organization (its admins).
@@ -199,7 +200,7 @@ func (s *Service) OrgAIChatInfo(ctx context.Context, a Actor, ref string) (OrgAI
 	return OrgAIChat{Enabled: o.AIChat, Limit: orgChatLimit(o, st), Budget: o.AIChatBudget, UserBudget: o.AIChatUserBudget,
 		DefaultUserBudget: st.UserBudget, UsedCents: centsOf(used), UsedInstanceCents: centsOf(inst), DefaultModel: o.AIChatModel,
 		Available:         (st.Configured || len(own) > 0) && st.Enabled && s.AIEnabled(ctx),
-		PricesHiddenAdmin: o.PricesHiddenAdmin, PricesHidden: o.PricesHidden, IncludedTokens: o.IncludedTokens, Warn: o.Warn}, nil
+		PricesHiddenAdmin: o.PricesHiddenAdmin, PricesHidden: o.PricesHidden, IncludedTokens: o.IncludedTokens, Warn: o.Warn, AIRequests: o.AIRequests}, nil
 }
 
 // applyOrgAIChat applies the chat fields of an OrgInput. A negative budget
@@ -271,6 +272,12 @@ type ChatStatus struct {
 	UserPercent      float64 `json:"userPercent,omitempty"`
 	OrgPercent       float64 `json:"orgPercent,omitempty"`
 	OrgBudgetPercent float64 `json:"orgBudgetPercent,omitempty"`
+	// CanRequest: the person may ask the organization (OrgSlug) for more;
+	// RequestPending: a request waits for an answer.
+	OrgSlug        string `json:"orgSlug,omitempty"`
+	OrgName        string `json:"orgName,omitempty"`
+	CanRequest     bool   `json:"canRequest,omitempty"`
+	RequestPending bool   `json:"requestPending,omitempty"`
 	// WriteMode is the project's AI write mode (read: the AI only reads).
 	WriteMode string `json:"writeMode"`
 	OrgID     string `json:"-"`
@@ -327,8 +334,11 @@ func (s *Service) ChatStatus(ctx context.Context, a Actor, ref string) (ChatStat
 		if o.AIChatBudget != nil {
 			cs.OrgBudget = *o.AIChatBudget
 		}
-		if o.AIChatUserBudget != nil {
-			cs.UserLimit = *o.AIChatUserBudget
+		cs.UserLimit = s.userLimit(ctx, o, a.User.ID, st)
+		if o.AIRequests && o.Role != "" && cs.UserLimit > 0 {
+			cs.OrgSlug, cs.OrgName, cs.CanRequest = o.Slug, o.Name, true
+			open, _ := s.DB.BudgetRequests(ctx, o.ID, a.User.ID, "pending")
+			cs.RequestPending = len(open) > 0
 		}
 		used, _ := s.DB.AIUsageSince(ctx, p.OrgID, "", now, true)
 		spent, _ := s.DB.AIUsageSince(ctx, p.OrgID, "", now, false)

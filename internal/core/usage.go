@@ -40,7 +40,11 @@ type UsageBudget struct {
 	// UsedTokens/LimitTokens describe an included budget in tokens.
 	UsedTokens  int64 `json:"usedTokens,omitempty"`
 	LimitTokens int64 `json:"limitTokens,omitempty"`
-	hidden      bool
+	// Requests for more (a person's budget in an organization).
+	OrgSlug    string `json:"orgSlug,omitempty"`
+	CanRequest bool   `json:"canRequest,omitempty"`
+	Pending    bool   `json:"pending,omitempty"`
+	hidden     bool
 }
 
 // UsageStorage is the storage of a project (or an organization's projects).
@@ -365,14 +369,17 @@ func (s *Service) MyUsage(ctx context.Context, a Actor) (UsageReport, error) {
 	orgs, err := s.DB.ListOrgs(ctx, a.User.ID, false)
 	if err == nil {
 		for _, o := range orgs {
-			limit := int64(st.UserBudget)
-			if o.AIChatUserBudget != nil {
-				limit = int64(*o.AIChatUserBudget)
-			}
+			limit := int64(s.userLimit(ctx, o, a.User.ID, st))
 			used, _ := s.DB.AIUsageSince(ctx, o.ID, a.User.ID, since, false)
 			h := s.pricesHidden(ctx, a, o.ID)
 			hidden = hidden || h
-			r.Budgets = append(r.Budgets, UsageBudget{Key: "usage.budget.in_org", Name: o.Name, UsedCents: centsOf(used), Limit: limit, hidden: h})
+			b := UsageBudget{Key: "usage.budget.in_org", Name: o.Name, OrgSlug: o.Slug, UsedCents: centsOf(used), Limit: limit, hidden: h}
+			if o.AIRequests && limit > 0 {
+				b.CanRequest = true
+				open, _ := s.DB.BudgetRequests(ctx, o.ID, a.User.ID, "pending")
+				b.Pending = len(open) > 0
+			}
+			r.Budgets = append(r.Budgets, b)
 		}
 	}
 	r.finish(hidden)

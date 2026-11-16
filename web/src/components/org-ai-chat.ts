@@ -6,11 +6,12 @@ import { currentUser } from "../state";
 import { base } from "./shared";
 import "./ai-providers";
 import "./org-prices";
+import "./member-budgets";
 import { toast } from "./toasts";
 
 interface OrgAIChat {
   enabled: boolean; limit: number; budget: number | null; userBudget: number | null; defaultUserBudget: number; usedCents: number; usedInstanceCents: number; defaultModel: string; available: boolean;
-  pricesHiddenAdmin: boolean; pricesHidden: boolean; includedTokens: number; warn: string;
+  pricesHiddenAdmin: boolean; pricesHidden: boolean; includedTokens: number; warn: string; aiRequests: boolean;
 }
 interface ChatModel { ref: string; provider: string; label: string; own?: boolean }
 
@@ -59,7 +60,7 @@ export class PhxOrgAIChat extends LitElement {
     const warn = f.getAll("warn").map(String).join(",");
     const body: Record<string, unknown> = {
       aiChat: f.get("chat") === "on", aiChatBudget: this.cents(f, "budget"), aiChatUserBudget: this.cents(f, "user"), aiChatModel: String(f.get("model") ?? ""),
-      pricesHidden: f.get("hide") === "on", warn: warn || "none",
+      pricesHidden: f.get("hide") === "on", warn: warn || "none", aiRequests: f.get("requests") === "on",
     };
     if (currentUser.get()?.isAdmin) {
       body.aiChatCap = this.cents(f, "cap");
@@ -103,11 +104,15 @@ export class PhxOrgAIChat extends LitElement {
         <p class="muted">${t("orgs.prices.hide_admin_hint")}</p>
         <label class="field">${t("orgs.prices.tokens")}<input name="tokens" type="number" min="0" step="1000" .value=${i.includedTokens ? String(i.includedTokens) : ""} placeholder="–"></label>
         <p class="muted">${t("orgs.prices.tokens_hint")}</p>` : ""}
+      <h3>${t("orgs.requests.title")}</h3>
+      <label class="switch"><input type="checkbox" name="requests" .checked=${i.aiRequests}> ${t("orgs.requests.on")}</label>
+      <p class="muted">${t("orgs.requests.hint")}</p>
       <h3>${t("orgs.warn.title")}</h3>
       <p class="muted">${t("orgs.warn.hint")}</p>
       ${(["admins", "members", "owners"] as const).map((k) => html`<label class="switch" style="font-weight:400"><input type="checkbox" name="warn" value=${k} .checked=${warn.includes(k)}> ${t(`orgs.warn.${k}`)}</label>`)}
       <div><button>${t("doc.save")}</button></div>
     </form>
+    <div id="budgets"><phx-member-budgets .org=${this.org}></phx-member-budgets></div>
     ${admin ? html`<h3>${t("org_prices.title")}</h3><p class="muted">${t("org_prices.intro")}</p><phx-org-prices .org=${this.org}></phx-org-prices>` : ""}
     <h3>${t("ai_providers.title_org")}</h3>
     <p class="muted">${t("ai_providers.intro_org")}</p>

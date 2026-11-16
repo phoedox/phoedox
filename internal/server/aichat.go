@@ -238,3 +238,38 @@ func (a *api) deleteOrgPrice(w http.ResponseWriter, r *http.Request) {
 	v, err := a.core.DeleteOrgPrice(r.Context(), actorOf(r), chi.URLParam(r, "o"), chi.URLParam(r, "id"))
 	respond(w, v, err)
 }
+
+func (a *api) memberBudgets(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.MemberBudgetsOf(r.Context(), actorOf(r), chi.URLParam(r, "o"))
+	respond(w, v, err)
+}
+
+func (a *api) setMemberLimit(w http.ResponseWriter, r *http.Request) {
+	var in core.MemberLimitInput
+	if err := decode(r, &in); err != nil {
+		respond(w, nil, err)
+		return
+	}
+	v, err := a.core.SetMemberLimit(r.Context(), actorOf(r), chi.URLParam(r, "o"), chi.URLParam(r, "user"), in)
+	respond(w, v, err)
+}
+
+func (a *api) requestBudget(w http.ResponseWriter, r *http.Request) {
+	var in core.BudgetRequestInput
+	if err := decode(r, &in); err != nil {
+		respond(w, nil, err)
+		return
+	}
+	v, err := a.core.RequestBudget(r.Context(), actorOf(r), chi.URLParam(r, "o"), in)
+	respond(w, v, err)
+}
+
+func (a *api) decideBudget(w http.ResponseWriter, r *http.Request) {
+	var in core.BudgetDecision
+	if err := decode(r, &in); err != nil {
+		respond(w, nil, err)
+		return
+	}
+	v, err := a.core.DecideBudget(r.Context(), actorOf(r), chi.URLParam(r, "o"), chi.URLParam(r, "id"), in)
+	respond(w, v, err)
+}

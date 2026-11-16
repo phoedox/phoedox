@@ -183,3 +183,116 @@ func TestBudgetWarnings(t *testing.T) {
 		t.Fatalf("100 %% warning expected, got %d", n)
 	}
 }
+
+func TestMemberLimitsAndRequests(t *testing.T) {
+	ctx := context.Background()
+	s, owner, reader, stranger := setup(t)
+	s.SyncNotify = true
+	admin := Actor{User: store.User{ID: stranger.User.ID, Name: stranger.User.Name, IsAdmin: true}, Via: "web"}
+	o, err := s.CreateOrg(ctx, admin, OrgInput{Name: "Firma", AdminEmail: "owner@x.de"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = s.SetOrgMember(ctx, owner, o.Slug, "reader@x.de", store.OrgMemberRole)
+	p, _ := s.CreateProject(ctx, reader, ProjectInput{Name: "Team", Org: &o.Slug})
+	def := 500
+	if _, err := s.UpdateOrg(ctx, owner, o.Slug, OrgInput{AIChatUserBudget: &def}); err != nil {
+		t.Fatal(err)
+	}
+	thousand := 1000
+	mb, err := s.SetMemberLimit(ctx, owner, o.Slug, reader.User.ID, MemberLimitInput{Cents: &thousand})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetMemberLimit(ctx, reader, o.Slug, reader.User.ID, MemberLimitInput{Cents: &thousand}); err == nil {
+		t.Fatal("members must not set limits")
+	}
+	var got *MemberBudget
+	for i := range mb.Members {
+		if mb.Members[i].UserID == reader.User.ID {
+			got = &mb.Members[i]
+		}
+	}
+	if got == nil || got.LimitCents != 1000 || got.OwnCents == nil {
+		t.Fatalf("member budgets: %+v", mb)
+	}
+	cs, _ := s.ChatStatus(ctx, reader, p.Slug)
+	if cs.UserLimit != 1000 || cs.CanRequest {
+		t.Fatalf("own limit in chat: %+v", cs)
+	}
+	in := BudgetRequestInput{Percent: 50, Scope: "month", Reason: "Release week"}
+	if _, err := s.RequestBudget(ctx, reader, o.Slug, in); err == nil {
+		t.Fatal("requests are off by default")
+	}
+	on := true
+	if _, err := s.UpdateOrg(ctx, owner, o.Slug, OrgInput{AIRequests: &on}); err != nil {
+		t.Fatal(err)
+	}
+	r, err := s.RequestBudget(ctx, reader, o.Slug, in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.RequestBudget(ctx, reader, o.Slug, in); err == nil {
+		t.Fatal("only one pending request")
+	}
+	if cs, _ := s.ChatStatus(ctx, reader, p.Slug); !cs.CanRequest || !cs.RequestPending {
+		t.Fatalf("pending in chat: %+v", cs)
+	}
+	notes, _ := s.Notifications(ctx, owner, false, 10)
+	if len(notes.Items) == 0 || notes.Items[0].Kind != "budget.request" {
+		t.Fatalf("admins are notified: %+v", notes.Items)
+	}
+	// Approved with 100 % for this month: 1000 + 1000.
+	if _, err := s.DecideBudget(ctx, owner, o.Slug, r.ID, BudgetDecision{Approve: true, Percent: 100}); err != nil {
+		t.Fatal(err)
+	}
+	if cs, _ := s.ChatStatus(ctx, reader, p.Slug); cs.UserLimit != 2000 || cs.RequestPending {
+		t.Fatalf("month extra: %+v", cs)
+	}
+	if _, err := s.DecideBudget(ctx, owner, o.Slug, r.ID, BudgetDecision{Approve: true}); err == nil {
+		t.Fatal("a request is answered once")
+	}
+	notes, _ = s.Notifications(ctx, reader, false, 10)
+	if len(notes.Items) == 0 || notes.Items[0].Kind != "budget.request_decided" {
+		t.Fatalf("member is told: %+v", notes.Items)
+	}
+	// Permanent: the own limit grows (1000 + 25 %).
+	r2, _ := s.RequestBudget(ctx, reader, o.Slug, BudgetRequestInput{Percent: 25, Scope: "permanent"})
+	if _, err := s.DecideBudget(ctx, owner, o.Slug, r2.ID, BudgetDecision{Approve: true}); err != nil {
+		t.Fatal(err)
+	}
+	m, _ := s.DB.OrgMemberAI(ctx, o.ID, reader.User.ID)
+	if m.Budget == nil || *m.Budget != 1250 {
+		t.Fatalf("permanent: %+v", m)
+	}
+	// Rejected requests change nothing.
+	r3, _ := s.RequestBudget(ctx, reader, o.Slug, in)
+	if _, err := s.DecideBudget(ctx, owner, o.Slug, r3.ID, BudgetDecision{Approve: false, Note: "Not now"}); err != nil {
+		t.Fatal(err)
+	}
+	// With hidden prices, admins set limits in percent of the default.
+	if _, err := s.UpdateOrg(ctx, admin, o.Slug, OrgInput{PricesHiddenAdmin: &on}); err != nil {
+		t.Fatal(err)
+	}
+	pct := 300.0
+	mb, err = s.SetMemberLimit(ctx, owner, o.Slug, reader.User.ID, MemberLimitInput{Percent: &pct})
+	if err != nil || !mb.PricesHidden {
+		t.Fatalf("percent limit: %v %+v", err, mb)
+	}
+	m, _ = s.DB.OrgMemberAI(ctx, o.ID, reader.User.ID)
+	if m.Budget == nil || *m.Budget != 1500 {
+		t.Fatalf("300 %% of 500: %+v", m)
+	}
+	for _, x := range mb.Members {
+		if x.UserID == reader.User.ID && (x.OwnPercent == nil || *x.OwnPercent != 300 || x.LimitCents != 0) {
+			t.Fatalf("hidden member view: %+v", x)
+		}
+	}
+	back := -1
+	if _, err := s.SetMemberLimit(ctx, owner, o.Slug, reader.User.ID, MemberLimitInput{Cents: &back}); err != nil {
+		t.Fatal(err)
+	}
+	if m, _ := s.DB.OrgMemberAI(ctx, o.ID, reader.User.ID); m.Budget != nil {
+		t.Fatalf("back to default: %+v", m)
+	}
+}
