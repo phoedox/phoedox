@@ -618,6 +618,15 @@ type docView struct {
 	Content any    `json:"content"`
 	// Review is the page's review interval and next review date, if set.
 	Review *reviewView `json:"review,omitempty"`
+	// Glossary: the project's terms in this document (when reading for a
+	// translation); GlossaryProblems: deviations from glossary and style.
+	Glossary         []core.GlossaryEntry   `json:"glossary,omitempty"`
+	GlossaryProblems []core.GlossaryProblem `json:"glossaryProblems,omitempty"`
+}
+
+type glossaryIn struct {
+	Project string                `json:"project" jsonschema:"project slug"`
+	Entries *[]core.GlossaryEntry `json:"entries,omitempty" jsonschema:"replace the whole glossary (editors): [{term (main language), translations {lang: term}, keep (never translate), avoid {lang or \"\" for the main language: [spellings not to use]}, note}]; omit to read it"`
 }
 
 type reviewView struct {
@@ -798,6 +807,16 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 			return out, nil
 		}
 		v := withReview(ctx, svc, a, in.Project, view(d))
+		// Translating: the glossary terms of this document; main language:
+		// spellings the style guide asks to avoid.
+		if in.Lang != "" {
+			if g, err := svc.GlossaryForDocument(ctx, a, in.Project, d.ID); err == nil && len(g) > 0 {
+				v.Glossary = g
+			}
+		}
+		if ps, err := svc.GlossaryCheck(ctx, a, in.Project, d.ID, in.Lang); err == nil && len(ps) > 0 {
+			v.GlossaryProblems = ps
+		}
 		if dr, err := svc.Draft(ctx, a, in.Project, d.ID); err == nil {
 			draft := map[string]any{
 				"title": dr.Title, "category": dr.Category, "markdown": dr.Markdown, "updatedAt": dr.UpdatedAt,
@@ -841,11 +860,23 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		t, err := svc.SaveTranslation(ctx, a, in.Project, in.Document, in.Lang, core.TranslationInput{Title: in.Title, Markdown: in.Markdown,
 			Context: in.Context, Decision: in.Decision, Consequences: in.Consequences, Alternatives: in.Alternatives, Description: in.Description,
 			SupersedesScope: in.SupersedesScope, Original: in.Original, Edits: in.Edits})
-		if err != nil || in.Verbose {
+		if err != nil {
 			return t, err
 		}
-		t.Content = nil
+		problems, _ := svc.GlossaryCheck(ctx, a, in.Project, in.Document, in.Lang)
+		if !in.Verbose {
+			t.Content = nil
+		}
+		if len(problems) > 0 {
+			return map[string]any{"translation": t, "glossaryProblems": problems, "note": "Fix these with translate_document edits: use the glossary terms (expected) or leave kept terms untranslated."}, nil
+		}
 		return t, nil
+	})
+	tool(s, "glossary", "Read or replace the project's glossary and style guide: terms in the main language with their translation per language, terms to keep untranslated, and spellings to avoid (e.g. email → e-mail). Translations must use these terms: get_document with lang returns the terms of the page, translate_document reports deviations (glossaryProblems), and get_document marks spellings to avoid.", func(ctx context.Context, a core.Actor, in glossaryIn) (any, error) {
+		if in.Entries != nil {
+			return svc.SetGlossary(ctx, a, in.Project, *in.Entries)
+		}
+		return svc.Glossary(ctx, a, in.Project)
 	})
 	tool(s, "validate_blocks", "Check the mermaid and dbmodel blocks of a page (its open draft if any) or of Markdown you are about to save: unknown diagram types, Mermaid keywords used as names, unclosed blocks, unbalanced brackets or quotes, dbmodel tables that are not defined anywhere in the project. The Mermaid check catches common mistakes, not everything the renderer rejects. create_document and update_document return the same findings as blockProblems.", func(ctx context.Context, a core.Actor, in validateBlocksIn) (any, error) {
 		if in.Document == "" && in.Markdown == nil {

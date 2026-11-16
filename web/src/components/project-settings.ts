@@ -10,6 +10,7 @@ import "./usage";
 import "./feedback-settings";
 import "./themes";
 import "./autolink-rules";
+import "./glossary";
 import "./settings-shell";
 import type { Storage } from "../files";
 import { storageBar, storageStyles } from "./project-files";
@@ -340,7 +341,8 @@ export class PhxProjectSettings extends LitElement {
         ${(["off", "read", "suggest", "direct"] as const).map((m) => html`<label class="choice"><input type="radio" name="aimode" value=${m} .checked=${p.aiWriteMode === m} ?disabled=${!owner}
           @change=${() => this.patch({ aiWriteMode: m })}><b>${t(`settings.ai_mode.${m}`)}</b><span>${t(`sx.p.ai.${m}`)}</span></label>`)}</div>`)}
       ${scard(t("approval.title"), "", srow(t("approval.enable"), t("approval.hint"), sswitch(this.approval, t("approval.enable"), (on) => this.setApproval(on), !owner)))}
-      ${scard(t("autolink.title"), "", html`<phx-autolink-rules .project=${p.slug} ?owner=${owner}></phx-autolink-rules>`)}`;
+      ${scard(t("autolink.title"), "", html`<phx-autolink-rules .project=${p.slug} ?owner=${owner}></phx-autolink-rules>`)}
+      ${scard(t("glossary.title"), t("glossary.text"), html`<phx-glossary .project=${p.slug} .mainLocale=${p.mainLocale ?? ""} .locales=${p.locales ?? []} ?canEdit=${["editor", "owner"].includes(p.role ?? "")}></phx-glossary>`)}`;
   }
 
   private page(owner: boolean, canEdit: boolean, withModel: boolean) {

@@ -36,3 +36,25 @@ func (a *api) compareSnapshots(w http.ResponseWriter, r *http.Request) {
 	v, err := a.core.CompareSnapshots(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "name"), r.URL.Query().Get("to"))
 	respond(w, v, err)
 }
+
+func (a *api) glossary(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.Glossary(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, v, err)
+}
+
+func (a *api) setGlossary(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Entries []core.GlossaryEntry `json:"entries"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.SetGlossary(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.Entries)
+	respond(w, v, err)
+}
+
+func (a *api) glossaryCheck(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.GlossaryCheck(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"), r.URL.Query().Get("lang"))
+	respond(w, v, err)
+}

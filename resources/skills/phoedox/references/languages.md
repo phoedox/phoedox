@@ -35,6 +35,18 @@ the document.
   call (see `pages.md`).
 - The scope of a partial supersede is translated with `supersedes_scope`.
 
+## Glossary and style guide
+
+- `glossary` reads the project's terms (or replaces them): each term in the main
+  language with its translation per language, terms to `keep` untranslated
+  (product names, commands) and spellings to `avoid` ("email" → "e-mail").
+- The glossary is **binding**: `get_document` with `lang` returns the terms that
+  occur in the page (`glossary`) – use exactly these translations.
+- `translate_document` answers with `glossaryProblems` when the translation
+  misses a term or uses a spelling to avoid; fix them with `edits` right away.
+- `get_document` in the main language lists `glossaryProblems` too (spellings to
+  avoid); fix them when you edit the page anyway.
+
 ## Find what needs work
 
 `list_documents` shows `translationState` per further language: `current`,
