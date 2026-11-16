@@ -188,3 +188,23 @@ func (a *api) discoverAIModels(w http.ResponseWriter, r *http.Request) {
 	ms, err := a.core.DiscoverAIModels(r.Context(), actorOf(r), chi.URLParam(r, "o"), chi.URLParam(r, "id"))
 	respond(w, ms, err)
 }
+
+func (a *api) projectUsage(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.ProjectUsage(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, v, err)
+}
+
+func (a *api) orgUsage(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.OrgUsage(r.Context(), actorOf(r), chi.URLParam(r, "o"))
+	respond(w, v, err)
+}
+
+func (a *api) instanceUsage(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.InstanceUsage(r.Context(), actorOf(r))
+	respond(w, v, err)
+}
+
+func (a *api) myUsage(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.MyUsage(r.Context(), actorOf(r))
+	respond(w, v, err)
+}

@@ -339,3 +339,64 @@ func (d *DB) DeleteAIProvider(ctx context.Context, orgID, id string) error {
 	res, err := d.Exec(ctx, `DELETE FROM ai_providers WHERE org_id = ? AND id = ?`, orgID, id)
 	return affected(res, err)
 }
+
+// UsageFilter limits an AI usage breakdown. Empty fields do not filter;
+// AnyOrg false with OrgID "" means projects outside organizations.
+type UsageFilter struct {
+	OrgID     string
+	AnyOrg    bool
+	ProjectID string
+	UserID    string
+	Since     time.Time
+}
+
+// UsageGroup is one line of a breakdown: the key (a project, user, model
+// or organization id) with its calls, tokens, charge and cost.
+type UsageGroup struct {
+	Key          string `json:"key"`
+	Calls        int64  `json:"calls"`
+	InputTokens  int64  `json:"inputTokens"`
+	OutputTokens int64  `json:"outputTokens"`
+	ChargeMicros int64  `json:"chargeMicros"`
+	CostMicros   int64  `json:"costMicros"`
+	OwnKey       int64  `json:"-"` // charge on the organization's own keys
+}
+
+var usageGroupCols = map[string]string{"project": "project_id", "user": "user_id", "model": "model", "org": "org_id"}
+
+// AIUsageBy sums AI usage grouped by project, user, model or org, largest first.
+func (d *DB) AIUsageBy(ctx context.Context, f UsageFilter, by string) ([]UsageGroup, error) {
+	col, ok := usageGroupCols[by]
+	if !ok {
+		return nil, errors.New("unknown grouping")
+	}
+	q := `SELECT COALESCE(` + col + `, ''), COUNT(*), COALESCE(SUM(input_tokens), 0), COALESCE(SUM(output_tokens), 0), COALESCE(SUM(charge_micros), 0), COALESCE(SUM(cost_micros), 0),
+		COALESCE(SUM(CASE WHEN own_key THEN charge_micros ELSE 0 END), 0) FROM ai_usage WHERE created_at >= ?`
+	args := []any{Time{f.Since}}
+	if !f.AnyOrg {
+		q += ` AND org_id = ?`
+		args = append(args, f.OrgID)
+	}
+	if f.ProjectID != "" {
+		q += ` AND project_id = ?`
+		args = append(args, f.ProjectID)
+	}
+	if f.UserID != "" {
+		q += ` AND user_id = ?`
+		args = append(args, f.UserID)
+	}
+	rows, err := d.Query(ctx, q+` GROUP BY `+col+` ORDER BY 5 DESC`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []UsageGroup{}
+	for rows.Next() {
+		var g UsageGroup
+		if err := rows.Scan(&g.Key, &g.Calls, &g.InputTokens, &g.OutputTokens, &g.ChargeMicros, &g.CostMicros, &g.OwnKey); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}

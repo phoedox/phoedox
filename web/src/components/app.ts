@@ -5,6 +5,7 @@ import { ApiError, api, type User } from "../api";
 import { t } from "../i18n";
 import { icon } from "../icon";
 import { comboFor, comboLabel, installShortcuts, onShortcut } from "../shortcuts";
+import "./usage";
 import "./recent-history";
 import "./secret-links";
 import "./shortcut-settings";
@@ -107,6 +108,10 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/settings/tokens", render: () => me("tokens", html`<phx-tokens></phx-tokens>`) },
     { path: "/settings/publications", render: () => me("publications", html`<phx-publications></phx-publications>`) },
     { path: "/settings/account", render: () => me("account", html`<phx-account></phx-account>`) },
+    { path: "/settings/usage", render: () => me("usage", html`<phx-usage level="me"></phx-usage>`) },
+    { path: "/admin/usage", render: () => adm("usage", html`<phx-usage level="admin"></phx-usage>`) },
+    { path: "/admin/orgs/:slug/usage", render: ({ slug }) => adm("orgs", html`<phx-usage level="org" .ref=${slug!}></phx-usage>`) },
+    { path: "/orgs/:slug/usage", render: ({ slug }) => me(`org:${slug}`, html`<phx-usage level="org" .ref=${slug!}></phx-usage>`) },
     { path: "/admin", render: () => adm("") },
     { path: "/admin/overview", render: () => adm("overview", html`<phx-admin-overview></phx-admin-overview>`) },
     { path: "/admin/users", render: () => adm("users", html`<phx-users></phx-users>`) },

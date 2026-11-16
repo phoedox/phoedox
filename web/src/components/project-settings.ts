@@ -6,6 +6,7 @@ import { icon } from "../icon";
 import { currentProject, currentUser, docsVersion, navigate } from "../state";
 import { base } from "./shared";
 import { pageHead, scard, settingsUI, srow, sswitch } from "./settings-ui";
+import "./usage";
 import "./settings-shell";
 import type { Storage } from "../files";
 import { storageBar, storageStyles } from "./project-files";
@@ -356,6 +357,7 @@ export class PhxProjectSettings extends LitElement {
         ${card(t("agents.title"), "", html`<phx-agents .project=${this.project}></phx-agents>`)}
         ${card(t("plugins.title"), "", html`<phx-project-plugins .project=${this.project}></phx-project-plugins>`)}
         ${card(t("hooks.title"), "", html`<phx-webhooks .project=${this.project}></phx-webhooks>`)}` : "";
+      case "usage": return owner ? html`<phx-usage level="project" .ref=${this.project}></phx-usage>` : "";
       case "data": return html`${pageHead(t("sx.p.data"), "")}
         ${this.storageSection(owner)}
         ${scard(t("sx.p.take_along"), "", html`

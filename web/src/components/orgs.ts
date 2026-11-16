@@ -182,7 +182,8 @@ export class PhxOrg extends SignalWatcher(LitElement) {
     return html`<div class="enter">
       ${this.inAdmin ? "" : html`<p class="muted" style="margin:0"><a href="/orgs">${t("orgs.title")}</a></p>`}
       <h1>${o.name}</h1>
-      <p class="row"><span class="chip">${t(`orgs.usage.${o.usageType}`)}</span><span class="chip">${t(admin ? "orgs.role.admin" : "orgs.role.member")}</span></p>
+      <p class="row"><span class="chip">${t(`orgs.usage.${o.usageType}`)}</span><span class="chip">${t(admin ? "orgs.role.admin" : "orgs.role.member")}</span>
+        ${admin || this.inAdmin ? html`<a class="btn ghost" href=${this.inAdmin ? `/admin/orgs/${o.slug}/usage` : `/orgs/${o.slug}/usage`}>${icon("Sigma", 14)} ${t("usage.nav")}</a>` : ""}</p>
 
       ${admin ? html`<h2>${t("orgs.settings")}</h2>
         <form @submit=${this.save} style="display:grid;gap:12px;max-width:520px">
