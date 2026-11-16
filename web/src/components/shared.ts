@@ -10,7 +10,7 @@ export const base = css`
   *, *::before, *::after { box-sizing: border-box; }
   .avatar { border-radius: 50%; object-fit: cover; flex: none; display: inline-grid; place-items: center; background: var(--accent-soft); color: var(--fg);
     font-family: var(--font-mono); font-weight: 600; vertical-align: middle; }
-  a { color: var(--accent); }
+  a { color: var(--link, var(--accent)); }
   h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; margin: 0; text-wrap: balance; }
   .ico { display: inline-block; vertical-align: -3px; flex: none; }
   .muted { color: var(--muted); }
@@ -18,26 +18,26 @@ export const base = css`
 
   button, .btn {
     font: inherit; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 6px;
-    border-radius: 8px; padding: 7px 14px; border: 1px solid transparent; cursor: pointer; text-decoration: none;
-    background: var(--accent); color: var(--surface);
+    border-radius: var(--radius, 8px); padding: var(--ctl-py, 7px) 14px; border: 1px solid transparent; cursor: pointer; text-decoration: none;
+    background: var(--btn-bg, var(--accent)); color: var(--btn-fg, var(--surface));
     transition: transform var(--dur-press) var(--ease-out), background-color var(--dur-fast) ease, border-color var(--dur-fast) ease;
   }
   button:active, .btn:active { transform: scale(0.97); }
-  button.ghost, .btn.ghost { background: var(--surface); color: var(--fg); border-color: var(--line); }
+  button.ghost, .btn.ghost { background: var(--btn-ghost-bg, var(--surface)); color: var(--btn-ghost-fg, var(--fg)); border-color: var(--line); }
   button.danger { background: var(--surface); color: var(--bad); border-color: var(--line); }
   button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
   @media (hover: hover) and (pointer: fine) {
     button.ghost:hover, .btn.ghost:hover, button.danger:hover { border-color: var(--muted); }
   }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  :focus-visible { outline: 2px solid var(--focus, var(--accent)); outline-offset: 2px; }
 
   label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
   input, textarea, select {
-    font: inherit; font-size: 14px; color: var(--fg); background: var(--surface);
-    border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; width: 100%;
+    font: inherit; font-size: 14px; color: var(--fg); background: var(--input-bg, var(--surface));
+    border: 1px solid var(--input-border, var(--line)); border-radius: var(--radius, 8px); padding: var(--input-py, 8px) 10px; width: 100%;
   }
   textarea { resize: vertical; min-height: 120px; font-family: var(--font-mono); font-size: 13px; line-height: 1.55; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card, 12px); padding: 18px; }
   .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 2px 9px; border-radius: 999px; background: var(--surface2); color: var(--muted); }
   .error { color: var(--bad); font-size: 13px; }
   .status-accepted { color: var(--good); }

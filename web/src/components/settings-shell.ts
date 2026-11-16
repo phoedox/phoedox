@@ -32,7 +32,7 @@ export function areaGroups(area: Area, orgs: OrgLite[] = [], ctx?: ProjectCtx): 
     const base = `/p/${ctx.slug}/settings`;
     const pg = (id: string, ico: string, label: string, show = true) => (show ? [{ id, href: `${base}/${id}`, icon: ico, label }] : []);
     return [
-      { label: t("sx.group.project"), pages: [...pg("general", "Settings", t("settings.general")), ...pg("people", "Users", t("sx.p.people"))] },
+      { label: t("sx.group.project"), pages: [...pg("general", "Settings", t("settings.general")), ...pg("people", "Users", t("sx.p.people")), ...pg("appearance", "Palette", t("theme.appearance"), ctx.owner)] },
       { label: t("sx.group.workflow"), pages: [...pg("ai", "Bot", t("sx.p.ai")), ...pg("rules", "Zap", t("sx.p.auto"), ctx.canEdit), ...pg("model", "Shapes", t("kg.model"), ctx.withModel)] },
       { label: t("sx.group.connections"), pages: [...pg("env", "Braces", t("sx.p.env")), ...pg("code", "GitBranch", t("sx.p.code"), ctx.canEdit), ...pg("integrations", "Plug", t("sx.p.int"), ctx.owner)] },
       { label: t("sx.group.data"), pages: [...pg("data", "HardDrive", t("sx.p.data")), ...pg("usage", "Sigma", t("usage.nav_project"), ctx.owner), ...pg("feedback", "MessageSquareText", t("fb.settings_title"), ctx.owner), ...pg("activity", "ScrollText", t("audit.project_title"), ctx.owner), ...pg("transfer", "TriangleAlert", t("sx.p.transfer"), ctx.owner)] },
@@ -49,6 +49,7 @@ export function areaGroups(area: Area, orgs: OrgLite[] = [], ctx?: ProjectCtx): 
         { id: "storage", href: "/admin/storage", icon: "HardDrive", label: t("sx.admin.storage") },
         { id: "security", href: "/admin/security", icon: "ShieldCheck", label: t("sx.admin.security") },
         { id: "bot", href: "/admin/bot-protection", icon: "Bot", label: t("botadmin.nav") },
+        { id: "appearance", href: "/admin/appearance", icon: "Palette", label: t("theme.appearance") },
         { id: "backups", href: "/admin/backups", icon: "Archive", label: t("backups.title") },
         { id: "plugins", href: "/admin/plugins", icon: "Puzzle", label: t("plugins.title") },
         { id: "audit", href: "/admin/audit", icon: "ScrollText", label: t("audit.title") },
@@ -63,6 +64,7 @@ export function areaGroups(area: Area, orgs: OrgLite[] = [], ctx?: ProjectCtx): 
     { label: t("sx.group.you"), pages: [
       { id: "profile", href: "/settings/profile", icon: "UserRound", label: t("nav.profile") },
       { id: "security", href: "/settings/security", icon: "ShieldCheck", label: t("sx.me.security") },
+      { id: "appearance", href: "/settings/appearance", icon: "Palette", label: t("theme.appearance") },
       { id: "notifications", href: "/settings/notifications", icon: "Bell", label: t("notif.title") },
       { id: "shortcuts", href: "/settings/shortcuts", icon: "Keyboard", label: t("shortcut.title") },
       { id: "tokens", href: "/settings/tokens", icon: "KeyRound", label: t("sx.me.tokens") },

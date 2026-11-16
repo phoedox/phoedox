@@ -156,6 +156,13 @@ instead of rebuilding them in pages:
   monthly budget): working out a concept next to the page, live edits in the
   page's draft, and card proposals people confirm. Suggest it when someone wants
   to work on a page together with an AI inside Phoedox.
+- **Themes** (settings → Appearance; project settings → Appearance; the
+  organization page; administration → Appearance): colours for light and dark,
+  fonts, corners, density, a logo and own CSS, with a live preview and a
+  readability check. Organizations can set a theme for everyone; a high-contrast
+  theme and a high-contrast variant of every theme are always available. AI
+  clients cannot change themes – point people there when they ask about colours,
+  fonts, dark mode or contrast.
 
 ## Resources
 

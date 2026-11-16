@@ -8,6 +8,7 @@ import { base } from "./shared";
 import { pageHead, scard, settingsUI, srow, sswitch } from "./settings-ui";
 import "./usage";
 import "./feedback-settings";
+import "./themes";
 import "./settings-shell";
 import type { Storage } from "../files";
 import { storageBar, storageStyles } from "./project-files";
@@ -360,6 +361,7 @@ export class PhxProjectSettings extends LitElement {
         ${card(t("hooks.title"), "", html`<phx-webhooks .project=${this.project}></phx-webhooks>`)}` : "";
       case "usage": return owner ? html`<phx-usage level="project" .ref=${this.project}></phx-usage>` : "";
       case "feedback": return owner ? html`<phx-feedback-settings .project=${this.project}></phx-feedback-settings>` : "";
+      case "appearance": return owner ? html`${pageHead(t("theme.appearance"))}<phx-theme-list scope="project" .owner=${this.project}></phx-theme-list>` : "";
       case "data": return html`${pageHead(t("sx.p.data"), "")}
         ${this.storageSection(owner)}
         ${scard(t("sx.p.take_along"), "", html`

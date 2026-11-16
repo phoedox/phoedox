@@ -37,6 +37,8 @@ import "./users";
 import "./admin-settings";
 import "./admin-overview";
 import "./settings-shell";
+import "./themes";
+import { activeTheme } from "../theme-runtime";
 import "./projects";
 import "./project";
 import "./tokens";
@@ -59,7 +61,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
   static styles = [base, css`
     .notfound { max-width: 560px; margin: 60px auto; padding: 0 16px; display: grid; gap: 14px; }
     :host { display: block; min-height: 100vh; }
-    header { display: flex; align-items: center; gap: 14px; height: var(--header-h); padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; z-index: 10; }
+    header { display: flex; align-items: center; gap: 14px; height: var(--header-h); padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--header-bg, var(--surface)); position: sticky; top: 0; z-index: 10; }
     .brand { font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--fg); text-decoration: none; display: flex; align-items: center; gap: 8px; }
     .brand img { width: 26px; height: 26px; }
     .crumb { color: var(--muted); text-decoration: none; display: flex; align-items: center; gap: 8px; }
@@ -115,6 +117,14 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/settings/account", render: () => me("account", html`<phx-account></phx-account>`) },
     { path: "/settings/usage", render: () => me("usage", html`<phx-usage level="me"></phx-usage>`) },
     { path: "/settings/feedback", render: () => me("feedback", html`<phx-my-feedback></phx-my-feedback>`) },
+    { path: "/settings/appearance", render: () => me("appearance", html`<phx-appearance></phx-appearance>`) },
+    { path: "/settings/themes/new", render: () => {
+      const q = new URLSearchParams(location.search);
+      const scope = q.get("scope") ?? "user";
+      return html`<phx-theme-editor .scope=${scope} .owner=${q.get("owner") ?? ""}></phx-theme-editor>`;
+    } },
+    { path: "/settings/themes/:id", render: ({ id }) => html`<phx-theme-editor .themeId=${id!} .owner=${new URLSearchParams(location.search).get("owner") ?? ""}></phx-theme-editor>` },
+    { path: "/admin/appearance", render: () => adm("appearance", html`<phx-theme-list scope="instance"></phx-theme-list>`) },
     { path: "/admin/usage", render: () => adm("usage", html`<phx-usage level="admin"></phx-usage>`) },
     { path: "/admin/bot-protection", render: () => adm("bot", html`<phx-bot-admin></phx-bot-admin>`) },
     { path: "/admin/orgs/:slug/usage", render: ({ slug }) => adm("orgs", html`<phx-usage level="org" .ref=${slug!}></phx-usage>`) },
@@ -213,7 +223,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
         : ""}
       ${user && !shared && !focusMode.get()
         ? html`<header>
-            <a class="brand" href="/"><img src="/logo.svg" alt="" /><span class="word">${appOrg.get()?.name ?? "Phoedox"}</span></a>
+            <a class="brand" href="/"><img src=${activeTheme.get()?.theme?.data.logo || "/logo.svg"} alt="" /><span class="word">${appOrg.get()?.name ?? "Phoedox"}</span></a>
             <phx-project-switcher .path=${location.pathname}></phx-project-switcher>
             <phx-lang-switcher .path=${location.pathname}></phx-lang-switcher>
             <nav>
