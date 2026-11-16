@@ -3164,4 +3164,9 @@ export const de = {
   "print.no_category": "Ohne Kategorie",
   "print.as_of": "Stand {date} · {count} Seiten",
   "print.open_app": "Die vollständige Ansicht gibt es in Phoedox.",
+  "validation.category_required": "Wähle einen Ordner.",
+  "validation.category_name": "Ein Ordnername hat bis zu 80 Zeichen und keinen Schrägstrich.",
+  "validation.ai_category_direct": "KI-Clients benennen Ordner nur in Projekten, in denen KI direkt schreibt.",
+  "ctx.folder_names": "Namen in anderen Sprachen",
+  "ctx.folder_name_prompt": "Name von „{name}“ auf {lang} (leer: wie in der Hauptsprache):",
 } as const;

@@ -3166,4 +3166,9 @@ export const en: Record<keyof typeof de, string> = {
   "print.no_category": "Without category",
   "print.as_of": "As of {date} · {count} pages",
   "print.open_app": "The full view is in Phoedox.",
+  "validation.category_required": "Choose a folder.",
+  "validation.category_name": "A folder name has up to 80 characters and no slash.",
+  "validation.ai_category_direct": "AI clients name folders only in projects where AI writes directly.",
+  "ctx.folder_names": "Names in other languages",
+  "ctx.folder_name_prompt": "Name of \"{name}\" in {lang} (empty: same as the main language):",
 };

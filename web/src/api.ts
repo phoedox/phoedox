@@ -75,6 +75,8 @@ export interface Project {
   features: ProjectFeature[];
   /** Version of the project image (missing = none; the short name is shown). */
   image?: string;
+  /** Folder path → language → the folder's name in that language. */
+  categoryNames?: Record<string, Record<string, string>>;
   /** owner | editor | reader | doc (only single documents shared) */
   role: string;
   /** Rights only from being a system admin, not from a membership. */

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"strings"
 )
@@ -36,6 +37,9 @@ type Project struct {
 	Features []string `json:"features"`
 	// Image is the version of the project image ("" = none; the short name is shown).
 	Image string `json:"image,omitempty"`
+	// CategoryNames: folder path → language → name of the folder's last part
+	// in that language (multilingual projects).
+	CategoryNames map[string]map[string]string `json:"categoryNames,omitempty"`
 	// OrgAI is false when the organization switched off AI access.
 	OrgAI bool `json:"-"`
 	// Role of the requesting user: owner, editor, reader, or "doc" when only
@@ -49,7 +53,7 @@ type Project struct {
 // RoleDoc means access to single shared documents only.
 const RoleDoc = "doc"
 
-const projectCols = `p.id, p.slug, p.name, p.short, p.description, p.primary_color, p.ai_write_mode, p.owner_id, p.created_at, p.main_locale, p.locales, p.features, p.image,
+const projectCols = `p.id, p.slug, p.name, p.short, p.description, p.primary_color, p.ai_write_mode, p.owner_id, p.created_at, p.main_locale, p.locales, p.features, p.image, p.category_names,
 	COALESCE(p.org_id, ''), COALESCE(o.name, ''), COALESCE(o.ai_enabled, ` + "true" + `)`
 
 const projectFrom = ` FROM projects p LEFT JOIN organizations o ON o.id = p.org_id`
@@ -80,8 +84,8 @@ func rankArgs(userID string) []any { return []any{userID, Now(), userID, userID,
 
 func scanProject(r interface{ Scan(...any) error }, withRole bool) (Project, error) {
 	var p Project
-	var locales, features string
-	dest := []any{&p.ID, &p.Slug, &p.Name, &p.Short, &p.Description, &p.PrimaryColor, &p.AIWriteMode, &p.OwnerID, &p.CreatedAt, &p.MainLocale, &locales, &features, &p.Image, &p.OrgID, &p.OrgName, &p.OrgAI}
+	var locales, features, catNames string
+	dest := []any{&p.ID, &p.Slug, &p.Name, &p.Short, &p.Description, &p.PrimaryColor, &p.AIWriteMode, &p.OwnerID, &p.CreatedAt, &p.MainLocale, &locales, &features, &p.Image, &catNames, &p.OrgID, &p.OrgName, &p.OrgAI}
 	var rank int
 	if withRole {
 		dest = append(dest, &rank)
@@ -92,6 +96,9 @@ func scanProject(r interface{ Scan(...any) error }, withRole bool) (Project, err
 	}
 	p.Role = rankRoles[rank]
 	p.Locales, p.Features = splitList(locales), splitList(features)
+	if catNames != "" && catNames != "{}" {
+		_ = json.Unmarshal([]byte(catNames), &p.CategoryNames)
+	}
 	return p, err
 }
 
@@ -218,4 +225,17 @@ func (d *DB) VisibleProjectIDs(ctx context.Context, userID string, all bool) ([]
 		ids[i] = p.ID
 	}
 	return ids, nil
+}
+
+// SetCategoryNames stores the folder names per language of a project.
+func (d *DB) SetCategoryNames(ctx context.Context, projectID string, names map[string]map[string]string) error {
+	b, err := json.Marshal(names)
+	if err != nil {
+		return err
+	}
+	if len(names) == 0 {
+		b = []byte("{}")
+	}
+	res, err := d.Exec(ctx, `UPDATE projects SET category_names = ? WHERE id = ?`, string(b), projectID)
+	return affected(res, err)
 }

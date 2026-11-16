@@ -88,3 +88,40 @@ func TestDecisionKeysAndTranslations(t *testing.T) {
 	}
 	_ = store.DocADR
 }
+
+func TestCategoryNames(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _ := setup(t)
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Docs", AIWriteMode: "suggest"})
+	full := ProjectInput{Name: p.Name, Short: p.Short, PrimaryColor: p.PrimaryColor, AIWriteMode: p.AIWriteMode, MainLocale: strp("en"), Locales: &[]string{"de"}}
+	if _, err := s.UpdateProject(ctx, owner, p.Slug, full); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetCategoryName(ctx, owner, p.Slug, "Architecture", "fr", "Architecture"); invalidKey(err) != "validation.locale_not_in_project" {
+		t.Fatalf("unknown language: %v", err)
+	}
+	if _, err := s.SetCategoryName(ctx, owner, p.Slug, "Architecture", "de", "Archi/tektur"); invalidKey(err) != "validation.category_name" {
+		t.Fatalf("slash: %v", err)
+	}
+	if _, err := s.SetCategoryName(ctx, Actor{User: owner.User, Via: "mcp", TokenID: "t"}, p.Slug, "Architecture", "de", "Architektur"); invalidKey(err) != "validation.ai_category_direct" {
+		t.Fatalf("AI in suggest mode: %v", err)
+	}
+	s.SetCategoryName(ctx, owner, p.Slug, " Architecture ", "de", "Architektur")
+	pr, err := s.SetCategoryName(ctx, owner, p.Slug, "Architecture/Backend", "de", "Hintergrund")
+	if err != nil || LocalizedCategory(pr, "Architecture/Backend", "de") != "Architektur/Hintergrund" || LocalizedCategory(pr, "Architecture/Ops", "de") != "Architektur/Ops" {
+		t.Fatalf("names: %v %+v", err, pr.CategoryNames)
+	}
+	// Renaming the folder keeps the names, also of sub-folders.
+	if err := s.RenameCategoryNames(ctx, owner, p.Slug, "Architecture", "Design"); err != nil {
+		t.Fatal(err)
+	}
+	pr, _ = s.Project(ctx, owner, p.Slug)
+	if LocalizedCategory(pr, "Design/Backend", "de") != "Architektur/Hintergrund" || pr.CategoryNames["Architecture"] != nil {
+		t.Fatalf("after rename: %+v", pr.CategoryNames)
+	}
+	// An empty name removes it.
+	pr, _ = s.SetCategoryName(ctx, owner, p.Slug, "Design/Backend", "de", "")
+	if LocalizedCategory(pr, "Design/Backend", "de") != "Architektur/Backend" {
+		t.Fatalf("remove: %+v", pr.CategoryNames)
+	}
+}

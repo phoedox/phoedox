@@ -64,7 +64,7 @@ creates them:
 | Real devices | `list_agent_actions` → `prepare_agent_action`; plugin tools `plugin_*` (e.g. Home Assistant) |
 | Devices found in the network | `list_discovered` (agents with discovery on: IP, MAC, host name, mDNS services, suggested kind, matching entry) → `upsert_entities` for the ones people want documented |
 | Switches and routers without an agent | They come in over SNMP when an agent lists them under `snmp.targets` in its agent.yaml (read only): entries of kind switch/router, `wired_to` relations with the port from LLDP and the MAC table. Suggest that setup instead of typing ports by hand. |
-| Languages | `get_document(lang)`, `translate_document` |
+| Languages | `get_document(lang)`, `translate_document`; `translate_category` names a folder in a further language (the last part of the path only, e.g. Backend → Hintergrund), so the sidebar shows it in that language |
 
 ## Links for the user
 

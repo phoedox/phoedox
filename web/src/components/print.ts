@@ -115,6 +115,14 @@ export class PhxPrint extends LitElement {
     }
   }
 
+  /** A folder path in the chosen language (each part that has a name). */
+  private folder(path: string) {
+    const p = this.proj, lang = contentLocale.get();
+    if (!path || !p || !lang || lang === p.mainLocale) return path;
+    const parts = path.split("/");
+    return parts.map((x, i) => p.categoryNames?.[parts.slice(0, i + 1).join("/")]?.[lang] || x).join(" / ");
+  }
+
   private body(d: Doc) {
     const c = d.content ?? {};
     const md = (s?: string) => (s ? html`<div class="prose">${unsafeHTML(renderMarkdown(s, this.project, d.id))}</div>` : "");
@@ -139,7 +147,7 @@ export class PhxPrint extends LitElement {
   private docHead(d: Doc) {
     const c = d.content ?? {};
     return html`<header>
-      ${d.category ? html`<div class="cat">${d.category}</div>` : ""}
+      ${d.category ? html`<div class="cat">${this.folder(d.category)}</div>` : ""}
       <h1>${d.title}</h1>
       <div class="meta">
         ${d.number ? html`<span>${adrRef(d.number)}</span>` : ""}${d.extRef ? html`<span>${d.extRef}</span>` : ""}
@@ -172,7 +180,7 @@ export class PhxPrint extends LitElement {
             <p>${t("print.as_of", { date: formatDate(new Date().toISOString()), count: this.total })}</p></div>
           <nav class="toc" aria-label=${t("print.contents")}><h2>${t("print.contents")}</h2>
             ${this.docs.map((d) => {
-              const head = (d.category || "") !== cat ? ((cat = d.category || ""), html`<h3>${cat || t("print.no_category")}</h3>`) : "";
+              const head = (d.category || "") !== cat ? ((cat = d.category || ""), html`<h3>${cat ? this.folder(cat) : t("print.no_category")}</h3>`) : "";
               return html`${head}<ol><li><a href="#d-${d.id}">${d.number ? html`<span class="n">${adrRef(d.number)}</span>` : ""}${d.title}</a></li></ol>`;
             })}</nav>` : ""}
         ${this.docs.map((d) => html`<section class="doc ${single ? "single" : ""}" id="d-${d.id}">${this.docHead(d)}${this.body(d)}</section>`)}

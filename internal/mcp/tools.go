@@ -648,6 +648,13 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 			Context: in.Context, Decision: in.Decision, Consequences: in.Consequences, Alternatives: in.Alternatives, Description: in.Description,
 			SupersedesScope: in.SupersedesScope, Original: in.Original})
 	})
+	tool(s, "translate_category", "Name a folder (category, e.g. Architecture/Backend) in one of the project's further languages, so the sidebar shows it in that language; the name is the last part only (Backend → Hintergrund). An empty name removes it. Only where AI writes directly.", func(ctx context.Context, a core.Actor, in translateCategoryIn) (any, error) {
+		p, err := svc.SetCategoryName(ctx, a, in.Project, in.Category, in.Lang, in.Name)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"project": p.Slug, "categoryNames": p.CategoryNames}, nil
+	})
 	tool(s, "list_tasks", "List tasks (cards on boards) of a project, optionally of one board, column or assignee. Boards are documents of type board; their columns are in the board's content.", func(ctx context.Context, a core.Actor, in listTasksIn) (any, error) {
 		return svc.Tasks(ctx, a, in.Project, in.Board, in.Column, in.Assignee, in.Open)
 	})
@@ -1095,4 +1102,11 @@ func saveTranslations(ctx context.Context, svc *core.Service, a core.Actor, proj
 		out[lang] = "saved"
 	}
 	return out
+}
+
+type translateCategoryIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Category string `json:"category" jsonschema:"the folder path in the main language, e.g. Architecture/Backend"`
+	Lang     string `json:"lang" jsonschema:"one of the project's further languages"`
+	Name     string `json:"name" jsonschema:"the folder's own name in that language (the last part of the path, no /); empty removes it"`
 }

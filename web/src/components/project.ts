@@ -9,7 +9,7 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { contentLocale, currentProject, docsVersion, favorites, focusMode, navigate } from "../state";
 import { toast } from "./toasts";
-import { preferredLocale } from "../languages";
+import { languageName, preferredLocale } from "../languages";
 import { comboFor, comboLabel, onShortcut } from "../shortcuts";
 import { base } from "./shared";
 import "./import-view";
@@ -554,6 +554,37 @@ export class PhxProject extends SignalWatcher(LitElement) {
     this.ctxRun(() => api("PATCH", `/projects/${this.slug}/documents/${d.slug}`, { category }), t("settings.saved"));
   }
 
+  /** A folder's name in the chosen content language (falls back to its own). */
+  private folderName(path: string) {
+    const p = currentProject.get();
+    const lang = contentLocale.get();
+    const own = path.slice(path.lastIndexOf("/") + 1);
+    return lang && p && lang !== p.mainLocale ? p.categoryNames?.[path]?.[lang] || own : own;
+  }
+
+  /** Names of a folder in the further languages, one prompt per language. */
+  private async folderNames(path: string) {
+    const p = currentProject.get();
+    if (!p) return;
+    const own = path.slice(path.lastIndexOf("/") + 1);
+    this.closeCtx(true);
+    let changed = false;
+    for (const lang of p.locales) {
+      const cur = p.categoryNames?.[path]?.[lang] ?? "";
+      const v = prompt(t("ctx.folder_name_prompt", { name: own, lang: languageName(lang) }), cur);
+      if (v === null) break;
+      if (v.trim() === cur) continue;
+      try {
+        currentProject.set({ ...p, ...(await api<Project>("PUT", `/projects/${this.slug}/category-names`, { category: path, lang, name: v.trim() })), role: p.role });
+        changed = true;
+      } catch (e) {
+        toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
+        return;
+      }
+    }
+    if (changed) toast(t("settings.saved"));
+  }
+
   private renameFolder(path: string) {
     const name = path.slice(path.lastIndexOf("/") + 1);
     const v = prompt(t("ctx.rename_folder_prompt"), name)?.trim().replaceAll("/", "-");
@@ -562,6 +593,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
     const affected = this.docs.filter((d) => d.type !== "adr" && d.category && (d.category === path || d.category.startsWith(`${path}/`)));
     this.ctxRun(async () => {
       for (const d of affected) await api("PATCH", `/projects/${this.slug}/documents/${d.slug}`, { category: to + d.category!.slice(path.length) });
+      // The folder keeps its names in other languages.
+      await api("POST", `/projects/${this.slug}/category-names/rename`, { from: path, to }).catch(() => {});
     }, t("settings.saved"));
   }
 
@@ -617,7 +650,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
         ${canEdit ? html`${item("FilePlus", t("ctx.new_page"), () => { this.closeCtx(); this.create(path, "type"); })}
           ${item("FolderPlus", t("ctx.new_folder"), () => { this.closeCtx(); this.create(path); })}` : ""}
         ${path ? item(open ? "ChevronsDownUp" : "ChevronsUpDown", t(open ? "ctx.collapse" : "ctx.expand"), () => { this.closeCtx(true); this.toggleCategory(path); }) : ""}
-        ${canEdit && path ? html`<hr>${item("Pencil", t("ctx.rename_folder"), () => this.renameFolder(path))}` : ""}`;
+        ${canEdit && path ? html`<hr>${item("Pencil", t("ctx.rename_folder"), () => this.renameFolder(path))}
+          ${currentProject.get()?.locales?.length ? item("Languages", t("ctx.folder_names"), () => void this.folderNames(path)) : ""}` : ""}`;
     }
     return html`<div class="ctx" role="menu" aria-label=${c.doc ? c.doc.title : c.folder || t("nav.uncategorized")}
       style="left:${c.x}px;top:${c.y}px" @keydown=${this.onCtxKey} @contextmenu=${(e: Event) => e.preventDefault()}>${items}</div>`;
@@ -642,7 +676,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
       if (n) return n;
       const i = path.lastIndexOf("/");
       const parent = node(i < 0 ? "" : path.slice(0, i));
-      n = { path, name: path.slice(i + 1), docs: [], children: [] };
+      n = { path, name: this.folderName(path), docs: [], children: [] };
       parent.children.push(n);
       nodes.set(path, n);
       return n;

@@ -357,6 +357,8 @@ func (a *api) routes(r chi.Router) {
 			r.Post("/documents/{d}/versions/{n}/restore", a.restoreVersion)
 			r.Get("/trash", a.listTrash)
 			r.Post("/trash/{id}/restore", a.restoreTrash)
+			r.Put("/category-names", a.setCategoryName)
+			r.Post("/category-names/rename", a.renameCategoryNames)
 			r.Get("/history/points", a.projectPoints)
 			r.Get("/history/at", a.projectAt)
 			r.Post("/history/rollback", a.rollbackProject)
@@ -1382,4 +1384,30 @@ func (a *api) rollbackProject(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := a.core.RollbackProject(r.Context(), actorOf(r), chi.URLParam(r, "p"), at)
 	respond(w, res, err)
+}
+
+func (a *api) setCategoryName(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Category string `json:"category"`
+		Lang     string `json:"lang"`
+		Name     string `json:"name"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	p, err := a.core.SetCategoryName(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.Category, in.Lang, in.Name)
+	respond(w, p, err)
+}
+
+func (a *api) renameCategoryNames(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	respond(w, map[string]bool{"ok": true}, a.core.RenameCategoryNames(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.From, in.To))
 }

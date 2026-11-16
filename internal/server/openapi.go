@@ -194,6 +194,8 @@ var apiDocs = map[string]op{
 	"PUT /projects/{p}/env/{name}":                 {Tag: "projects", Summary: "Set a variable or secret."},
 	"DELETE /projects/{p}/env/{name}":              {Tag: "projects", Summary: "Delete a variable."},
 	"GET /projects/{p}/trash":                      {Tag: "projects", Summary: "Deleted pages, entries and files.", Out: []store.TrashItem{}},
+	"PUT /projects/{p}/category-names":             {Tag: "projects", Summary: "Name a folder (category path) in one of the project's further languages; an empty name removes it.", Out: store.Project{}},
+	"POST /projects/{p}/category-names/rename":     {Tag: "projects", Summary: "Move the folder names of a renamed folder (from, to) to the new path."},
 	"GET /projects/{p}/history/points":             {Tag: "projects", Summary: "The newest saved changes of the project's documents (points to look at or roll back to); before, limit.", Out: []core.ProjectPoint{}},
 	"GET /projects/{p}/history/at":                 {Tag: "projects", Summary: "What differs between a point in time (at, RFC 3339) and now: changed, deleted and new documents.", Out: core.ProjectAt{}},
 	"POST /projects/{p}/history/rollback":          {Tag: "projects", Summary: "Owners: bring every document back to its state at a point in time (new versions; deleted pages return, new ones go to the trash).", Out: core.RollbackResult{}},
