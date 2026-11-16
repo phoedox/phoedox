@@ -349,6 +349,14 @@ func TestDescriptionLinksCardDocs(t *testing.T) {
 	if len(docs) != 2 || docs[1].ID != page.Document.ID && docs[0].ID != page.Document.ID {
 		t.Fatalf("update: %+v", docs)
 	}
+	// Links in code and links to other projects are text only.
+	other, err := s.CreateTask(ctx, owner, p.Slug, board.Document.Slug, TaskInput{Title: "Docs", Description: "Write `[[ADR-0001]]` for a link; see [[demo/ADR-0001]].\n\n```\n[[restore]]\n```"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if docs, _ := s.DB.TaskDocs(ctx, p.ID, other.ID); len(docs) != 0 {
+		t.Fatalf("code or other project linked: %+v", docs)
+	}
 }
 
 func TestChecklistBecomesSubtasks(t *testing.T) {
@@ -370,5 +378,10 @@ func TestChecklistBecomesSubtasks(t *testing.T) {
 	u, err := s.UpdateTask(ctx, owner, p.Slug, task.ID, TaskPatch{Description: &more, Subtasks: &shown})
 	if err != nil || len(u.Subtasks) != 3 || u.Subtasks[2].Title != "Test casting" || u.Description != "Part of the plan.\n\nThen test." {
 		t.Fatalf("update: %q %+v %v", u.Description, u.Subtasks, err)
+	}
+	// Checklists inside code blocks stay text.
+	desc, subs := checklistToSubtasks("Example:\n\n```markdown\n- [ ] not a subtask\n```\n\n- [ ] real")
+	if len(subs) != 1 || subs[0].Title != "real" || !strings.Contains(desc, "- [ ] not a subtask") {
+		t.Fatalf("fenced checklist: %q %+v", desc, subs)
 	}
 }

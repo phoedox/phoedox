@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/phoedox/phoedox/internal/graph"
 	"github.com/phoedox/phoedox/internal/store"
 )
 
@@ -45,7 +46,8 @@ var descRefRe = regexp.MustCompile(`\[\[([^\]|\n]+?)(?:\|[^\]\n]+)?\]\]`)
 // descDocs resolves the page links of a description to documents of the
 // project the actor can see (links to other projects are left out).
 func (s *Service) descDocs(ctx context.Context, a Actor, p store.Project, desc string) []string {
-	m := descRefRe.FindAllStringSubmatch(desc, maxTaskDocs)
+	// Links inside code (`[[x]]`, fences) are text, like mentions.
+	m := descRefRe.FindAllStringSubmatch(graph.StripCode(desc), maxTaskDocs)
 	if len(m) == 0 {
 		return nil
 	}

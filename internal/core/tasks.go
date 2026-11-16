@@ -162,8 +162,17 @@ var checklistRe = regexp.MustCompile(`^\s*[-*+]\s+\[([ xX])\]\s+(.+?)\s*$`)
 func checklistToSubtasks(desc string) (string, []store.Subtask) {
 	var subs []store.Subtask
 	var rest []string
+	fence := "" // checklist lines inside a code block stay text
 	for _, line := range strings.Split(desc, "\n") {
-		if m := checklistRe.FindStringSubmatch(line); m != nil && len(subs) < maxSubtasks && len([]rune(m[2])) <= 300 {
+		if t := strings.TrimSpace(line); strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") {
+			switch {
+			case fence == "":
+				fence = t[:3]
+			case strings.HasPrefix(t, fence) && strings.Trim(t, "`~") == "":
+				fence = ""
+			}
+		}
+		if m := checklistRe.FindStringSubmatch(line); m != nil && fence == "" && len(subs) < maxSubtasks && len([]rune(m[2])) <= 300 {
 			subs = append(subs, store.Subtask{ID: newID(), Title: m[2], Done: m[1] != " "})
 			continue
 		}
