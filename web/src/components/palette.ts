@@ -145,6 +145,18 @@ export class PhxPalette extends SignalWatcher(LitElement) {
         items.push({ id: "a-link", label: t("palette.new_link", { project: p.name }), icon: "Link", href: `/p/${p.slug}/new/link` });
       }
       items.push({ id: "a-dec", label: t("palette.decisions", { project: p.name }), icon: "ListChecks", href: `/p/${p.slug}/decisions` });
+      // The project's tools, also in the sidebar's tool row and ⋯ menu (ADR-0076).
+      if (p.role !== "doc") {
+        const edit = p.role === "editor" || p.role === "owner";
+        items.push({ id: "a-replace", label: edit ? t("palette.cmd.replace") : t("replace.nav_find"), icon: edit ? "Replace" : "TextSearch", href: `/p/${p.slug}/replace` });
+        if (edit) {
+          items.push({ id: "a-phist", label: t("palette.cmd.history"), icon: "History", href: `/p/${p.slug}/history` });
+          items.push({ id: "a-trash", label: t("palette.cmd.trash"), icon: "Trash2", href: `/p/${p.slug}/trash` });
+        }
+        items.push({ id: "a-health", label: t("palette.cmd.health"), icon: "HeartPulse", href: `/p/${p.slug}/health` });
+        items.push({ id: "a-sugs", label: t("palette.cmd.suggestions"), icon: "Bot", href: `/p/${p.slug}/suggestions` });
+        items.push({ id: "a-psettings", label: t("palette.cmd.settings"), icon: "Settings", href: `/p/${p.slug}/settings` });
+      }
       for (const c of pluginCommands.get().filter((c) => c.project === p.slug)) {
         items.push({ id: `pl-${c.plugin}-${c.id}`, label: c.label, icon: "Puzzle", href: "", run: () => c.run() });
       }

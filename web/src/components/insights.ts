@@ -16,7 +16,7 @@ const DOC_KINDS = new Set(["broken_mention", "empty_page", "stale_page", "review
 
 /** Project insights without AI: what changed recently and where documentation is missing. */
 export class PhxInsights extends LitElement {
-  static properties = { project: {}, days: { state: true }, changes: { state: true }, gaps: { state: true }, skills: { state: true }, open: { state: true } };
+  static properties = { project: {}, embedded: { type: Boolean }, days: { state: true }, changes: { state: true }, gaps: { state: true }, skills: { state: true }, open: { state: true } };
   static styles = [base, css`
     :host { display: block; max-width: 980px; margin: 0 auto; padding: 24px 16px 60px; }
     ul.skills { list-style: none; padding: 0; display: grid; gap: 8px; }
@@ -33,6 +33,8 @@ export class PhxInsights extends LitElement {
     .count { background: var(--surface-2, var(--line)); border-radius: 999px; padding: 0 8px; font-size: 12.5px; font-weight: 500; }
   `];
   project = "";
+  /** Shown as a tab of the health area: no own heading. */
+  embedded = false;
   days = 7;
   changes?: ChangeSummary;
   gaps?: GapReport;
@@ -100,7 +102,7 @@ export class PhxInsights extends LitElement {
 
   render() {
     return html`
-      <h1>${t("insights.title")}</h1>
+      ${this.embedded ? "" : html`<h1>${t("insights.title")}</h1>`}
       <h2>${icon("History", 18)} ${t("insights.changes")}
         <select aria-label=${t("insights.period")} @change=${(e: Event) => { this.days = Number((e.target as HTMLSelectElement).value); this.loadChanges(); }}>
           ${[7, 30, 90].map((d) => html`<option value=${d} ?selected=${d === this.days}>${t("insights.days", { n: d })}</option>`)}

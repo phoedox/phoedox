@@ -17,7 +17,7 @@ const STATES: IncidentStatus[] = ["investigating", "identified", "monitoring", "
 
 /** Monitoring of a project: checks, incidents with their timeline, public status page. */
 export class PhxMonitoring extends LitElement {
-  static properties = { project: {}, incidents: { state: true }, statusPath: { state: true }, busy: { state: true }, creating: { state: true } };
+  static properties = { project: {}, embedded: { type: Boolean }, incidents: { state: true }, statusPath: { state: true }, busy: { state: true }, creating: { state: true } };
   static styles = [base, css`
     :host { display: block; max-width: 980px; margin: 0 auto; padding: 24px 16px 60px; }
     h2 { font-size: 18px; margin: 28px 0 10px; display: flex; gap: 8px; align-items: center; }
@@ -36,6 +36,8 @@ export class PhxMonitoring extends LitElement {
     code { word-break: break-all; }
   `];
   project = "";
+  /** Shown as a tab of the health area: no own heading. */
+  embedded = false;
   incidents?: Incident[];
   statusPath = "";
   busy = false;
@@ -116,7 +118,7 @@ export class PhxMonitoring extends LitElement {
     const closed = list.filter((i) => i.resolvedAt);
     const url = this.statusPath ? `${location.origin}${this.statusPath}` : "";
     return html`<div class="enter">
-      <h1>${t("monitoring.title")}</h1>
+      ${this.embedded ? "" : html`<h1>${t("monitoring.title")}</h1>`}
       <p class="muted">${t("monitoring.intro")}</p>
 
       ${canEdit ? html`<h2>${icon("Globe", 17)} ${t("statuspage.title")}</h2>

@@ -26,6 +26,7 @@ import "./translate";
 import "./trash";
 import "./project-history";
 import "./find-replace";
+import "./health";
 import "./entity-view";
 import "./entity-form";
 import "./knowledge";
@@ -43,7 +44,7 @@ const typeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scal
 
 /** Project layout: sidebar with documents by category + nested routes. */
 export class PhxProject extends SignalWatcher(LitElement) {
-  static properties = { slug: {}, root: {}, docs: { state: true }, drafts: { state: true }, collapsed: { state: true }, newOpen: { state: true }, moreOpen: { state: true }, error: { state: true }, menuOpen: { state: true }, dropTarget: { state: true }, ctx: { state: true }, sideWidth: { state: true }, sideHidden: { type: Boolean, reflect: true, attribute: "sidehidden" },
+  static properties = { slug: {}, root: {}, docs: { state: true }, drafts: { state: true }, collapsed: { state: true }, newOpen: { state: true }, toolsOpen: { state: true }, counts: { state: true }, error: { state: true }, menuOpen: { state: true }, dropTarget: { state: true }, ctx: { state: true }, sideWidth: { state: true }, sideHidden: { type: Boolean, reflect: true, attribute: "sidehidden" },
     aiChat: { state: true }, chatOpen: { type: Boolean, reflect: true, attribute: "chatopen" } };
   static styles = [base, css`
     :host { display: grid; grid-template-columns: var(--side-w, 260px) minmax(0, 1fr); min-height: calc(100vh - var(--header-h)); }
@@ -102,11 +103,22 @@ export class PhxProject extends SignalWatcher(LitElement) {
     aside a .mark { margin-left: auto; opacity: .6; }
     aside a[draggable="true"] { cursor: grab; }
     aside a.drop { box-shadow: inset 0 2px 0 var(--accent); }
-    .tools { display: flex; flex-direction: column; gap: 1px; padding: 8px 10px 10px; border-top: 1px solid var(--line); background: var(--surface); }
-    .tools .new { position: relative; }
-    .tools .more-btn { display: none; width: 100%; justify-content: flex-start; color: var(--muted); border-color: transparent; }
-    .tools .rest { display: contents; }
+    /* One tool row (ADR-0076): New, then icon buttons and the ⋯ menu. */
+    .tools { display: flex; align-items: center; gap: 4px; padding: 8px 10px 10px; border-top: 1px solid var(--line); background: var(--surface); }
+    .tools .new { position: relative; flex: 1; min-width: 0; }
     .tools .new > button { width: 100%; justify-content: flex-start; }
+    .irow { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+    .ib { all: unset; position: relative; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; color: var(--muted); cursor: pointer; box-sizing: border-box; }
+    .ib:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .ib.on, .ib[aria-pressed="true"] { background: var(--accent-soft); color: var(--fg); }
+    @media (hover: hover) and (pointer: fine) { .ib:hover:not(.on):not([aria-pressed="true"]) { background: var(--surface2); color: var(--fg); } }
+    .ib .badge { position: absolute; top: 1px; right: 0; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 999px; background: var(--accent); color: var(--on-color);
+      font: 600 10px/15px var(--font-mono); text-align: center; box-sizing: border-box; }
+    .tools .more { position: relative; }
+    .tools .menu.right { left: auto; right: 0; min-width: 230px; transform-origin: bottom right; }
+    .tools .menu a, .tools .menu .collapse { display: flex; align-items: center; gap: 8px; }
+    .tools .menu kbd { margin-left: auto; font: 11px var(--font-mono); opacity: .7; }
+    aside a .num.bad { color: var(--bad); font-weight: 600; opacity: 1; }
     .tools .menu { position: absolute; bottom: calc(100% + 4px); left: 0; right: 0; z-index: 10; display: flex; flex-direction: column; gap: 1px; padding: 4px;
       background: var(--bg); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgb(0 0 0 / .12);
       transform-origin: bottom left; transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
@@ -128,10 +140,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
       :host, :host([sidehidden]) { grid-template-columns: 1fr; align-content: start; }
       :host([sidehidden]) aside { display: flex; }
       .resize, .collapse, :host([sidehidden]) .reopen { display: none; }
+      .ib { width: 40px; height: 40px; }
       main { padding: 18px 16px 48px; }
-      .tools .more-btn { display: flex; }
-      .tools .rest { display: none; }
-      .tools.open .rest { display: flex; flex-direction: column; gap: 1px; }
       :host([chatopen]), :host([chatopen][sidehidden]) { grid-template-columns: 1fr; }
       phx-ai-chat { position: fixed; inset: 0; z-index: 40; height: 100dvh; border-left: 0; }
       .mbar { display: flex; align-items: center; gap: 10px; position: sticky; top: var(--header-h); z-index: 5;
@@ -167,12 +177,27 @@ export class PhxProject extends SignalWatcher(LitElement) {
   /** Collapsed category paths (remembered per browser and project). */
   collapsed = new Set<string>();
   newOpen = false;
-  /** Phones: the links under "New" are shown (remembered). */
-  moreOpen: boolean | undefined = ({ 1: true, 0: false } as Record<number, boolean>)[readSide("phx.sidemore", -1)];
+  /** The ⋯ menu of the tool row (ADR-0076). */
+  toolsOpen = false;
+  /** Badges: failing checks, documentation gaps, pending suggestions. */
+  counts = { failing: 0, gaps: 0, pending: 0 };
 
-  private setMore(open: boolean) {
-    this.moreOpen = open;
-    writeSide("phx.sidemore", open ? 1 : 0);
+  /** Loads the badge numbers of the sidebar (in the background). */
+  private async loadCounts() {
+    const slug = this.slug;
+    const [checks, gaps, sugs] = await Promise.all([
+      api<{ lastStatus?: string; enabled?: boolean }[]>("GET", `/projects/${slug}/checks`).catch(() => []),
+      api<{ gaps: unknown[] }>("GET", `/projects/${slug}/gaps`).catch(() => ({ gaps: [] })),
+      api<unknown[]>("GET", `/projects/${slug}/suggestions?status=pending`).catch(() => []),
+    ]);
+    if (slug !== this.slug) return;
+    this.counts = { failing: (checks ?? []).filter((c) => c.enabled !== false && c.lastStatus === "fail").length, gaps: gaps?.gaps?.length ?? 0, pending: (sugs ?? []).length };
+  }
+
+  /** Old addresses of the health area's tabs. */
+  private healthAt(tab: string) {
+    history.replaceState(history.state, "", `/p/${this.slug}/health?tab=${tab}`);
+    return html`<phx-health .project=${this.slug}></phx-health>`;
   }
   error = "";
   /** Drawer state on small screens; ignored on wide screens. */
@@ -216,8 +241,9 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "e/:entity", render: ({ entity }) => html`<phx-entity-view .project=${this.slug} .entity=${entity!}></phx-entity-view>` },
     { path: "decisions", render: () => this.gated("decisions", html`<phx-decisions .project=${this.slug}></phx-decisions>`) },
     { path: "suggestions", render: () => html`<phx-suggestions .project=${this.slug}></phx-suggestions>` },
-    { path: "insights", render: () => html`<phx-insights .project=${this.slug}></phx-insights>` },
-    { path: "monitoring", render: () => html`<phx-monitoring .project=${this.slug}></phx-monitoring>` },
+    { path: "health", render: () => html`<phx-health .project=${this.slug}></phx-health>` },
+    { path: "insights", render: () => this.healthAt("insights") },
+    { path: "monitoring", render: () => this.healthAt("checks") },
     // Project settings: pages with their own rail instead of the sidebar (ADR-0070).
     { path: "settings", render: () => html`<phx-project-settings .project=${this.slug} section=""></phx-project-settings>` },
     { path: "settings/:section", render: ({ section }) => html`<phx-project-settings .project=${this.slug} .section=${section!}></phx-project-settings>` },
@@ -255,6 +281,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
         const ai = await api<{ available: boolean; reason?: string }>("GET", `/projects/${this.slug}/ai/status`).catch(() => undefined);
         // Hidden where the chat is switched off; shown with a notice when a budget is used up.
         this.aiChat = !!ai && (ai.available || /budget$/.test(ai.reason ?? ""));
+        if (p.role !== "doc") void this.loadCounts();
       } catch {
         this.error = t("error.not_found");
       }
@@ -443,8 +470,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     if (here.endsWith("/files")) return t("nav.files");
     if (here.endsWith("/new-entity")) return t("entity.new");
     if (here.endsWith("/suggestions")) return t("nav.suggestions");
-    if (here.endsWith("/monitoring")) return t("monitoring.title");
-    if (here.endsWith("/insights")) return t("insights.title");
+    if (here.endsWith("/health") || here.endsWith("/monitoring") || here.endsWith("/insights")) return t("health.title");
     if (here.endsWith("/locations")) return t("loc.title");
     if (here.endsWith("/table")) return t("table.title");
     if (here.endsWith("/household")) return t("house.title");
@@ -476,6 +502,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
 
   private closeNew = () => {
     if (this.newOpen) this.newOpen = false;
+    if (this.toolsOpen) this.toolsOpen = false;
   };
 
   private toggleCategory(path: string) {
@@ -754,9 +781,8 @@ export class PhxProject extends SignalWatcher(LitElement) {
     const canEdit = ["editor", "owner"].includes(currentProject.get()?.role ?? "");
     // Only single pages are shared with this person: no project-wide views.
     const docOnly = currentProject.get()?.role === "doc";
-    // Phones: the links below "New" fold behind "More…" (open when one of them is shown).
-    const rest = ["replace", "history", "trash", "household", "insights", "monitoring", "suggestions", "settings"];
-    const moreOpen = this.moreOpen ?? rest.some((r) => here === `/p/${this.slug}/${r}` || here.startsWith(`/p/${this.slug}/${r}/`));
+    const at = (r: string) => here === `/p/${this.slug}/${r}` || here.startsWith(`/p/${this.slug}/${r}/`);
+    const { failing, gaps, pending } = this.counts;
     return html`
       <div class="mbar">
         <button class="ghost" aria-expanded=${this.menuOpen} aria-controls="nav" @click=${() => this.setMenu(!this.menuOpen)}>${icon("Menu", 16)} ${t("nav.menu")}</button>
@@ -776,10 +802,13 @@ export class PhxProject extends SignalWatcher(LitElement) {
             ${!hasFeature(proj, "decisions") ? "" : html`<a href="/p/${this.slug}/decisions" class=${here === `/p/${this.slug}/decisions` || this.docs.some((d) => d.type === "adr" && this.isOpen(d, here)) ? "on" : ""}>${icon("ListChecks", 15)} ${t("nav.decisions")}
               ${decisions ? html`<span class="num">${decisions}</span>` : ""}</a>`}
             ${docOnly || !hasFeature(proj, "graph") ? "" : html`<a href="/p/${this.slug}/graph" class=${this.inKnowledge(here) ? "on" : ""}>${icon("Waypoints", 15)} ${t("nav.graph")}</a>`}
-            ${docOnly || !hasFeature(proj, "files") ? "" : html`<a href="/p/${this.slug}/files" class=${here === `/p/${this.slug}/files` ? "on" : ""}>${icon("Paperclip", 15)} ${t("nav.files")}</a>`}</div>
+            ${docOnly || !hasFeature(proj, "files") ? "" : html`<a href="/p/${this.slug}/files" class=${here === `/p/${this.slug}/files` ? "on" : ""}>${icon("Paperclip", 15)} ${t("nav.files")}</a>`}
+            ${docOnly ? "" : html`<a href="/p/${this.slug}/health" class=${at("health") || at("monitoring") || at("insights") ? "on" : ""}>${icon("HeartPulse", 15)} ${t("health.title")}
+              ${failing ? html`<span class="num bad" title=${t("health.failing", { count: failing })}>${failing}</span>` : gaps ? html`<span class="num" title=${t("health.gaps", { count: gaps })}>${gaps}</span>` : ""}</a>`}
+            ${docOnly || !hasFeature(proj, "household") ? "" : html`<a href="/p/${this.slug}/household" class=${at("household") ? "on" : ""}>${icon("House", 15)} ${t("house.title")}</a>`}</div>
           ${this.tree(here, canEdit)}
         </div>
-        <div class=${moreOpen ? "tools open" : "tools"}>
+        <div class="tools">
           ${canEdit ? html`<div class="new">
             <button class="ghost" aria-expanded=${this.newOpen ? "true" : "false"} aria-haspopup="menu" @click=${(e: Event) => { e.stopPropagation(); this.newOpen = !this.newOpen; }}>${icon("Plus", 15)} ${t("create.new")}</button>
             ${this.newOpen ? html`<div class="menu" role="menu" @keydown=${(e: KeyboardEvent) => e.key === "Escape" && (this.newOpen = false)}>
@@ -790,21 +819,25 @@ export class PhxProject extends SignalWatcher(LitElement) {
               ${hasFeature(proj, "graph") || hasFeature(proj, "model") ? html`<a role="menuitem" href="/p/${this.slug}/new-entity" @click=${() => (this.newOpen = false)}>${icon("Plus", 15)} ${t("entity.new")}</a>` : ""}
             </div>` : ""}
           </div>` : ""}
-          <button class="ghost more-btn" aria-expanded=${moreOpen ? "true" : "false"} aria-controls="side-more" @click=${() => this.setMore(!moreOpen)}>
-            ${icon(moreOpen ? "ChevronsDownUp" : "ChevronsUpDown", 15)} ${moreOpen ? t("nav.less") : t("nav.more")}</button>
-          <div class="rest" id="side-more">
-          ${docOnly ? "" : html`<a href="/p/${this.slug}/replace" class=${here === `/p/${this.slug}/replace` ? "on" : ""}>${icon(canEdit ? "Replace" : "TextSearch", 15)} ${t(canEdit ? "replace.nav" : "replace.nav_find")}</a>`}
-          ${canEdit ? html`<a href="/p/${this.slug}/history" class=${here === `/p/${this.slug}/history` ? "on" : ""}>${icon("History", 15)} ${t("phist.nav")}</a>
-          <a href="/p/${this.slug}/trash" class=${here.endsWith("/trash") ? "on" : ""}>${icon("Trash2", 15)} ${t("nav.trash")}</a>` : ""}
-          ${docOnly || !hasFeature(proj, "household") ? "" : html`<a href="/p/${this.slug}/household" class=${here.endsWith("/household") ? "on" : ""}>${icon("House", 15)} ${t("house.title")}</a>`}
-          ${this.aiChat && !docOnly ? html`<button class="collapse" aria-pressed=${this.chatOpen ? "true" : "false"} @click=${() => this.setChat(!this.chatOpen)}>${icon("BotMessageSquare", 15)} ${t("ai_chat.title")}</button>` : ""}
-          ${docOnly ? "" : html`<a href="/p/${this.slug}/insights" class=${here.endsWith("/insights") ? "on" : ""}>${icon("Sparkles", 15)} ${t("insights.title")}</a>
-          <a href="/p/${this.slug}/monitoring" class=${here.endsWith("/monitoring") ? "on" : ""}>${icon("Activity", 15)} ${t("monitoring.title")}</a>
-          <a href="/p/${this.slug}/suggestions" class=${here.endsWith("/suggestions") ? "on" : ""}>${icon("Bot", 15)} ${t("nav.suggestions")}</a>
-          <a href="/p/${this.slug}/settings" class=${here.endsWith("/settings") ? "on" : ""}>${icon("Settings", 15)} ${t("nav.settings")}</a>`}
-          <button class="collapse" aria-controls="nav" aria-expanded="true" @click=${() => this.setSideHidden(true)}>${icon("PanelLeftClose", 15)} ${t("nav.sidebar_hide")}
-            ${comboFor("sidebar") ? html`<kbd>${comboLabel(comboFor("sidebar"))}</kbd>` : ""}</button>
-          </div>
+          ${docOnly ? "" : html`<div class="irow">
+            ${this.aiChat ? html`<button class="ib" aria-pressed=${this.chatOpen ? "true" : "false"} title=${t("ai_chat.title")} aria-label=${t("ai_chat.title")}
+              @click=${() => this.setChat(!this.chatOpen)}>${icon("BotMessageSquare", 16)}</button>` : ""}
+            <a class=${at("suggestions") ? "ib on" : "ib"} href="/p/${this.slug}/suggestions" title=${pending ? t("nav.suggestions_n", { count: pending }) : t("nav.suggestions")}
+              aria-label=${pending ? t("nav.suggestions_n", { count: pending }) : t("nav.suggestions")}>${icon("Bot", 16)}${pending ? html`<span class="badge">${pending > 99 ? "99+" : pending}</span>` : ""}</a>
+            <a class=${at("settings") ? "ib on" : "ib"} href="/p/${this.slug}/settings" title=${t("nav.settings")} aria-label=${t("nav.settings")}>${icon("Settings", 16)}</a>
+            <span class="more">
+              <button class=${this.toolsOpen || at("replace") || at("history") || at("trash") ? "ib on" : "ib"} aria-haspopup="menu" aria-expanded=${this.toolsOpen ? "true" : "false"}
+                title=${t("nav.more_tools")} aria-label=${t("nav.more_tools")} @click=${(e: Event) => { e.stopPropagation(); this.newOpen = false; this.toolsOpen = !this.toolsOpen; }}>${icon("Ellipsis", 16)}</button>
+              ${this.toolsOpen ? html`<div class="menu right" role="menu" @keydown=${(e: KeyboardEvent) => e.key === "Escape" && (this.toolsOpen = false)} @click=${() => (this.toolsOpen = false)}>
+                <a role="menuitem" href="/p/${this.slug}/replace" class=${at("replace") ? "on" : ""}>${icon(canEdit ? "Replace" : "TextSearch", 15)} ${t(canEdit ? "replace.nav" : "replace.nav_find")}</a>
+                ${canEdit ? html`<a role="menuitem" href="/p/${this.slug}/history" class=${at("history") ? "on" : ""}>${icon("History", 15)} ${t("phist.nav")}
+                  ${comboFor("history") ? html`<kbd>${comboLabel(comboFor("history"))}</kbd>` : ""}</a>
+                <a role="menuitem" href="/p/${this.slug}/trash" class=${at("trash") ? "on" : ""}>${icon("Trash2", 15)} ${t("nav.trash")}</a>` : ""}
+                <button role="menuitem" class="collapse" aria-controls="nav" @click=${() => this.setSideHidden(true)}>${icon("PanelLeftClose", 15)} ${t("nav.sidebar_hide")}
+                  ${comboFor("sidebar") ? html`<kbd>${comboLabel(comboFor("sidebar"))}</kbd>` : ""}</button>
+              </div>` : ""}
+            </span>
+          </div>`}
         </div>
         <phx-create-dialog .project=${this.slug}></phx-create-dialog>
         ${this.ctxMenu()}
