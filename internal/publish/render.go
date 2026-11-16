@@ -195,6 +195,9 @@ func (r fenceRenderer) render(w util.BufWriter, src []byte, n ast.Node, entering
 		if r.links.Whiteboard != nil {
 			_, _ = w.WriteString(r.links.Whiteboard(text))
 		}
+	case "app":
+		// Apps run only inside Phoedox (they need a signed-in person).
+		_, _ = w.WriteString(`<p class="muted">` + esc + `</p>`)
 	case "include":
 		if r.links.Include != nil {
 			_, _ = w.WriteString(r.links.Include(text))

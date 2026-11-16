@@ -322,6 +322,47 @@ export class PhxWhiteboardEmbed extends LitElement {
 customElements.get("phx-whiteboard-embed") || customElements.define("phx-whiteboard-embed", PhxWhiteboardEmbed);
 
 /** Styles for callouts and colors inside rendered pages. */
+/** ```app <slug>: an app inside a page, as tall as its content. */
+export class PhxAppEmbed extends LitElement {
+  static properties = { app: { attribute: "data-app" }, project: { attribute: "data-project" }, info: { state: true }, title: { state: true }, missing: { state: true } };
+  static styles = [base, css`
+    :host { display: block; margin: 1em 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+    .head { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); font-weight: 600; }
+    .head a { color: var(--fg); text-decoration: none; margin-right: auto; }
+  `];
+  app = "";
+  project = "";
+  info?: import("./apps").AppFrameInfo;
+  title = "";
+  missing = false;
+  private loaded = "";
+
+  async willUpdate() {
+    const key = `${this.project}/${this.app}`;
+    if (!this.project || !this.app || key === this.loaded) return;
+    this.loaded = key;
+    try {
+      const ref = encodeURIComponent(this.app.trim());
+      const d = await api<Doc>("GET", `/projects/${this.project}/documents/${ref}`);
+      if (d.type !== "app") throw new Error("not an app");
+      await import("./apps");
+      this.title = d.title;
+      this.info = await api("POST", `/projects/${this.project}/apps/${d.id}/open`);
+      this.app = d.id;
+    } catch {
+      this.missing = true;
+    }
+  }
+
+  render() {
+    if (this.missing) return html`<p class="muted" style="padding:8px 12px">${icon("AppWindow", 14)} ${t("block.app_missing", { app: this.app })}</p>`;
+    const href = `/p/${this.project}/d/${encodeURIComponent(this.app.trim())}`;
+    return html`<div class="head">${icon("AppWindow", 15)} <a href=${href}>${this.title || this.app}</a><a class="btn ghost" style="margin:0" href=${href}>${t("block.whiteboard_open")}</a></div>
+      ${this.info ? html`<phx-app-frame auto-height .project=${this.project} .doc=${this.app} .info=${this.info}></phx-app-frame>` : html`<span class="muted" style="display:block;padding:8px 12px">${t("app.loading")}</span>`}`;
+  }
+}
+customElements.get("phx-app-embed") || customElements.define("phx-app-embed", PhxAppEmbed);
+
 export const blockStyles = `
   phx-include { display: block; border-left: 3px solid var(--line); padding-left: 14px; margin: 1em 0; }
   phx-include .include-src { font-size: 12.5px; margin: .3em 0 0; }

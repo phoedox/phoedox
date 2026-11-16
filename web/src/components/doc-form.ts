@@ -83,6 +83,7 @@ export class PhxDocForm extends LitElement {
       body.floorplan = { ...base, description: s("description") };
     }
     if (this.type === "whiteboard" && !this.doc) body.whiteboard = { elements: [] };
+    if (this.type === "app" && !this.doc) body.app = (await import("./apps")).starterApp();
     if (this.type === "board") {
       body.board = this.doc
         ? { ...(this.doc.content ?? {}), description: s("description") }
@@ -101,6 +102,12 @@ export class PhxDocForm extends LitElement {
         res = await api<DocResult>("PATCH", `/projects/${this.project}/documents/${this.doc.slug}`, { ...body, expectVersion: this.doc.version });
       } else {
         res = await api<DocResult>("POST", `/projects/${this.project}/documents`, { ...body, type: this.type });
+      }
+      if (this.type === "app" && !this.doc) {
+        // New apps continue in the app editor.
+        docsVersion.set(docsVersion.get() + 1);
+        navigate(`/p/${this.project}/d/${res.document?.slug ?? res.document?.id ?? ""}/app-edit`);
+        return;
       }
       if (this.type === "markdown" && !this.doc) {
         // New pages continue in the live editor.

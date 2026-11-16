@@ -192,6 +192,9 @@ func (s *Service) checkQuota(ctx context.Context, p store.Project, add int64) er
 	if err != nil {
 		return err
 	}
+	// Apps' own storage counts against the project storage.
+	apps, _ := s.DB.ProjectAppStorage(ctx, p.ID)
+	used += apps
 	if used+add > limit {
 		return invalid("validation.quota_exceeded", map[string]any{"used": used >> 20, "limit": limit >> 20}, "the project's storage is full (%d of %d MB)", used>>20, limit>>20)
 	}

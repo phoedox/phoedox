@@ -218,3 +218,10 @@ publications:
 # record in its settings; add the domain here so it gets a certificate.
 appDomains: []
 
+
+# User content domain (apps, one subdomain per app, e.g. phoedoxusercontent.com).
+# DNS: "*" and "@" point to this server. Phoedox gets the wildcard certificate
+# itself (DNS-01 with the provider set in Administration → User content);
+# Traefik passes these hosts through to it unchanged (TLS passthrough).
+userContent:
+  domain: ""

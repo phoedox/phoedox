@@ -464,6 +464,9 @@ func (s *Service) ImportProject(ctx context.Context, a Actor, data []byte) (Impo
 		case store.DocWhiteboard:
 			di.Whiteboard = &Whiteboard{}
 			_ = json.Unmarshal(d.Content, di.Whiteboard)
+		case store.DocApp:
+			di.App = &App{}
+			_ = json.Unmarshal(d.Content, di.App)
 		default:
 			problem("page %s: unknown type %s", d.Slug, d.Type)
 			continue

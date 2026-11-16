@@ -20,6 +20,7 @@ const fieldsOf: Record<Doc["type"], Field[]> = {
   board: ["description"],
   floorplan: ["description"],
   whiteboard: [],
+  app: [],
 };
 
 /** Side-by-side translation of a page or decision (ADR-0028). */

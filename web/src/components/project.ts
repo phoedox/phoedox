@@ -41,7 +41,7 @@ import "./create-dialog";
 import "./ai-chat";
 import type { PhxCreateDialog } from "./create-dialog";
 
-const typeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scale", link: "ExternalLink", board: "SquareKanban", floorplan: "LandPlot", whiteboard: "Presentation" };
+const typeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scale", link: "ExternalLink", board: "SquareKanban", floorplan: "LandPlot", whiteboard: "Presentation", app: "AppWindow" };
 
 /** Project layout: sidebar with documents by category + nested routes. */
 export class PhxProject extends SignalWatcher(LitElement) {
@@ -221,6 +221,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
 
   private routes = new Routes(this, [
     { path: "d/:doc/edit", render: ({ doc }) => html`<phx-doc-form .project=${this.slug} .docSlug=${doc!}></phx-doc-form>` },
+    { path: "d/:doc/app-edit", render: ({ doc }) => { void import("./apps"); return html`<phx-app-editor .project=${this.slug} .docSlug=${doc!}></phx-app-editor>`; } },
     { path: "d/:doc/translate/:lang", render: ({ doc, lang }) => html`<phx-translate .project=${this.slug} .docSlug=${doc!} .lang=${lang!}></phx-translate>` },
     { path: "d/:doc/history", render: ({ doc }) => html`<phx-history .project=${this.slug} .docSlug=${doc!}></phx-history>` },
     { path: "trash", render: () => html`<phx-trash .project=${this.slug}></phx-trash>` },

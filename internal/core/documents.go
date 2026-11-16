@@ -282,6 +282,8 @@ type DocumentInput struct {
 	Floorplan *Floorplan `json:"floorplan,omitempty"`
 	// Whiteboard is the content of a whiteboard document.
 	Whiteboard *Whiteboard `json:"whiteboard,omitempty"`
+	// App is the content of an app document.
+	App *App `json:"app,omitempty"`
 	// Parent makes the document part of a page (slug or id), e.g. a board
 	// created from the page's "/" menu; it stays out of the sidebar.
 	Parent string `json:"parent,omitempty"`
@@ -304,6 +306,7 @@ type DocumentPatch struct {
 	Board         *Board      `json:"board,omitempty"`
 	Floorplan     *Floorplan  `json:"floorplan,omitempty"`
 	Whiteboard    *Whiteboard `json:"whiteboard,omitempty"`
+	App           *App        `json:"app,omitempty"`
 	ExtRef        *string     `json:"extRef,omitempty"`
 	ExpectVersion int         `json:"expectVersion,omitempty"`
 	// Edits change exact passages instead of sending the whole text.
@@ -325,14 +328,24 @@ type DocResult struct {
 
 // content builds and validates the JSON content for a type and returns the
 // text used for mention extraction.
-func content(typ, markdown string, adr *ADR, link *Link, board *Board, fp *Floorplan, wb ...*Whiteboard) (store.JSON, string, error) {
+func content(typ, markdown string, adr *ADR, link *Link, board *Board, fp *Floorplan, extra ...any) (store.JSON, string, error) {
 	switch typ {
 	case store.DocWhiteboard:
 		var w *Whiteboard
-		if len(wb) > 0 {
-			w = wb[0]
+		for _, x := range extra {
+			if v, ok := x.(*Whiteboard); ok {
+				w = v
+			}
 		}
 		return whiteboardContent(w)
+	case store.DocApp:
+		var app *App
+		for _, x := range extra {
+			if v, ok := x.(*App); ok {
+				app = v
+			}
+		}
+		return appContent(app)
 	case store.DocBoard:
 		return boardContent(board)
 	case store.DocFloorplan:
@@ -375,7 +388,7 @@ func content(typ, markdown string, adr *ADR, link *Link, board *Board, fp *Floor
 		b, _ := json.Marshal(link)
 		return b, link.Description, nil
 	default:
-		return nil, "", invalid("validation.doc_type", nil, "type must be markdown, adr, link, board, floorplan or whiteboard")
+		return nil, "", invalid("validation.doc_type", nil, "type must be markdown, adr, link, board, floorplan, whiteboard or app")
 	}
 }
 
@@ -443,7 +456,7 @@ func (s *Service) CreateDocument(ctx context.Context, a Actor, ref string, in Do
 	if err := graph.ValidateSlug(in.Slug); err != nil {
 		return DocResult{}, invalid("validation.slug", nil, "slug: %v", err)
 	}
-	if _, _, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board, in.Floorplan, in.Whiteboard); err != nil {
+	if _, _, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board, in.Floorplan, in.Whiteboard, in.App); err != nil {
 		return DocResult{}, err
 	}
 	in.ExtRef = strings.TrimSpace(in.ExtRef)
@@ -487,7 +500,7 @@ func (s *Service) createDocument(ctx context.Context, a Actor, p store.Project, 
 			return DocResult{}, err
 		}
 	}
-	c, text, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board, in.Floorplan, in.Whiteboard)
+	c, text, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board, in.Floorplan, in.Whiteboard, in.App)
 	if err != nil {
 		return DocResult{}, err
 	}
@@ -629,7 +642,14 @@ func (s *Service) patched(ctx context.Context, p store.Project, cur store.Docume
 	var board *Board
 	var fp *Floorplan
 	var wb *Whiteboard
+	var app *App
 	switch cur.Type {
+	case store.DocApp:
+		app = &App{}
+		_ = json.Unmarshal(cur.Content, app)
+		if patch.App != nil {
+			app = patch.App
+		}
 	case store.DocWhiteboard:
 		wb = &Whiteboard{}
 		_ = json.Unmarshal(cur.Content, wb)
@@ -690,7 +710,7 @@ func (s *Service) patched(ctx context.Context, p store.Project, cur store.Docume
 			return doc, "", nil, err
 		}
 	}
-	c, text, err := content(cur.Type, md, adr, link, board, fp, wb)
+	c, text, err := content(cur.Type, md, adr, link, board, fp, wb, app)
 	doc.Content = c
 	return doc, text, related, err
 }

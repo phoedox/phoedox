@@ -20,6 +20,7 @@ import (
 	"github.com/phoedox/phoedox/internal/plugins"
 	"github.com/phoedox/phoedox/internal/requests"
 	"github.com/phoedox/phoedox/internal/store"
+	"github.com/phoedox/phoedox/internal/usercontent"
 )
 
 // op documents one route. In and Out are example values whose Go types are
@@ -209,6 +210,17 @@ var apiDocs = map[string]op{
 	"PUT /orgs/{o}/ai/members/{user}":                    {Tag: "organizations", Summary: "Set a member's own AI limit (cents, -1 = the organization's default; or percent of the default when prices are hidden).", In: core.MemberLimitInput{}, Out: core.MemberBudgets{}},
 	"POST /orgs/{o}/ai/requests":                         {Tag: "organizations", Summary: "Ask the organization's admins for more AI usage (+25/50/100/200 % for this month or permanently), when the organization allows it.", In: core.BudgetRequestInput{}, Out: store.BudgetRequest{}},
 	"POST /orgs/{o}/ai/requests/{id}":                    {Tag: "organizations", Summary: "Approve (possibly with another percentage or scope) or reject a request for more AI usage (organization admins).", In: core.BudgetDecision{}, Out: core.MemberBudgets{}},
+	"POST /projects/{p}/apps/preview":                    {Tag: "apps", Query: []string{"doc"}, Summary: "Compile an app's unsaved files for the editor's live preview (editors; doc = the app being edited, whose grants apply); answers with a frame address valid for 30 minutes and the compile errors.", In: core.App{}, Out: core.AppFrame{}},
+	"POST /projects/{p}/apps/{doc}/open":                 {Tag: "apps", Summary: "The frame address of an app (sealed, 12 hours), the bridge level it asks for, what the viewer allowed (-1 = not asked yet), its sources and compile errors.", Out: core.AppFrame{}},
+	"PUT /projects/{p}/apps/{doc}/grant":                 {Tag: "apps", Summary: "Allow an app a bridge level (at most what it asks for): 0 none, 1 read its sources, 2 own storage, 3 propose changes."},
+	"POST /projects/{p}/apps/{doc}/read":                 {Tag: "apps", Summary: "Read a source of the app's manifest (level 1) with the viewer's rights: a saved query, a board's cards, checks or entries of a kind."},
+	"GET /projects/{p}/apps/{doc}/storage":               {Tag: "apps", Summary: "Keys of the app's own storage (level 2); personal=1 for the viewer's own values instead of the shared ones.", Query: []string{"personal"}},
+	"GET /projects/{p}/apps/{doc}/storage/{key}":         {Tag: "apps", Summary: "A value (JSON) of the app's own storage; null if missing.", Query: []string{"personal"}},
+	"PUT /projects/{p}/apps/{doc}/storage/{key}":         {Tag: "apps", Summary: "Store a value (JSON, up to 1 MB) in the app's own storage; counts against the app's limit and the project storage.", Query: []string{"personal"}},
+	"DELETE /projects/{p}/apps/{doc}/storage/{key}":      {Tag: "apps", Summary: "Remove a value from the app's own storage.", Query: []string{"personal"}},
+	"POST /projects/{p}/apps/{doc}/console":              {Tag: "apps", Summary: "Report console errors and warnings of an app (kept briefly, so AI clients can fix them with get_app)."},
+	"GET /admin/user-content":                            {Tag: "admin", Summary: "The user content domain apps run on (one subdomain per app), its DNS provider without secrets, and the state of the wildcard certificate (system admins).", Out: core.UserContentView{}},
+	"PUT /admin/user-content":                            {Tag: "admin", Summary: "Set the user content domain: domain, DNS provider (hetzner, netcup, cloudflare) with its credentials (empty keeps the stored ones), ACME e-mail; Phoedox gets the wildcard certificate through DNS-01. An empty domain switches it off.", In: usercontent.Config{}, Out: core.UserContentView{}},
 	"GET /themes":                                        {Tag: "themes", Summary: "Themes the person can choose (own, organizations', instance's and, with project, the project's), the person's choice and the effective theme with where it comes from.", Query: []string{"project"}, Out: core.ThemeCatalog{}},
 	"GET /themes/{id}":                                   {Tag: "themes", Summary: "A theme: tokens per mode, fonts, shape, own CSS and whether that CSS is released for the running version.", Out: core.ThemeView{}},
 	"POST /themes/check":                                 {Tag: "themes", Summary: "Check a theme while editing: contrast problems per mode (WCAG AA) and the first other problem, without saving.", In: core.ThemeInput{}, Out: core.ThemeCheck{}},

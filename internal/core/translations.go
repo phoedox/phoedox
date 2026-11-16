@@ -168,7 +168,7 @@ func translationContent(typ string, in TranslationInput) (store.JSON, error) {
 		// Proposed decisions may have no decision text yet.
 		v = adrText{Context: str(in.Context), Decision: str(in.Decision), Consequences: str(in.Consequences), Alternatives: str(in.Alternatives),
 			SupersedesScope: strings.TrimSpace(str(in.SupersedesScope))}
-	case store.DocLink, store.DocBoard, store.DocFloorplan, store.DocWhiteboard:
+	case store.DocLink, store.DocBoard, store.DocFloorplan, store.DocWhiteboard, store.DocApp:
 		v = map[string]string{"description": str(in.Description)}
 	default:
 		return nil, invalid("validation.doc_type", nil, "unknown document type")

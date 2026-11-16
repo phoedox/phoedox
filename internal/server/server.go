@@ -149,7 +149,10 @@ func New(d Deps) http.Handler {
 		}
 		http.Redirect(w, r, "/p/"+project+"/e/"+slug, http.StatusFound)
 	})
+	// Apps run in sandboxed frames; their libraries are served with CORS.
+	r.Get("/app-frame/{tok}/*", appFrame(d.Core, d.Config))
 	if d.Web != nil {
+		r.Handle("/applib/*", appLibs(d.Web))
 		r.Handle("/*", spa(d.Web))
 	}
 	return r

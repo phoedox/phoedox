@@ -7,6 +7,7 @@ import (
 	"github.com/phoedox/phoedox/internal/metrics"
 	"github.com/phoedox/phoedox/internal/publish"
 	"github.com/phoedox/phoedox/internal/store"
+	"github.com/phoedox/phoedox/internal/usercontent"
 	"log/slog"
 	"net/http"
 	"os"
@@ -67,6 +68,20 @@ func main() {
 		Publish: &publish.Site{Core: a.Core, Web: web.Dist(), Version: server.Version, AppURL: a.Core.PublicURL},
 	})
 	srv := &http.Server{Addr: a.Config.Listen, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+
+	// Apps run on their own domain once a system admin set it up.
+	if a.Config.UserContentListen != "off" {
+		uc := &usercontent.Server{Handler: server.UserContentHandler(a.Core, a.Config), Dir: a.Config.DataDir}
+		a.Core.UserContent = uc
+		if err := a.Core.StartUserContent(ctx); err != nil {
+			log.Warn("user content domain not started", "err", err)
+		}
+		go func() {
+			if err := uc.Serve(ctx, a.Config.UserContentListen); err != nil {
+				log.Error("user content listener stopped", "addr", a.Config.UserContentListen, "err", err)
+			}
+		}()
+	}
 
 	go func() {
 		log.Info("phoedox listening", "addr", a.Config.Listen, "db", a.Config.DBDriver, "version", server.Version)

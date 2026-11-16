@@ -106,6 +106,24 @@ type saveWhiteboardIn struct {
 	Whiteboard core.Whiteboard `json:"whiteboard" jsonschema:"the whole board: elements (see edit_whiteboard) and comments"`
 }
 
+type createAppIn struct {
+	Project   string            `json:"project" jsonschema:"project slug"`
+	Title     string            `json:"title"`
+	Category  string            `json:"category,omitempty"`
+	Files     map[string]string `json:"files" jsonschema:"file name → source: index.html, or app.tsx/app.jsx (React, compiled on save) with an index.html made around it; plus .css, .js, .ts, .json, .svg. At most 40 files, 1 MB"`
+	Level     int               `json:"level,omitempty" jsonschema:"bridge level the app asks for: 0 none, 1 read its sources, 2 own storage, 3 propose changes the person confirms"`
+	Sources   []core.AppSource  `json:"sources,omitempty" jsonschema:"what the app may read at level 1: {id, kind query|board|checks|entities, ref (saved query, board, or kind), label}"`
+	StorageMB int               `json:"storageMb,omitempty" jsonschema:"limit of the app's own storage in MB (default 10)"`
+}
+
+type editAppIn struct {
+	Project  string             `json:"project" jsonschema:"project slug"`
+	Document string             `json:"document" jsonschema:"app slug or id"`
+	Edits    []core.AppEdit     `json:"edits,omitempty" jsonschema:"exact replacements {file, old, new}; old must occur exactly once in the file"`
+	Files    map[string]*string `json:"files,omitempty" jsonschema:"whole files to add or replace; null removes a file"`
+	Manifest *core.App          `json:"manifest,omitempty" jsonschema:"new level, sources, storageMb (files here are ignored)"`
+}
+
 type createBoardIn struct {
 	Project     string             `json:"project" jsonschema:"project slug"`
 	Title       string             `json:"title"`
@@ -820,6 +838,15 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 			return svc.UpdateDocument(ctx, a, in.Project, in.Document, core.DocumentPatch{Whiteboard: &in.Whiteboard})
 		}
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocWhiteboard, Title: in.Title, Category: in.Category, Whiteboard: &in.Whiteboard})
+	})
+	tool(s, "create_app", "Create an app: a small web program in the project (HTML/CSS/JS or React JSX/TypeScript, compiled on save) that runs in an isolated frame. Libraries by import name: react, react-dom/client, lit, chart.js, d3; no other network. Data only through window.phoedox: info(), requestAccess(), read(sourceId) (level 1), storage.get/set/delete/list(key, value, {personal}) (level 2), propose({kind: task|comment|entity, ...}) (level 3, the person confirms), open(ref). Ask for the lowest level that does the job. Check get_app afterwards for compile and console errors.", func(ctx context.Context, a core.Actor, in createAppIn) (any, error) {
+		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocApp, Title: in.Title, Category: in.Category, App: &core.App{Files: in.Files, Level: in.Level, Sources: in.Sources, StorageMB: in.StorageMB}})
+	})
+	tool(s, "get_app", "Read an app: its files, manifest (level, sources, storage), compile errors and the last console errors and warnings from people using it. Use it before edit_app and after changes to fix errors.", func(ctx context.Context, a core.Actor, in wbDocIn) (any, error) {
+		return svc.GetApp(ctx, a, in.Project, in.Document)
+	})
+	tool(s, "edit_app", "Change an app with exact edits {file, old, new} (old exactly once), whole files (null removes one) or a new manifest. Saved as a new version; compile errors come back in the result's build.", func(ctx context.Context, a core.Actor, in editAppIn) (any, error) {
+		return svc.EditApp(ctx, a, in.Project, in.Document, in.Files, in.Edits, in.Manifest)
 	})
 	tool(s, "create_board", "Create a task board (a document of type board with columns).", func(ctx context.Context, a core.Actor, in createBoardIn) (any, error) {
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocBoard, Title: in.Title, Category: in.Category, Board: &core.Board{Description: in.Description, Columns: in.Columns}})

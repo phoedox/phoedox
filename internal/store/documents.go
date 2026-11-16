@@ -16,6 +16,7 @@ const (
 	DocBoard      = "board"      // a task board (ADR-0030); its cards are tasks
 	DocFloorplan  = "floorplan"  // rooms as polygons and devices as points (ADR-0034)
 	DocWhiteboard = "whiteboard" // a canvas drawn together live, published automatically (ADR-0068)
+	DocApp        = "app"        // a small web program in an isolated frame (apps-definition)
 )
 
 // Document is a page of any document type.

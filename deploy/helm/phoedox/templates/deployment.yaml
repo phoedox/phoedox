@@ -42,8 +42,11 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+            - name: usercontent
+              containerPort: 8443
           env:
             - { name: PHOEDOX_LISTEN, value: ":8080" }
+            - { name: PHOEDOX_USERCONTENT_LISTEN, value: {{ ternary ":8443" "off" (ne ((.Values.userContent).domain | default "") "") | quote }} }
             - { name: PHOEDOX_DATA_DIR, value: /data }
             - { name: PHOEDOX_DOMAIN, value: {{ .Values.domain | quote }} }
             - { name: PHOEDOX_PUBLIC_URL, value: {{ printf "%s://%s" (ternary "https" "http" .Values.ingress.tls.enabled) .Values.domain | quote }} }

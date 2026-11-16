@@ -65,6 +65,7 @@ make build && ./bin/phoedox
 | Variable | Default | Meaning |
 |---|---|---|
 | `PHOEDOX_LISTEN` | `:8080` | HTTP address |
+| `PHOEDOX_USERCONTENT_LISTEN` | `:8443` | HTTPS address of the user content domain apps run on (domain, DNS provider and wildcard certificate are set in Administration → User content); `off` disables it |
 | `PHOEDOX_DOMAIN` | – | public address of the instance |
 | `PHOEDOX_DATA_DIR` | `./data` (image: `/data`) | files and SQLite database |
 | `PHOEDOX_DB_DRIVER` | `sqlite` | `sqlite` or `postgres` |

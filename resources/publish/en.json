@@ -57,5 +57,6 @@
   "offline_relations": "Connections",
   "offline_files": "Files",
   "offline_note": "Emergency copy of %s – it may be out of date. Secrets of the project environment are not included.",
-  "offline_readme": "Emergency copy of \"%s\", made on %s.\n\nOpen index.html in a browser. The copy needs neither internet nor a server.\nIt contains only what the person who made it was allowed to read. Keep it safe (e.g. an encrypted USB stick) – it may contain confidential details.\n"
+  "offline_readme": "Emergency copy of \"%s\", made on %s.\n\nOpen index.html in a browser. The copy needs neither internet nor a server.\nIt contains only what the person who made it was allowed to read. Keep it safe (e.g. an encrypted USB stick) – it may contain confidential details.\n",
+  "app_not_public": "This app runs inside Phoedox. Open it there to use it."
 }

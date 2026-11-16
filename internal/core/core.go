@@ -96,6 +96,8 @@ type Service struct {
 	Box *secret.Box
 	// Bot is the bot protection (nil = off, e.g. in tests).
 	Bot *botcheck.Service
+	// UserContent serves apps on their own domain (nil = off).
+	UserContent UserContent
 
 	vaults vaultCache
 	// RequestPolicy limits which addresses request blocks may reach.

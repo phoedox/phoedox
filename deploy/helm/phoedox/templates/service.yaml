@@ -11,3 +11,8 @@ spec:
     - name: http
       port: 80
       targetPort: http
+    {{- if (.Values.userContent).domain }}
+    - name: usercontent
+      port: 8443
+      targetPort: usercontent
+    {{- end }}

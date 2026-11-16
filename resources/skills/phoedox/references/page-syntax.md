@@ -66,6 +66,7 @@ Each is a fenced code block with this info string:
 | ```query | a saved query slug | the query result as a table |
 | ```board | a board slug | the board's cards |
 | ```whiteboard | a whiteboard slug | the whiteboard drawn read-only, with a link to open it |
+| ```app | an app slug | the app running inside the page, as tall as its content (each reader allows its access once) |
 | ```map | lines: `marker 52.52, 13.40 Label`, `marker @entry` (uses its lat/lng), `track Name: lat,lng lat,lng …`, `gpx <file id> Name`, `view lat,lng zoom 12` | an OpenStreetMap map (tiles after consent) |
 | ```mermaid | a Mermaid diagram | the diagram |
 | ```math | LaTeX | a formula (inline: `$…$`) |

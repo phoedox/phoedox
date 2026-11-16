@@ -112,6 +112,10 @@ func (s *Service) RestoreVersion(ctx context.Context, a Actor, ref, docRef strin
 		var c Whiteboard
 		_ = json.Unmarshal(v.Content, &c)
 		patch.Whiteboard = &c
+	case store.DocApp:
+		var c App
+		_ = json.Unmarshal(v.Content, &c)
+		patch.App = &c
 	}
 	res, err := s.UpdateDocument(ctx, a, ref, doc.ID, patch)
 	if err == nil && res.Applied {
