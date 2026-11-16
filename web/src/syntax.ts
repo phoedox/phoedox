@@ -32,8 +32,9 @@ export const INLINE_MATH = /^\$(?=[^\s$])((?:\\.|[^$\\\n])*?[^\s\\])\$(?!\d)/;
 export const TIME = /^<time datetime="([0-9T:\-+.Z]+)"(?: data-kind="(date|time|datetime|countdown)")?>([^<]*)<\/time>/;
 export type TimeKind = "date" | "time" | "datetime" | "countdown";
 
-/** Callouts: GitHub alerts and our own with icon and color. */
-export const CALLOUT_START = /^> \[!([a-z]+)((?: [a-z]+=[A-Za-z0-9-]+)*)\]\s*$/;
+/** Callouts: GitHub alerts and our own with icon and color. Kind and attribute
+ * names ignore case ("> [!NOTE]" as on GitHub); the editor writes them lower case. */
+export const CALLOUT_START = /^> \[!([A-Za-z]+)((?: [A-Za-z]+=[A-Za-z0-9-]+)*)\]\s*$/;
 export const CALLOUT_PRESETS: Record<string, { icon: string; color: Color }> = {
   note: { icon: "Info", color: "blue" },
   tip: { icon: "Lightbulb", color: "green" },
@@ -46,14 +47,16 @@ export const CALLOUT_PRESETS: Record<string, { icon: string; color: Color }> = {
 export interface CalloutAttrs { kind: string; icon: string; color: Color; iconColor?: Color }
 
 export function parseCallout(kind: string, attrs: string): CalloutAttrs | undefined {
+  kind = kind.toLowerCase();
   const preset = CALLOUT_PRESETS[kind];
   if (!preset) return undefined;
   const out: CalloutAttrs = { kind, icon: preset.icon, color: preset.color };
   for (const part of attrs.trim().split(/\s+/).filter(Boolean)) {
-    const [k, v] = part.split("=");
+    const [key, v] = part.split("=");
+    const k = key.toLowerCase();
     if (k === "icon" && /^[A-Z][A-Za-z0-9]{1,40}$/.test(v)) out.icon = v;
-    if (k === "color" && isColor(v)) out.color = v;
-    if (k === "iconcolor" && isColor(v)) out.iconColor = v;
+    if (k === "color" && isColor(v.toLowerCase())) out.color = v.toLowerCase() as Color;
+    if (k === "iconcolor" && isColor(v.toLowerCase())) out.iconColor = v.toLowerCase() as Color;
   }
   return out;
 }

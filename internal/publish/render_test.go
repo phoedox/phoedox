@@ -11,6 +11,7 @@ func TestMarkdown(t *testing.T) {
 	md := strings.Join([]string{
 		"# Titel", "",
 		"> [!warning]", "> Achtung **fett**", "",
+		"> [!NOTE]", "> GitHub-Schreibweise", "",
 		"> [!callout icon=User color=orange iconcolor=red]", "> Wichtig", "",
 		"Text [rot]{color=red} und ++unter++, Formel $a_1^2$ aber $5 und $10. `[x]{color=red}` bleibt.",
 		"Siehe [Plan](/p/haus/d/plan) und ![Bild](/api/v1/files/ABC123/foto.png).", "",
@@ -31,6 +32,7 @@ func TestMarkdown(t *testing.T) {
 	for _, want := range []string{
 		`<div class="callout cb-orange" data-kind="warning"><span class="ci" data-icon="TriangleAlert"></span>`,
 		"<strong>fett</strong>",
+		`<div class="callout cb-blue" data-kind="note"><span class="ci" data-icon="Info"></span>`,
 		`<span class="ci ic-red" data-icon="User">`,
 		`<span class="tc-red">rot</span>`, "<u>unter</u>", `<phx-math data-tex="a_1^2">`, "$5 und $10",
 		"<code>[x]{color=red}</code>", `href="/pub/docs/haus/plan"`, `src="/pub/docs/_files/ABC123/foto.png"`,

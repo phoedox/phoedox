@@ -21,7 +21,8 @@ Published sites rewrite both to their own addresses.
 > Text of the callout.
 ```
 
-Kinds: `note`, `tip`, `important`, `warning`, `caution`.
+Kinds: `note`, `tip`, `important`, `warning`, `caution`. Case does not matter (`[!NOTE]` as on
+GitHub works too); Phoedox saves them lower case.
 
 ## Request blocks
 

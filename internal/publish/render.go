@@ -57,7 +57,7 @@ func wikiLinks(s string, links Links) string {
 }
 
 var (
-	calloutStart = regexp.MustCompile(`^> \[!([a-z]+)((?: [a-z]+=[A-Za-z0-9-]+)*)\]\s*$`)
+	calloutStart = regexp.MustCompile(`^> \[!([A-Za-z]+)((?: [A-Za-z]+=[A-Za-z0-9-]+)*)\]\s*$`)
 	colorSpan    = regexp.MustCompile(`\[((?:\\.|[^\]\\\n])+)\]\{((?:color|bg)=[a-z]+(?: (?:color|bg)=[a-z]+)?)\}`)
 	underline    = regexp.MustCompile(`\+\+(\S(?:[^+\n]*?\S)?)\+\+`)
 	inlineMath   = regexp.MustCompile(`(^|[^\\$])\$([^\s$](?:[^$\n]*?[^\s\\])?)\$([^\d]|$)`)
@@ -126,11 +126,15 @@ func preprocess(md string, links Links) string {
 			continue
 		}
 		if m := calloutStart.FindStringSubmatch(l); m != nil {
-			preset, ok := presets[m[1]]
+			preset, ok := presets[strings.ToLower(m[1])]
 			if ok {
 				icon, color, iconColor := preset[0], preset[1], ""
 				for _, kv := range strings.Fields(m[2]) {
 					k, v, _ := strings.Cut(kv, "=")
+					k = strings.ToLower(k)
+					if k != "icon" {
+						v = strings.ToLower(v)
+					}
 					switch {
 					case k == "icon" && iconName.MatchString(v):
 						icon = v
@@ -145,7 +149,7 @@ func preprocess(md string, links Links) string {
 					i++
 					body = append(body, strings.TrimPrefix(strings.TrimPrefix(lines[i], ">"), " "))
 				}
-				out = append(out, `<div class="callout cb-`+color+`" data-kind="`+m[1]+`"><span class="ci`+iconColor+`" data-icon="`+icon+`"></span><div class="cc">`, "")
+				out = append(out, `<div class="callout cb-`+color+`" data-kind="`+strings.ToLower(m[1])+`"><span class="ci`+iconColor+`" data-icon="`+icon+`"></span><div class="cc">`, "")
 				out = append(out, strings.Split(preprocess(strings.Join(body, "\n"), links), "\n")...)
 				out = append(out, "", `</div></div>`, "")
 				continue

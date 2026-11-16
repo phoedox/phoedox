@@ -75,10 +75,16 @@ describe("building blocks round trip (ADR-0031)", () => {
 
 test("building blocks become editor nodes", () => {
   expect(importedTypes("> [!note]\n> x")).toContain("callout");
+  expect(importedTypes("> [!NOTE]\n> x")).toContain("callout");
   expect(importedTypes("```math\nx\n```")).toEqual(["fence"]);
   expect(importedTypes("a $x^2$ b")).toContain("imath");
   expect(importedTypes('a <time datetime="2026-12-24">x</time> b')).toContain("phxtime");
   expect(importedTypes("a [rot]{color=red} b").filter((t) => t === "text").length).toBe(3);
+});
+
+test("callouts ignore case and are written lower case", () => {
+  expect(roundTrip("> [!NOTE]\n> Hinweis")).toBe("> [!note]\n> Hinweis");
+  expect(roundTrip("> [!Callout Color=Orange icon=User]\n> x")).toBe("> [!callout icon=User color=orange]\n> x");
 });
 
 describe("page links and brackets", () => {
