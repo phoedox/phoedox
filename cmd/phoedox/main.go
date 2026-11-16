@@ -126,6 +126,7 @@ func main() {
 			a.Core.PurgeDeletedProjects(sys, time.Now())
 			a.Core.CleanupUploads(sys)
 			a.Core.RemindDrafts(sys, time.Now())
+			a.Core.FeedbackHousekeeping(sys)
 			_, _ = a.DB.PruneJobs(sys, store.Time{Time: time.Now().Add(-7 * 24 * time.Hour)})
 			_, _ = a.DB.PruneNotifications(sys, store.Time{Time: time.Now().Add(-90 * 24 * time.Hour)})
 			a.Core.PruneReadings(sys, time.Now())

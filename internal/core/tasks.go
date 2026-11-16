@@ -461,6 +461,7 @@ func (s *Service) UpdateTask(ctx context.Context, a Actor, ref, id string, patch
 		}
 		t.Position = pos + 1
 	}
+	wasDone := !t.DoneAt.IsZero()
 	if col.Done && t.DoneAt.IsZero() {
 		t.DoneAt = store.Now()
 	} else if !col.Done {
@@ -507,6 +508,10 @@ func (s *Service) UpdateTask(ctx context.Context, a Actor, ref, id string, patch
 	t.UpdatedAt = store.Now()
 	if err := s.DB.SaveTask(ctx, t); err != nil {
 		return t, err
+	}
+	if wasDone != !t.DoneAt.IsZero() {
+		// Topics from feedback portals follow their tickets.
+		s.feedbackTaskDone(ctx, t.ID)
 	}
 	if patch.Documents != nil {
 		// Documents the actor cannot see stay linked.

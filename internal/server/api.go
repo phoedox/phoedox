@@ -39,6 +39,8 @@ type api struct {
 	runLimiter *limiter
 	// loginFails counts failed sign-ins for the bot check.
 	loginFails failures
+	// feedbackIP limits feedback reports per client address.
+	feedbackIP *limiter
 	// root is the whole router (for the OpenAPI description).
 	root chi.Routes
 	// backups is nil in the hosted mode.
@@ -62,6 +64,12 @@ func (a *api) routes(r chi.Router) {
 	r.Post("/app/token", a.appToken)
 	r.Post("/auth/logout", a.logout)
 	r.Get("/status/{token}", a.publicStatus)
+	// Feedback portals: public page data, reports, status links.
+	r.Get("/feedback/{handle}", a.publicPortal)
+	r.Post("/feedback/{handle}/reports", a.submitFeedback)
+	r.Get("/feedback/status/{token}", a.feedbackStatus)
+	r.With(requireHeader).Delete("/feedback/status/{token}", a.deleteFeedbackStatus)
+	r.Get("/feedback/status/{token}/export", a.exportFeedbackStatus)
 	// One-time secret links: POST so link previews cannot burn them.
 	r.Post("/secret-links/{id}/open", a.openSecretLink)
 	r.Get("/instance", func(w http.ResponseWriter, req *http.Request) {
@@ -126,6 +134,7 @@ func (a *api) routes(r chi.Router) {
 		r.Get("/me/notifications", a.listNotifications)
 		r.Get("/me/tasks", a.myTasks)
 		r.Get("/me/usage", a.myUsage)
+		r.Get("/me/feedback", a.myFeedback)
 		r.Get("/me/features", a.myFeatures)
 		r.Get("/me/skills", a.mySkills)
 		r.Get("/me/home", a.home)
@@ -433,6 +442,20 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/storage", a.storage)
 			r.Put("/storage", a.setStorage)
 			r.Get("/usage", a.projectUsage)
+			r.Get("/feedback/portals", a.feedbackPortals)
+			r.Post("/feedback/portals", a.saveFeedbackPortal)
+			r.Put("/feedback/portals/{id}", a.saveFeedbackPortal)
+			r.Delete("/feedback/portals/{id}", a.deleteFeedbackPortal)
+			r.Post("/feedback/portals/{id}/keys", a.rotateFeedbackKey)
+			r.Put("/feedback/portals/{id}/moderators", a.setFeedbackModerators)
+			r.Get("/feedback/topics", a.feedbackTopics)
+			r.Get("/feedback/topics/{id}", a.feedbackTopic)
+			r.Patch("/feedback/topics/{id}", a.updateFeedbackTopic)
+			r.Post("/feedback/topics/{id}/merge", a.mergeFeedbackTopic)
+			r.Post("/feedback/topics/{id}/tickets", a.feedbackToBoard)
+			r.Post("/feedback/reports/{id}/move", a.moveFeedbackReport)
+			r.Get("/feedback/attachments/{id}", a.feedbackAttachment)
+			r.Put("/feedback/quota", a.setFeedbackQuota)
 			r.Options("/uploads", a.tusOptions)
 			r.Post("/uploads", a.tusCreate)
 			r.Delete("/files/{id}", a.deleteFile)
