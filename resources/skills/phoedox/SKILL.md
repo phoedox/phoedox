@@ -26,6 +26,7 @@ examples:
 | Decisions (ADRs): record, prepare with options, import many, own numbers, supersede | `references/decisions.md` |
 | Entries, relations, data model, queries, locations, network, discovery, troubleshooting | `references/knowledge-graph.md` |
 | Boards and tasks: cards, subtasks, linked pages, time, code links | `references/tasks.md` |
+| Feedback portals: triage topics, merge duplicates, tickets, submit a report | `references/feedback.md` |
 | Floor plans (with a complete example) | `references/floorplans.md` |
 | Whiteboards: diagrams, single changes, comments | `references/whiteboards.md` |
 | Languages: translations, stale translations, folder names | `references/languages.md` |

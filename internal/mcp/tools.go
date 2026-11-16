@@ -398,6 +398,59 @@ type logTimeIn struct {
 	Note     string `json:"note,omitempty"`
 }
 
+type feedbackListIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Portal   string `json:"portal,omitempty" jsonschema:"portal handle or id (default: all portals the person moderates)"`
+	State    string `json:"state,omitempty" jsonschema:"only topics in this state, e.g. new"`
+	Category string `json:"category,omitempty"`
+	Priority int    `json:"priority,omitempty" jsonschema:"1 urgent … 4 low"`
+	Q        string `json:"q,omitempty" jsonschema:"words in title or summary"`
+}
+
+type feedbackTopicIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Topic   string `json:"topic" jsonschema:"topic id"`
+}
+
+type feedbackUpdateIn struct {
+	Project  string    `json:"project" jsonschema:"project slug"`
+	Topic    string    `json:"topic" jsonschema:"topic id"`
+	Title    *string   `json:"title,omitempty"`
+	Summary  *string   `json:"summary,omitempty" jsonschema:"what the reports are about, in the project's main language"`
+	Category *string   `json:"category,omitempty" jsonschema:"one of the portal's categories (never invent new ones)"`
+	Tags     *[]string `json:"tags,omitempty"`
+	Priority *int      `json:"priority,omitempty" jsonschema:"1 urgent, 2 high, 3 normal, 4 low"`
+	State    *string   `json:"state,omitempty" jsonschema:"one of the portal's states"`
+	Answer   *string   `json:"answer,omitempty" jsonschema:"answer shown to reporters and sent to them – only when a person asked for it"`
+}
+
+type feedbackMergeIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Into    string `json:"into" jsonschema:"topic id that stays"`
+	From    string `json:"from" jsonschema:"topic id merged into it and removed"`
+}
+
+type feedbackBoardIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Topic   string `json:"topic" jsonschema:"topic id"`
+	Board   string `json:"board" jsonschema:"board slug or id"`
+	Column  string `json:"column,omitempty" jsonschema:"column id or name (default: first column)"`
+	Title   string `json:"title,omitempty" jsonschema:"card title (default: the topic's title)"`
+}
+
+type feedbackSubmitIn struct {
+	Portal string         `json:"portal" jsonschema:"portal handle, e.g. starfall (the address /feedback/<handle>)"`
+	Type   string         `json:"type,omitempty" jsonschema:"bug, idea, question or praise (one the portal accepts)"`
+	Title  string         `json:"title"`
+	Body   string         `json:"body,omitempty"`
+	Fields map[string]any `json:"fields,omitempty" jsonschema:"the portal's own fields by id (see get_feedback_portal)"`
+}
+
+type feedbackPortalIn struct {
+	Portal string `json:"portal" jsonschema:"portal handle"`
+	Lang   string `json:"lang,omitempty" jsonschema:"en or de"`
+}
+
 type timelineIn struct {
 	Project string `json:"project" jsonschema:"project slug"`
 	Entity  string `json:"entity" jsonschema:"entity slug or id"`
@@ -1048,6 +1101,31 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "log_time", "Log time spent on a card (task), e.g. after work someone describes: duration like \"1:30\", \"45m\" or \"1.5h\", optional day (YYYY-MM-DD, default today) and note. It is logged for the signed-in person.", func(ctx context.Context, a core.Actor, in logTimeIn) (any, error) {
 		return svc.LogTime(ctx, a, in.Project, in.Task, core.TimeInput{Duration: in.Duration, Day: in.Day, Note: in.Note})
+	})
+	tool(s, "list_feedback_topics", "Topics of a project's feedback portals (reports from people grouped by what they are about), highest priority first, with state, category, number of reports and tickets. For moderators: editors and owners, or people made moderator of a portal.", func(ctx context.Context, a core.Actor, in feedbackListIn) (any, error) {
+		return svc.FeedbackTopics(ctx, a, in.Project, core.TopicQuery{Portal: in.Portal, State: in.State, Category: in.Category, Priority: in.Priority, Q: in.Q})
+	})
+	tool(s, "get_feedback_topic", "A feedback topic with all its reports (text, form fields, context, attachments' names and types), the portal's settings (states, categories) and its tickets.", func(ctx context.Context, a core.Actor, in feedbackTopicIn) (any, error) {
+		return svc.FeedbackTopic(ctx, a, in.Project, in.Topic)
+	})
+	tool(s, "update_feedback_topic", "Triage a feedback topic: title, summary, category and tags from the portal's lists, priority 1–4, state; an answer is sent to the reporters, so set it only when a person asked for it.", func(ctx context.Context, a core.Actor, in feedbackUpdateIn) (any, error) {
+		return svc.UpdateFeedbackTopic(ctx, a, in.Project, in.Topic, core.TopicPatch{Title: in.Title, Summary: in.Summary, Category: in.Category, Tags: in.Tags, Priority: in.Priority, State: in.State, Answer: in.Answer})
+	})
+	tool(s, "merge_feedback_topics", "Merge a duplicate feedback topic into another: its reports and tickets move over and it is removed.", func(ctx context.Context, a core.Actor, in feedbackMergeIn) (any, error) {
+		return svc.MergeFeedbackTopics(ctx, a, in.Project, in.Into, in.From)
+	})
+	tool(s, "feedback_to_board", "Turn a feedback topic into a ticket: a card on a board, linked to the topic and its reports. A topic can get several tickets (e.g. frontend and backend); when all are done, the topic is done and reporters are told.", func(ctx context.Context, a core.Actor, in feedbackBoardIn) (any, error) {
+		return svc.FeedbackToBoard(ctx, a, in.Project, in.Topic, core.TicketInput{Board: in.Board, Column: in.Column, Title: in.Title})
+	})
+	tool(s, "get_feedback_portal", "The public settings of a feedback portal by its handle: report types, own form fields (ids, types, options, required), who may report.", func(ctx context.Context, a core.Actor, in feedbackPortalIn) (any, error) {
+		return svc.PublicFeedbackPortal(ctx, in.Portal, in.Lang)
+	})
+	tool(s, "submit_feedback", "Send a report to a feedback portal as the signed-in person, e.g. when someone describes a bug in the chat and wants to report it. Fill the portal's required fields (get_feedback_portal).", func(ctx context.Context, a core.Actor, in feedbackSubmitIn) (any, error) {
+		res, err := svc.SubmitFeedback(ctx, &a, in.Portal, core.ReportInput{Type: in.Type, Title: in.Title, Body: in.Body, Fields: in.Fields}, nil, core.Intake{Via: "mcp"})
+		if err != nil {
+			return nil, err
+		}
+		return map[string]string{"id": res.ID, "status": "/feedback/status/" + res.StatusToken}, nil
 	})
 	tool(s, "entity_timeline", "What happened to an entry, newest first: changes (by people, AI, agents, plugins, with the changed fields), check failures and recoveries, switching actions, agent jobs, reviews, and comments and cards that mention it. Use it to answer \"what changed on the NAS lately?\" or \"when did the router last go down?\".", func(ctx context.Context, a core.Actor, in timelineIn) (any, error) {
 		return svc.EntityTimeline(ctx, a, in.Project, in.Entity, in.Limit)
