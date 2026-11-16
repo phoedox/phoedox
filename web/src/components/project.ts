@@ -27,6 +27,7 @@ import "./trash";
 import "./project-history";
 import "./find-replace";
 import "./health";
+import "./feedback";
 import "./entity-view";
 import "./entity-form";
 import "./knowledge";
@@ -180,18 +181,21 @@ export class PhxProject extends SignalWatcher(LitElement) {
   /** The ⋯ menu of the tool row (ADR-0076). */
   toolsOpen = false;
   /** Badges: failing checks, documentation gaps, pending suggestions. */
-  counts = { failing: 0, gaps: 0, pending: 0 };
+  counts = { failing: 0, gaps: 0, pending: 0, portals: 0, newTopics: 0 };
 
   /** Loads the badge numbers of the sidebar (in the background). */
   private async loadCounts() {
     const slug = this.slug;
-    const [checks, gaps, sugs] = await Promise.all([
+    const [checks, gaps, sugs, fb] = await Promise.all([
       api<{ lastStatus?: string; enabled?: boolean }[]>("GET", `/projects/${slug}/checks`).catch(() => []),
       api<{ gaps: unknown[] }>("GET", `/projects/${slug}/gaps`).catch(() => ({ gaps: [] })),
       api<unknown[]>("GET", `/projects/${slug}/suggestions?status=pending`).catch(() => []),
+      api<{ portals: { id: string; settings: { defaultState: string } }[]; topics: { portalId: string; state: string }[] }>("GET", `/projects/${slug}/feedback/topics`).catch(() => ({ portals: [], topics: [] })),
     ]);
     if (slug !== this.slug) return;
-    this.counts = { failing: (checks ?? []).filter((c) => c.enabled !== false && c.lastStatus === "fail").length, gaps: gaps?.gaps?.length ?? 0, pending: (sugs ?? []).length };
+    const fresh = (fb?.topics ?? []).filter((x) => fb.portals.find((p) => p.id === x.portalId)?.settings.defaultState === x.state).length;
+    this.counts = { failing: (checks ?? []).filter((c) => c.enabled !== false && c.lastStatus === "fail").length, gaps: gaps?.gaps?.length ?? 0, pending: (sugs ?? []).length,
+      portals: fb?.portals?.length ?? 0, newTopics: fresh };
   }
 
   /** Old addresses of the health area's tabs. */
@@ -242,6 +246,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "decisions", render: () => this.gated("decisions", html`<phx-decisions .project=${this.slug}></phx-decisions>`) },
     { path: "suggestions", render: () => html`<phx-suggestions .project=${this.slug}></phx-suggestions>` },
     { path: "health", render: () => html`<phx-health .project=${this.slug}></phx-health>` },
+    { path: "feedback", render: () => html`<phx-feedback .project=${this.slug}></phx-feedback>` },
     { path: "insights", render: () => this.healthAt("insights") },
     { path: "monitoring", render: () => this.healthAt("checks") },
     // Project settings: pages with their own rail instead of the sidebar (ADR-0070).
@@ -474,6 +479,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     if (here.endsWith("/locations")) return t("loc.title");
     if (here.endsWith("/table")) return t("table.title");
     if (here.endsWith("/household")) return t("house.title");
+    if (here.endsWith("/feedback")) return t("fb.nav");
     if (here.endsWith("/ipam")) return t("ipam.title");
     if (here.endsWith("/settings")) return t("nav.settings");
     return t("project.overview");
@@ -782,7 +788,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     // Only single pages are shared with this person: no project-wide views.
     const docOnly = currentProject.get()?.role === "doc";
     const at = (r: string) => here === `/p/${this.slug}/${r}` || here.startsWith(`/p/${this.slug}/${r}/`);
-    const { failing, gaps, pending } = this.counts;
+    const { failing, gaps, pending, portals, newTopics } = this.counts;
     return html`
       <div class="mbar">
         <button class="ghost" aria-expanded=${this.menuOpen} aria-controls="nav" @click=${() => this.setMenu(!this.menuOpen)}>${icon("Menu", 16)} ${t("nav.menu")}</button>
@@ -805,7 +811,9 @@ export class PhxProject extends SignalWatcher(LitElement) {
             ${docOnly || !hasFeature(proj, "files") ? "" : html`<a href="/p/${this.slug}/files" class=${here === `/p/${this.slug}/files` ? "on" : ""}>${icon("Paperclip", 15)} ${t("nav.files")}</a>`}
             ${docOnly ? "" : html`<a href="/p/${this.slug}/health" class=${at("health") || at("monitoring") || at("insights") ? "on" : ""}>${icon("HeartPulse", 15)} ${t("health.title")}
               ${failing ? html`<span class="num bad" title=${t("health.failing", { count: failing })}>${failing}</span>` : gaps ? html`<span class="num" title=${t("health.gaps", { count: gaps })}>${gaps}</span>` : ""}</a>`}
-            ${docOnly || !hasFeature(proj, "household") ? "" : html`<a href="/p/${this.slug}/household" class=${at("household") ? "on" : ""}>${icon("House", 15)} ${t("house.title")}</a>`}</div>
+            ${docOnly || !hasFeature(proj, "household") ? "" : html`<a href="/p/${this.slug}/household" class=${at("household") ? "on" : ""}>${icon("House", 15)} ${t("house.title")}</a>`}
+            ${docOnly || !portals ? "" : html`<a href="/p/${this.slug}/feedback" class=${at("feedback") ? "on" : ""}>${icon("MessageSquareText", 15)} ${t("fb.nav")}
+              ${newTopics ? html`<span class="num" title=${t("fb.new_topics", { n: newTopics })}>${newTopics}</span>` : ""}</a>`}</div>
           ${this.tree(here, canEdit)}
         </div>
         <div class="tools">

@@ -7,6 +7,8 @@ import { icon } from "../icon";
 import { comboFor, comboLabel, installShortcuts, onShortcut } from "../shortcuts";
 import "./usage";
 import "./bot-admin";
+import "./feedback-portal";
+import "./feedback-settings";
 import "./recent-history";
 import "./secret-links";
 import "./shortcut-settings";
@@ -81,6 +83,8 @@ export class PhxApp extends SignalWatcher(LitElement) {
 
   private router = new Router(this, [
     { path: "/login", render: () => html`<phx-login></phx-login>` },
+    { path: "/feedback/status/:token", render: ({ token }) => html`<phx-feedback-status .token=${token!}></phx-feedback-status>` },
+    { path: "/feedback/:handle", render: ({ handle }) => html`<phx-feedback-portal .handle=${handle!}></phx-feedback-portal>` },
     { path: "/identify", render: () => html`<phx-identify></phx-identify>` },
     { path: "/kiosk/:project/:doc", render: ({ project, doc }) => html`<phx-kiosk .project=${project!} .doc=${doc!}></phx-kiosk>` },
     { path: "/print/:project", render: ({ project }) => html`<phx-print .project=${project!}></phx-print>` },
@@ -110,6 +114,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/settings/publications", render: () => me("publications", html`<phx-publications></phx-publications>`) },
     { path: "/settings/account", render: () => me("account", html`<phx-account></phx-account>`) },
     { path: "/settings/usage", render: () => me("usage", html`<phx-usage level="me"></phx-usage>`) },
+    { path: "/settings/feedback", render: () => me("feedback", html`<phx-my-feedback></phx-my-feedback>`) },
     { path: "/admin/usage", render: () => adm("usage", html`<phx-usage level="admin"></phx-usage>`) },
     { path: "/admin/bot-protection", render: () => adm("bot", html`<phx-bot-admin></phx-bot-admin>`) },
     { path: "/admin/orgs/:slug/usage", render: ({ slug }) => adm("orgs", html`<phx-usage level="org" .ref=${slug!}></phx-usage>`) },
@@ -201,7 +206,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     if (!this.ready) return html`<p class="muted" style="padding:24px">${t("app.loading")}</p>`;
     const user = currentUser.get();
     // Shared pages and the wall display show no app header.
-    const shared = location.pathname.startsWith("/s/") || location.pathname.startsWith("/kiosk/") || location.pathname.startsWith("/print/");
+    const shared = location.pathname.startsWith("/s/") || location.pathname.startsWith("/kiosk/") || location.pathname.startsWith("/print/") || location.pathname.startsWith("/feedback/");
     return html`
       ${user && !shared && focusMode.get()
         ? html`<button class="ghost unfocus" @click=${() => setFocusMode(false)} title=${t("focus.leave_hint", { key: comboLabel(comboFor("focus")) })}>${icon("Minimize2", 14)} ${t("focus.leave")}</button>`

@@ -15,7 +15,7 @@ interface Report {
   level: Level; name: string; since: string; chargedCents: number; costCents?: number; budgets: Budget[];
   byProject?: Line[]; byUser?: Line[]; byModel?: Line[]; byOrg?: Line[]; storage?: Storage[]; storageBytes: number;
   up: { level: "org" | "admin"; href: string; name?: string }[];
-  pricesHidden: boolean; calls: number; tokens: number;
+  pricesHidden: boolean; calls: number; tokens: number; feedback?: Storage;
 }
 
 const money = (cents: number) => new Intl.NumberFormat(document.documentElement.lang || "en", { style: "currency", currency: "USD" }).format(cents / 100);
@@ -128,6 +128,12 @@ export class PhxUsage extends LitElement {
       ${one?.limitBytes ? html`${this.meter(pct, t("usage.storage"))}<span class="meta">${t("usage.percent_used", { p: Math.round(pct) })}</span>` : nothing}</div>`;
   }
 
+  private feedbackTile(f: Storage) {
+    const pct = f.limitBytes ? (f.usedBytes / f.limitBytes) * 100 : 0;
+    return html`<div class="tile"><span class="k">${t("usage.feedback_storage")}</span><span class="v">${bytes(f.usedBytes)}${f.limitBytes ? html` <small>${t("usage.of", { limit: bytes(f.limitBytes) })}</small>` : nothing}</span>
+      ${f.limitBytes ? html`${this.meter(pct, t("usage.feedback_storage"))}<span class="meta">${t("usage.percent_used", { p: Math.round(pct) })}</span>` : nothing}</div>`;
+  }
+
   private aiTiles(r: Report) {
     const admin = r.level === "admin";
     return html`${r.pricesHidden ? nothing : html`<div class="tile"><span class="k">${t("usage.ai_month")}</span><span class="v">${money(r.chargedCents)}${admin ? html` <small>${t("usage.cost_is", { cost: money(r.costCents ?? 0) })}</small>` : nothing}</span></div>`}
@@ -161,7 +167,7 @@ export class PhxUsage extends LitElement {
       const tab = (id: "quotas" | "ai", label: string) => html`<button role="tab" aria-selected=${this.tab === id} @click=${() => (this.tab = id)}>${label}</button>`;
       return html`${head}
         <div class="tabs" role="tablist">${tab("quotas", t("usage.tab.quotas"))}${tab("ai", t("usage.tab.ai"))}</div>
-        ${this.tab === "quotas" ? html`<div class="grid">${this.storageTiles(r)}${r.budgets.map((b) => this.budgetTile(b, r.pricesHidden))}</div>
+        ${this.tab === "quotas" ? html`<div class="grid">${this.storageTiles(r)}${r.feedback ? this.feedbackTile(r.feedback) : nothing}${r.budgets.map((b) => this.budgetTile(b, r.pricesHidden))}</div>
             <p class="muted" style="font-size:13px">${t("usage.quotas_more")}</p>`
           : html`<div class="grid">${this.aiTiles(r)}</div>${this.tables(r)}`}
         ${note}`;

@@ -83,6 +83,9 @@ type UsageReport struct {
 	PricesHidden bool  `json:"pricesHidden"`
 	Calls        int64 `json:"calls"`
 	Tokens       int64 `json:"tokens"`
+	// Feedback is the project's feedback storage (attachments of reports),
+	// a quota of its own (feedback-concept).
+	Feedback *UsageStorage `json:"feedback,omitempty"`
 }
 
 // finish fills percentages and totals and removes amounts the viewer may
@@ -266,6 +269,11 @@ func (s *Service) ProjectUsage(ctx context.Context, a Actor, ref string) (UsageR
 	} else {
 		own, _ := s.DB.AIUsageSince(ctx, "", a.User.ID, since, false)
 		r.Budgets = []UsageBudget{{Key: "usage.budget.personal", UsedCents: centsOf(own), Limit: int64(s.aiChatSettings(ctx).UserBudget)}}
+	}
+	if used, err := s.DB.FeedbackUsage(ctx, p.ID); err == nil {
+		if portals, _ := s.DB.FeedbackPortals(ctx, p.ID); len(portals) > 0 || used > 0 {
+			r.Feedback = &UsageStorage{ID: p.ID, Name: p.Name, UsedBytes: used, LimitBytes: s.feedbackQuotaBytes(ctx, p)}
+		}
 	}
 	r.finish(s.pricesHidden(ctx, a, p.OrgID))
 	return r, nil

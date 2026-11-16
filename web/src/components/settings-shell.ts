@@ -35,7 +35,7 @@ export function areaGroups(area: Area, orgs: OrgLite[] = [], ctx?: ProjectCtx): 
       { label: t("sx.group.project"), pages: [...pg("general", "Settings", t("settings.general")), ...pg("people", "Users", t("sx.p.people"))] },
       { label: t("sx.group.workflow"), pages: [...pg("ai", "Bot", t("sx.p.ai")), ...pg("rules", "Zap", t("sx.p.auto"), ctx.canEdit), ...pg("model", "Shapes", t("kg.model"), ctx.withModel)] },
       { label: t("sx.group.connections"), pages: [...pg("env", "Braces", t("sx.p.env")), ...pg("code", "GitBranch", t("sx.p.code"), ctx.canEdit), ...pg("integrations", "Plug", t("sx.p.int"), ctx.owner)] },
-      { label: t("sx.group.data"), pages: [...pg("data", "HardDrive", t("sx.p.data")), ...pg("usage", "Sigma", t("usage.nav_project"), ctx.owner), ...pg("activity", "ScrollText", t("audit.project_title"), ctx.owner), ...pg("transfer", "TriangleAlert", t("sx.p.transfer"), ctx.owner)] },
+      { label: t("sx.group.data"), pages: [...pg("data", "HardDrive", t("sx.p.data")), ...pg("usage", "Sigma", t("usage.nav_project"), ctx.owner), ...pg("feedback", "MessageSquareText", t("fb.settings_title"), ctx.owner), ...pg("activity", "ScrollText", t("audit.project_title"), ctx.owner), ...pg("transfer", "TriangleAlert", t("sx.p.transfer"), ctx.owner)] },
     ].filter((g) => g.pages.length);
   }
   if (area === "admin") {
@@ -67,6 +67,7 @@ export function areaGroups(area: Area, orgs: OrgLite[] = [], ctx?: ProjectCtx): 
       { id: "shortcuts", href: "/settings/shortcuts", icon: "Keyboard", label: t("shortcut.title") },
       { id: "tokens", href: "/settings/tokens", icon: "KeyRound", label: t("sx.me.tokens") },
       { id: "usage", href: "/settings/usage", icon: "Sigma", label: t("usage.nav") },
+      { id: "feedback", href: "/settings/feedback", icon: "MessageSquareText", label: t("fb.mine") },
       { id: "publications", href: "/settings/publications", icon: "Globe", label: t("pub.title_page") },
       { id: "account", href: "/settings/account", icon: "Archive", label: t("sx.me.account") },
     ] },

@@ -213,3 +213,15 @@ func TestFeedbackFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestFeedbackSimilarity(t *testing.T) {
+	if s := similarity("Game crashes when opening the map", "crash when opening map"); s < 0.5 {
+		t.Fatalf("same bug: %v", s)
+	}
+	if s := similarity("Game crashes when opening the map", "Sound too loud in menu"); s > 0.2 {
+		t.Fatalf("different: %v", s)
+	}
+	if s := similarity("Spiel stürzt beim Öffnen der Karte ab", "Absturz beim Öffnen der Karte"); s < 0.3 {
+		t.Fatalf("german: %v", s)
+	}
+}

@@ -863,11 +863,27 @@ func (s *Service) SubmitFeedback(ctx context.Context, a *Actor, handle string, i
 
 var wordRe = regexp.MustCompile(`[\p{L}\p{N}]+`)
 
+var stopWords = map[string]bool{
+	"the": true, "and": true, "when": true, "with": true, "for": true, "not": true, "this": true, "that": true, "from": true, "after": true, "does": true, "doesn": true, "can": true, "into": true,
+	"der": true, "die": true, "das": true, "und": true, "wenn": true, "mit": true, "nicht": true, "ein": true, "eine": true, "beim": true, "bei": true, "nach": true, "ist": true, "auf": true, "von": true, "den": true, "dem": true,
+}
+
+// stem cuts common English and German endings so "crashes" and "crash"
+// count as the same word.
+func stem(w string) string {
+	for _, suf := range []string{"ing", "ed", "es", "s", "en", "er", "e"} {
+		if strings.HasSuffix(w, suf) && utf8.RuneCountInString(w)-len(suf) >= 3 {
+			return strings.TrimSuffix(w, suf)
+		}
+	}
+	return w
+}
+
 func words(s string) map[string]bool {
 	out := map[string]bool{}
 	for _, w := range wordRe.FindAllString(strings.ToLower(s), -1) {
-		if utf8.RuneCountInString(w) > 2 {
-			out[w] = true
+		if utf8.RuneCountInString(w) > 2 && !stopWords[w] {
+			out[stem(w)] = true
 		}
 	}
 	return out
@@ -905,7 +921,7 @@ func (s *Service) topicFor(ctx context.Context, portal store.FeedbackPortal, ps 
 			best, score = i, sc
 		}
 	}
-	if best >= 0 && score >= 0.6 {
+	if best >= 0 && score >= 0.5 {
 		t := open[best]
 		t.UpdatedAt = store.Now()
 		return t, false, s.DB.SaveFeedbackTopic(ctx, t)
