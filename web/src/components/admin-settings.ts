@@ -10,7 +10,7 @@ import "./ai-providers";
 import type { AIProvider } from "./ai-providers";
 import { toast } from "./toasts";
 
-interface AIChat { enabled: boolean; configured: boolean; defaultModel: string; orgBudget: number; userBudget: number; instanceCap: number; usedCents: number; chargedCents?: number }
+interface AIChat { enabled: boolean; configured: boolean; defaultModel: string; orgBudget: number; userBudget: number; instanceCap: number; usedCents: number; chargedCents?: number; pricesHiddenPersonal?: boolean }
 interface Settings { aiChat: AIChat; aiEnabled: boolean; quotaProjectMb: number; vulnCheck: boolean; pluginBeta: boolean; signup: boolean; vault: { kind: string; url: string; connected: boolean }; tools?: Record<string, boolean> }
 
 /** Instance settings for system admins, one section per page of the
@@ -65,7 +65,9 @@ export class PhxAdminSettings extends SignalWatcher(LitElement) {
         <label class="field">${t("admin.ai_chat_cap")}<input name="cap" type="number" min="0" step="0.01" .value=${val(c.instanceCap)} placeholder="∞" style="max-width:180px"></label>
         <div><button>${t("profile.save")}</button></div>
       </form>
-      <p class="muted" style="margin-top:10px">${t("admin.ai_chat_used_cost", { cost: dollars(c.usedCents, locale()), charged: dollars(c.chargedCents ?? 0, locale()) })}</p></div></section>`;
+      <p class="muted" style="margin-top:10px">${t("admin.ai_chat_used_cost", { cost: dollars(c.usedCents, locale()), charged: dollars(c.chargedCents ?? 0, locale()) })}</p></div></section>
+      ${scard(t("admin.prices.title"), t("admin.prices.hint"), html`
+        ${srow(t("admin.prices.hide_personal"), t("admin.prices.hide_personal_hint"), sswitch(!!c.pricesHiddenPersonal, t("admin.prices.hide_personal"), (on) => this.set({ aiChat: { pricesHiddenPersonal: on } } as any)))}`)}`;
   }
 
   private async reloadSettings() {

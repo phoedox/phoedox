@@ -85,6 +85,8 @@ type View struct {
 	Messages  []MessageView               `json:"messages"`
 	Proposals map[string]store.AIProposal `json:"proposals"`
 	Status    core.ChatStatus             `json:"status"`
+	// Usage is what the conversation used so far.
+	Usage core.ChatUsage `json:"usage"`
 }
 
 // MessageView is one message for display.
@@ -112,7 +114,8 @@ func (s *Service) chat(ctx context.Context, a core.Actor, ref, id string) (store
 
 // Status tells whether the person can chat in the project.
 func (s *Service) Status(ctx context.Context, a core.Actor, ref string) (core.ChatStatus, error) {
-	return s.Core.ChatStatus(ctx, a, ref)
+	cs, err := s.Core.ChatStatus(ctx, a, ref)
+	return cs.View(), err
 }
 
 // Chats lists the person's chats in a project.
@@ -163,7 +166,7 @@ func (s *Service) Get(ctx context.Context, a core.Actor, ref, id string) (View, 
 		return View{}, err
 	}
 	st, _ := s.Core.ChatStatus(ctx, a, ref)
-	v := View{AIChat: c, Messages: []MessageView{}, Proposals: props, Status: st}
+	v := View{AIChat: c, Messages: []MessageView{}, Proposals: props, Status: st.View(), Usage: s.Core.ChatUsageOf(ctx, st, c.ID)}
 	for _, m := range msgs {
 		v.Messages = append(v.Messages, MessageView{Seq: m.Seq, Role: m.Role, Parts: ai.Parts(m.Content), CreatedAt: m.CreatedAt})
 	}
@@ -187,8 +190,10 @@ type Event struct {
 	OK   bool   `json:"ok,omitempty"`
 	// Key is an i18n key (notice).
 	Key string `json:"key,omitempty"`
-	// Cost of this message in cents (done).
+	// Cost of this message in cents (done; left out with hidden prices).
 	CostCents int64 `json:"costCents,omitempty"`
+	// Chat is what the whole conversation used so far (done).
+	Chat *core.ChatUsage `json:"chat,omitempty"`
 }
 
 // Input is a message of the person.
@@ -277,7 +282,15 @@ func (s *Service) Send(ctx context.Context, a core.Actor, ref, id string, in Inp
 	system := []string{resources.Prompt("chat-system"), s.context(ctx, a, p, c, in)}
 	actor := aiActor(a, c.ID)
 	var spent int64
-	defer func() { emit(Event{Type: "done", CostCents: (spent + 9_999) / 10_000}) }()
+	defer func() {
+		e := Event{Type: "done", CostCents: (spent + 9_999) / 10_000}
+		if cs.PricesHidden {
+			e.CostCents = 0
+		}
+		u := s.Core.ChatUsageOf(ctx, cs, c.ID)
+		e.Chat = &u
+		emit(e)
+	}()
 	for step := 0; ; step++ {
 		if step > 0 {
 			if cs, err = s.Core.ChatStatus(ctx, a, ref); err != nil {

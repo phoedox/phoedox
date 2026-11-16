@@ -27,6 +27,12 @@ type OrgInput struct {
 	AIChatCap        *int  `json:"aiChatCap,omitempty"`
 	// AIChatModel is the organization's default model ("" = the instance's).
 	AIChatModel *string `json:"aiChatModel,omitempty"`
+	// Prices (usage-prices-concept): PricesHiddenAdmin and IncludedTokens
+	// are for system admins, PricesHidden and Warn for organization admins.
+	PricesHiddenAdmin *bool   `json:"pricesHiddenAdmin,omitempty"`
+	PricesHidden      *bool   `json:"pricesHidden,omitempty"`
+	IncludedTokens    *int64  `json:"includedTokens,omitempty"`
+	Warn              *string `json:"warn,omitempty"`
 }
 
 // OrgDetail is an organization with members and groups (for its members).
@@ -177,6 +183,9 @@ func (s *Service) UpdateOrg(ctx context.Context, a Actor, ref string, in OrgInpu
 		o.QuotaMB = *in.QuotaMB
 	}
 	if err := s.applyOrgAIChat(ctx, a, &o, in); err != nil {
+		return o, err
+	}
+	if err := applyOrgPrices(a, &o, in); err != nil {
 		return o, err
 	}
 	if err := s.DB.UpdateOrg(ctx, o); err != nil {

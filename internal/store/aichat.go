@@ -57,7 +57,9 @@ type AIUsage struct {
 	CacheWrite   int64
 	CostMicros   int64 // what the provider charges, US dollars × 10⁶
 	ChargeMicros int64 // what counts against budgets (in-app price)
-	CreatedAt    Time
+	// ListMicros is the in-app price before an organization's own prices.
+	ListMicros int64
+	CreatedAt  Time
 }
 
 const aiChatCols = `id, project_id, user_id, COALESCE(document_id, ''), title, model, created_at, updated_at`
@@ -197,9 +199,9 @@ func (d *DB) AIProposals(ctx context.Context, chatID string) (map[string]AIPropo
 
 // AddAIUsage writes one entry of the usage ledger.
 func (d *DB) AddAIUsage(ctx context.Context, u AIUsage) error {
-	_, err := d.Exec(ctx, `INSERT INTO ai_usage (id, tenant_id, org_id, user_id, project_id, chat_id, provider_id, own_key, model, input_tokens, output_tokens, cache_read, cache_write, cost_micros, charge_micros, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		u.ID, TenantOf(ctx), u.OrgID, u.UserID, u.ProjectID, u.ChatID, u.ProviderID, u.OwnKey, u.Model, u.InputTokens, u.OutputTokens, u.CacheRead, u.CacheWrite, u.CostMicros, u.ChargeMicros, u.CreatedAt)
+	_, err := d.Exec(ctx, `INSERT INTO ai_usage (id, tenant_id, org_id, user_id, project_id, chat_id, provider_id, own_key, model, input_tokens, output_tokens, cache_read, cache_write, cost_micros, charge_micros, list_micros, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		u.ID, TenantOf(ctx), u.OrgID, u.UserID, u.ProjectID, u.ChatID, u.ProviderID, u.OwnKey, u.Model, u.InputTokens, u.OutputTokens, u.CacheRead, u.CacheWrite, u.CostMicros, u.ChargeMicros, u.ListMicros, u.CreatedAt)
 	return err
 }
 

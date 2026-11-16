@@ -182,6 +182,10 @@ func (a *api) routes(r chi.Router) {
 		r.Route("/admin", func(r chi.Router) {
 			r.Use(requireFull)
 			r.Get("/usage", a.instanceUsage)
+			r.Get("/orgs/{o}/prices", a.orgPrices)
+			r.Post("/orgs/{o}/prices", a.setOrgPrice)
+			r.Post("/orgs/{o}/prices/preview", a.previewOrgPrice)
+			r.Delete("/orgs/{o}/prices/{id}", a.deleteOrgPrice)
 			r.Get("/backups", a.listBackups)
 			r.Post("/backups", a.createBackup)
 			r.Post("/backups/upload", a.uploadBackup)

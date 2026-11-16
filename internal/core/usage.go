@@ -33,6 +33,14 @@ type UsageBudget struct {
 	Name      string `json:"name,omitempty"`
 	UsedCents int64  `json:"usedCents"`
 	Limit     int64  `json:"limitCents"`
+	// Percent of the limit used; HasLimit tells whether there is one (the
+	// amounts are left out when prices are hidden).
+	Percent  float64 `json:"percent"`
+	HasLimit bool    `json:"hasLimit"`
+	// UsedTokens/LimitTokens describe an included budget in tokens.
+	UsedTokens  int64 `json:"usedTokens,omitempty"`
+	LimitTokens int64 `json:"limitTokens,omitempty"`
+	hidden      bool
 }
 
 // UsageStorage is the storage of a project (or an organization's projects).
@@ -66,6 +74,58 @@ type UsageReport struct {
 	Storage      []UsageStorage `json:"storage,omitempty"`
 	StorageBytes int64          `json:"storageBytes"`
 	Up           []UsageLink    `json:"up"`
+	// PricesHidden: amounts are left out; bars show percentages and the
+	// tiles tokens and calls (usage-prices-concept).
+	PricesHidden bool  `json:"pricesHidden"`
+	Calls        int64 `json:"calls"`
+	Tokens       int64 `json:"tokens"`
+}
+
+// finish fills percentages and totals and removes amounts the viewer may
+// not see.
+func (r *UsageReport) finish(hidden bool) {
+	for _, l := range r.ByModel {
+		r.Calls += l.Calls
+		r.Tokens += l.InputTokens + l.OutputTokens
+	}
+	for i := range r.Budgets {
+		b := &r.Budgets[i]
+		b.HasLimit = b.Limit > 0 || b.LimitTokens > 0
+		b.Percent = percentOf(b.UsedCents, b.Limit)
+		if b.LimitTokens > 0 {
+			b.Percent = percentOf(b.UsedTokens, b.LimitTokens)
+		}
+		if b.hidden || hidden {
+			b.UsedCents, b.Limit = 0, 0
+		}
+	}
+	if !hidden {
+		return
+	}
+	r.PricesHidden = true
+	r.ChargedCents, r.CostCents = 0, 0
+	for _, ls := range [][]UsageLine{r.ByProject, r.ByUser, r.ByModel, r.ByOrg} {
+		for i := range ls {
+			ls[i].ChargedCents, ls[i].CostCents, ls[i].OwnKeyCents = 0, 0, 0
+		}
+	}
+}
+
+// orgBudgets are an organization's AI budgets this month: the limit on the
+// instance's models (or an included amount of tokens) and its own budget.
+func (s *Service) orgBudgets(ctx context.Context, o store.Org, since time.Time, charged int64) []UsageBudget {
+	st := s.aiChatSettings(ctx)
+	inst, _ := s.DB.AIUsageSince(ctx, o.ID, "", since, true)
+	b := UsageBudget{Key: "usage.budget.org_instance", UsedCents: centsOf(inst), Limit: int64(orgChatLimit(o, st))}
+	if o.IncludedTokens > 0 {
+		b.LimitTokens = o.IncludedTokens
+		b.UsedTokens, _ = s.DB.AITokensSince(ctx, o.ID, "", since)
+	}
+	out := []UsageBudget{b}
+	if o.AIChatBudget != nil {
+		out = append(out, UsageBudget{Key: "usage.budget.org_own", UsedCents: charged, Limit: int64(*o.AIChatBudget)})
+	}
+	return out
 }
 
 // usageNames resolves ids of a breakdown to names (and slugs).
@@ -192,6 +252,18 @@ func (s *Service) ProjectUsage(ctx context.Context, a Actor, ref string) (UsageR
 	r.ByUser, r.ChargedCents, _ = s.lines(ctx, f, "user", names.user, false)
 	r.ByModel, _, _ = s.lines(ctx, f, "model", nil, false)
 	r.Storage, r.StorageBytes = s.storageOf(ctx, []store.Project{p})
+	// The AI budget the project draws from: its organization's, or the
+	// viewer's personal budget for personal projects.
+	if p.OrgID != "" {
+		if o, err := s.DB.OrgFor(ctx, p.OrgID, a.User.ID); err == nil {
+			spent, _ := s.DB.AIUsageSince(ctx, o.ID, "", since, false)
+			r.Budgets = s.orgBudgets(ctx, o, since, centsOf(spent))
+		}
+	} else {
+		own, _ := s.DB.AIUsageSince(ctx, "", a.User.ID, since, false)
+		r.Budgets = []UsageBudget{{Key: "usage.budget.personal", UsedCents: centsOf(own), Limit: int64(s.aiChatSettings(ctx).UserBudget)}}
+	}
+	r.finish(s.pricesHidden(ctx, a, p.OrgID))
 	return r, nil
 }
 
@@ -208,7 +280,6 @@ func (s *Service) OrgUsage(ctx context.Context, a Actor, ref string) (UsageRepor
 	since := monthStart(time.Now())
 	f := store.UsageFilter{OrgID: o.ID, Since: since}
 	names := s.usageNames(ctx)
-	st := s.aiChatSettings(ctx)
 	r := UsageReport{Level: "org", Name: o.Name, Since: store.Time{Time: since}, Up: []UsageLink{}}
 	if a.User.IsAdmin {
 		r.Up = append(r.Up, UsageLink{Level: "admin", Href: "/admin/usage"})
@@ -216,11 +287,7 @@ func (s *Service) OrgUsage(ctx context.Context, a Actor, ref string) (UsageRepor
 	r.ByProject, r.ChargedCents, _ = s.lines(ctx, f, "project", names.project, false)
 	r.ByUser, _, _ = s.lines(ctx, f, "user", names.user, false)
 	r.ByModel, _, _ = s.lines(ctx, f, "model", nil, false)
-	inst, _ := s.DB.AIUsageSince(ctx, o.ID, "", since, true)
-	r.Budgets = []UsageBudget{{Key: "usage.budget.org_instance", UsedCents: centsOf(inst), Limit: int64(orgChatLimit(o, st))}}
-	if o.AIChatBudget != nil {
-		r.Budgets = append(r.Budgets, UsageBudget{Key: "usage.budget.org_own", UsedCents: r.ChargedCents, Limit: int64(*o.AIChatBudget)})
-	}
+	r.Budgets = s.orgBudgets(ctx, o, since, r.ChargedCents)
 	all, err := s.DB.ListProjects(ctx, a.User.ID, true)
 	if err == nil {
 		mine := []store.Project{}
@@ -231,6 +298,7 @@ func (s *Service) OrgUsage(ctx context.Context, a Actor, ref string) (UsageRepor
 		}
 		r.Storage, r.StorageBytes = s.storageOf(ctx, mine)
 	}
+	r.finish(s.pricesHidden(ctx, a, o.ID))
 	return r, nil
 }
 
@@ -274,6 +342,7 @@ func (s *Service) InstanceUsage(ctx context.Context, a Actor) (UsageReport, erro
 			r.Storage = append(r.Storage, *byOrg[id])
 		}
 	}
+	r.finish(false)
 	return r, nil
 }
 
@@ -291,7 +360,8 @@ func (s *Service) MyUsage(ctx context.Context, a Actor) (UsageReport, error) {
 	r.ByModel, _, _ = s.lines(ctx, f, "model", nil, false)
 	// One budget per place: personal projects, and each organization.
 	own, _ := s.DB.AIUsageSince(ctx, "", a.User.ID, since, false)
-	r.Budgets = []UsageBudget{{Key: "usage.budget.personal", UsedCents: centsOf(own), Limit: int64(st.UserBudget)}}
+	hidden := s.pricesHidden(ctx, a, "")
+	r.Budgets = []UsageBudget{{Key: "usage.budget.personal", UsedCents: centsOf(own), Limit: int64(st.UserBudget), hidden: hidden}}
 	orgs, err := s.DB.ListOrgs(ctx, a.User.ID, false)
 	if err == nil {
 		for _, o := range orgs {
@@ -300,8 +370,11 @@ func (s *Service) MyUsage(ctx context.Context, a Actor) (UsageReport, error) {
 				limit = int64(*o.AIChatUserBudget)
 			}
 			used, _ := s.DB.AIUsageSince(ctx, o.ID, a.User.ID, since, false)
-			r.Budgets = append(r.Budgets, UsageBudget{Key: "usage.budget.in_org", Name: o.Name, UsedCents: centsOf(used), Limit: limit})
+			h := s.pricesHidden(ctx, a, o.ID)
+			hidden = hidden || h
+			r.Budgets = append(r.Budgets, UsageBudget{Key: "usage.budget.in_org", Name: o.Name, UsedCents: centsOf(used), Limit: limit, hidden: h})
 		}
 	}
+	r.finish(hidden)
 	return r, nil
 }

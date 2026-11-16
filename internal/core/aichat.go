@@ -40,6 +40,9 @@ type AIChatSettings struct {
 	// people were charged (in-app prices; read only).
 	UsedCents    int64 `json:"usedCents"`
 	ChargedCents int64 `json:"chargedCents"`
+	// PricesHiddenPersonal hides amounts from people for their personal
+	// projects (usage-prices-concept); they see percentages instead.
+	PricesHiddenPersonal bool `json:"pricesHiddenPersonal"`
 }
 
 // AIChatPatch changes the instance settings of the AI chat.
@@ -49,7 +52,8 @@ type AIChatPatch struct {
 	UserBudget  *int  `json:"userBudget,omitempty"`
 	InstanceCap *int  `json:"instanceCap,omitempty"`
 	// DefaultModel is a model ref of an instance provider ("" = the first).
-	DefaultModel *string `json:"defaultModel,omitempty"`
+	DefaultModel         *string `json:"defaultModel,omitempty"`
+	PricesHiddenPersonal *bool   `json:"pricesHiddenPersonal,omitempty"`
 }
 
 // monthStart is the first moment of the current month (UTC).
@@ -83,6 +87,8 @@ func (s *Service) aiChatSettings(ctx context.Context) AIChatSettings {
 	}
 	charged, _ := s.DB.AIChargedTotalSince(ctx, monthStart(time.Now()))
 	out.ChargedCents = centsOf(charged)
+	hidden, _ := s.DB.Setting(ctx, settingPricesHiddenPersonal, "false")
+	out.PricesHiddenPersonal = hidden == "true"
 	return out
 }
 
@@ -114,6 +120,11 @@ func (s *Service) saveAIChatSettings(ctx context.Context, a Actor, in *AIChatPat
 	}
 	if in.Enabled != nil {
 		if err := s.DB.SetSetting(ctx, settingAIChat, strconv.FormatBool(*in.Enabled), a.String()); err != nil {
+			return err
+		}
+	}
+	if in.PricesHiddenPersonal != nil {
+		if err := s.DB.SetSetting(ctx, settingPricesHiddenPersonal, strconv.FormatBool(*in.PricesHiddenPersonal), a.String()); err != nil {
 			return err
 		}
 	}
@@ -165,6 +176,11 @@ type OrgAIChat struct {
 	DefaultModel string `json:"defaultModel"`
 	// Available is false when the instance has no provider or switched the chat off.
 	Available bool `json:"available"`
+	// Price visibility, included tokens and budget warnings (usage-prices-concept).
+	PricesHiddenAdmin bool   `json:"pricesHiddenAdmin"`
+	PricesHidden      bool   `json:"pricesHidden"`
+	IncludedTokens    int64  `json:"includedTokens"`
+	Warn              string `json:"warn"`
 }
 
 // OrgAIChatInfo returns the chat settings of an organization (its admins).
@@ -182,7 +198,8 @@ func (s *Service) OrgAIChatInfo(ctx context.Context, a Actor, ref string) (OrgAI
 	own, _ := s.DB.AIProviders(ctx, o.ID)
 	return OrgAIChat{Enabled: o.AIChat, Limit: orgChatLimit(o, st), Budget: o.AIChatBudget, UserBudget: o.AIChatUserBudget,
 		DefaultUserBudget: st.UserBudget, UsedCents: centsOf(used), UsedInstanceCents: centsOf(inst), DefaultModel: o.AIChatModel,
-		Available: (st.Configured || len(own) > 0) && st.Enabled && s.AIEnabled(ctx)}, nil
+		Available:         (st.Configured || len(own) > 0) && st.Enabled && s.AIEnabled(ctx),
+		PricesHiddenAdmin: o.PricesHiddenAdmin, PricesHidden: o.PricesHidden, IncludedTokens: o.IncludedTokens, Warn: o.Warn}, nil
 }
 
 // applyOrgAIChat applies the chat fields of an OrgInput. A negative budget
@@ -248,10 +265,32 @@ type ChatStatus struct {
 	// InstanceBlocked: the instance's models are used up for this month;
 	// the organization's own models still work.
 	InstanceBlocked bool `json:"instanceBlocked,omitempty"`
+	// PricesHidden: amounts are left out; the percentages below show how
+	// much of each budget is used (usage-prices-concept).
+	PricesHidden     bool    `json:"pricesHidden,omitempty"`
+	UserPercent      float64 `json:"userPercent,omitempty"`
+	OrgPercent       float64 `json:"orgPercent,omitempty"`
+	OrgBudgetPercent float64 `json:"orgBudgetPercent,omitempty"`
 	// WriteMode is the project's AI write mode (read: the AI only reads).
 	WriteMode string `json:"writeMode"`
 	OrgID     string `json:"-"`
 	ProjectID string `json:"-"`
+}
+
+// View is the status as the person sees it: with hidden prices, amounts
+// become percentages of the budgets.
+func (cs ChatStatus) View() ChatStatus {
+	if !cs.PricesHidden {
+		return cs
+	}
+	cs.UserPercent = percentOf(cs.UserUsed, int64(cs.UserLimit))
+	cs.OrgPercent = percentOf(cs.OrgUsed, int64(cs.OrgLimit))
+	cs.OrgBudgetPercent = percentOf(cs.OrgSpent, int64(cs.OrgBudget))
+	cs.UserUsed, cs.OrgUsed, cs.OrgSpent = 0, 0, 0
+	cs.UserLimit = min(cs.UserLimit, 1)
+	cs.OrgLimit = min(cs.OrgLimit, 1)
+	cs.OrgBudget = min(cs.OrgBudget, 1)
+	return cs
 }
 
 // ChatStatus checks switches and budgets for a person in a project.
@@ -318,6 +357,7 @@ func (s *Service) ChatStatus(ctx context.Context, a Actor, ref string) (ChatStat
 		}
 	}
 	cs.Available = cs.Reason == ""
+	cs.PricesHidden = s.pricesHidden(ctx, a, p.OrgID)
 	return cs, nil
 }
 
@@ -325,10 +365,13 @@ func (s *Service) ChatStatus(ctx context.Context, a Actor, ref string) (ChatStat
 // charged amount in micro-dollars (the in-app price).
 func (s *Service) RecordAIUsage(ctx context.Context, a Actor, cs ChatStatus, chatID string, m ChatModel, u ai.Usage) int64 {
 	cost := ai.CostMicros(u, m.cost)
-	charge := ai.CostMicros(u, m.charge)
+	list := ai.CostMicros(u, m.charge)
+	now := store.Now()
+	charge := s.chargeFor(ctx, cs.OrgID, m.Own, u.Model, u, list, now.Time)
 	_ = s.DB.AddAIUsage(ctx, store.AIUsage{ID: newID(), OrgID: cs.OrgID, UserID: a.User.ID, ProjectID: cs.ProjectID, ChatID: chatID,
 		ProviderID: m.ProviderID, OwnKey: m.Own, Model: u.Model,
-		InputTokens: u.Input, OutputTokens: u.Output, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite, CostMicros: cost, ChargeMicros: charge, CreatedAt: store.Now()})
+		InputTokens: u.Input, OutputTokens: u.Output, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite, CostMicros: cost, ChargeMicros: charge, ListMicros: list, CreatedAt: now})
+	s.warnBudgets(ctx, a, cs)
 	return charge
 }
 

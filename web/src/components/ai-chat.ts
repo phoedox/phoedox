@@ -1,7 +1,7 @@
 import { LitElement, css, html, nothing } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { ApiError, api } from "../api";
-import { WRITE_TOOLS, dollars, sendMessage, toolResults, userText, type Chat, type ChatEvent, type ChatModels, type ChatStatus, type ChatView, type Message, type Part } from "../ai-chat";
+import { WRITE_TOOLS, dollars, sendMessage, toolResults, userText, type Chat, type ChatEvent, type ChatModels, type ChatStatus, type ChatUsage, type ChatView, type Message, type Part } from "../ai-chat";
 import { hasKey, locale, t, type Key } from "../i18n";
 import { icon } from "../icon";
 import { renderMarkdown } from "../md";
@@ -26,7 +26,7 @@ const tr = (key: string, vars: Record<string, unknown> = {}) => (hasKey(key) ? t
 export class PhxAIChat extends LitElement {
   static properties = {
     project: {}, doc: {}, status: { state: true }, chats: { state: true }, view: { state: true }, draft: { state: true }, busy: { state: true },
-    live: { state: true }, picks: { state: true }, choices: { state: true }, error: { state: true }, pending: { state: true }, models: { state: true }, model: { state: true },
+    live: { state: true }, picks: { state: true }, choices: { state: true }, error: { state: true }, pending: { state: true }, models: { state: true }, model: { state: true }, usage: { state: true },
   };
   static styles = [base, css`
     :host { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--surface); border-left: 1px solid var(--line); }
@@ -88,6 +88,7 @@ export class PhxAIChat extends LitElement {
   /** Slug of the page that is open (context for the AI). */
   doc = "";
   status?: ChatStatus;
+  usage?: ChatUsage;
   chats: Chat[] = [];
   view?: ChatView;
   draft = "";
@@ -130,6 +131,7 @@ export class PhxAIChat extends LitElement {
   private async open(id: string) {
     this.view = await api<ChatView>("GET", `/projects/${this.project}/ai/chats/${id}`);
     this.status = this.view.status;
+    this.usage = this.view.usage;
     if (this.view.model && this.models?.models.some((m) => m.ref === this.view!.model)) this.model = this.view.model;
     this.picks = {};
     await this.updateComplete;
@@ -169,6 +171,7 @@ export class PhxAIChat extends LitElement {
         const c = await api<Chat>("POST", `/projects/${this.project}/ai/chats`, { document: this.doc || undefined });
         this.chats = [c, ...this.chats];
         chat = { ...c, messages: [], proposals: {}, status: this.status! };
+        this.usage = undefined;
         this.view = chat;
       }
       this.draft = "";
@@ -216,6 +219,9 @@ export class PhxAIChat extends LitElement {
         break;
       case "error":
         this.error = tr(ev.key ?? "error.unknown", ev.params ?? {});
+        break;
+      case "done":
+        if (ev.chat) this.usage = ev.chat;
         break;
     }
     this.live = { ...live };
@@ -372,15 +378,21 @@ export class PhxAIChat extends LitElement {
     const s = this.status;
     if (!s) return nothing;
     const loc = locale();
-    const part = (label: string, used: number, limit: number) => html`<span>${label}: ${limit ? t("ai_chat.used_of", { used: dollars(used, loc), limit: dollars(limit, loc) }) : t("ai_chat.used", { used: dollars(used, loc) })}</span>`;
+    const pct = (p?: number) => new Intl.NumberFormat(loc, { maximumFractionDigits: 1 }).format(p ?? 0);
+    const part = (label: string, used: number, limit: number, percent?: number) => s.pricesHidden
+      ? (limit ? html`<span>${label}: ${t("ai_chat.used_percent", { p: pct(percent) })}</span>` : nothing)
+      : html`<span>${label}: ${limit ? t("ai_chat.used_of", { used: dollars(used, loc), limit: dollars(limit, loc) }) : t("ai_chat.used", { used: dollars(used, loc) })}</span>`;
+    const u = this.usage;
+    const conv = u && u.tokens ? html`<span>${t("ai_chat.this_chat")}: ${s.pricesHidden ? (u.percent ? t("ai_chat.chat_percent", { p: pct(u.percent) }) : t("ai_chat.chat_tokens", { n: u.tokens.toLocaleString(loc) })) : dollars(u.cents ?? 0, loc)}</span>` : nothing;
     const ms = this.models?.models ?? [];
     return html`<div class="budget" aria-label=${t("ai_chat.budget")}>
       ${ms.length > 1 ? html`<select class="model" aria-label=${t("ai_chat.model")} @change=${(e: Event) => (this.model = (e.target as HTMLSelectElement).value)}>
         ${ms.map((m) => html`<option value=${m.ref} ?selected=${m.ref === this.model} ?disabled=${!m.own && s.instanceBlocked}>${m.label} · ${m.provider}${m.own ? ` (${t("ai_chat.own_key")})` : ""}${m.price && (m.price.input || m.price.output) ? ` · ${t("ai_chat.model_price", { in: m.price.input, out: m.price.output })}` : ""}</option>`)}
       </select>` : ms.length === 1 ? html`<span>${ms[0].label}</span>` : nothing}
-      ${part(t("ai_chat.budget_you"), s.userUsed, s.userLimit)}
-      ${s.orgLimit || s.orgUsed ? part(t("ai_chat.budget_org"), s.orgUsed, s.orgLimit) : nothing}
-      ${s.orgBudget ? part(t("ai_chat.budget_org_all"), s.orgSpent, s.orgBudget) : nothing}
+      ${conv}
+      ${part(t("ai_chat.budget_you"), s.userUsed, s.userLimit, s.userPercent)}
+      ${s.orgLimit || s.orgUsed ? part(t("ai_chat.budget_org"), s.orgUsed, s.orgLimit, s.orgPercent) : nothing}
+      ${s.orgBudget ? part(t("ai_chat.budget_org_all"), s.orgSpent, s.orgBudget, s.orgBudgetPercent) : nothing}
     </div>`;
   }
 

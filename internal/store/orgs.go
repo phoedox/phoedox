@@ -29,18 +29,27 @@ type Org struct {
 	// AIChatModel is the organization's default model ("provider/model").
 	AIChatModel string `json:"aiChatModel,omitempty"`
 	// DiscoveryOff forbids network discovery for all projects of the organization.
-	DiscoveryOff bool   `json:"discoveryOff"`
-	CreatedAt    Time   `json:"createdAt"`
-	Role         string `json:"role,omitempty"` // role of the requesting user
+	DiscoveryOff bool `json:"discoveryOff"`
+	// Usage and prices (usage-prices-concept): PricesHiddenAdmin is set by
+	// system admins and cannot be undone by organization admins; PricesHidden
+	// is the organization admins' own switch. IncludedTokens states the
+	// included AI budget in tokens (0 = as an amount). Warn lists who gets
+	// budget warnings: admins, members, owners.
+	PricesHiddenAdmin bool   `json:"pricesHiddenAdmin"`
+	PricesHidden      bool   `json:"pricesHidden"`
+	IncludedTokens    int64  `json:"includedTokens"`
+	Warn              string `json:"warn"`
+	CreatedAt         Time   `json:"createdAt"`
+	Role              string `json:"role,omitempty"` // role of the requesting user
 }
 
-const orgCols = `o.id, o.slug, o.name, o.usage_type, o.ai_enabled, o.quota_mb, o.ai_chat_enabled, o.ai_chat_budget_cents, o.ai_chat_cap_cents, o.ai_chat_user_budget_cents, o.ai_chat_model, o.discovery_off, o.created_at`
+const orgCols = `o.id, o.slug, o.name, o.usage_type, o.ai_enabled, o.quota_mb, o.ai_chat_enabled, o.ai_chat_budget_cents, o.ai_chat_cap_cents, o.ai_chat_user_budget_cents, o.ai_chat_model, o.discovery_off, o.ai_prices_hidden_admin, o.ai_prices_hidden, o.ai_included_tokens, o.ai_warn, o.created_at`
 
 func scanOrg(r interface{ Scan(...any) error }, withRole bool) (Org, error) {
 	var o Org
 	var role sql.NullString
 	var budget, cap, user sql.NullInt64
-	dest := []any{&o.ID, &o.Slug, &o.Name, &o.UsageType, &o.AIEnabled, &o.QuotaMB, &o.AIChat, &budget, &cap, &user, &o.AIChatModel, &o.DiscoveryOff, &o.CreatedAt}
+	dest := []any{&o.ID, &o.Slug, &o.Name, &o.UsageType, &o.AIEnabled, &o.QuotaMB, &o.AIChat, &budget, &cap, &user, &o.AIChatModel, &o.DiscoveryOff, &o.PricesHiddenAdmin, &o.PricesHidden, &o.IncludedTokens, &o.Warn, &o.CreatedAt}
 	if withRole {
 		dest = append(dest, &role)
 	}
@@ -79,7 +88,7 @@ func (d *DB) CreateOrg(ctx context.Context, o Org, adminID string) (Org, error) 
 		_, err := tx.Exec(ctx, `INSERT INTO org_members (org_id, user_id, tenant_id, role, created_at) VALUES (?, ?, ?, 'admin', ?)`, o.ID, adminID, TenantOf(ctx), o.CreatedAt)
 		return err
 	})
-	o.AIEnabled, o.AIChat, o.Role = true, true, OrgAdmin
+	o.AIEnabled, o.AIChat, o.Role, o.Warn = true, true, OrgAdmin, "admins"
 	return o, err
 }
 
@@ -114,8 +123,8 @@ func (d *DB) ListOrgs(ctx context.Context, userID string, all bool) ([]Org, erro
 
 // UpdateOrg stores name, usage type, AI switch and quota.
 func (d *DB) UpdateOrg(ctx context.Context, o Org) error {
-	res, err := d.Exec(ctx, `UPDATE organizations SET name = ?, usage_type = ?, ai_enabled = ?, quota_mb = ?, ai_chat_enabled = ?, ai_chat_budget_cents = ?, ai_chat_cap_cents = ?, ai_chat_user_budget_cents = ?, ai_chat_model = ?, discovery_off = ? WHERE id = ?`,
-		o.Name, o.UsageType, o.AIEnabled, o.QuotaMB, o.AIChat, intOrNull(o.AIChatBudget), intOrNull(o.AIChatCap), intOrNull(o.AIChatUserBudget), o.AIChatModel, o.DiscoveryOff, o.ID)
+	res, err := d.Exec(ctx, `UPDATE organizations SET name = ?, usage_type = ?, ai_enabled = ?, quota_mb = ?, ai_chat_enabled = ?, ai_chat_budget_cents = ?, ai_chat_cap_cents = ?, ai_chat_user_budget_cents = ?, ai_chat_model = ?, discovery_off = ?, ai_prices_hidden_admin = ?, ai_prices_hidden = ?, ai_included_tokens = ?, ai_warn = ? WHERE id = ?`,
+		o.Name, o.UsageType, o.AIEnabled, o.QuotaMB, o.AIChat, intOrNull(o.AIChatBudget), intOrNull(o.AIChatCap), intOrNull(o.AIChatUserBudget), o.AIChatModel, o.DiscoveryOff, o.PricesHiddenAdmin, o.PricesHidden, o.IncludedTokens, orDefault(o.Warn, "admins"), o.ID)
 	return affected(res, err)
 }
 
@@ -503,4 +512,11 @@ func (d *DB) ShareLinkByHash(ctx context.Context, hash string) (ShareLink, error
 func (d *DB) RevokeShareLink(ctx context.Context, projectID, id string) error {
 	res, err := d.Exec(ctx, `UPDATE share_links SET revoked_at = ? WHERE id = ? AND project_id = ? AND revoked_at IS NULL`, Now(), id, projectID)
 	return affected(res, err)
+}
+
+func orDefault(v, def string) string {
+	if v == "" {
+		return def
+	}
+	return v
 }

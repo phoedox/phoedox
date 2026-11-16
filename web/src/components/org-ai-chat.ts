@@ -5,9 +5,13 @@ import { locale, t } from "../i18n";
 import { currentUser } from "../state";
 import { base } from "./shared";
 import "./ai-providers";
+import "./org-prices";
 import { toast } from "./toasts";
 
-interface OrgAIChat { enabled: boolean; limit: number; budget: number | null; userBudget: number | null; defaultUserBudget: number; usedCents: number; usedInstanceCents: number; defaultModel: string; available: boolean }
+interface OrgAIChat {
+  enabled: boolean; limit: number; budget: number | null; userBudget: number | null; defaultUserBudget: number; usedCents: number; usedInstanceCents: number; defaultModel: string; available: boolean;
+  pricesHiddenAdmin: boolean; pricesHidden: boolean; includedTokens: number; warn: string;
+}
 interface ChatModel { ref: string; provider: string; label: string; own?: boolean }
 
 /** AI chat of an organization (ADR-0066): switch and budgets for org admins;
@@ -52,8 +56,16 @@ export class PhxOrgAIChat extends LitElement {
   private async save(e: SubmitEvent) {
     e.preventDefault();
     const f = new FormData(e.target as HTMLFormElement);
-    const body: Record<string, unknown> = { aiChat: f.get("chat") === "on", aiChatBudget: this.cents(f, "budget"), aiChatUserBudget: this.cents(f, "user"), aiChatModel: String(f.get("model") ?? "") };
-    if (currentUser.get()?.isAdmin) body.aiChatCap = this.cents(f, "cap");
+    const warn = f.getAll("warn").map(String).join(",");
+    const body: Record<string, unknown> = {
+      aiChat: f.get("chat") === "on", aiChatBudget: this.cents(f, "budget"), aiChatUserBudget: this.cents(f, "user"), aiChatModel: String(f.get("model") ?? ""),
+      pricesHidden: f.get("hide") === "on", warn: warn || "none",
+    };
+    if (currentUser.get()?.isAdmin) {
+      body.aiChatCap = this.cents(f, "cap");
+      body.pricesHiddenAdmin = f.get("hideAdmin") === "on";
+      body.includedTokens = Math.max(0, Math.round(Number(f.get("tokens") || 0)));
+    }
     try {
       await api("PATCH", `/orgs/${this.org}`, body);
       await this.load();
@@ -69,6 +81,8 @@ export class PhxOrgAIChat extends LitElement {
     const loc = locale();
     const val = (c: number | null) => (c === null || c === undefined ? "" : (c / 100).toFixed(2));
     const limit = i.limit ? dollars(i.limit, loc) : "∞";
+    const admin = !!currentUser.get()?.isAdmin;
+    const warn = (i.warn || "admins").split(",");
     return html`<form @submit=${this.save}>
       ${i.available ? "" : html`<p class="muted">${t("orgs.ai_chat_unavailable")}</p>`}
       <label class="switch"><input type="checkbox" name="chat" .checked=${i.enabled}> ${t("orgs.ai_chat")}</label>
@@ -82,8 +96,19 @@ export class PhxOrgAIChat extends LitElement {
         ${this.models.map((m) => html`<option value=${m.ref} ?selected=${i.defaultModel === m.ref}>${m.provider}: ${m.label}</option>`)}
       </select></label>
       <p class="muted">${t("orgs.ai_chat_used", { used: dollars(i.usedCents, loc) })}</p>
+      <h3>${t("orgs.prices.title")}</h3>
+      <label class="switch"><input type="checkbox" name="hide" .checked=${i.pricesHidden || i.pricesHiddenAdmin} ?disabled=${i.pricesHiddenAdmin}> ${t("orgs.prices.hide")}</label>
+      <p class="muted">${i.pricesHiddenAdmin ? t("orgs.prices.hidden_by_admin") : t("orgs.prices.hide_hint")}</p>
+      ${admin ? html`<label class="switch"><input type="checkbox" name="hideAdmin" .checked=${i.pricesHiddenAdmin}> ${t("orgs.prices.hide_admin")}</label>
+        <p class="muted">${t("orgs.prices.hide_admin_hint")}</p>
+        <label class="field">${t("orgs.prices.tokens")}<input name="tokens" type="number" min="0" step="1000" .value=${i.includedTokens ? String(i.includedTokens) : ""} placeholder="–"></label>
+        <p class="muted">${t("orgs.prices.tokens_hint")}</p>` : ""}
+      <h3>${t("orgs.warn.title")}</h3>
+      <p class="muted">${t("orgs.warn.hint")}</p>
+      ${(["admins", "members", "owners"] as const).map((k) => html`<label class="switch" style="font-weight:400"><input type="checkbox" name="warn" value=${k} .checked=${warn.includes(k)}> ${t(`orgs.warn.${k}`)}</label>`)}
       <div><button>${t("doc.save")}</button></div>
     </form>
+    ${admin ? html`<h3>${t("org_prices.title")}</h3><p class="muted">${t("org_prices.intro")}</p><phx-org-prices .org=${this.org}></phx-org-prices>` : ""}
     <h3>${t("ai_providers.title_org")}</h3>
     <p class="muted">${t("ai_providers.intro_org")}</p>
     <phx-ai-providers .org=${this.org} @changed=${() => void this.load()}></phx-ai-providers>`;

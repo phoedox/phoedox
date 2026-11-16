@@ -208,3 +208,33 @@ func (a *api) myUsage(w http.ResponseWriter, r *http.Request) {
 	v, err := a.core.MyUsage(r.Context(), actorOf(r))
 	respond(w, v, err)
 }
+
+func (a *api) orgPrices(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.OrgPriceHistory(r.Context(), actorOf(r), chi.URLParam(r, "o"))
+	respond(w, v, err)
+}
+
+func (a *api) setOrgPrice(w http.ResponseWriter, r *http.Request) {
+	var in core.OrgPriceInput
+	if err := decode(r, &in); err != nil {
+		respond(w, nil, err)
+		return
+	}
+	v, err := a.core.SetOrgPrice(r.Context(), actorOf(r), chi.URLParam(r, "o"), in)
+	respond(w, v, err)
+}
+
+func (a *api) previewOrgPrice(w http.ResponseWriter, r *http.Request) {
+	var in core.OrgPriceInput
+	if err := decode(r, &in); err != nil {
+		respond(w, nil, err)
+		return
+	}
+	v, err := a.core.PreviewOrgPrice(r.Context(), actorOf(r), chi.URLParam(r, "o"), in)
+	respond(w, v, err)
+}
+
+func (a *api) deleteOrgPrice(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.DeleteOrgPrice(r.Context(), actorOf(r), chi.URLParam(r, "o"), chi.URLParam(r, "id"))
+	respond(w, v, err)
+}

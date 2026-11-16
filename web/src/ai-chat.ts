@@ -14,7 +14,15 @@ export interface ChatStatus {
   orgSpent: number;
   instanceBlocked?: boolean;
   writeMode: string;
+  /** With hidden prices the amounts are 0 and these show the share used. */
+  pricesHidden?: boolean;
+  userPercent?: number;
+  orgPercent?: number;
+  orgBudgetPercent?: number;
 }
+
+/** What one conversation used (cents only when prices are visible). */
+export interface ChatUsage { cents?: number; tokens: number; percent?: number }
 
 export interface ChatModel {
   ref: string;
@@ -67,6 +75,7 @@ export interface ChatView extends Chat {
   messages: Message[];
   proposals: Record<string, Proposal>;
   status: ChatStatus;
+  usage?: ChatUsage;
 }
 
 export interface ChatEvent {
@@ -76,6 +85,7 @@ export interface ChatEvent {
   ok?: boolean;
   key?: string;
   costCents?: number;
+  chat?: ChatUsage;
   // error events carry the API error body
   code?: string;
   params?: Record<string, unknown>;
