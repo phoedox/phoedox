@@ -8,6 +8,7 @@ Concepts:
 - Entities are things like services, servers, routers, rooms or people (kind + name + attrs). Edges connect them with a relation such as depends_on, runs_on, located_in, uplink.
 - The data model (get_data_model) lists the kinds of a project, their attributes as JSON schema and which relations are allowed between which kinds. related_to and depends_on are allowed between any kinds. If no kind fits, propose one with define_kind instead of misusing another kind. People see and edit the data model in Phoedox under project settings → "Kinds & fields"; the entries themselves are under "Knowledge graph".
 - Mention entities in markdown with @slug (same project) or @project/slug. Mentions become links in the graph.
+- Link pages and decisions with [[ref]] or [[ref|label]]; a ref without a project means the project you write to. Decision numbers repeat across projects, so link another project's decision as [[project/ADR-0001]]. On cards, [[…]] of the card's own project in the description also links that document to the card; links to other projects stay links in the text.
 
 Working rules:
 - Read before writing: use get_project, search and get_document to avoid duplicates. Check get_data_model before creating entities; for many entities at once use upsert_entities (up to 200 per call).

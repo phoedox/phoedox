@@ -102,6 +102,12 @@ user that link so they can open it directly.
   `@other-project/nas` across projects). Pages link to pages and decisions with
   `[[slug]]`, `[[ADR-0003]]`, `[[D-321]]` (start of a title) or `[[ref|label]]`;
   `include` embeds another page's content.
+- **Links resolve in the project you write to.** Decision numbers exist in every
+  project, so `[[ADR-0001]]` in a card or page of project `phoedox` means that
+  project's ADR-0001, even when you talk about the demo. To point at another
+  project, write `[[demo/ADR-0001]]` (or `@demo/nas` for entries). This matters on
+  cards too: `[[…]]` of the card's own project in a description links that
+  document to the card by itself; links to other projects stay links in the text.
 
 ## When a call fails
 

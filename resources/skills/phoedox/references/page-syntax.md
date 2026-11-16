@@ -9,7 +9,9 @@ Mentions inside inline code or code blocks stay text. `@` does not work for page
 link a page or decision with `[[ref]]` or `[[ref|label]]`, where ref is its slug,
 its number (`[[ADR-0255]]`) or the start of its title up to a separator
 (`[[D-321]]` finds "D-321 · iOS project …"); `[[other-project/ref]]` links across
-projects. Plain Markdown links `[Title](/p/<project>/d/<slug>)` work too.
+projects. A ref without a project always means the project of the page or card it
+is written in – `[[ADR-0001]]` in project A never reaches ADR-0001 of project B, so
+write `[[b/ADR-0001]]` there. Plain Markdown links `[Title](/p/<project>/d/<slug>)` work too.
 Published sites rewrite both to their own addresses.
 
 ## Callouts
