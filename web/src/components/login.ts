@@ -1,4 +1,6 @@
 import { LitElement, css, html } from "lit";
+import "./botcheck";
+import type { PhxBotcheck } from "./botcheck";
 import { ApiError, api, type Instance, type User } from "../api";
 import { t } from "../i18n";
 import { icon } from "../icon";
@@ -29,7 +31,9 @@ export const authPage = css`
 type LoginStep = { challenge: string; methods: string[] };
 
 export class PhxLogin extends LitElement {
-  static properties = { error: { state: true }, busy: { state: true }, step: { state: true }, mode: { state: true }, instance: { state: true } };
+  static properties = { error: { state: true }, busy: { state: true }, step: { state: true }, mode: { state: true }, instance: { state: true }, needBot: { state: true } };
+  /** After failed sign-ins the server asks for the bot check. */
+  needBot = false;
   static styles = [base, authPage, css`
     .sep { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
     .sep::before, .sep::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
@@ -56,7 +60,7 @@ export class PhxLogin extends LitElement {
 
   private fail(err: unknown) {
     if (cancelled(err)) return;
-    this.error = err instanceof ApiError ? err.text : t("error.unknown");
+    this.error = err instanceof ApiError ? err.text : err instanceof Error && err.message === t("bot.blocked") ? err.message : t("error.unknown");
   }
 
   private done(u: User) {
@@ -83,7 +87,20 @@ export class PhxLogin extends LitElement {
     e.preventDefault();
     const f = new FormData(e.target as HTMLFormElement);
     return this.run(async () => {
-      const res = await api<User | LoginStep>("POST", "/auth/login", { email: f.get("email"), password: f.get("password") });
+      const send = async () => {
+        const bot = this.renderRoot.querySelector<PhxBotcheck>("phx-botcheck");
+        const botToken = this.needBot && bot ? await bot.token() : undefined;
+        return api<User | LoginStep>("POST", "/auth/login", { email: f.get("email"), password: f.get("password"), botToken });
+      };
+      let res: User | LoginStep;
+      try {
+        res = await send();
+      } catch (err) {
+        // After failures the server asks for the check: show it; the next
+        // try runs it.
+        if (err instanceof ApiError && (err.code === "bot_required" || err.code === "bot_invalid")) this.needBot = true;
+        throw err;
+      }
       if ("challenge" in res) {
         this.step = res;
         this.mode = "totp";
@@ -152,6 +169,7 @@ export class PhxLogin extends LitElement {
       <h1 style="font-size:20px">${t("login.title")}</h1>
       <label class="field">${t("login.email")}<input name="email" type="email" autocomplete="username webauthn" required /></label>
       <label class="field">${t("login.password")}<input name="password" type="password" autocomplete="current-password" required /></label>
+      ${this.needBot ? html`<phx-botcheck place="signin"></phx-botcheck>` : ""}
       ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
       <button type="submit" ?disabled=${this.busy}>${t("login.submit")}</button>
       ${passkeysSupported() || this.instance?.oidc || this.instance?.homeassistant ? html`<div class="sep">${t("login.or")}</div>` : ""}

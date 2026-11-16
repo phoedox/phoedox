@@ -4,6 +4,8 @@ import { ApiError, api, minPasswordLength, type Instance, type LinkInfo, type Us
 import { locale, t } from "../i18n";
 import { currentUser, navigate, signedIn } from "../state";
 import { authPage } from "./login";
+import "./botcheck";
+import type { PhxBotcheck } from "./botcheck";
 import { base } from "./shared";
 
 const logo = html`<div class="logo"><img src="/logo.svg" alt="" />Phoedox</div>`;
@@ -27,10 +29,11 @@ export class PhxForgot extends LitElement {
     this.busy = true;
     this.error = "";
     try {
-      await api("POST", "/auth/reset-request", { email: new FormData(e.target as HTMLFormElement).get("email") });
+      const botToken = await this.renderRoot.querySelector<PhxBotcheck>("phx-botcheck")?.token();
+      await api("POST", "/auth/reset-request", { email: new FormData(e.target as HTMLFormElement).get("email"), botToken });
       this.sent = true;
     } catch (err) {
-      this.error = err instanceof ApiError ? err.text : t("error.unknown");
+      this.error = err instanceof ApiError ? err.text : err instanceof Error && err.message === t("bot.blocked") ? err.message : t("error.unknown");
     } finally {
       this.busy = false;
     }
@@ -49,6 +52,7 @@ export class PhxForgot extends LitElement {
       <h1 style="font-size:20px">${t("forgot.title")}</h1>
       <p class="muted">${t("forgot.intro")}</p>
       <label class="field">${t("login.email")}<input name="email" type="email" autocomplete="email" required /></label>
+      <phx-botcheck place="reset"></phx-botcheck>
       ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
       <button type="submit" ?disabled=${this.busy || !this.instance}>${t("forgot.submit")}</button>
       ${back}
@@ -82,10 +86,11 @@ export class PhxSignup extends LitElement {
     this.error = "";
     try {
       const email = String(f.get("email") ?? "");
-      await api("POST", "/auth/signup", { email, name: String(f.get("name") ?? ""), locale: locale(), accept: f.get("accept") === "on" });
+      const botToken = await this.renderRoot.querySelector<PhxBotcheck>("phx-botcheck")?.token();
+      await api("POST", "/auth/signup", { email, name: String(f.get("name") ?? ""), locale: locale(), accept: f.get("accept") === "on", botToken });
       this.sent = email;
     } catch (err) {
-      this.error = err instanceof ApiError ? err.text : t("error.unknown");
+      this.error = err instanceof ApiError ? err.text : err instanceof Error && err.message === t("bot.blocked") ? err.message : t("error.unknown");
     } finally {
       this.busy = false;
     }
@@ -110,6 +115,7 @@ export class PhxSignup extends LitElement {
       <label class="field">${t("login.email")}<input name="email" type="email" autocomplete="email" required /></label>
       ${legal ? html`<label class="accept"><input type="checkbox" name="accept" required>
         <span>${t("signup.accept_prefix")} ${i?.termsUrl ? html`<a href=${i.termsUrl} target="_blank" rel="noopener">${t("signup.terms")}</a>` : ""}${i?.termsUrl && i?.privacyUrl ? ` ${t("signup.and")} ` : ""}${i?.privacyUrl ? html`<a href=${i.privacyUrl} target="_blank" rel="noopener">${t("signup.privacy")}</a>` : ""}.</span></label>` : ""}
+      <phx-botcheck place="signup"></phx-botcheck>
       ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}
       <button type="submit" ?disabled=${this.busy || !i}>${t("signup.submit")}</button>
       ${back}
@@ -137,7 +143,7 @@ export class PhxIdentify extends SignalWatcher(LitElement) {
     try {
       this.client = await api("GET", `/identity/request?client_id=${encodeURIComponent(this.q.get("client_id") ?? "")}&redirect_uri=${encodeURIComponent(this.q.get("redirect_uri") ?? "")}`);
     } catch (err) {
-      this.error = err instanceof ApiError ? err.text : t("error.unknown");
+      this.error = err instanceof ApiError ? err.text : err instanceof Error && err.message === t("bot.blocked") ? err.message : t("error.unknown");
     }
   }
 
@@ -149,7 +155,7 @@ export class PhxIdentify extends SignalWatcher(LitElement) {
       });
       location.assign(r.redirect);
     } catch (err) {
-      this.error = err instanceof ApiError ? err.text : t("error.unknown");
+      this.error = err instanceof ApiError ? err.text : err instanceof Error && err.message === t("bot.blocked") ? err.message : t("error.unknown");
       this.busy = false;
     }
   }
@@ -221,7 +227,7 @@ export class PhxSetPassword extends LitElement {
       signedIn(await api<User>("POST", `/auth/links/${encodeURIComponent(this.token)}`, { password: f.get("password") }));
       navigate("/");
     } catch (err) {
-      this.error = err instanceof ApiError ? err.text : t("error.unknown");
+      this.error = err instanceof ApiError ? err.text : err instanceof Error && err.message === t("bot.blocked") ? err.message : t("error.unknown");
     } finally {
       this.busy = false;
     }

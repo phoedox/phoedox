@@ -3,8 +3,10 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/phoedox/phoedox/internal/aichat"
 	"github.com/phoedox/phoedox/internal/backup"
+	"github.com/phoedox/phoedox/internal/botcheck"
 	"io"
 	"net"
 	"net/http"
@@ -35,6 +37,8 @@ type api struct {
 	signupIP, signupMail *limiter
 	// runLimiter limits request block runs per user.
 	runLimiter *limiter
+	// loginFails counts failed sign-ins for the bot check.
+	loginFails failures
 	// root is the whole router (for the OpenAPI description).
 	root chi.Routes
 	// backups is nil in the hosted mode.
@@ -52,6 +56,7 @@ func actorOf(r *http.Request) core.Actor { return r.Context().Value(ctxKey{}).(c
 
 func (a *api) routes(r chi.Router) {
 	r.Post("/auth/login", a.login)
+	a.botRoutes(r)
 	// Server-to-server: a service redeems a sign-in code (ADR-0058).
 	r.Post("/identity/token", a.identityToken)
 	r.Post("/app/token", a.appToken)
@@ -182,6 +187,8 @@ func (a *api) routes(r chi.Router) {
 		r.Route("/admin", func(r chi.Router) {
 			r.Use(requireFull)
 			r.Get("/usage", a.instanceUsage)
+			r.Get("/bot-protection", a.botSettings)
+			r.Put("/bot-protection", a.saveBotSettings)
 			r.Get("/orgs/{o}/prices", a.orgPrices)
 			r.Post("/orgs/{o}/prices", a.setOrgPrice)
 			r.Post("/orgs/{o}/prices/preview", a.previewOrgPrice)
@@ -523,16 +530,27 @@ func (a *api) login(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusTooManyRequests, errBody("rate_limited", "Too many attempts. Please wait a few minutes."))
 		return
 	}
-	var in struct{ Email, Password string }
+	var in struct {
+		Email, Password string
+		BotToken        string `json:"botToken"`
+	}
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)
 		return
 	}
+	// After failures, the bot check comes before the next try.
+	if a.signinNeedsBot(r, in.Email) && !a.botCheck(w, r, botcheck.PlaceSignin, in.BotToken) {
+		return
+	}
 	step, err := a.auth.Login(r.Context(), in.Email, in.Password)
 	if err != nil {
+		if errors.Is(err, auth.ErrBadLogin) {
+			a.loginFails.add(loginKeys(r, in.Email)...)
+		}
 		writeErr(w, err)
 		return
 	}
+	a.loginFails.clear(loginKeys(r, in.Email)...)
 	if step.Cookie == nil {
 		writeJSON(w, http.StatusOK, step) // {challenge, methods}: second factor needed
 		return

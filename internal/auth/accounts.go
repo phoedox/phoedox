@@ -120,6 +120,8 @@ type SignupInput struct {
 	Locale string `json:"locale"`
 	// Accept confirms the terms and privacy policy when the instance names them.
 	Accept bool `json:"accept"`
+	// BotToken proves the bot check (checked by the server, not here).
+	BotToken string `json:"botToken,omitempty"`
 }
 
 // SignupTTL is how long the confirmation link of a sign-up stays valid.

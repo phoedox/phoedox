@@ -125,7 +125,7 @@ managed databases without these permissions, run `CREATE EXTENSION pg_trgm;` onc
 `phx admin reindex` rebuilds the search index.
 
 Emergency commands also work without the web interface: `phx admin reset-password --email …`,
-`phx admin reset-2fa --email …` (removes two-factor and passkeys), `phx admin create-token --email … --name …`.
+`phx admin reset-2fa --email …` (removes two-factor and passkeys), `phx admin bot-protection-off` (switches the bot check off everywhere), `phx admin create-token --email … --name …`.
 
 Passkeys only work over HTTPS (or `localhost`) and are bound to the domain – you set it
 with `PHOEDOX_PUBLIC_URL`.

@@ -29,6 +29,7 @@ Admin commands (run on the server, same environment as phoedox):
   phx admin invite --email E [--name N] [--admin]  Invitation link (emailed if SMTP is set)
   phx admin reset-password --email E [--password P]
   phx admin reset-2fa --email E                    Remove TOTP, recovery codes and passkeys
+  phx admin bot-protection-off                     Switch the bot check off for every place (emergency)
   phx admin delete-user --email E --yes            Delete and anonymise an account (like Settings → Account)
   phx admin deleted-projects                       List deleted projects (in the trash) and when they go for good
   phx admin restore-project --project SLUG         Restore a deleted project
@@ -92,7 +93,7 @@ func admin(args []string) error {
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
-	if *email == "" && args[0] != "reindex" && args[0] != "entitle" && args[0] != "create-tenant" && args[0] != "tenants" && args[0] != "backup" && args[0] != "restore" && args[0] != "deleted-projects" && args[0] != "restore-project" {
+	if *email == "" && args[0] != "reindex" && args[0] != "entitle" && args[0] != "create-tenant" && args[0] != "tenants" && args[0] != "backup" && args[0] != "restore" && args[0] != "deleted-projects" && args[0] != "restore-project" && args[0] != "bot-protection-off" {
 		return errors.New("--email is required")
 	}
 	ctx := context.Background()
@@ -274,6 +275,16 @@ func admin(args []string) error {
 			return err
 		}
 		fmt.Println("granted", *feature)
+	case "bot-protection-off":
+		// Emergency: switch the bot check off everywhere, e.g. when a
+		// misconfigured provider locks people out.
+		if a.Core.Bot == nil {
+			return errors.New("bot protection is not available")
+		}
+		if err := a.Core.Bot.Off(ctx, "cli"); err != nil {
+			return err
+		}
+		fmt.Println("bot protection switched off for every place; turn it on again under Administration → Bot protection")
 	case "reset-2fa":
 		u, err := a.DB.UserByEmail(ctx, *email)
 		if err != nil {

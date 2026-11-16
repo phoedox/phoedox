@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/phoedox/phoedox/internal/aichat"
 	"github.com/phoedox/phoedox/internal/backup"
+	"github.com/phoedox/phoedox/internal/botcheck"
 	"net/http"
 	"reflect"
 	"regexp"
@@ -208,6 +209,14 @@ var apiDocs = map[string]op{
 	"PUT /orgs/{o}/ai/members/{user}":              {Tag: "organizations", Summary: "Set a member's own AI limit (cents, -1 = the organization's default; or percent of the default when prices are hidden).", In: core.MemberLimitInput{}, Out: core.MemberBudgets{}},
 	"POST /orgs/{o}/ai/requests":                   {Tag: "organizations", Summary: "Ask the organization's admins for more AI usage (+25/50/100/200 % for this month or permanently), when the organization allows it.", In: core.BudgetRequestInput{}, Out: store.BudgetRequest{}},
 	"POST /orgs/{o}/ai/requests/{id}":              {Tag: "organizations", Summary: "Approve (possibly with another percentage or scope) or reject a request for more AI usage (organization admins).", In: core.BudgetDecision{}, Out: core.MemberBudgets{}},
+	"GET /admin/bot-protection":                    {Tag: "admin", Summary: "Bot protection: providers (without secrets), policies, which policy each place uses, and outcomes of the last 7 days with blocked attempts (system admins).", Out: core.BotSettings{}},
+	"PUT /admin/bot-protection":                    {Tag: "admin", Summary: "Save the bot protection configuration; empty provider secrets keep the stored ones. Third-party providers need the DPA confirmation.", In: botcheck.Config{}, Out: core.BotSettings{}},
+	"POST /bot/challenge":                          {Tag: "auth", Summary: "Start the bot check of a place (signup, signin, reset, public_forms, feedback, apps): proof-of-work prefix and difficulty, or the provider and site key; off when the place is not protected.", Public: true, Out: botcheck.Challenge{}},
+	"POST /bot/verify":                             {Tag: "auth", Summary: "Answer the invisible checks (proof-of-work nonce and behaviour signals): a pass token, a visible puzzle, or blocked.", Public: true, In: botcheck.VerifyInput{}, Out: botcheck.Result{}},
+	"POST /bot/solve":                              {Tag: "auth", Summary: "Answer a visible puzzle (slider position or rotation); three wrong answers block.", Public: true, In: botcheck.SolveInput{}, Out: botcheck.Result{}},
+	"POST /bot/email":                              {Tag: "auth", Summary: "Accessible fallback: send a one-time code to an e-mail address.", Public: true, In: botcheck.EmailInput{}, Out: botcheck.Result{}},
+	"POST /bot/email/verify":                       {Tag: "auth", Summary: "Check the e-mail code; a pass token on success.", Public: true, In: botcheck.EmailInput{}, Out: botcheck.Result{}},
+	"POST /bot/provider":                           {Tag: "auth", Summary: "Check the answer of a third-party widget (Turnstile, hCaptcha, reCAPTCHA) with the operator's secret key; a pass token on success.", Public: true, In: botcheck.ProviderInput{}, Out: botcheck.Result{}},
 	"GET /me/usage":                                {Tag: "account", Summary: "The signed-in person's own AI use this month by project and model, with their budgets.", Out: core.UsageReport{}},
 	"GET /projects/{p}/dbschema":                   {Tag: "documents", Summary: "All dbmodel blocks of the project's pages: together the project's database schema (a block can show tables of other pages).", Out: []core.DBSchemaBlock{}},
 	"POST /projects/{p}/validate-blocks":           {Tag: "documents", Summary: "Check mermaid and dbmodel blocks of a page (document) or of Markdown (markdown).", Out: []core.BlockProblem{}},

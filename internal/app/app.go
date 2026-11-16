@@ -125,6 +125,7 @@ func Open(ctx context.Context) (*App, error) {
 	svc.TrashDays = cfg.TrashDays
 	svc.SignupDefault = cfg.Signup == "open"
 	svc.PaidFeatures = cfg.PaidFeatures
+	svc.Bot = svc.NewBotCheck()
 	if cfg.AI.Enabled() {
 		effort := cfg.AI.Effort
 		if effort == "" {

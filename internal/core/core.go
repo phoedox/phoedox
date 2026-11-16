@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/phoedox/phoedox/internal/ai"
 	"github.com/phoedox/phoedox/internal/blob"
+	"github.com/phoedox/phoedox/internal/botcheck"
 	"github.com/phoedox/phoedox/internal/jobs"
 	"github.com/phoedox/phoedox/internal/mail"
 	"github.com/phoedox/phoedox/internal/preview"
@@ -93,6 +94,8 @@ type Service struct {
 	MaxDepth int
 	// Box decrypts project secrets for request blocks.
 	Box *secret.Box
+	// Bot is the bot protection (nil = off, e.g. in tests).
+	Bot *botcheck.Service
 
 	vaults vaultCache
 	// RequestPolicy limits which addresses request blocks may reach.

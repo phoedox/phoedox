@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"github.com/phoedox/phoedox/internal/botcheck"
 	"log/slog"
 	"net"
 	"net/http"
@@ -79,12 +80,18 @@ func (a *api) resetRequest(w http.ResponseWriter, r *http.Request) {
 	if a.limited(w, r) {
 		return
 	}
-	var in struct{ Email string }
+	var in struct {
+		Email    string
+		BotToken string `json:"botToken"`
+	}
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)
 		return
 	}
 	if a.resetAvailable() {
+		if !a.botCheck(w, r, botcheck.PlaceReset, in.BotToken) {
+			return
+		}
 		if err := a.auth.RequestReset(r.Context(), in.Email, a.trustedBase()); err != nil {
 			writeErr(w, err)
 			return
@@ -114,6 +121,9 @@ func (a *api) signup(w http.ResponseWriter, r *http.Request) {
 	var in auth.SignupInput
 	if err := decode(r, &in); err != nil {
 		writeErr(w, err)
+		return
+	}
+	if !a.botCheck(w, r, botcheck.PlaceSignup, in.BotToken) {
 		return
 	}
 	if in.Locale == "" {
