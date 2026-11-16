@@ -42,6 +42,9 @@ type TranslationInput struct {
 	// Edits change exact passages of the existing translation (Field for
 	// decisions) instead of sending the whole text.
 	Edits []TextEdit `json:"edits,omitempty"`
+	// keepSource: a find-and-replace change; the translation keeps the main
+	// version it refers to and its review state.
+	keepSource bool
 }
 
 // bodyGiven: the input brings translated text (not only the title).
@@ -301,7 +304,12 @@ func (s *Service) prepareTranslation(ctx context.Context, a Actor, ref, docRef, 
 	// current one only if the main text did not change since the old
 	// translation (otherwise it stays outdated).
 	source := doc.Version
-	if exists {
+	if exists && in.keepSource {
+		source = prev.SourceVersion
+		in.Original = prev.Original
+		in.Machine = prev.Machine
+	}
+	if exists && !in.keepSource {
 		if !in.bodyGiven() {
 			source = prev.SourceVersion
 			if prev.SourceVersion < doc.Version {
@@ -312,6 +320,8 @@ func (s *Service) prepareTranslation(ctx context.Context, a Actor, ref, docRef, 
 			}
 			in.Original = in.Original || prev.Original
 		}
+	}
+	if exists {
 		if err := mergeTranslation(doc.Type, prev.Content, &in); err != nil {
 			return fail(err)
 		}

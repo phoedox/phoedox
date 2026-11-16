@@ -702,7 +702,7 @@ func (s *Service) updateDocument(ctx context.Context, a Actor, p store.Project, 
 		return res, err
 	}
 	// Approval projects: editors' changes go into a draft for review (ADR-0042).
-	if hasDrafts(cur.Type) && (patch.Markdown != nil || patch.Floorplan != nil || patch.Title != nil || patch.Category != nil) && s.needsApproval(ctx, p) {
+	if hasDrafts(cur.Type) && (patch.Markdown != nil || patch.Floorplan != nil || patch.Title != nil) && s.needsApproval(ctx, p) {
 		if err := s.openDraft(ctx, a, cur); err != nil {
 			return DocResult{}, err
 		}
@@ -728,6 +728,22 @@ func (s *Service) publishPatch(ctx context.Context, a Actor, p store.Project, cu
 	doc, text, related, err := s.patched(ctx, p, cur, patch)
 	if err != nil {
 		return DocResult{}, err
+	}
+	// Moving or renaming the address only: no new version (ADR-0014/0028).
+	if doc.Title == cur.Title && sameJSON(cur.Content, doc.Content) && len(related) == 0 {
+		if doc.Slug == cur.Slug && doc.Category == cur.Category && doc.Position == cur.Position && doc.ExtRef == cur.ExtRef {
+			return DocResult{Applied: true, Document: &doc}, nil
+		}
+		if doc, err = s.DB.UpdateDocumentPlace(ctx, doc, patch.ExpectVersion); err != nil {
+			return DocResult{}, err
+		}
+		kind := "document.move"
+		if doc.Category == cur.Category {
+			kind = "document.place"
+		}
+		s.event(ctx, a, kind, doc.ID, map[string]any{"from": cur.Category, "to": doc.Category, "slug": doc.Slug, "position": doc.Position})
+		s.indexDocument(ctx, doc)
+		return DocResult{Applied: true, Document: &doc}, nil
 	}
 	doc, err = s.DB.UpdateDocument(ctx, doc, patch.ExpectVersion, a.String(), related...)
 	if err != nil {

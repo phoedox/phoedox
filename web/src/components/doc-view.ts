@@ -567,6 +567,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
             @click=${() => setWideReading(!wide)}>${icon(wide ? "Minimize2" : "Maximize2", 15)}</button>`}
           <a class="btn ghost" href="/p/${this.project}/d/${d.id}/history">${icon("History", 14)} ${t("doc.history")}</a>
           ${d.type === "link" ? "" : html`<a class="btn ghost icon" href="/kiosk/${this.project}/${d.slug}" target="_blank" rel="noopener" title=${t("kiosk.open")} aria-label=${t("kiosk.open")}>${icon("MonitorPlay", 15)}</a>`}
+          ${["markdown", "adr", "link"].includes(d.type) ? html`<a class="btn ghost icon" href="/p/${this.project}/replace?doc=${encodeURIComponent(d.id)}" title=${t("replace.in_page")} aria-label=${t("replace.in_page")}>${icon("TextSearch", 15)}</a>` : ""}
           <a class="btn ghost icon" href="/print/${this.project}?doc=${encodeURIComponent(d.id)}" target="_blank" rel="noopener" title=${t("print.page")} aria-label=${t("print.page")}>${icon("FileDown", 15)}</a>
           ${canEdit ? html`<button class="ghost" @click=${() => this.renderRoot.querySelector<PhxDocShare>("phx-doc-share")!.open()}>${icon("Share2", 14)} ${t("share.button")}</button>
           ${this.translateButton(d)}

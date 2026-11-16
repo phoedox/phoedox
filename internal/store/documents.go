@@ -389,3 +389,21 @@ func (d *DB) SetPositions(ctx context.Context, projectID string, pos map[string]
 		return nil
 	})
 }
+
+// UpdateDocumentPlace changes where a document lives – slug, folder, order,
+// own number – without a new version: the content and title stay, so the
+// change date, the history and the translations stay as they are.
+func (d *DB) UpdateDocumentPlace(ctx context.Context, doc Document, expectVersion int) (Document, error) {
+	var cur int
+	if err := d.QueryRow(ctx, `SELECT version FROM documents WHERE id = ? AND deleted_at IS NULL`, doc.ID).Scan(&cur); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return doc, ErrNotFound
+		}
+		return doc, err
+	}
+	if expectVersion != 0 && expectVersion != cur {
+		return doc, ErrConflict
+	}
+	_, err := d.Exec(ctx, `UPDATE documents SET slug = ?, category = ?, position = ?, ext_ref = ? WHERE id = ?`, doc.Slug, doc.Category, doc.Position, doc.ExtRef, doc.ID)
+	return doc, err
+}

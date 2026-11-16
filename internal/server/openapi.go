@@ -196,6 +196,7 @@ var apiDocs = map[string]op{
 	"GET /projects/{p}/trash":                      {Tag: "projects", Summary: "Deleted pages, entries and files.", Out: []store.TrashItem{}},
 	"PUT /projects/{p}/category-names":             {Tag: "projects", Summary: "Name a folder (category path) in one of the project's further languages; an empty name removes it.", Out: store.Project{}},
 	"POST /projects/{p}/category-names/rename":     {Tag: "projects", Summary: "Move the folder names of a renamed folder (from, to) to the new path."},
+	"POST /projects/{p}/find":                      {Tag: "documents", Summary: "Find text or a regular expression in one, several or all documents (pages, decision texts, link descriptions, optionally titles; main language or lang); with replace a preview, with apply the replacement (only/versions from the preview).", In: core.FindInput{}, Out: core.FindResult{}},
 	"GET /projects/{p}/dbschema":                   {Tag: "documents", Summary: "All dbmodel blocks of the project's pages: together the project's database schema (a block can show tables of other pages).", Out: []core.DBSchemaBlock{}},
 	"POST /projects/{p}/validate-blocks":           {Tag: "documents", Summary: "Check mermaid and dbmodel blocks of a page (document) or of Markdown (markdown).", Out: []core.BlockProblem{}},
 	"GET /projects/{p}/history/points":             {Tag: "projects", Summary: "The newest saved changes of the project's documents (points to look at or roll back to); doc (one document), before, limit.", Out: []core.ProjectPoint{}},

@@ -361,6 +361,7 @@ func (a *api) routes(r chi.Router) {
 			r.Post("/category-names/rename", a.renameCategoryNames)
 			r.Get("/history/points", a.projectPoints)
 			r.Get("/dbschema", a.dbSchema)
+			r.Post("/find", a.findInDocuments)
 			r.Post("/validate-blocks", a.validateBlocks)
 			r.Get("/history/at", a.projectAt)
 			r.Post("/history/rollback", a.rollbackProject)
@@ -1359,6 +1360,16 @@ func (a *api) projectPoints(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	list, err := a.core.ProjectPoints(r.Context(), actorOf(r), chi.URLParam(r, "p"), r.URL.Query().Get("doc"), before, limit)
 	respond(w, list, err)
+}
+
+func (a *api) findInDocuments(w http.ResponseWriter, r *http.Request) {
+	var in core.FindInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	res, err := a.core.FindInDocuments(r.Context(), actorOf(r), chi.URLParam(r, "p"), in)
+	respond(w, res, err)
 }
 
 func (a *api) dbSchema(w http.ResponseWriter, r *http.Request) {

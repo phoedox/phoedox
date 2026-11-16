@@ -221,6 +221,15 @@ func TestMCPTools(t *testing.T) {
 	if l := call("list_documents", map[string]any{"project": "phoedox", "category": "Technik"}); strings.Index(l, `"architektur"`) > strings.Index(l, `"short"`) || strings.Index(l, `"short"`) > strings.Index(l, `"long"`) {
 		t.Fatalf("after: %s", l)
 	}
+	if f := call("find_in_documents", map[string]any{"project": "phoedox", "find": "delta", "documents": []string{"long"}}); !strings.Contains(f, `"total": 1`) || !strings.Contains(f, `"before": "Alpha "`) {
+		t.Fatalf("find_in_documents: %s", f)
+	}
+	if r := call("replace_in_documents", map[string]any{"project": "phoedox", "find": "delta", "replace": "zeta", "documents": []string{"long"}}); !strings.Contains(r, `"replacement": "zeta"`) || strings.Contains(r, `"result"`) {
+		t.Fatalf("replace preview: %s", r)
+	}
+	if r := call("replace_in_documents", map[string]any{"project": "phoedox", "find": "delta", "replace": "zeta", "documents": []string{"long"}, "apply": true}); !strings.Contains(r, `"replaced": 1`) || !strings.Contains(r, `"result": "applied"`) {
+		t.Fatalf("replace apply: %s", r)
+	}
 	if v := call("validate_blocks", map[string]any{"project": "phoedox", "markdown": "```mermaid\nflowhart TD\n```\n```dbmodel\n-- tables: ghosts\n```"}); !strings.Contains(v, "unknown diagram type") || !strings.Contains(v, `ghosts\" is not defined`) {
 		t.Fatalf("validate_blocks: %s", v)
 	}

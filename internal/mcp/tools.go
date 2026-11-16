@@ -714,6 +714,14 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		return map[string]any{"ok": len(ps) == 0, "problems": ps}, nil
 	})
+	tool(s, "find_in_documents", "Find exact text or a regular expression in one, several or all documents of a project: page text (the open draft if any), decision texts, link descriptions, optionally titles; the main language or one translation (lang). Every match comes with its line and surrounding text. Unlike search (words, ranked), this finds every literal occurrence.", func(ctx context.Context, a core.Actor, in findIn) (any, error) {
+		return svc.FindInDocuments(ctx, a, in.Project, in.input(nil, false))
+	})
+	tool(s, "replace_in_documents", "Replace text across one, several or all documents. Run it with apply false first: the preview shows every match with its replacement and number; then apply with only (document id → match numbers) to leave matches out, and versions from the preview so documents changed since are skipped. Regex replacements may use $1. Writes are normal versions: in projects where AI writes become suggestions, each document becomes a suggestion; open drafts receive the change.", func(ctx context.Context, a core.Actor, in replaceIn) (any, error) {
+		in2 := in.findIn.input(&in.Replace, in.Apply)
+		in2.Only, in2.Versions = in.Only, in.Versions
+		return svc.FindInDocuments(ctx, a, in.Project, in2)
+	})
 	tool(s, "batch_update", "Several changes in one call: update (title, markdown or edits, category, position/after of the main language) and translate (title, text or edits of one language) operations, up to 100, applied in order. Every operation is checked first; if one is invalid, nothing is written. Answers are short (id, version, translation state).", func(ctx context.Context, a core.Actor, in batchIn) (any, error) {
 		return batchUpdate(ctx, svc, a, in)
 	})
@@ -1357,4 +1365,28 @@ type validateBlocksIn struct {
 	Project  string  `json:"project" jsonschema:"project slug"`
 	Document string  `json:"document,omitempty" jsonschema:"page slug or id to check"`
 	Markdown *string `json:"markdown,omitempty" jsonschema:"or: Markdown to check before saving"`
+}
+
+type findIn struct {
+	Project       string   `json:"project" jsonschema:"project slug"`
+	Find          string   `json:"find" jsonschema:"text to find, or a regular expression with regex: true (Go/RE2 syntax)"`
+	Regex         bool     `json:"regex,omitempty"`
+	CaseSensitive bool     `json:"case_sensitive,omitempty"`
+	WholeWord     bool     `json:"whole_word,omitempty"`
+	Titles        bool     `json:"titles,omitempty" jsonschema:"also search document titles"`
+	Documents     []string `json:"documents,omitempty" jsonschema:"slugs, ids or decision numbers; empty = all documents"`
+	Lang          string   `json:"lang,omitempty" jsonschema:"a further language: search its translations instead of the main language"`
+}
+
+func (f findIn) input(replace *string, apply bool) core.FindInput {
+	return core.FindInput{Find: f.Find, Replace: replace, Regex: f.Regex, CaseSensitive: f.CaseSensitive, WholeWord: f.WholeWord, Titles: f.Titles,
+		Documents: f.Documents, Lang: f.Lang, Apply: apply}
+}
+
+type replaceIn struct {
+	findIn
+	Replace  string           `json:"replace" jsonschema:"replacement text; with regex, $1 inserts a group"`
+	Apply    bool             `json:"apply,omitempty" jsonschema:"false (default): preview only; true: write the replacement"`
+	Only     map[string][]int `json:"only,omitempty" jsonschema:"document id → match numbers from the preview to replace; a document not listed gets all its matches, an empty list none"`
+	Versions map[string]int   `json:"versions,omitempty" jsonschema:"document id → version from the preview; documents changed since are skipped"`
 }
