@@ -444,7 +444,8 @@ func EmbedKind(raw string) string {
 // when hosted, size and time limits). It never fails hard: without an
 // answer the card shows the address.
 func (s *Service) EmbedPreview(ctx context.Context, a Actor, ref, raw string) (WBPreview, string, error) {
-	if _, err := s.project(ctx, a, ref, store.RoleEditor); err != nil {
+	p, err := s.project(ctx, a, ref, store.RoleEditor)
+	if err != nil {
 		return WBPreview{}, "", err
 	}
 	u, err := url.Parse(raw)
@@ -469,7 +470,7 @@ func (s *Service) EmbedPreview(ctx context.Context, a Actor, ref, raw string) (W
 	if res.StatusCode != http.StatusOK {
 		return pv, kind, nil
 	}
-	pv.Frameable = frameable(res.Header)
+	pv.Frameable = frameable(res.Header) && s.embedPolicy(ctx, p).allows(u.Hostname())
 	body, _ := io.ReadAll(io.LimitReader(res.Body, 512<<10))
 	meta := map[string]string{}
 	for _, tag := range metaRe.FindAllString(string(body), 200) {

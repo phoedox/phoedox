@@ -108,7 +108,7 @@ type Service struct {
 	RequestPolicy requests.Policy
 	// OnContentChange is called when a document's content changed outside
 	// the live editor (the realtime hub resets live sessions).
-	OnContentChange func(ctx context.Context, documentID, by string)
+	OnContentChange func(ctx context.Context, documentID, by string, ai bool)
 	// OnDraftEnd is called when a draft was published, cancelled or its page
 	// deleted (reason); live editors leave the edit mode.
 	// HashPassword and VerifyPassword are set by the app (internal/auth);

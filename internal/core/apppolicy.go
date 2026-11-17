@@ -26,6 +26,11 @@ type AppPolicy struct {
 	NoAI     bool `json:"noAi,omitempty"`
 	// NoPublic forbids releasing apps to people without an account.
 	NoPublic bool `json:"noPublic,omitempty"`
+	// NoWebEmbeds switches interactive website embeds on whiteboards off
+	// (they stay link cards); EmbedSites limits them to these sites and
+	// their subdomains (empty = any site that allows framing).
+	NoWebEmbeds bool     `json:"noWebEmbeds,omitempty"`
+	EmbedSites  []string `json:"embedSites,omitempty"`
 	// Hosts apps may connect to (https only, exact host names).
 	Hosts []string `json:"hosts,omitempty"`
 	// OrgHosts (instance only): organizations may allow their own hosts.
@@ -59,7 +64,81 @@ func (p *AppPolicy) normalize() error {
 		return invalid("validation.app_host", map[string]any{"host": "…"}, "at most 50 hosts")
 	}
 	p.Hosts = hosts
+	sites := []string{}
+	for _, h := range p.EmbedSites {
+		h = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(h, "https://"), "http://")))
+		h = strings.TrimSuffix(h, "/")
+		if h == "" {
+			continue
+		}
+		if !appHostRe.MatchString(h) {
+			return invalid("validation.app_host", map[string]any{"host": h}, "%q is not a host name", h)
+		}
+		if !slices.Contains(sites, h) {
+			sites = append(sites, h)
+		}
+	}
+	if len(sites) > 200 {
+		return invalid("validation.app_host", map[string]any{"host": "…"}, "at most 200 sites")
+	}
+	p.EmbedSites = sites
 	return nil
+}
+
+// siteIn reports whether host is one of the sites or a subdomain of one.
+func siteIn(host string, sites []string) bool {
+	host = strings.ToLower(strings.TrimSuffix(host, "."))
+	for _, s := range sites {
+		if host == s || strings.HasSuffix(host, "."+s) {
+			return true
+		}
+	}
+	return false
+}
+
+// EmbedPolicy is what whiteboards of a project may embed live.
+type EmbedPolicy struct {
+	Web   bool     `json:"web"`
+	Sites []string `json:"sites"` // empty = any site that allows framing
+}
+
+// embedPolicy combines the instance's and the organization's embed rules:
+// either can switch websites off; with two lists only sites on both count.
+func (s *Service) embedPolicy(ctx context.Context, p store.Project) EmbedPolicy {
+	inst := s.readAppPolicy(ctx, settingAppPolicy)
+	out := EmbedPolicy{Web: !inst.NoWebEmbeds, Sites: slices.Clone(inst.EmbedSites)}
+	if p.OrgID != "" {
+		org := s.readAppPolicy(ctx, appOrgKey(p.OrgID))
+		out.Web = out.Web && !org.NoWebEmbeds
+		switch {
+		case len(org.EmbedSites) == 0:
+		case len(out.Sites) == 0:
+			out.Sites = slices.Clone(org.EmbedSites)
+		default:
+			out.Sites = slices.DeleteFunc(slices.Clone(org.EmbedSites), func(h string) bool { return !siteIn(h, inst.EmbedSites) })
+			if len(out.Sites) == 0 {
+				out.Web = false
+			}
+		}
+	}
+	if out.Sites == nil {
+		out.Sites = []string{}
+	}
+	return out
+}
+
+// allows reports whether a website may be embedded live.
+func (e EmbedPolicy) allows(host string) bool {
+	return e.Web && (len(e.Sites) == 0 || siteIn(host, e.Sites))
+}
+
+// ProjectEmbedPolicy tells the whiteboard editor which websites it may embed live.
+func (s *Service) ProjectEmbedPolicy(ctx context.Context, a Actor, ref string) (EmbedPolicy, error) {
+	p, err := s.project(ctx, a, ref, store.RoleReader)
+	if err != nil {
+		return EmbedPolicy{}, err
+	}
+	return s.embedPolicy(ctx, p), nil
 }
 
 func (s *Service) readAppPolicy(ctx context.Context, key string) AppPolicy {

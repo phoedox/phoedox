@@ -8,7 +8,7 @@ import { scard, settingsUI, srow, sseg, sswitch } from "./settings-ui";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
-interface Policy { off?: boolean; maxLevel?: number | null; noAi?: boolean; noPublic?: boolean; hosts?: string[]; orgHosts?: boolean; instanceOrgHosts?: boolean }
+interface Policy { off?: boolean; maxLevel?: number | null; noAi?: boolean; noPublic?: boolean; noWebEmbeds?: boolean; embedSites?: string[]; hosts?: string[]; orgHosts?: boolean; instanceOrgHosts?: boolean }
 
 export class PhxAppPolicy extends LitElement {
   static properties = { scope: {}, org: {}, p: { state: true }, busy: { state: true } };
@@ -54,7 +54,7 @@ export class PhxAppPolicy extends LitElement {
     if (!p) return nothing;
     const lvl = p.maxLevel === undefined || p.maxLevel === null ? "any" : String(p.maxLevel);
     const hostsAllowed = this.scope === "instance" || p.instanceOrgHosts;
-    return scard(t("apppol.title"), t(this.scope === "org" ? "apppol.text_org" : "apppol.text_instance"), html`
+    return html`${scard(t("apppol.title"), t(this.scope === "org" ? "apppol.text_org" : "apppol.text_instance"), html`
       ${srow(t("apppol.off"), t("apppol.off_help"), sswitch(!!p.off, t("apppol.off"), (on) => this.save({ ...p, off: on }), this.busy))}
       ${srow(t("apppol.level"), t("apppol.level_help"), sseg<string>(t("apppol.level"), lvl,
         [["any", t("apppol.level_any")], ["0", "0"], ["1", "1"], ["2", "2"]], (v) => this.save({ ...p, maxLevel: v === "any" ? null : Number(v) })))}
@@ -67,7 +67,15 @@ export class PhxAppPolicy extends LitElement {
           <textarea aria-label=${t("apppol.hosts")} .value=${(p.hosts ?? []).join("\n")} placeholder="api.example.com"
             @change=${(e: Event) => this.save({ ...p, hosts: (e.target as HTMLTextAreaElement).value.split(/[\s,]+/).filter(Boolean) })}></textarea>`
           : html`<p class="hint">${t("apppol.hosts_instance_only")}</p>`}
-      </div>`);
+      </div>`)}
+    ${scard(t("embedpol.title"), t(this.scope === "org" ? "embedpol.text_org" : "embedpol.text_instance"), html`
+      ${srow(t("embedpol.off"), t("embedpol.off_help"), sswitch(!!p.noWebEmbeds, t("embedpol.off"), (on) => this.save({ ...p, noWebEmbeds: on }), this.busy))}
+      <div class="body">
+        <b>${t("embedpol.sites")}</b>
+        <p class="hint">${t("embedpol.sites_help")}</p>
+        <textarea aria-label=${t("embedpol.sites")} .value=${(p.embedSites ?? []).join("\n")} placeholder="figma.com" ?disabled=${!!p.noWebEmbeds}
+          @change=${(e: Event) => this.save({ ...p, embedSites: (e.target as HTMLTextAreaElement).value.split(/[\s,]+/).filter(Boolean) })}></textarea>
+      </div>`)}`;
   }
 }
 customElements.get("phx-app-policy") || customElements.define("phx-app-policy", PhxAppPolicy);

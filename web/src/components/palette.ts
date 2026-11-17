@@ -184,6 +184,7 @@ export class PhxPalette extends SignalWatcher(LitElement) {
       id: `h-${h.id}`, label: h.title,
       icon: h.type === "entity" ? "Box" : h.type === "file" ? fileIcon(h.kind) : h.type === "task" ? "SquareCheckBig" : docIcon[h.kind] ?? "FileText",
       href: h.type === "file" ? `/p/${h.projectSlug}/files?open=${h.id}` : h.type === "task" ? `/p/${h.projectSlug}/d/${h.slug}?task=${h.id}`
+        : h.type === "document" && h.kind === "whiteboard" ? `/p/${h.projectSlug}/d/${h.slug}?find=${encodeURIComponent(this.query.trim())}`
         : `/p/${h.projectSlug}/${h.type === "entity" ? "e" : "d"}/${h.slug}`,
       // A match in a translation opens the page in that language.
       run: h.locale ? () => { rememberLocale(h.projectSlug, h.locale!); if (h.projectId === here) contentLocale.set(h.locale!); navigate(`/p/${h.projectSlug}/d/${h.slug}`); } : undefined,

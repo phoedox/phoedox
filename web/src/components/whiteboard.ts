@@ -7,7 +7,7 @@
 
 import { LitElement, css, html, nothing } from "lit";
 import rough from "roughjs";
-import { api, type Doc, type Entity } from "../api";
+import { ApiError, api, type Doc, type Entity } from "../api";
 import { userColor } from "../collab";
 import { uploadFile } from "../files";
 import { formatDate, t } from "../i18n";
@@ -75,7 +75,7 @@ interface Pop { kind: "comment" | "newcomment" | "embed" | "entity"; x: number; 
 export class PhxWhiteboard extends LitElement {
   static properties = {
     project: {}, doc: { attribute: false }, canEdit: { type: Boolean }, still: { type: Boolean, reflect: true },
-    tool: { state: true }, selId: { state: true }, sel: { state: true }, snap: { state: true }, embedWeb: { state: true }, apps: { state: true }, present: { state: true }, status: { state: true }, saved: { state: true }, peers: { state: true }, zoom: { state: true },
+    tool: { state: true }, selId: { state: true }, sel: { state: true }, snap: { state: true }, embedWeb: { state: true }, apps: { state: true }, cards: { state: true }, mermaid: { state: true }, present: { state: true }, status: { state: true }, saved: { state: true }, peers: { state: true }, zoom: { state: true },
     pop: { state: true }, menu: { state: true }, panel: { state: true }, arrowMode: { state: true }, roundDefault: { state: true }, trail: { state: true }, laserSize: { state: true },
     entities: { state: true }, query: { state: true }, busy: { state: true }, boardVersion: { state: true },
   };
@@ -86,6 +86,17 @@ export class PhxWhiteboard extends LitElement {
     :host([still]) .stage { border: 0; border-radius: 0; }
     :host([still]) svg.board { pointer-events: none; }
     .stage { position: absolute; inset: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--canvas, var(--bg)); touch-action: none; }
+    dialog.wbdlg { border: 1px solid var(--line); border-radius: var(--radius-card, 12px); background: var(--surface); color: var(--fg); padding: 20px; width: min(560px, 94vw); box-shadow: 0 18px 50px rgb(0 0 0 / .2); }
+    dialog.wbdlg::backdrop { background: rgb(0 0 0 / .35); }
+    dialog.wbdlg h2 { font-size: 18px; margin: 0 0 6px; }
+    dialog.wbdlg .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+    dialog.wbdlg label { display: grid; gap: 4px; font-size: 13px; }
+    dialog.wbdlg .cardlist { list-style: none; padding: 0; margin: 0 0 14px; display: grid; gap: 6px; max-height: 50vh; overflow: auto; }
+    dialog.wbdlg .cardlist li { display: flex; gap: 8px; align-items: center; }
+    dialog.wbdlg .cardlist input[type=checkbox] { width: auto; }
+    dialog.wbdlg .cardlist input[type=text] { flex: 1; }
+    dialog.wbdlg textarea { width: 100%; min-height: 200px; box-sizing: border-box; font: 13px/1.5 var(--font-mono); margin: 10px 0 14px; }
+    dialog.wbdlg .acts { display: flex; gap: 8px; justify-content: flex-end; }
     .apps { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
     .apps .app { position: absolute; transform-origin: 0 0; pointer-events: auto; border-radius: 0 0 10px 10px; overflow: hidden; }
     svg.board { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none; -webkit-user-select: none; outline: none; }
@@ -202,6 +213,17 @@ export class PhxWhiteboard extends LitElement {
   embedWeb = false;
   /** Apps of the project for the embed dialog. */
   apps: Doc[] = [];
+  /** Sticky notes on their way to becoming cards. */
+  cards?: { items: { id: string; title: string; description: string; on: boolean }[]; boards: Doc[]; board: string; columns: { id: string; name: string }[]; column: string };
+  /** A Mermaid flowchart to turn into shapes. */
+  mermaid?: string;
+  /** Live state of entries (slug → ok | warn | down | fail …). */
+  private entStatus = new Map<string, string>();
+  /** Which websites may be embedded live (instance and organization). */
+  private embedRules?: { web: boolean; sites: string[] };
+  private liveTimer = 0;
+  /** Bring the next change from outside into view (a diagram drawn on request). */
+  private showNext = false;
   /** Presentation: index of the frame shown (-1 = off). */
   present = -1;
   status: Status = "connecting";
@@ -266,6 +288,7 @@ export class PhxWhiteboard extends LitElement {
     window.removeEventListener("blur", this.closeMenu);
     document.removeEventListener("fullscreenchange", this.onFullscreen);
     this.resize?.disconnect();
+    window.clearInterval(this.liveTimer);
     void this.live?.destroy();
     this.live = undefined;
   }
@@ -294,6 +317,9 @@ export class PhxWhiteboard extends LitElement {
     // Entries on the board show their name and kind.
     this.entities = [];
     if (this.board.elements.some((e) => e.entity)) void this.loadEntities();
+    void this.loadLive();
+    window.clearInterval(this.liveTimer);
+    this.liveTimer = window.setInterval(() => void this.loadLive(), 60_000);
     if (this.still) {
       this.readOnly = true;
       this.live = undefined;
@@ -309,9 +335,72 @@ export class PhxWhiteboard extends LitElement {
       onPeers: (p) => { this.peers = p; this.paintOthers(); },
       onStatus: (s) => (this.status = s),
       onSaved: (state, at) => (this.saved = { state, at }),
-      onReset: (by) => toast(by ? t("wb.changed_by", { name: by }) : t("wb.changed_outside")),
+      onReset: (by, ai, changed) => {
+        void this.loadLive();
+        if (!this.showNext) toast(by ? t(ai ? "wb.changed_by_ai" : "wb.changed_by", { name: by }) : t("wb.changed_outside"));
+        if (ai) this.showAICursor(by, changed);
+        // A diagram this person asked for (neighbourhood, Mermaid): show it.
+        if (this.showNext && changed.length) {
+          this.showNext = false;
+          const b = extent(changed.map((id) => this.byId(id)).filter((e): e is WBElement => !!e), this.byId);
+          if (b) this.fitBox(b, 60);
+        }
+      },
     });
-    requestAnimationFrame(() => this.fit());
+    requestAnimationFrame(() => {
+      this.fit();
+      this.findFromURL();
+    });
+  }
+
+  /** A search hit opens the board with ?find=…: select the first element
+   * whose text matches and bring it into view. */
+  private findFromURL() {
+    const q = new URLSearchParams(location.search).get("find")?.trim().toLowerCase();
+    if (!q) return;
+    const words = q.split(/\s+/).filter(Boolean);
+    const text = (e: WBElement) => [e.text, e.preview?.title, e.preview?.description, e.entity, e.url].filter(Boolean).join(" ").toLowerCase();
+    const hit = sorted(this.els()).find((e) => words.every((w) => text(e).includes(w))) ?? sorted(this.els()).find((e) => words.some((w) => text(e).includes(w)));
+    if (!hit) return;
+    this.select(hit.id);
+    const b = bbox(hit, this.byId);
+    this.fitBox({ x: b.x - b.w, y: b.y - b.h, w: b.w * 3, h: b.h * 3 }, 40);
+  }
+
+  /** Live state on the board: entries (checks, path diagnosis), pull
+   * requests and issues through the code connection, embed rules. */
+  private async loadLive() {
+    const p = this.project;
+    if (!p) return;
+    if (!this.embedRules) this.embedRules = await api<{ web: boolean; sites: string[] }>("GET", `/projects/${p}/embed-policy`).catch(() => ({ web: true, sites: [] }));
+    const slugs = [...new Set(this.els().filter((e) => e.entity).map((e) => e.entity!))].slice(0, 100);
+    if (slugs.length) {
+      const q = new URLSearchParams();
+      for (const sl of slugs) q.append("e", sl);
+      const st = await api<{ entries: { slug: string; status: string }[] }>("GET", `/projects/${p}/status?${q}`).catch(() => undefined);
+      if (st) this.entStatus = new Map(st.entries.map((h) => [h.slug, h.status]));
+    }
+    const code = this.els().filter((e) => e.type === "embed" && e.kind === "code" && e.url);
+    if (code.length) {
+      const res = await api<Record<string, { title: string; status: string }>>("POST", `/projects/${p}/whiteboards/code-status`, { urls: code.map((e) => e.url!) }).catch(() => ({}) as Record<string, { title: string; status: string }>);
+      let changed = false;
+      for (const e of code) {
+        const r = res[e.url!];
+        if (!r || (e.preview?.status === r.status && (!r.title || e.preview?.title === r.title))) continue;
+        e.preview = { ...(e.preview ?? {}), status: r.status, title: r.title || e.preview?.title };
+        changed = true;
+      }
+      if (changed && !this.readOnly) this.changed();
+    }
+    this.paint();
+  }
+
+  private webAllowed(url: string) {
+    const r = this.embedRules;
+    if (!r) return true;
+    let host = "";
+    try { host = new URL(url).hostname.toLowerCase(); } catch { return false; }
+    return r.web && (!r.sites.length || r.sites.some((s) => host === s || host.endsWith("." + s)));
   }
 
   private clone(b: Whiteboard): Whiteboard {
@@ -637,7 +726,13 @@ export class PhxWhiteboard extends LitElement {
     const badge = hx("div", `width:38px;height:38px;flex:none;border-radius:10px;display:grid;place-items:center;background:${groupColor[k?.group ?? ""] ?? "var(--accent)"};color:var(--surface)`, [ico(k?.icon ?? "Waypoints", 20)]);
     const name = hx("div", "font:600 16px var(--font-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis", [e.text || ent?.name || e.entity || ""]);
     const sub = hx("div", "font:12px var(--font-mono);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis", [`@${e.entity ?? ""}${ent ? " · " + kindName(k, ent.kind) : ""}`]);
-    fo.append(hx("div", "box-sizing:border-box;width:100%;height:100%;display:flex;gap:10px;align-items:center;padding:0 12px;color:var(--fg)", [badge, hx("div", "min-width:0;display:grid;gap:2px", [name, sub])]));
+    const st = this.entStatus.get(e.entity ?? "");
+    const kids: Node[] = [badge, hx("div", "min-width:0;display:grid;gap:2px;flex:1", [name, sub])];
+    if (st && st !== "unknown" && st !== "") {
+      const col = st === "ok" ? "var(--good)" : st === "warn" ? "var(--signal)" : "var(--bad)";
+      kids.push(hx("span", `width:12px;height:12px;flex:none;border-radius:50%;background:${col};box-shadow:0 0 0 3px color-mix(in srgb, ${col} 25%, transparent)`, [], { title: t(`wb.status.${st === "ok" || st === "warn" ? st : "down"}` as any), role: "img", "aria-label": t(`wb.status.${st === "ok" || st === "warn" ? st : "down"}` as any) }));
+    }
+    fo.append(hx("div", "box-sizing:border-box;width:100%;height:100%;display:flex;gap:10px;align-items:center;padding:0 12px;color:var(--fg)", kids));
   }
 
   /** Embeds load nothing from third parties before a click (privacy, like
@@ -689,7 +784,7 @@ export class PhxWhiteboard extends LitElement {
       fo.append(card(bar, body));
       return;
     }
-    if (e.kind === "web") {
+    if (e.kind === "web" && this.webAllowed(e.url ?? "")) {
       const bar = hx("div", "display:flex;gap:6px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);background:var(--surface2);font:11px var(--font-mono);color:var(--muted)", [
         hx("span", "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--surface);border-radius:6px;padding:2px 8px", [e.url ?? ""]), ico("Lock", 11)]);
       const body = loaded
@@ -818,11 +913,34 @@ export class PhxWhiteboard extends LitElement {
     });
   }
 
+  /** The AI's own cursor: it visits what the AI just drew or changed. */
+  private aiCursor?: { name: string; at: Pt; until: number };
+  private aiTimer = 0;
+
+  private showAICursor(by: string, changed: string[]) {
+    const pts: Pt[] = changed.map((id) => this.byId(id)).filter((e): e is WBElement => !!e).slice(0, 12).map((e) => {
+      const b = bbox(e, this.byId);
+      return [b.x + b.w * 0.6, b.y + b.h * 0.6] as Pt;
+    });
+    if (!pts.length) return;
+    const name = t("wb.ai_cursor", { name: by || "AI" });
+    window.clearTimeout(this.aiTimer);
+    const step = (i: number) => {
+      this.aiCursor = { name, at: pts[i], until: Date.now() + 2500 };
+      this.paintOthers();
+      if (i + 1 < pts.length) this.aiTimer = window.setTimeout(() => step(i + 1), reduced() ? 0 : 380);
+      else this.aiTimer = window.setTimeout(() => { this.aiCursor = undefined; this.paintOthers(); }, 2500);
+    };
+    step(reduced() ? pts.length - 1 : 0);
+  }
+
   private paintOthers() {
     const layer = this.svgEl?.querySelector("g.others");
     if (!layer) return;
     layer.replaceChildren();
-    for (const p of this.peers) {
+    const ai = this.aiCursor;
+    const others = ai ? [...this.peers, { id: -1, name: ai.name, color: "var(--accent)", cursor: ai.at, ai: true }] : this.peers;
+    for (const p of others as (Peer & { ai?: boolean })[]) {
       if (!p.cursor) continue;
       const g = mk("g", { transform: `translate(${p.cursor[0]},${p.cursor[1]}) scale(${1 / this.view.z})` }, layer);
       const arrow = mk("path", { d: "M0,0 L0,17 L4.5,13 L7.5,20 L10,19 L7,12 L13,12 Z" }, g);
@@ -2350,6 +2468,110 @@ export class PhxWhiteboard extends LitElement {
     this.editText(e);
   }
 
+  private async drawNeighbourhood(entity: string) {
+    try {
+      this.showNext = true;
+      await api("POST", `/projects/${this.project}/documents/${this.doc!.id}/whiteboard/neighbourhood`, { entity });
+    } catch (e) {
+      toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
+    }
+  }
+
+  private async openCards() {
+    const items = this.selection().filter((e) => e.type === "sticky" && e.text?.trim()).map((e) => {
+      const [first, ...rest] = e.text!.trim().split("\n");
+      return { id: e.id, title: first.trim().slice(0, 200), description: rest.join("\n").trim(), on: true };
+    });
+    const boards = (await api<Doc[]>("GET", `/projects/${this.project}/documents?type=board`).catch(() => [])) ?? [];
+    if (!boards.length) {
+      toast(t("wb.cards_no_board"), "error");
+      return;
+    }
+    this.cards = { items, boards, board: boards[0].slug, columns: [], column: "" };
+    await this.loadColumns(boards[0].slug);
+    await this.updateComplete;
+    this.renderRoot.querySelector<HTMLDialogElement>("dialog.cards")?.showModal();
+  }
+
+  private async loadColumns(board: string) {
+    if (!this.cards) return;
+    const d = await api<Doc>("GET", `/projects/${this.project}/documents/${encodeURIComponent(board)}`).catch(() => undefined);
+    const columns = ((d?.content as { columns?: { id: string; name: string; done?: boolean }[] } | undefined)?.columns ?? []).filter((c) => !c.done);
+    this.cards = { ...this.cards, board, columns, column: columns[0]?.id ?? "" };
+  }
+
+  private async createCards() {
+    const c = this.cards;
+    if (!c) return;
+    const list = c.items.filter((i) => i.on && i.title);
+    this.busy = true;
+    let n = 0;
+    try {
+      for (const i of list) {
+        await api("POST", `/projects/${this.project}/boards/${encodeURIComponent(c.board)}/tasks`, { title: i.title, description: i.description, column: c.column, documents: [this.doc!.id] });
+        n++;
+      }
+      toast(t("wb.cards_created", { count: n }));
+      this.renderRoot.querySelector<HTMLDialogElement>("dialog.cards")?.close();
+      this.cards = undefined;
+    } catch (e) {
+      toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private cardsDialog() {
+    const c = this.cards;
+    if (!c) return nothing;
+    const close = () => { this.renderRoot.querySelector<HTMLDialogElement>("dialog.cards")?.close(); this.cards = undefined; };
+    const set = (i: number, patch: Partial<{ title: string; on: boolean }>) => { const items = [...c.items]; items[i] = { ...items[i], ...patch }; this.cards = { ...c, items }; };
+    return html`<dialog class="cards wbdlg" aria-labelledby="wbct" @cancel=${(e: Event) => { e.preventDefault(); close(); }} @keydown=${(e: KeyboardEvent) => e.stopPropagation()}>
+      <h2 id="wbct">${t("wb.cards_title")}</h2>
+      <p class="muted">${t("wb.cards_text")}</p>
+      <div class="two">
+        <label>${t("wb.cards_board")}<select @change=${(e: Event) => void this.loadColumns((e.target as HTMLSelectElement).value)}>${c.boards.map((b) => html`<option value=${b.slug} ?selected=${b.slug === c.board}>${b.title}</option>`)}</select></label>
+        <label>${t("wb.cards_column")}<select @change=${(e: Event) => (this.cards = { ...c, column: (e.target as HTMLSelectElement).value })}>${c.columns.map((col) => html`<option value=${col.id} ?selected=${col.id === c.column}>${col.name}</option>`)}</select></label>
+      </div>
+      <ul class="cardlist">${c.items.map((i, k) => html`<li><input type="checkbox" .checked=${i.on} aria-label=${t("wb.cards_take")} @change=${(e: Event) => set(k, { on: (e.target as HTMLInputElement).checked })}>
+        <input type="text" .value=${i.title} aria-label=${t("wb.cards_card_title")} @input=${(e: Event) => set(k, { title: (e.target as HTMLInputElement).value })}></li>`)}</ul>
+      <div class="acts"><button class="ghost" @click=${close}>${t("doc.cancel")}</button>
+        <button ?disabled=${this.busy || !c.items.some((i) => i.on && i.title.trim())} @click=${() => void this.createCards()}>${icon("SquareKanban", 14)} ${t("wb.cards_create", { count: c.items.filter((i) => i.on && i.title.trim()).length })}</button></div>
+    </dialog>`;
+  }
+
+  private async openMermaid() {
+    this.mermaid = "flowchart LR\n  A[Idea] --> B{Decide}\n  B -->|yes| C[Build]\n  B -->|no| D[Drop]";
+    await this.updateComplete;
+    this.renderRoot.querySelector<HTMLDialogElement>("dialog.mermaid")?.showModal();
+  }
+
+  private async importMermaid() {
+    const src = this.renderRoot.querySelector<HTMLTextAreaElement>("dialog.mermaid textarea")?.value ?? "";
+    this.busy = true;
+    try {
+      this.showNext = true;
+      await api("POST", `/projects/${this.project}/whiteboards/mermaid`, { source: src, document: this.doc!.id });
+      this.renderRoot.querySelector<HTMLDialogElement>("dialog.mermaid")?.close();
+      this.mermaid = undefined;
+    } catch (e) {
+      toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private mermaidDialog() {
+    if (this.mermaid === undefined) return nothing;
+    const close = () => { this.renderRoot.querySelector<HTMLDialogElement>("dialog.mermaid")?.close(); this.mermaid = undefined; };
+    return html`<dialog class="mermaid wbdlg" aria-labelledby="wbmt" @cancel=${(e: Event) => { e.preventDefault(); close(); }} @keydown=${(e: KeyboardEvent) => e.stopPropagation()}>
+      <h2 id="wbmt">${t("wb.mermaid_title")}</h2>
+      <p class="muted">${t("wb.mermaid_text")}</p>
+      <textarea aria-label=${t("wb.mermaid_title")} .value=${this.mermaid} spellcheck="false"></textarea>
+      <div class="acts"><button class="ghost" @click=${close}>${t("doc.cancel")}</button><button ?disabled=${this.busy} @click=${() => void this.importMermaid()}>${icon("Workflow", 14)} ${t("wb.mermaid_button")}</button></div>
+    </dialog>`;
+  }
+
   private menuView() {
     const m = this.menu;
     if (!m) return nothing;
@@ -2389,6 +2611,8 @@ export class PhxWhiteboard extends LitElement {
         ${item("CopyPlus", t("wb.menu.duplicate"), () => this.duplicate(), { key: kbd("D") })}`}
         ${!ro && textual && !one!.locked ? item("Pencil", t("wb.menu.edit_text"), () => this.editText(one!), { key: "↵" }) : nothing}
         ${one?.entity ? item("ExternalLink", t("wb.open_entry"), () => navigate(`/p/${this.project}/e/${one.entity}`)) : nothing}
+        ${!ro && one?.entity ? item("Network", t("wb.menu.neighbourhood"), () => void this.drawNeighbourhood(one.entity!)) : nothing}
+        ${!ro && sel.some((e) => e.type === "sticky" && e.text?.trim()) ? item("SquareKanban", t("wb.menu.to_cards"), () => void this.openCards()) : nothing}
         ${ro ? nothing : html`${this.formatView(free)}
         ${sep}
         ${item("BringToFront", t("wb.front"), () => this.orderSel(true))}
@@ -2493,13 +2717,16 @@ export class PhxWhiteboard extends LitElement {
         <button aria-label=${t("wb.export_svg")} title=${t("wb.export_svg")} @click=${() => this.exportAs("svg")}>${icon("Download", 16)}</button>
         <button aria-label=${t("wb.export_png")} title=${t("wb.export_png")} @click=${() => this.exportAs("png")}>${icon("Image", 16)}</button>
         <button aria-label=${t("wb.export_excalidraw")} title=${t("wb.export_excalidraw")} @click=${() => this.exportExcalidraw()}>${icon("FileCode", 16)}</button>
-        ${this.readOnly ? nothing : html`<button aria-label=${t("wb.import_excalidraw")} title=${t("wb.import_excalidraw")} @click=${() => this.pickExcalidraw()}>${icon("Upload", 16)}</button>`}
+        ${this.readOnly ? nothing : html`<button aria-label=${t("wb.import_excalidraw")} title=${t("wb.import_excalidraw")} @click=${() => this.pickExcalidraw()}>${icon("Upload", 16)}</button>
+          <button aria-label=${t("wb.mermaid_title")} title=${t("wb.mermaid_title")} @click=${() => void this.openMermaid()}>${icon("Workflow", 16)}</button>`}
         <button aria-label=${t("wb.present")} title=${t("wb.present")} @click=${() => this.presentAt(0)}>${icon("Presentation", 16)}</button>
         <button aria-label=${t("wb.comments")} title=${t("wb.comments")} aria-pressed=${this.panel ? "true" : "false"} @click=${() => (this.panel = !this.panel)}>${icon("MessageSquare", 16)}${open ? html`<span class="count">${open}</span>` : nothing}</button>
       </div>
       ${this.panel ? this.commentPanel() : this.styleBar()}
       ${this.popoverView()}
       ${this.menuView()}
+      ${this.cardsDialog()}
+      ${this.mermaidDialog()}
       ${this.present >= 0 ? html`<div class="bar present" role="toolbar" aria-label=${t("wb.present")}>
         <button aria-label=${t("wb.prev")} @click=${() => this.presentAt(Math.max(0, this.present - 1))}>${icon("ChevronLeft", 16)}</button>
         <span>${this.present + 1} / ${slides(this.els()).length} · ${slides(this.els())[this.present]?.text ?? ""}</span>

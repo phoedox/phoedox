@@ -88,6 +88,7 @@ type drawDiagramIn struct {
 	Document string `json:"document,omitempty" jsonschema:"whiteboard to draw on (slug); empty creates a new whiteboard"`
 	Title    string `json:"title,omitempty" jsonschema:"title of a new whiteboard"`
 	Category string `json:"category,omitempty"`
+	Mermaid  string `json:"mermaid,omitempty" jsonschema:"a Mermaid flowchart (graph/flowchart) to turn into shapes instead of nodes and edges"`
 	core.DiagramInput
 }
 
@@ -941,7 +942,10 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "edit_whiteboard", "Change a whiteboard with operations; everyone on the board sees them at once. Elements: type rect|ellipse|diamond|text|sticky|frame|line|arrow|pen|image|embed|entity; boxes have x, y, w, h; lines and arrows have points [[x,y],...] (waypoints between the ends) and bind their ends with start/end {element} (towards the centre) or {element, fx, fy} (fixed point, 0–1 of the box); round: true for smooth corners. text, stroke and fill colours gray|red|orange|yellow|green|blue|purple|pink, dash dashed|dotted, frame (id of a frame), entity (entry slug: shows the entry), doc (page slug), url (embed: a video, pull request, issue or website; kind and preview are filled in; or kind app with doc = an app of the project, which runs on the board with each viewer's rights), file (image: a project file id). For diagrams prefer draw_diagram. Read the board first with get_whiteboard.", func(ctx context.Context, a core.Actor, in editWhiteboardIn) (any, error) {
 		return svc.EditWhiteboard(ctx, a, in.Project, in.Document, in.Ops)
 	})
-	tool(s, "draw_diagram", "Draw a diagram on a whiteboard from its structure; Phoedox lays it out (layers in direction right or down), places it next to what is on the board and binds the arrows. nodes: {id, text, shape rect|ellipse|diamond|sticky, color, entity (entry slug), group}; edges: {from, to, label, dashed, line (no arrow head)}; groups: {id, label} become frames; title frames the whole diagram. Without document a new whiteboard is created.", func(ctx context.Context, a core.Actor, in drawDiagramIn) (any, error) {
+	tool(s, "draw_diagram", "Draw a diagram on a whiteboard from its structure; Phoedox lays it out (layers in direction right or down), places it next to what is on the board and binds the arrows. nodes: {id, text, shape rect|ellipse|diamond|sticky, color, entity (entry slug), group}; edges: {from, to, label, dashed, line (no arrow head)}; groups: {id, label} become frames; title frames the whole diagram. Or send mermaid: a Mermaid flowchart (nodes, shapes, labelled, dotted and thick links, subgraphs) that becomes editable shapes. Without document a new whiteboard is created.", func(ctx context.Context, a core.Actor, in drawDiagramIn) (any, error) {
+		if strings.TrimSpace(in.Mermaid) != "" {
+			return svc.DrawMermaid(ctx, a, in.Project, in.Document, in.Title, in.Category, in.Mermaid)
+		}
 		return svc.DrawDiagram(ctx, a, in.Project, in.Document, in.Title, in.Category, in.DiagramInput)
 	})
 	tool(s, "reply_comment", "Answer a comment on a whiteboard (ids from get_whiteboard). People mark comments as done themselves.", func(ctx context.Context, a core.Actor, in replyCommentIn) (any, error) {

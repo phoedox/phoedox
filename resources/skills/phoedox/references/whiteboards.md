@@ -21,6 +21,13 @@ pixels at 100 %), y grows downwards.
   filled in. An app of the project goes on the board as `{type: embed, kind: app,
   doc: <app slug>, w, h}`; people start it there and it runs with their rights.
   `entity` on a shape shows that entry; `doc` links a page.
+- **Mermaid:** `draw_diagram` also takes `mermaid` (a flowchart: `graph`/`flowchart`
+  with node shapes, labelled, dotted and thick links, `&`, subgraphs); it becomes
+  editable shapes and bound arrows. Prefer it when you already have a flowchart.
+- **What people see:** entries on a board show their live status (checks, path
+  diagnosis); pull requests and issues of the project's code connection show their
+  current state; your changes appear with your own cursor. People can turn sticky
+  notes into cards and draw an entry's neighbourhood from the graph themselves.
 - **Comments:** work through open comments (text or handwritten) and answer each with
   `reply_comment`; people resolve them.
 

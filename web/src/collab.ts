@@ -12,4 +12,4 @@ export function userColor(id: string): string {
 export const MSG_CONTROL = 100;
 export const MSG_SNAPSHOT = 101;
 
-export interface Control { type: string; upto?: number; by?: string; reason?: string }
+export interface Control { type: string; upto?: number; by?: string; reason?: string; ai?: boolean }

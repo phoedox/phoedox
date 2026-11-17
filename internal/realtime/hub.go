@@ -67,6 +67,7 @@ type Control struct {
 	Type   string `json:"type"`             // bootstrap | compact | reset | ended
 	Upto   int64  `json:"upto,omitempty"`   // compact: include updates up to this seq
 	By     string `json:"by,omitempty"`     // reset/ended: who changed the document
+	AI     bool   `json:"ai,omitempty"`     // reset: the change came from an AI client
 	Reason string `json:"reason,omitempty"` // ended: published | cancelled | deleted
 }
 
@@ -359,8 +360,9 @@ func (h *Hub) compact(ctx context.Context, r *room, c *client, upto int64, snaps
 }
 
 // Reset clears the live state of a document after it changed outside the
-// editor (API, MCP, restore, delete). Connected editors reload.
-func (h *Hub) Reset(ctx context.Context, documentID, by string) {
+// editor (API, MCP, restore, delete). Connected editors reload; ai marks
+// changes of AI clients (whiteboards show the AI's cursor there).
+func (h *Hub) Reset(ctx context.Context, documentID, by string, ai bool) {
 	if err := h.DB.ClearDocUpdates(ctx, documentID); err != nil {
 		slog.Warn("clearing live state failed", "doc", documentID, "err", err)
 	}
@@ -375,7 +377,7 @@ func (h *Hub) Reset(ctx context.Context, documentID, by string) {
 	r.loaded, r.count, r.size, r.nextSeq = false, 0, 0, 1
 	r.bootstrapper, r.compactor = nil, nil
 	for c := range r.clients {
-		r.queue(c, controlMsg(Control{Type: "reset", By: by}))
+		r.queue(c, controlMsg(Control{Type: "reset", By: by, AI: ai}))
 	}
 }
 

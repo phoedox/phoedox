@@ -27,7 +27,7 @@ func (s *Service) contentChanged(ctx context.Context, a Actor, docID string) {
 		return
 	}
 	if s.OnContentChange != nil {
-		s.OnContentChange(ctx, docID, a.User.Name)
+		s.OnContentChange(ctx, docID, a.User.Name, a.Via == "mcp")
 	}
 }
 

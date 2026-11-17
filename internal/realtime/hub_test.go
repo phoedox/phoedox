@@ -126,7 +126,7 @@ func TestHub(t *testing.T) {
 	expect(c, "awareness:null")
 
 	// reset: log cleared, editors told to reload
-	hub.Reset(ctx, doc.ID, "MCP")
+	hub.Reset(ctx, doc.ID, "MCP", true)
 	expect(b, "control:reset")
 	expect(c, "control:reset")
 	if ups, _ := db.DocUpdates(ctx, doc.ID); len(ups) != 0 {

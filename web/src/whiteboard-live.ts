@@ -28,7 +28,7 @@ export interface LiveOptions {
   /** Saving state: "saving", "saved" (with the time) or "error". */
   onSaved?: (state: "saving" | "saved" | "error", at?: Date) => void;
   /** The board changed outside the editor (e.g. the AI) and was reloaded. */
-  onReset?: (by: string) => void;
+  onReset?: (by: string, ai: boolean, changed: string[]) => void;
 }
 
 export interface Live {
@@ -107,13 +107,14 @@ export function connectBoard(o: LiveOptions): Live {
 
   // The board changed outside (API, AI, restore): load it again for everyone
   // here. The first editor to see the reset fills the empty shared state.
-  const reload = async (by: string) => {
+  const reload = async (by: string, ai: boolean) => {
     try {
+      const before = new Map(current().elements.map((e) => [e.id, JSON.stringify(e)]));
       const d = await api<{ content: Partial<Whiteboard> }>("GET", `/projects/${o.project}/documents/${o.doc}`);
       const b = normalizeBoard(d.content);
       if (!o.readOnly) doc.transact(() => fill(b), "reset");
       o.onChange(b, true);
-      o.onReset?.(by);
+      o.onReset?.(by, ai, b.elements.filter((e) => before.get(e.id) !== JSON.stringify(e)).map((e) => e.id));
     } catch { /* offline: the next sync brings it */ }
   };
 
@@ -125,7 +126,7 @@ export function connectBoard(o: LiveOptions): Live {
       dirty = false;
       window.clearTimeout(timer);
       undo.clear();
-      void reload(ctl.by ?? "");
+      void reload(ctl.by ?? "", !!ctl.ai);
     }
     if (ctl.type === "compact" && ctl.upto && !o.readOnly) {
       const enc = encoding.createEncoder();

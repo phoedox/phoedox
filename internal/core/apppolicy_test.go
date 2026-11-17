@@ -87,3 +87,32 @@ func TestAppTemplates(t *testing.T) {
 		t.Fatal("unmark")
 	}
 }
+
+func TestEmbedPolicy(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _ := setup(t)
+	admin := Actor{User: store.User{ID: "sys", Name: "System", IsAdmin: true}, Via: "web"}
+	o, _ := s.CreateOrg(ctx, admin, OrgInput{Name: "Firma", AdminEmail: "owner@x.de"})
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Boards", Org: &o.Slug})
+	if e, _ := s.ProjectEmbedPolicy(ctx, owner, p.Slug); !e.Web || len(e.Sites) != 0 || !e.allows("example.org") {
+		t.Fatalf("default: %+v", e)
+	}
+	if _, err := s.SetInstanceAppPolicy(ctx, admin, AppPolicy{EmbedSites: []string{"https://Figma.com/", "miro.com"}}); err != nil {
+		t.Fatal(err)
+	}
+	e, _ := s.ProjectEmbedPolicy(ctx, owner, p.Slug)
+	if !e.allows("www.figma.com") || e.allows("evil.com") || e.allows("notfigma.com") {
+		t.Fatalf("sites: %+v", e)
+	}
+	// The organization narrows further; a site outside the instance list does not count.
+	if _, err := s.SetOrgAppPolicy(ctx, admin, o.Slug, AppPolicy{EmbedSites: []string{"miro.com", "evil.com"}}); err != nil {
+		t.Fatal(err)
+	}
+	if e, _ = s.ProjectEmbedPolicy(ctx, owner, p.Slug); e.allows("figma.com") || !e.allows("miro.com") || e.allows("evil.com") {
+		t.Fatalf("org: %+v", e)
+	}
+	_, _ = s.SetOrgAppPolicy(ctx, admin, o.Slug, AppPolicy{NoWebEmbeds: true})
+	if e, _ = s.ProjectEmbedPolicy(ctx, owner, p.Slug); e.Web || e.allows("figma.com") {
+		t.Fatalf("org off: %+v", e)
+	}
+}

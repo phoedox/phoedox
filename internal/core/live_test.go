@@ -18,7 +18,7 @@ func TestDrafts(t *testing.T) {
 	ctx := context.Background()
 	s, owner, reader, _ := setup(t)
 	var resets, ends []string
-	s.OnContentChange = func(_ context.Context, id, by string) { resets = append(resets, id) }
+	s.OnContentChange = func(_ context.Context, id, by string, _ bool) { resets = append(resets, id) }
 	s.OnDraftEnd = func(_ context.Context, id, reason, by string) { ends = append(ends, reason+":"+by) }
 	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Haus", AIWriteMode: "direct"})
 	_ = s.SetMember(ctx, owner, p.Slug, "reader@x.de", store.RoleReader)

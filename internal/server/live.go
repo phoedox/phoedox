@@ -73,3 +73,53 @@ func (a *api) embedPreview(w http.ResponseWriter, r *http.Request) {
 	pv, kind, err := a.core.EmbedPreview(r.Context(), actorOf(r), chi.URLParam(r, "p"), r.URL.Query().Get("url"))
 	respond(w, map[string]any{"kind": kind, "preview": pv}, err)
 }
+
+func (a *api) embedPolicy(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.ProjectEmbedPolicy(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, v, err)
+}
+
+type codeStatusIn struct {
+	URLs []string `json:"urls"`
+}
+
+func (a *api) whiteboardCodeStatus(w http.ResponseWriter, r *http.Request) {
+	var in codeStatusIn
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.WhiteboardCodeStatus(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.URLs)
+	respond(w, v, err)
+}
+
+type mermaidIn struct {
+	Source   string `json:"source"`
+	Document string `json:"document,omitempty"`
+	Title    string `json:"title,omitempty"`
+	Category string `json:"category,omitempty"`
+}
+
+func (a *api) whiteboardMermaid(w http.ResponseWriter, r *http.Request) {
+	var in mermaidIn
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.DrawMermaid(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.Document, in.Title, in.Category, in.Source)
+	respond(w, v, err)
+}
+
+type neighbourhoodIn struct {
+	Entity string `json:"entity"`
+}
+
+func (a *api) whiteboardNeighbourhood(w http.ResponseWriter, r *http.Request) {
+	var in neighbourhoodIn
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.DrawNeighbourhood(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"), in.Entity)
+	respond(w, v, err)
+}
