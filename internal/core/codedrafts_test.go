@@ -222,7 +222,7 @@ func TestPullRequestDrafts(t *testing.T) {
 		t.Fatal(err)
 	}
 	dr, err := s.DB.GetDraft(ctx, page.Document.ID)
-	if err != nil || dr.ReviewBy == "" || dr.CodePR != 0 || !strings.Contains(dr.ReviewNote, "/pulls/13") || dr.Markdown != third {
+	if err != nil || dr.ReviewBy == "" || dr.CodePR != 0 || !strings.HasPrefix(dr.ReviewNote, "Merged: ") || !strings.HasSuffix(dr.ReviewNote, "/13") || dr.Markdown != third {
 		t.Fatalf("ready for approval: %v %+v", err, dr)
 	}
 	if d, _ := s.Document(ctx, owner, p.Slug, page.Document.Slug); markdownOf(d) != md {
