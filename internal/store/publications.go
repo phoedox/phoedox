@@ -9,13 +9,15 @@ import (
 
 // Publication is a site made of one or more projects (ADR-0006).
 type Publication struct {
-	ID           string   `json:"id"`
-	TenantID     string   `json:"-"`
-	Slug         string   `json:"slug"`
-	Title        string   `json:"title"`
-	Description  string   `json:"description"`
-	Projects     []string `json:"projects"` // project ids in menu order
-	Access       string   `json:"access"`   // public | password
+	ID          string   `json:"id"`
+	TenantID    string   `json:"-"`
+	Slug        string   `json:"slug"`
+	Title       string   `json:"title"`
+	Description string   `json:"description"`
+	Projects    []string `json:"projects"` // project ids in menu order
+	// Pages limits the publication to these documents (ids); empty = all.
+	Pages        []string `json:"pages"`
+	Access       string   `json:"access"` // public | password
 	PasswordHash string   `json:"-"`
 	Domain       string   `json:"domain"`
 	Color        string   `json:"color"`
@@ -26,27 +28,31 @@ type Publication struct {
 	UpdatedAt    Time     `json:"updatedAt"`
 }
 
-const pubCols = `id, tenant_id, slug, title, description, projects, access, password_hash, domain, color, css, noindex, created_by, created_at, updated_at`
+const pubCols = `id, tenant_id, slug, title, description, projects, access, password_hash, domain, color, css, noindex, created_by, created_at, updated_at, pages`
 
 func scanPublication(r interface{ Scan(...any) error }) (Publication, error) {
 	var p Publication
-	var projects string
-	err := r.Scan(&p.ID, &p.TenantID, &p.Slug, &p.Title, &p.Description, &projects, &p.Access, &p.PasswordHash, &p.Domain, &p.Color, &p.CSS, &p.NoIndex, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt)
+	var projects, pages string
+	err := r.Scan(&p.ID, &p.TenantID, &p.Slug, &p.Title, &p.Description, &projects, &p.Access, &p.PasswordHash, &p.Domain, &p.Color, &p.CSS, &p.NoIndex, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt, &pages)
 	if errors.Is(err, sql.ErrNoRows) {
 		return p, ErrNotFound
 	}
 	p.Projects = splitList(projects)
+	p.Pages = splitList(pages)
+	if p.Pages == nil {
+		p.Pages = []string{}
+	}
 	return p, err
 }
 
 // SavePublication inserts or updates a publication.
 func (d *DB) SavePublication(ctx context.Context, p Publication) error {
-	_, err := d.Exec(ctx, `INSERT INTO publications (`+pubCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := d.Exec(ctx, `INSERT INTO publications (`+pubCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET slug = excluded.slug, title = excluded.title, description = excluded.description, projects = excluded.projects,
 		  access = excluded.access, password_hash = excluded.password_hash, domain = excluded.domain, color = excluded.color, css = excluded.css,
-		  noindex = excluded.noindex, updated_at = excluded.updated_at`,
+		  noindex = excluded.noindex, updated_at = excluded.updated_at, pages = excluded.pages`,
 		p.ID, TenantOf(ctx), p.Slug, p.Title, p.Description, strings.Join(p.Projects, ","), p.Access, p.PasswordHash, p.Domain, p.Color, p.CSS, p.NoIndex,
-		p.CreatedBy, p.CreatedAt, p.UpdatedAt)
+		p.CreatedBy, p.CreatedAt, p.UpdatedAt, strings.Join(p.Pages, ","))
 	if err != nil && isUniqueViolation(err) {
 		return ErrConflict
 	}

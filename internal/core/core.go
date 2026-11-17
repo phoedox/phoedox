@@ -80,6 +80,8 @@ func (a Actor) String() string {
 		return "agent:" + a.TokenID
 	case "rule":
 		return "rule:" + a.TokenID
+	case "code":
+		return "code:" + a.TokenID // a pull request of a code connection
 	default:
 		return "user:" + a.User.ID
 	}
@@ -90,6 +92,8 @@ type Service struct {
 	DB *store.DB
 	// readingSeen throttles readings per series (tenant|entity|metric → time.Time).
 	readingSeen sync.Map
+	// prChecked throttles pull request checks per repository (id → time.Time).
+	prChecked sync.Map
 	// MaxDepth limits traversals (admin setting, default 6).
 	MaxDepth int
 	// Box decrypts project secrets for request blocks.

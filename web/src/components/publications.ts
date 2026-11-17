@@ -11,6 +11,8 @@ interface Publication {
   id: string; slug: string; title: string; description: string; projects: string[]; projectNames: string[];
   access: "public" | "password" | "members"; hasPassword: boolean; domain: string; color: string; css: string; noindex: boolean;
   canEdit: boolean; updatedAt: string;
+  /** Only these pages are public (fixed links by document id). */
+  pageLinks?: { ref: string; title: string; url: string }[];
 }
 
 /** Publications (ADR-0006): projects as a public or protected site. */
@@ -70,6 +72,7 @@ export class PhxPublications extends LitElement {
     const body: Record<string, unknown> = {
       title: s("title"), slug: s("slug") || undefined, description: s("description"), projects: f.getAll("projects"),
       access: s("access"), domain: s("domain"), color: s("color") === "#000000" ? "" : s("color"), css: String(f.get("css") ?? ""), noindex: f.get("noindex") === "on",
+      pages: String(f.get("pages") ?? "").split("\n").map((x) => x.trim()).filter(Boolean),
     };
     if (s("password")) body.password = s("password");
     this.busy = true;
@@ -121,6 +124,10 @@ export class PhxPublications extends LitElement {
       <div class="field">${t("pub.projects")}
         <div class="checks">${this.projects.map((x) => html`<label><input type="checkbox" name="projects" value=${x.id} ?checked=${p?.projects.includes(x.id)}> ${x.name}</label>`)}</div>
         <p class="hint">${t("pub.projects_hint")}</p></div>
+      <label class="field">${t("pub.pages")}<textarea name="pages" rows="3" .value=${(p?.pageLinks ?? []).map((x) => x.ref).join("\n")} placeholder="project/deploy&#10;project/config"></textarea></label>
+      <p class="hint">${t("pub.pages_hint")}</p>
+      ${p?.pageLinks?.length ? html`<div class="field">${t("pub.fixed_links")}<ul class="links">${p.pageLinks.map((x) => html`<li><b>${x.title}</b> <code>${x.url}</code></li>`)}</ul>
+        <p class="hint">${t("pub.fixed_links_hint")}</p></div>` : ""}
       <div class="two">
         <label class="field">${t("pub.access")}<select name="access">
           <option value="public" ?selected=${p?.access !== "password"}>${t("pub.access_public")}</option>

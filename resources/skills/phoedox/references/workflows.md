@@ -77,10 +77,26 @@ reference file (pages, decisions, knowledge graph, tasks, operations).
    `get_document` with `heading` for one section, `search` for the rest, decisions
    by their own number (`get_document("D-649")`).
 3. Replace links in code and texts (`--help`, READMEs, error messages) with the
-   Phoedox addresses (`url` from the tool results); pages that must be public go
-   into a publication.
+   Phoedox addresses (`url` from the tool results). Pages that must be public
+   (DEPLOY, CONFIG, legal) go into a publication that lists only those pages;
+   the publication's fixed links (by page id) keep working after renames.
+   People set that up in Phoedox (Publications).
 4. Record new decisions with `create_decision` in the same session as the code
    change, and link the commit or pull request to the card (`link_task_code`).
+5. Docs that change with a pull request: pass `pull_request` (`owner/repo#12`,
+   `#12`, the pull request URL, or `owner/repo@branch` before the pull request
+   exists) to `update_document` or `update_decision`. The change goes into a
+   draft tied to the pull request; the pull request gets a "Docs changes" comment
+   with links; merging publishes the drafts, closing without merge discards them.
+   The published page stays unchanged until then, so other sessions keep reading
+   the current state. New pages are created right away – mention them in the
+   pull request instead.
+6. Review docs per pull request with `change_summary` and `pull_request`: each
+   changed page or decision with a line diff.
+7. Leaving or backing up: `export_project` gives the owner a 15-minute download
+   link – a ZIP with Markdown (front matter) plus JSON and files that Phoedox can
+   import again, or with `format: git` a Git repository with one commit per
+   version.
 
 ## Record what you learned
 

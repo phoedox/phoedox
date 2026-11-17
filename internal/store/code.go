@@ -20,6 +20,8 @@ type CodeRepo struct {
 	CreatedAt Time   `json:"createdAt"`
 	LastCheck Time   `json:"lastCheck"`
 	LastError string `json:"lastError,omitempty"`
+	// WebhookSecret is sealed; never sent to clients.
+	WebhookSecret string `json:"-"`
 }
 
 // TaskCodeLink is a commit, release or pull request linked to a task.
@@ -38,11 +40,11 @@ type TaskCodeLink struct {
 	CreatedAt Time   `json:"createdAt"`
 }
 
-const repoCols = `id, project_id, provider, web_url, api_url, owner, name, token_var, created_by, created_at, last_check, last_error`
+const repoCols = `id, project_id, provider, web_url, api_url, owner, name, token_var, created_by, created_at, last_check, last_error, webhook_secret`
 
 func scanRepo(r interface{ Scan(...any) error }) (CodeRepo, error) {
 	var x CodeRepo
-	err := r.Scan(&x.ID, &x.ProjectID, &x.Provider, &x.WebURL, &x.APIURL, &x.Owner, &x.Name, &x.TokenVar, &x.CreatedBy, &x.CreatedAt, &x.LastCheck, &x.LastError)
+	err := r.Scan(&x.ID, &x.ProjectID, &x.Provider, &x.WebURL, &x.APIURL, &x.Owner, &x.Name, &x.TokenVar, &x.CreatedBy, &x.CreatedAt, &x.LastCheck, &x.LastError, &x.WebhookSecret)
 	if errors.Is(err, sql.ErrNoRows) {
 		return x, ErrNotFound
 	}
@@ -90,6 +92,17 @@ func (d *DB) AddCodeRepo(ctx context.Context, x CodeRepo) error {
 func (d *DB) SetCodeRepoToken(ctx context.Context, projectID, id, tokenVar string) error {
 	res, err := d.Exec(ctx, `UPDATE code_repos SET token_var = ? WHERE id = ? AND project_id = ?`, tokenVar, id, projectID)
 	return affected(res, err)
+}
+
+// SetCodeRepoWebhookSecret stores the sealed webhook secret.
+func (d *DB) SetCodeRepoWebhookSecret(ctx context.Context, projectID, id, sealed string) error {
+	res, err := d.Exec(ctx, `UPDATE code_repos SET webhook_secret = ? WHERE id = ? AND project_id = ?`, sealed, id, projectID)
+	return affected(res, err)
+}
+
+// CodeRepoByID reads a repository without its project (webhooks).
+func (d *DB) CodeRepoByID(ctx context.Context, id string) (CodeRepo, error) {
+	return scanRepo(d.QueryRow(ctx, `SELECT `+repoCols+` FROM code_repos WHERE id = ?`, id))
 }
 
 // CodeRepoChecked stores the result of the last release check.

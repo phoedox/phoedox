@@ -67,6 +67,10 @@ func (a *api) routes(r chi.Router) {
 	// Feedback portals: public page data, reports, status links.
 	r.Get("/feedback/{handle}", a.publicPortal)
 	r.Post("/feedback/{handle}/reports", a.submitFeedback)
+	// Pull request events of a project's code connection (signed).
+	r.Post("/hooks/code/{id}", a.codeHook)
+	// Short-lived download links of project exports (sealed token).
+	r.Get("/exports/{token}", a.openExportLink)
 	r.Get("/feedback/status/{token}", a.feedbackStatus)
 	r.With(requireHeader).Delete("/feedback/status/{token}", a.deleteFeedbackStatus)
 	r.Get("/feedback/status/{token}/export", a.exportFeedbackStatus)
@@ -345,6 +349,8 @@ func (a *api) routes(r chi.Router) {
 			r.Put("/documents/{d}/draft", a.saveDraft)
 			r.Delete("/documents/{d}/draft", a.cancelDraft)
 			r.Post("/documents/{d}/draft/publish", a.publishDraft)
+			r.Put("/documents/{d}/draft/code", a.linkDraftCode)
+			r.Delete("/documents/{d}/draft/code", a.unlinkDraftCode)
 			r.Put("/documents/{d}/whiteboard", a.saveWhiteboard)
 			r.Get("/embed-preview", a.embedPreview)
 			r.Post("/documents/{d}/draft/review", a.requestReview)
@@ -373,6 +379,7 @@ func (a *api) routes(r chi.Router) {
 			r.Delete("/comments/{id}", a.deleteComment)
 			r.Get("/comments/open", a.openComments)
 			r.Get("/export", a.exportProject)
+			r.Get("/export/link", a.exportLink)
 			r.Get("/offline", a.offlineCopy)
 			r.Post("/answer", a.answer)
 			r.Get("/rules", a.listRules)
@@ -454,6 +461,9 @@ func (a *api) routes(r chi.Router) {
 			r.Delete("/code/repos/{id}", a.deleteCodeRepo)
 			r.Get("/code/repos/{id}/commits", a.codeCommits)
 			r.Get("/code/repos/{id}/releases", a.codeReleases)
+			r.Get("/code/repos/{id}/webhook", a.codeRepoWebhook)
+			r.Post("/code/repos/{id}/webhook", a.codeRepoWebhook)
+			r.Get("/code/docs-changes", a.pullRequestDocs)
 			r.Get("/files", a.listFiles)
 			r.Post("/files", a.uploadFile)
 			r.Patch("/files/{id}", a.renameFile)

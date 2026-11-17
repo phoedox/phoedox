@@ -34,6 +34,10 @@ type PublicationInput struct {
 	Color    string  `json:"color,omitempty"`
 	CSS      string  `json:"css,omitempty"`
 	NoIndex  bool    `json:"noindex,omitempty"`
+	// Pages publishes only these pages ("project/page" slugs or document
+	// ids); empty publishes all pages of the projects. The rest stays
+	// private, e.g. only DEPLOY and CONFIG of a code project.
+	Pages []string `json:"pages,omitempty"`
 }
 
 // PublicationInfo is a publication with the names of its projects.
@@ -42,6 +46,16 @@ type PublicationInfo struct {
 	ProjectNames []string `json:"projectNames"`
 	HasPassword  bool     `json:"hasPassword"`
 	CanEdit      bool     `json:"canEdit"`
+	// PageLinks are the chosen pages with their fixed addresses (by
+	// document id, so they survive renames).
+	PageLinks []PubPageLink `json:"pageLinks"`
+}
+
+// PubPageLink is a chosen page of a publication.
+type PubPageLink struct {
+	Ref   string `json:"ref"` // project/page slug
+	Title string `json:"title"`
+	URL   string `json:"url"` // fixed address
 }
 
 // owns tells whether the actor owns all given projects (system admins always).
@@ -59,10 +73,19 @@ func (s *Service) ownsAll(ctx context.Context, a Actor, ids []string) bool {
 }
 
 func (s *Service) pubInfo(ctx context.Context, a Actor, p store.Publication) PublicationInfo {
-	info := PublicationInfo{Publication: p, HasPassword: p.PasswordHash != "", CanEdit: s.ownsAll(ctx, a, p.Projects), ProjectNames: []string{}}
+	info := PublicationInfo{Publication: p, HasPassword: p.PasswordHash != "", CanEdit: s.ownsAll(ctx, a, p.Projects), ProjectNames: []string{}, PageLinks: []PubPageLink{}}
+	base := s.PublicURL + "/pub/" + p.Slug
+	if p.Domain != "" {
+		base = "https://" + p.Domain
+	}
 	for _, id := range p.Projects {
 		if pr, err := s.DB.ProjectFor(ctx, id, a.User.ID); err == nil {
 			info.ProjectNames = append(info.ProjectNames, pr.Name)
+			for _, docID := range p.Pages {
+				if d, err := s.DB.GetDocument(ctx, pr.ID, docID); err == nil && d.ProjectID == pr.ID {
+					info.PageLinks = append(info.PageLinks, PubPageLink{Ref: pr.Slug + "/" + d.Slug, Title: d.Title, URL: base + "/" + pr.Slug + "/" + strings.ToLower(d.ID)})
+				}
+			}
 		}
 	}
 	return info
@@ -107,6 +130,7 @@ func (s *Service) normalizePublication(ctx context.Context, a Actor, in *Publica
 		return invalid("validation.pub_projects", nil, "a publication has 1 to 50 projects")
 	}
 	ids := []string{}
+	var projects []store.Project
 	for _, ref := range in.Projects {
 		pr, err := s.project(ctx, a, ref, store.RoleOwner)
 		if err != nil {
@@ -114,8 +138,40 @@ func (s *Service) normalizePublication(ctx context.Context, a Actor, in *Publica
 		}
 		if !slices.Contains(ids, pr.ID) {
 			ids = append(ids, pr.ID)
+			projects = append(projects, pr)
 		}
 	}
+	if len(in.Pages) > 500 {
+		return invalid("validation.pub_pages", nil, "at most 500 pages")
+	}
+	pages := []string{}
+	for _, ref := range in.Pages {
+		ref = strings.TrimSpace(ref)
+		if ref == "" {
+			continue
+		}
+		proj, page, ok := strings.Cut(ref, "/")
+		found := false
+		for _, pr := range projects {
+			if ok && proj != pr.Slug && proj != pr.ID {
+				continue
+			}
+			if !ok {
+				page = ref
+			}
+			if d, err := s.findDoc(ctx, pr.ID, page); err == nil {
+				if !slices.Contains(pages, d.ID) {
+					pages = append(pages, d.ID)
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			return invalid("validation.pub_page", map[string]any{"page": ref}, "page %q is not in the publication's projects", ref)
+		}
+	}
+	p.Pages = pages
 	switch in.Access {
 	case "", "public":
 		in.Access = "public"
@@ -272,7 +328,7 @@ func (s *Service) SiteAt(ctx context.Context, p store.Publication, release *stor
 		}
 		pub := docs[:0]
 		for _, d := range docs {
-			if !d.Restricted {
+			if !d.Restricted && (len(p.Pages) == 0 || slices.Contains(p.Pages, d.ID)) {
 				pub = append(pub, d)
 			}
 		}
@@ -288,7 +344,8 @@ func (s *Service) PubDocument(ctx context.Context, site []PubProject, projectSlu
 			continue
 		}
 		for _, d := range pp.Docs {
-			if d.Slug == docSlug {
+			// The document id is the fixed link: it stays when the slug changes.
+			if d.Slug == docSlug || strings.EqualFold(d.ID, docSlug) {
 				if locale != "" && locale != pp.Project.MainLocale && slices.Contains(pp.Project.Locales, locale) {
 					if t, err := s.DB.GetTranslation(ctx, d.ID, locale); err == nil {
 						localize(&d, t)

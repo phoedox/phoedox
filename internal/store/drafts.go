@@ -27,6 +27,11 @@ type Draft struct {
 	ReviewAt   Time   `json:"reviewAt"`
 	ReviewNote string `json:"reviewNote,omitempty"`
 	TenantID   string `json:"-"` // filled by DueDrafts
+	// CodeRepo, CodePR and CodeBranch tie the draft to a pull request (or
+	// branch) of the project's code connection.
+	CodeRepo   string `json:"codeRepo,omitempty"`
+	CodePR     int    `json:"codePr,omitempty"`
+	CodeBranch string `json:"codeBranch,omitempty"`
 }
 
 // AddParticipant records an actor (once).
@@ -36,12 +41,12 @@ func (d *Draft) AddParticipant(actor string) {
 	}
 }
 
-const draftCols = `document_id, base_version, title, category, markdown, participants, started_by, started_at, updated_by, updated_at, reminded_at, review_by, review_at, review_note`
+const draftCols = `document_id, base_version, title, category, markdown, participants, started_by, started_at, updated_by, updated_at, reminded_at, review_by, review_at, review_note, code_repo, code_pr, code_branch`
 
 func scanDraft(r interface{ Scan(...any) error }, extra ...any) (Draft, error) {
 	var d Draft
 	var parts string
-	err := r.Scan(append([]any{&d.DocumentID, &d.BaseVersion, &d.Title, &d.Category, &d.Markdown, &parts, &d.StartedBy, &d.StartedAt, &d.UpdatedBy, &d.UpdatedAt, &d.RemindedAt, &d.ReviewBy, &d.ReviewAt, &d.ReviewNote}, extra...)...)
+	err := r.Scan(append([]any{&d.DocumentID, &d.BaseVersion, &d.Title, &d.Category, &d.Markdown, &parts, &d.StartedBy, &d.StartedAt, &d.UpdatedBy, &d.UpdatedAt, &d.RemindedAt, &d.ReviewBy, &d.ReviewAt, &d.ReviewNote, &d.CodeRepo, &d.CodePR, &d.CodeBranch}, extra...)...)
 	if errors.Is(err, sql.ErrNoRows) {
 		return d, ErrNotFound
 	}
@@ -58,13 +63,14 @@ func (d *DB) GetDraft(ctx context.Context, documentID string) (Draft, error) {
 
 // SaveDraft creates or updates a draft.
 func (d *DB) SaveDraft(ctx context.Context, x Draft) error {
-	_, err := d.Exec(ctx, `INSERT INTO drafts (document_id, tenant_id, base_version, title, category, markdown, participants, started_by, started_at, updated_by, updated_at, reminded_at, review_by, review_at, review_note)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := d.Exec(ctx, `INSERT INTO drafts (document_id, tenant_id, base_version, title, category, markdown, participants, started_by, started_at, updated_by, updated_at, reminded_at, review_by, review_at, review_note, code_repo, code_pr, code_branch)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (document_id) DO UPDATE SET title = excluded.title, category = excluded.category, markdown = excluded.markdown,
 		  participants = excluded.participants, updated_by = excluded.updated_by, updated_at = excluded.updated_at, reminded_at = excluded.reminded_at,
-		  review_by = excluded.review_by, review_at = excluded.review_at, review_note = excluded.review_note`,
+		  review_by = excluded.review_by, review_at = excluded.review_at, review_note = excluded.review_note,
+		  code_repo = excluded.code_repo, code_pr = excluded.code_pr, code_branch = excluded.code_branch`,
 		x.DocumentID, TenantOf(ctx), x.BaseVersion, x.Title, x.Category, x.Markdown, strings.Join(x.Participants, ","), x.StartedBy, x.StartedAt,
-		x.UpdatedBy, x.UpdatedAt, x.RemindedAt, x.ReviewBy, x.ReviewAt, x.ReviewNote)
+		x.UpdatedBy, x.UpdatedAt, x.RemindedAt, x.ReviewBy, x.ReviewAt, x.ReviewNote, x.CodeRepo, x.CodePR, x.CodeBranch)
 	return err
 }
 
@@ -90,6 +96,41 @@ type DraftSummary struct {
 func (d *DB) ProjectDrafts(ctx context.Context, projectID string) ([]DraftSummary, error) {
 	rows, err := d.Query(ctx, `SELECT `+prefixed("dr.", draftCols)+`, doc.slug, doc.project_id FROM drafts dr JOIN documents doc ON doc.id = dr.document_id
 		WHERE doc.project_id = ? AND doc.deleted_at IS NULL ORDER BY dr.updated_at DESC`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []DraftSummary{}
+	for rows.Next() {
+		var s DraftSummary
+		dr, err := scanDraft(rows, &s.Slug, &s.ProjectID)
+		if err != nil {
+			return nil, err
+		}
+		s.Draft = dr
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// CodeDrafts lists the drafts tied to a repository: to one pull request
+// (pr > 0), to a branch, or all of them (pr 0 and branch "").
+func (d *DB) CodeDrafts(ctx context.Context, repoID string, pr int, branch string) ([]DraftSummary, error) {
+	q := `SELECT ` + prefixed("dr.", draftCols) + `, doc.slug, doc.project_id FROM drafts dr JOIN documents doc ON doc.id = dr.document_id
+		WHERE dr.code_repo = ? AND doc.deleted_at IS NULL`
+	args := []any{repoID}
+	switch {
+	case pr > 0 && branch != "":
+		q += ` AND (dr.code_pr = ? OR (dr.code_pr = 0 AND dr.code_branch = ?))`
+		args = append(args, pr, branch)
+	case pr > 0:
+		q += ` AND dr.code_pr = ?`
+		args = append(args, pr)
+	case branch != "":
+		q += ` AND dr.code_branch = ?`
+		args = append(args, branch)
+	}
+	rows, err := d.Query(ctx, q+` ORDER BY dr.updated_at`, args...)
 	if err != nil {
 		return nil, err
 	}

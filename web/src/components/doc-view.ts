@@ -137,7 +137,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     const doc = await api<Doc>("GET", `/projects/${this.project}/documents/${this.docSlug}${this.lang ? `?lang=${this.lang}` : ""}`).catch(() => undefined);
     if (doc) {
       // A draft may have been opened, published or discarded meanwhile.
-      this.draft = !this.kiosk && (doc.type === "markdown" || doc.type === "floorplan") && ["editor", "owner"].includes(doc.role ?? currentProject.get()?.role ?? "")
+      this.draft = !this.kiosk && (doc.type === "markdown" || doc.type === "floorplan" || doc.type === "adr") && ["editor", "owner"].includes(doc.role ?? currentProject.get()?.role ?? "")
         ? await api<DraftInfo>("GET", `/projects/${this.project}/documents/${doc.id}/draft`).catch(() => undefined)
         : undefined;
       this.doc = doc;
@@ -425,13 +425,20 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     // Drafts belong to the main language; floor plans show their own note.
     if (!dr || d.translation || d.type === "floorplan") return "";
     const names = dr.participants.map((p) => (p.ai ? t("draft.ai_participant", { name: p.name }) : p.name)).join(", ");
+    const code = dr.code ? html`<br>${icon("GitPullRequest", 14)} ${dr.code.pr
+      ? html`<a href=${dr.code.url ?? "#"} target="_blank" rel="noopener external">${dr.code.repo}#${dr.code.pr}</a>`
+      : html`<code>${dr.code.repo}@${dr.code.branch}</code>`} · ${t("draft.code_hint")}` : "";
+    // Decisions have drafts only for pull requests: a note, no editor.
+    if (d.type === "adr") {
+      return html`<div class="notice draft" role="note"><span class="who">${icon("FilePen", 15)} ${t("draft.open_notice", { names, date: formatDate(dr.updatedAt) })}${code}</span></div>`;
+    }
     let hunks: Hunk[] = [];
     if (this.showDiff) {
       const lines = (title: string, md: string) => [`${t("history.title_label")}: ${title}`, "", ...md.replace(/\n$/, "").split("\n")];
       hunks = fold(diffLines(lines(d.title, d.content?.markdown ?? ""), lines(dr.title, dr.markdown)));
     }
     return html`<div class="notice draft" role="note">
-        <span class="who">${icon("FilePen", 15)} ${t("draft.open_notice", { names, date: formatDate(dr.updatedAt) })}</span>
+        <span class="who">${icon("FilePen", 15)} ${t("draft.open_notice", { names, date: formatDate(dr.updatedAt) })}${code}</span>
         <span class="row">
           <button class="ghost" aria-expanded=${this.showDiff ? "true" : "false"} @click=${() => (this.showDiff = !this.showDiff)}>${t(this.showDiff ? "draft.hide_changes" : "draft.show_changes")}</button>
           <a class="btn" href="/p/${this.project}/d/${d.id}/edit">${icon("Pencil", 14)} ${t("draft.continue")}</a>

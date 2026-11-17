@@ -33,6 +33,7 @@ Admin commands (run on the server, same environment as phoedox):
   phx admin delete-user --email E --yes            Delete and anonymise an account (like Settings → Account)
   phx admin deleted-projects                       List deleted projects (in the trash) and when they go for good
   phx admin restore-project --project SLUG         Restore a deleted project
+  phx admin export --project SLUG --file F [--git] Export a project (ZIP, or a Git repository with history)
   phx admin entitle --feature F (--org O | --email E) [--revoke] [--note N]
                                                    Grant (or revoke) a paid feature (PHOEDOX_PAID_FEATURES)
   phx admin test-mail --email E                    Send a test mail with the SMTP settings (PHOEDOX_SMTP_*)
@@ -87,13 +88,14 @@ func admin(args []string) error {
 	orgRef := fs.String("org", "", "organization id or slug (entitle)")
 	revoke := fs.Bool("revoke", false, "revoke instead of grant (entitle)")
 	note := fs.String("note", "", "note stored with the grant (entitle)")
-	projectRef := fs.String("project", "", "project id or slug (restore-project)")
+	projectRef := fs.String("project", "", "project id or slug (restore-project, export)")
+	gitFormat := fs.Bool("git", false, "export as a Git repository with history (export)")
 	var domains multi
 	fs.Var(&domains, "domain", "domain of the tenant (repeatable)")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
-	if *email == "" && args[0] != "reindex" && args[0] != "entitle" && args[0] != "create-tenant" && args[0] != "tenants" && args[0] != "backup" && args[0] != "restore" && args[0] != "deleted-projects" && args[0] != "restore-project" && args[0] != "bot-protection-off" {
+	if *email == "" && args[0] != "reindex" && args[0] != "entitle" && args[0] != "create-tenant" && args[0] != "tenants" && args[0] != "backup" && args[0] != "restore" && args[0] != "deleted-projects" && args[0] != "restore-project" && args[0] != "export" && args[0] != "bot-protection-off" {
 		return errors.New("--email is required")
 	}
 	ctx := context.Background()
@@ -121,6 +123,25 @@ func admin(args []string) error {
 			}
 			fmt.Printf("%s\t%s\tdeleted %s\t%s\n", t.Slug, t.Name, t.DeletedAt.Time.Format("2006-01-02 15:04"), until)
 		}
+	case "export":
+		if *projectRef == "" || *file == "" {
+			return errors.New("--project and --file are required")
+		}
+		f, err := os.Create(*file)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		cli := core.Actor{User: store.User{ID: "cli", Name: "Admin", IsAdmin: true}, Via: "cli"}
+		if *gitFormat {
+			err = a.Core.ExportProjectGit(ctx, cli, *projectRef, f)
+		} else {
+			err = a.Core.ExportProject(ctx, cli, *projectRef, f)
+		}
+		if err != nil {
+			return fmt.Errorf("export %s: %w", *projectRef, err)
+		}
+		fmt.Printf("exported %s to %s\n", *projectRef, *file)
 	case "restore-project":
 		if *projectRef == "" {
 			return errors.New("--project is required")

@@ -147,6 +147,8 @@ export interface DraftInfo {
   reviewBy?: DraftParticipant;
   reviewAt?: string | null;
   reviewNote?: string;
+  /** The pull request (or branch) the draft belongs to. */
+  code?: { repo: string; pr?: number; branch?: string; url?: string };
 }
 export type DecisionStatus = "proposed" | "accepted" | "rejected" | "deprecated" | "partially_superseded" | "superseded";
 export const decisionStatuses: readonly DecisionStatus[] = ["proposed", "accepted", "rejected", "deprecated", "partially_superseded", "superseded"];

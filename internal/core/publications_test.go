@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/phoedox/phoedox/internal/store"
@@ -66,5 +67,36 @@ func TestPublications(t *testing.T) {
 	}
 	if err := s.DeletePublication(ctx, owner, pub.ID); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// Publishing chosen pages of a code project (DEPLOY, CONFIG) with fixed
+// links while the rest stays private.
+func TestPublicationPages(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _ := setup(t)
+	s.PublicURL = "https://docs.example"
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Service"})
+	deploy, _ := s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: "markdown", Title: "Deploy", Markdown: "steps"})
+	_, _ = s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: "markdown", Title: "Internals", Markdown: "private"})
+	if _, err := s.CreatePublication(ctx, owner, PublicationInput{Title: "Ops", Projects: []string{p.Slug}, Pages: []string{p.Slug + "/nope"}}); invalidKey(err) != "validation.pub_page" {
+		t.Fatalf("unknown page: %v", err)
+	}
+	pub, err := s.CreatePublication(ctx, owner, PublicationInput{Title: "Ops", Projects: []string{p.Slug}, Pages: []string{p.Slug + "/deploy"}})
+	if err != nil || len(pub.PageLinks) != 1 || pub.PageLinks[0].URL != "https://docs.example/pub/ops/"+p.Slug+"/"+strings.ToLower(deploy.Document.ID) {
+		t.Fatalf("create: %v %+v", err, pub.PageLinks)
+	}
+	site, _ := s.Site(ctx, pub.Publication)
+	if len(site[0].Docs) != 1 || site[0].Docs[0].Slug != "deploy" {
+		t.Fatalf("only chosen pages: %+v", site[0].Docs)
+	}
+	// The fixed link survives a rename.
+	slug := "deployment"
+	if _, err := s.UpdateDocument(ctx, owner, p.Slug, "deploy", DocumentPatch{Slug: &slug}); err != nil {
+		t.Fatal(err)
+	}
+	site, _ = s.Site(ctx, pub.Publication)
+	if _, d, err := s.PubDocument(ctx, site, p.Slug, strings.ToLower(deploy.Document.ID), ""); err != nil || d.Slug != "deployment" {
+		t.Fatalf("fixed link: %v %+v", err, d.Slug)
 	}
 }

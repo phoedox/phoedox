@@ -35,5 +35,7 @@ batteries, certificates) with an interval and the entries it applies to.
   reading; with `reviewed: true` it marks the page as checked – only after you
   verified that it is still correct (e.g. while working through `review_due`).
 - `list_duplicates` → `merge_entities` (only where AI writes directly).
-- `change_summary` for "what changed this week".
+- `change_summary` for "what changed this week"; with `pull_request` the doc
+  changes waiting for that pull request (see `workflows.md`).
+- `export_project` (owners): a download link to the whole project as ZIP or Git.
 - `archive_link` keeps a copy of a manual a link page points to.

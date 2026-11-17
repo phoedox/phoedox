@@ -328,6 +328,11 @@ func (s *Service) RunCodeReleases(ctx context.Context, now time.Time) {
 			continue
 		}
 		for _, r := range repos {
+			// Pull requests with documentation drafts: every five minutes.
+			if last, ok := s.prChecked.Load(r.ID); !ok || now.Sub(last.(time.Time)) >= 5*time.Minute {
+				s.prChecked.Store(r.ID, now)
+				s.checkCodeDrafts(tctx, r)
+			}
 			if !r.LastCheck.IsZero() && now.Sub(r.LastCheck.Time) < 30*time.Minute {
 				continue
 			}

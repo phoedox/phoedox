@@ -13,16 +13,49 @@ import (
 	"github.com/phoedox/phoedox/internal/core"
 )
 
-// exportProject streams the project as a ZIP (owners; read-only tokens work).
+// exportProject streams the project as a ZIP (owners; read-only tokens
+// work); ?format=git sends a Git repository with the history instead.
 func (a *api) exportProject(w http.ResponseWriter, r *http.Request) {
 	var buf bytes.Buffer
-	if err := a.core.ExportProject(r.Context(), actorOf(r), chi.URLParam(r, "p"), &buf); err != nil {
+	format := r.URL.Query().Get("format")
+	var err error
+	if format == "git" {
+		err = a.core.ExportProjectGit(r.Context(), actorOf(r), chi.URLParam(r, "p"), &buf)
+	} else {
+		err = a.core.ExportProject(r.Context(), actorOf(r), chi.URLParam(r, "p"), &buf)
+	}
+	if err != nil {
 		writeErr(w, err)
 		return
 	}
+	sendExport(w, chi.URLParam(r, "p"), format, buf.Bytes())
+}
+
+func sendExport(w http.ResponseWriter, slug, format string, data []byte) {
+	name := slug + "-" + time.Now().UTC().Format("20060102") + ".phoedox.zip"
+	if format == "git" {
+		name = slug + "-" + time.Now().UTC().Format("20060102") + ".git.zip"
+	}
 	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", `attachment; filename="`+chi.URLParam(r, "p")+"-"+time.Now().UTC().Format("20060102")+`.phoedox.zip"`)
-	_, _ = w.Write(buf.Bytes())
+	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
+	_, _ = w.Write(data)
+}
+
+// exportLink makes a 15-minute download link (for AI clients and scripts).
+func (a *api) exportLink(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.ProjectExportLink(r.Context(), actorOf(r), chi.URLParam(r, "p"), r.URL.Query().Get("format"))
+	respond(w, v, err)
+}
+
+// openExportLink serves the export behind a download link.
+func (a *api) openExportLink(w http.ResponseWriter, r *http.Request) {
+	var buf bytes.Buffer
+	slug, format, err := a.core.OpenExportLink(r.Context(), chi.URLParam(r, "token"), &buf)
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	sendExport(w, slug, format, buf.Bytes())
 }
 
 // offlineCopy sends the emergency copy of a project: static HTML pages in a

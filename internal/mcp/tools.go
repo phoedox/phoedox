@@ -224,9 +224,15 @@ type gapsIn struct {
 	StaleDays int    `json:"staleDays,omitempty" jsonschema:"pages unchanged for this many days count as stale (default 365)"`
 }
 
-type changesIn struct {
+type exportIn struct {
 	Project string `json:"project" jsonschema:"project slug"`
-	Days    int    `json:"days,omitempty" jsonschema:"look back this many days (default 7, at most 90)"`
+	Format  string `json:"format,omitempty" jsonschema:"zip (default): Markdown with front matter plus JSON, importable; git: a Git repository with one commit per document version"`
+}
+
+type changesIn struct {
+	Project     string `json:"project" jsonschema:"project slug"`
+	Days        int    `json:"days,omitempty" jsonschema:"look back this many days (default 7, at most 90)"`
+	PullRequest string `json:"pull_request,omitempty" jsonschema:"instead: the documentation changes tied to this pull request or branch (owner/repo#12, #12, URL, owner/repo@branch) with a line diff each"`
 }
 
 type readingsIn struct {
@@ -321,6 +327,7 @@ type updateDocIn struct {
 	Description   *string         `json:"description,omitempty" jsonschema:"links only: the new description"`
 	ExpectVersion int             `json:"expect_version,omitempty" jsonschema:"fail if the document changed since this version"`
 	Verbose       bool            `json:"verbose,omitempty" jsonschema:"true returns the whole document; default: id, slug, version, url and draft/suggestion state"`
+	PullRequest   string          `json:"pull_request,omitempty" jsonschema:"tie this change to a pull request or branch of the project's code connection: owner/repo#12, #12, a pull request URL, or owner/repo@branch. The change goes into a draft that is published when the pull request is merged and discarded when it is closed; the pull request gets a Docs changes comment"`
 }
 
 type updateBoardIn struct {
@@ -388,6 +395,7 @@ type updateDecisionIn struct {
 	Category      *string `json:"category,omitempty"`
 	ExtRef        *string `json:"ext_ref,omitempty" jsonschema:"own number in another system, e.g. D-640; empty removes it"`
 	ExpectVersion int     `json:"expect_version,omitempty"`
+	PullRequest   string  `json:"pull_request,omitempty" jsonschema:"tie this change to a pull request or branch (owner/repo#12, #12, URL, owner/repo@branch): it stays a draft until the pull request is merged (published) or closed (discarded)"`
 	decisionFields
 }
 
@@ -985,7 +993,10 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		return withTranslations{DocResult: res, Translations: tr}, nil
 	})
-	tool(s, "update_document", "Update a Markdown page, a decision's texts (via edits) or a link. Only given fields change; markdown replaces the whole content, edits change exact passages (cheaper for long pages); url and description apply to links. The answer is short (id, version, url) unless verbose. If the page has an open draft (someone is editing it), the change goes into the draft and is published together with it by a person; the result then contains \"draft\".", func(ctx context.Context, a core.Actor, in updateDocIn) (any, error) {
+	tool(s, "update_document", "Update a Markdown page, a decision's texts (via edits) or a link. Only given fields change; markdown replaces the whole content, edits change exact passages (cheaper for long pages); url and description apply to links. The answer is short (id, version, url) unless verbose. If the page has an open draft (someone is editing it), the change goes into the draft and is published together with it by a person; the result then contains \"draft\". With pull_request the change goes into a draft tied to that pull request (published on merge).", func(ctx context.Context, a core.Actor, in updateDocIn) (any, error) {
+		if err := linkPR(ctx, svc, a, in.Project, in.Document, in.PullRequest); err != nil {
+			return nil, err
+		}
 		patch := core.DocumentPatch{Title: in.Title, Markdown: in.Markdown, Category: in.Category, Slug: in.Slug, Position: in.Position, ExpectVersion: in.ExpectVersion,
 			Edits: in.Edits, After: in.After}
 		if in.URL != nil || in.Description != nil {
@@ -1083,13 +1094,20 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "list_decisions", "The decision log of a project: number (ADR-0003), title, status, date and which decision supersedes which (fully, or partly with a scope), ordered by number.", func(ctx context.Context, a core.Actor, in listDecisionsIn) (any, error) {
 		return svc.Decisions(ctx, a, in.Project, in.Status, in.Query)
 	})
-	tool(s, "update_decision", "Update a decision. Given fields replace the current ones, others stay.", func(ctx context.Context, a core.Actor, in updateDecisionIn) (any, error) {
+	tool(s, "update_decision", "Update a decision. Given fields replace the current ones, others stay. With pull_request the change waits in a draft until that pull request is merged.", func(ctx context.Context, a core.Actor, in updateDecisionIn) (any, error) {
 		cur, err := svc.Document(ctx, a, in.Project, in.Document)
 		if err != nil {
 			return nil, err
 		}
+		if err := linkPR(ctx, svc, a, in.Project, cur.ID, in.PullRequest); err != nil {
+			return nil, err
+		}
 		var adr core.ADR
 		_ = json.Unmarshal(cur.Content, &adr)
+		// An open draft (e.g. of a pull request) is the base for the change.
+		if d, err := svc.Draft(ctx, a, in.Project, cur.ID); err == nil && d.Markdown != "" {
+			_ = json.Unmarshal([]byte(d.Markdown), &adr)
+		}
 		f := in.decisionFields
 		setIf(&adr.Status, &f.Status)
 		setIf(&adr.Date, &f.Date)
@@ -1167,11 +1185,21 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "find_documentation_gaps", "Find missing or outdated documentation in a project: failing checks, mentions of entries that do not exist, devices without a location, entries no page mentions, entries with most attributes empty, empty pages and pages unchanged for a long time.", func(ctx context.Context, a core.Actor, in gapsIn) (any, error) {
 		return svc.DocumentationGaps(ctx, a, in.Project, in.StaleDays)
 	})
-	tool(s, "change_summary", "What changed in a project recently: pages created, edited or deleted (with authors), entries added, changed or removed, tasks done and comments.", func(ctx context.Context, a core.Actor, in changesIn) (any, error) {
+	tool(s, "change_summary", "What changed in a project recently: pages created, edited or deleted (with authors), entries added, changed or removed, tasks done and comments. With pull_request: the documentation changes waiting for that pull request, each with a line diff (to review docs per pull request).", func(ctx context.Context, a core.Actor, in changesIn) (any, error) {
+		if in.PullRequest != "" {
+			pr, ok := core.ParsePullRequest(in.PullRequest)
+			if !ok {
+				return nil, errors.New("pull_request: use owner/repo#12, #12, a pull request URL or owner/repo@branch")
+			}
+			return svc.PullRequestDocs(ctx, a, in.Project, pr)
+		}
 		if in.Days <= 0 || in.Days > 90 {
 			in.Days = 7
 		}
 		return svc.Changes(ctx, a, in.Project, time.Now().AddDate(0, 0, -in.Days))
+	})
+	tool(s, "export_project", "Export a whole project (project owners): a download link valid for 15 minutes to a ZIP with pages and decisions as Markdown with front matter, JSON for the graph, boards, whiteboards and settings, and the files (importable again), or with format git a Git repository with the history. Give the link to the person; you cannot download it yourself.", func(ctx context.Context, a core.Actor, in exportIn) (any, error) {
+		return svc.ProjectExportLink(ctx, a, in.Project, in.Format)
 	})
 	tool(s, "archive_link", "Keep a copy of the document a link page points to (a manual, a data sheet) as a project file, in case the original goes offline.", func(ctx context.Context, a core.Actor, in archiveIn) (any, error) {
 		return svc.ArchiveLink(ctx, a, in.Project, in.Document)
@@ -1309,6 +1337,19 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "list_suggestions", "List suggestions (pending AI changes) of a project.", func(ctx context.Context, a core.Actor, in suggestionsIn) (any, error) {
 		return svc.Suggestions(ctx, a, in.Project, in.Status)
 	})
+}
+
+// linkPR ties a document's draft to a pull request before a change.
+func linkPR(ctx context.Context, svc *core.Service, a core.Actor, project, doc, ref string) error {
+	if strings.TrimSpace(ref) == "" {
+		return nil
+	}
+	pr, ok := core.ParsePullRequest(ref)
+	if !ok {
+		return errors.New("pull_request: use owner/repo#12, #12, a pull request URL or owner/repo@branch")
+	}
+	_, err := svc.LinkDraftCode(ctx, a, project, doc, pr)
+	return err
 }
 
 func setIf(dst *string, v *string) {

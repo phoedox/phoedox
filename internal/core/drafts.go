@@ -46,6 +46,16 @@ type DraftInfo struct {
 	Approval   bool         `json:"approval"`
 	CanPublish bool         `json:"canPublish"`
 	ReviewBy   *Participant `json:"reviewBy,omitempty"`
+	// Code is the pull request or branch the draft belongs to.
+	Code *DraftCode `json:"code,omitempty"`
+}
+
+// DraftCode describes the pull request (or branch) of a draft.
+type DraftCode struct {
+	Repo   string `json:"repo"` // owner/name
+	PR     int    `json:"pr,omitempty"`
+	Branch string `json:"branch,omitempty"`
+	URL    string `json:"url,omitempty"`
 }
 
 // DraftPatch changes a draft.
@@ -53,8 +63,10 @@ type DraftPatch struct {
 	Markdown *string `json:"markdown,omitempty"`
 	// Floorplan replaces the plan of a floor plan draft (live editing).
 	Floorplan *Floorplan `json:"floorplan,omitempty"`
-	Title     *string    `json:"title,omitempty"`
-	Category  *string    `json:"category,omitempty"`
+	// ADR is a decision's draft (only drafts tied to a pull request).
+	ADR      *ADR    `json:"adr,omitempty"`
+	Title    *string `json:"title,omitempty"`
+	Category *string `json:"category,omitempty"`
 }
 
 // errDraftOnly: drafts exist only for Markdown pages and floor plans.
@@ -64,11 +76,15 @@ func errDraftOnly() error {
 
 // hasDrafts tells which document types are edited in drafts. A floor plan
 // draft keeps the plan as JSON where Markdown drafts keep their text.
-func hasDrafts(typ string) bool { return typ == store.DocMarkdown || typ == store.DocFloorplan }
+// Decisions have drafts only when tied to a pull request (LinkDraftCode);
+// their draft holds the decision as JSON, like floor plans.
+func hasDrafts(typ string) bool {
+	return typ == store.DocMarkdown || typ == store.DocFloorplan || typ == store.DocADR
+}
 
 // draftBody is what a new draft starts from.
 func draftBody(doc store.Document) string {
-	if doc.Type == store.DocFloorplan {
+	if doc.Type == store.DocFloorplan || doc.Type == store.DocADR {
 		return string(doc.Content)
 	}
 	return markdownOf(doc)
@@ -104,6 +120,14 @@ func (s *Service) draftInfo(ctx context.Context, a Actor, p store.Project, doc s
 	if d.ReviewBy != "" {
 		if ps := s.participants(ctx, []string{d.ReviewBy}); len(ps) == 1 {
 			info.ReviewBy = &ps[0]
+		}
+	}
+	if d.CodeRepo != "" {
+		if r, err := s.DB.GetCodeRepo(ctx, p.ID, d.CodeRepo); err == nil {
+			info.Code = &DraftCode{Repo: r.Owner + "/" + r.Name, PR: d.CodePR, Branch: d.CodeBranch}
+			if d.CodePR > 0 {
+				info.Code.URL = prURL(r, d.CodePR)
+			}
 		}
 	}
 	return info
@@ -176,9 +200,18 @@ func (s *Service) StartDraft(ctx context.Context, a Actor, ref, docRef string) (
 	if err != nil {
 		return DraftInfo{}, err
 	}
-	if !hasDrafts(doc.Type) {
+	if !hasDrafts(doc.Type) || doc.Type == store.DocADR {
 		return DraftInfo{}, errDraftOnly()
 	}
+	d, err := s.startDraft(ctx, a, doc)
+	if err != nil {
+		return DraftInfo{}, err
+	}
+	return s.draftInfo(ctx, a, p, doc, d), nil
+}
+
+// startDraft opens (or joins) a document's draft.
+func (s *Service) startDraft(ctx context.Context, a Actor, doc store.Document) (store.Draft, error) {
 	d, err := s.DB.GetDraft(ctx, doc.ID)
 	switch {
 	case errors.Is(err, store.ErrNotFound):
@@ -187,20 +220,20 @@ func (s *Service) StartDraft(ctx context.Context, a Actor, ref, docRef string) (
 			StartedBy: a.String(), StartedAt: now, UpdatedBy: a.String(), UpdatedAt: now}
 		d.AddParticipant(a.String())
 		if err := s.DB.SaveDraft(ctx, d); err != nil {
-			return DraftInfo{}, err
+			return d, err
 		}
 		s.event(ctx, a, "document.draft_start", doc.ID, map[string]int{"base": doc.Version})
 	case err != nil:
-		return DraftInfo{}, err
+		return d, err
 	default:
 		if !slices.Contains(d.Participants, a.String()) {
 			d.AddParticipant(a.String())
 			if err := s.DB.SaveDraft(ctx, d); err != nil {
-				return DraftInfo{}, err
+				return d, err
 			}
 		}
 	}
-	return s.draftInfo(ctx, a, p, doc, d), nil
+	return d, nil
 }
 
 // SaveDraft stores changes of the live editor (or a form) in the draft.
@@ -245,6 +278,20 @@ func applyDraftPatch(d *store.Draft, typ string, patch DraftPatch) error {
 	if patch.Category != nil {
 		d.Category = strings.TrimSpace(*patch.Category)
 	}
+	if typ == store.DocADR {
+		if patch.ADR != nil {
+			next := *patch.ADR
+			var cur ADR
+			_ = json.Unmarshal([]byte(d.Markdown), &cur)
+			next.SupersededBy, next.PartlySupersededBy, next.Responses, next.Chosen = cur.SupersededBy, cur.PartlySupersededBy, cur.Responses, cur.Chosen
+			c, _, err := content(store.DocADR, "", &next, nil, nil, nil)
+			if err != nil {
+				return err
+			}
+			d.Markdown = string(c)
+		}
+		return nil
+	}
 	if typ == store.DocFloorplan {
 		if patch.Floorplan != nil {
 			c, _, err := floorplanContent(patch.Floorplan)
@@ -268,7 +315,7 @@ func applyDraftPatch(d *store.Draft, typ string, patch DraftPatch) error {
 // suggestion, restored version) into an open draft. It reports whether a
 // draft was open. Live editors reload the draft.
 func (s *Service) draftWrite(ctx context.Context, a Actor, p store.Project, cur store.Document, patch DocumentPatch) (DocResult, bool, error) {
-	if !hasDrafts(cur.Type) || (patch.Markdown == nil && patch.Floorplan == nil && patch.Title == nil && patch.Category == nil) {
+	if !hasDrafts(cur.Type) || (patch.Markdown == nil && patch.Floorplan == nil && patch.ADR == nil && patch.Title == nil && patch.Category == nil) {
 		return DocResult{}, false, nil
 	}
 	d, err := s.DB.GetDraft(ctx, cur.ID)
@@ -281,7 +328,7 @@ func (s *Service) draftWrite(ctx context.Context, a Actor, p store.Project, cur 
 	if err := s.planFiles(ctx, p, patch.Floorplan); err != nil {
 		return DocResult{}, true, err
 	}
-	if err := applyDraftPatch(&d, cur.Type, DraftPatch{Markdown: patch.Markdown, Floorplan: patch.Floorplan, Title: patch.Title, Category: patch.Category}); err != nil {
+	if err := applyDraftPatch(&d, cur.Type, DraftPatch{Markdown: patch.Markdown, Floorplan: patch.Floorplan, ADR: patch.ADR, Title: patch.Title, Category: patch.Category}); err != nil {
 		return DocResult{}, true, err
 	}
 	d.AddParticipant(a.String())
@@ -323,6 +370,12 @@ func (s *Service) PublishDraft(ctx context.Context, a Actor, ref, docRef string)
 	if s.needsApproval(ctx, p) {
 		return DocResult{}, invalid("validation.approval_required", nil, "an owner has to approve this change")
 	}
+	return s.publishDraft(ctx, a, p, doc, d)
+}
+
+// publishDraft makes a draft the published page (checks done by callers).
+func (s *Service) publishDraft(ctx context.Context, a Actor, p store.Project, doc store.Document, d store.Draft) (DocResult, error) {
+	var err error
 	res := DocResult{Applied: true, Document: &doc}
 	pub := DocumentPatch{Markdown: &d.Markdown, Title: &d.Title, Category: &d.Category}
 	changed := d.Title != doc.Title || d.Category != doc.Category
@@ -332,6 +385,13 @@ func (s *Service) PublishDraft(ctx context.Context, a Actor, ref, docRef string)
 			return DocResult{}, err
 		}
 		pub.Markdown, pub.Floorplan = nil, &fp
+		changed = changed || !sameJSON([]byte(d.Markdown), doc.Content)
+	} else if doc.Type == store.DocADR {
+		var adr ADR
+		if err := json.Unmarshal([]byte(d.Markdown), &adr); err != nil {
+			return DocResult{}, err
+		}
+		pub.Markdown, pub.ADR = nil, &adr
 		changed = changed || !sameJSON([]byte(d.Markdown), doc.Content)
 	} else {
 		changed = changed || d.Markdown != markdownOf(doc)
