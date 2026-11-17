@@ -104,12 +104,15 @@ type PortalSettings struct {
 	// (empty = any site).
 	Widget        bool     `json:"widget,omitempty"`
 	WidgetOrigins []string `json:"widgetOrigins,omitempty"`
+	// ReporterLogin lets reporters sign in with the product's own login
+	// (OpenID Connect; projects of organizations).
+	ReporterLogin *ReporterLogin `json:"reporterLogin,omitempty"`
 }
 
 var reportTypes = []string{"bug", "idea", "question", "praise"}
 var fieldTypes = []string{"text", "number", "choice", "multi", "version", "bool", "url", "date"}
 var handleRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$`)
-var reservedHandles = []string{"status", "api", "new", "admin", "embed", "widget"}
+var reservedHandles = []string{"status", "api", "new", "admin", "embed", "widget", "login", "unfollow"}
 
 // DefaultPortalSettings are the settings of a new portal.
 func DefaultPortalSettings() PortalSettings {
@@ -198,6 +201,13 @@ func (ps *PortalSettings) validate() error {
 			list[i] = strings.TrimPrefix(strings.ToLower(strings.TrimSpace(e)), ".")
 		}
 		a.Endings[k] = slices.DeleteFunc(list, func(e string) bool { return e == "" })
+	}
+	if rl := ps.ReporterLogin; rl != nil {
+		if strings.TrimSpace(rl.Issuer) == "" && strings.TrimSpace(rl.ClientID) == "" {
+			ps.ReporterLogin = nil
+		} else if err := rl.validate(); err != nil {
+			return err
+		}
 	}
 	origins := []string{}
 	for _, o := range ps.WidgetOrigins {
@@ -304,7 +314,13 @@ func (s *Service) portalView(ctx context.Context, p store.FeedbackPortal) Portal
 	if mods == nil {
 		mods = []store.OrgMember{}
 	}
-	return PortalView{FeedbackPortal: p, Settings: portalSettings(p), Moderators: mods}
+	ps := portalSettings(p)
+	if ps.ReporterLogin != nil {
+		rl := *ps.ReporterLogin
+		rl.ClientSecretSealed = ""
+		ps.ReporterLogin = &rl
+	}
+	return PortalView{FeedbackPortal: p, Settings: ps, Moderators: mods}
 }
 
 // FeedbackPortals lists a project's portals (editors and owners).
@@ -355,8 +371,17 @@ func (s *Service) SaveFeedbackPortal(ctx context.Context, a Actor, ref, id strin
 	if in.Settings != nil {
 		settings = *in.Settings
 	}
+	before := portalSettings(portal).ReporterLogin
 	if err := settings.validate(); err != nil {
 		return PortalView{}, err
+	}
+	if rl := settings.ReporterLogin; rl != nil {
+		if p.OrgID == "" {
+			return PortalView{}, invalid("validation.feedback_login_org", nil, "reporter sign-in is for projects of organizations")
+		}
+		if err := s.sealLogin(rl, before); err != nil {
+			return PortalView{}, err
+		}
 	}
 	var serverKey string
 	if settings.PublicKeyOn && portal.PublicKey == "" {
@@ -495,6 +520,16 @@ type PublicPortal struct {
 	PublicComments bool `json:"publicComments"`
 	// Widget: the portal can be embedded with /feedback-widget.js.
 	Widget bool `json:"widget"`
+	// Login: reporters can sign in with the product's login (button text,
+	// whether it is required); Reporter is the signed-in reporter.
+	Login    *PublicLogin `json:"login,omitempty"`
+	Reporter *Reporter    `json:"reporter,omitempty"`
+}
+
+// PublicLogin is what the portal page shows of a reporter login.
+type PublicLogin struct {
+	Label    string `json:"label"`
+	Required bool   `json:"required"`
 }
 
 func localized(m map[string]string, lang string) string {
@@ -528,6 +563,12 @@ func (s *Service) PublicFeedbackPortal(ctx context.Context, handle, lang string)
 		Types: ps.Types, Fields: ps.Fields, Attachments: ps.Attachments, Anonymous: ps.Anonymous, Accounts: ps.Accounts, AskEmail: ps.AskEmail && ps.Anonymous,
 		Theme: ps.Theme, Languages: ps.Languages, Accepting: portal.Enabled && !(full && ps.StorageFull == "pause"), FilesFull: full && ps.StorageFull == "no_files",
 		PublicView: ps.PublicView, PublicComments: ps.PublicView && ps.PublicComments, Widget: ps.Widget}
+	if rl := ps.ReporterLogin; rl != nil {
+		out.Login = &PublicLogin{Label: rl.Label, Required: rl.Required}
+		if out.Login.Label == "" {
+			out.Login.Label = portal.Name
+		}
+	}
 	if out.Privacy == "" {
 		out.Privacy = defaultPrivacy(lang, portal.Name)
 	}
@@ -612,6 +653,8 @@ type ReportReceipt struct {
 type Intake struct {
 	Via   string // form | widget | public_key | server_key | mcp
 	Check string // the bot check that passed ("" when none applied)
+	// Reporter signed in with the portal's login (nil when none).
+	Reporter *Reporter
 }
 
 var secretPatterns = []*regexp.Regexp{
@@ -857,6 +900,9 @@ func (s *Service) SubmitFeedback(ctx context.Context, a *Actor, handle string, i
 	}
 	switch {
 	case intake.Via == "server_key", intake.Via == "public_key", intake.Via == "mcp":
+	case intake.Reporter != nil && ps.ReporterLogin != nil:
+	case ps.ReporterLogin != nil && ps.ReporterLogin.Required:
+		return ReportReceipt{}, invalid("validation.feedback_login_required", nil, "sign in to send a report")
 	case a != nil && ps.Accounts:
 	case a == nil && ps.Anonymous:
 	case a != nil && ps.Anonymous:
@@ -902,12 +948,20 @@ func (s *Service) SubmitFeedback(ctx context.Context, a *Actor, handle string, i
 		}
 		ctxFields["player_verified"] = "yes"
 	}
+	if r := intake.Reporter; r != nil && ps.ReporterLogin != nil {
+		ctxFields["reporter"] = r.Sub
+		ctxFields["reporter_name"] = r.Name
+		ctxFields["reporter_verified"] = "login"
+	}
 	email := strings.TrimSpace(in.Email)
 	if email != "" && (!strings.Contains(email, "@") || len(email) > 254 || !ps.AskEmail) {
 		email = ""
 	}
 	if a != nil {
 		email = ""
+	}
+	if r := intake.Reporter; r != nil && ps.ReporterLogin != nil && a == nil && r.Email != "" {
+		email = r.Email // answers go to the address of the product account
 	}
 	receipt := ReportReceipt{}
 	// Attachments: the portal's rules, then the feedback storage quota.

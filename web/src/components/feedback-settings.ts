@@ -10,7 +10,7 @@ import { base } from "./shared";
 import { toast } from "./toasts";
 
 interface Settings {
-  intro: Record<string, string>; privacy: Record<string, string>; languages: string[]; types: string[]; categories: string[]; tags?: string[]; aiTriage?: boolean; autoAnswers?: boolean; publicView?: boolean; publicComments?: boolean; widget?: boolean; widgetOrigins?: string[]; fields: PortalField[];
+  intro: Record<string, string>; privacy: Record<string, string>; languages: string[]; types: string[]; categories: string[]; tags?: string[]; aiTriage?: boolean; autoAnswers?: boolean; publicView?: boolean; publicComments?: boolean; widget?: boolean; widgetOrigins?: string[]; reporterLogin?: { issuer: string; clientId: string; clientSecret?: string; hasSecret?: boolean; label?: string; required?: boolean } | null; fields: PortalField[];
   attachments: AttachRules; anonymous: boolean; accounts: boolean; askEmail: boolean; states: string[]; defaultState: string; finishedState: string;
   storageFull: string; theme: { accent?: string; accentDark?: string; logo?: string }; publicKeyOn: boolean; serverKeyOn: boolean; retentionMonths: number;
 }
@@ -169,6 +169,7 @@ export class PhxFeedbackSettings extends LitElement {
           <button class="ghost" @click=${() => void this.rotate("player")}>${t(p.hasPlayerKey ? "fb.rotate" : "fb.player_key_create")}</button></div>
       </div>
       ${this.widgetCard(p, s)}
+      ${this.loginCard(s)}
       <div class="card"><h3>${icon("ListChecks", 15)} ${t("fb.form")}</h3>
         <div class="checks">${TYPES.map((ty) => html`<label class="check"><input type="checkbox" .checked=${s.types.includes(ty)} @change=${(e: Event) => { s.types = (e.target as HTMLInputElement).checked ? [...s.types, ty] : s.types.filter((x) => x !== ty); }}> ${t(`fb.type.${ty}` as any)}</label>`)}</div>
         <label class="field">${t("fb.categories")}<input .value=${s.categories.join(", ")} placeholder="UI, Server, Audio" @change=${(e: Event) => (s.categories = csv((e.target as HTMLInputElement).value))}></label>
@@ -224,6 +225,26 @@ export class PhxFeedbackSettings extends LitElement {
       </div>
       <div class="actions"><button ?disabled=${this.busy} @click=${this.save}>${t("doc.save")}</button>
         <button class="ghost danger" @click=${this.removePortal}>${icon("Trash2", 14)} ${t("fb.delete_portal")}</button></div>`;
+  }
+
+  private loginCard(s: Settings) {
+    const rl = s.reporterLogin;
+    const set = (k: "issuer" | "clientId" | "clientSecret" | "label", v: string) => {
+      s.reporterLogin = { issuer: "", clientId: "", ...(s.reporterLogin ?? {}), [k]: v.trim() };
+    };
+    return html`<div class="card"><h3>${icon("LogIn", 15)} ${t("fbl.settings_title")}</h3>
+      <p class="muted" style="margin:0">${t("fbl.settings_hint")}</p>
+      <div class="grid">
+        <label class="field">${t("fbl.issuer")}<input type="url" placeholder="https://login.example.com" .value=${rl?.issuer ?? ""} @change=${(e: Event) => set("issuer", (e.target as HTMLInputElement).value)}></label>
+        <label class="field">${t("fbl.client_id")}<input .value=${rl?.clientId ?? ""} @change=${(e: Event) => set("clientId", (e.target as HTMLInputElement).value)}></label>
+        <label class="field">${t("fbl.client_secret")}<input type="password" autocomplete="new-password" placeholder=${rl?.hasSecret ? t("fbl.secret_kept") : ""} @change=${(e: Event) => set("clientSecret", (e.target as HTMLInputElement).value)}></label>
+        <label class="field">${t("fbl.label")}<input placeholder=${t("fbl.label_ph")} .value=${rl?.label ?? ""} @change=${(e: Event) => set("label", (e.target as HTMLInputElement).value)}></label>
+      </div>
+      <label class="check"><input type="checkbox" .checked=${!!rl?.required} @change=${(e: Event) => { if (s.reporterLogin) s.reporterLogin.required = (e.target as HTMLInputElement).checked; }}> ${t("fbl.required")}</label>
+      <div class="muted">${t("fbl.redirect")}</div>
+      <code class="key" style="display:block;word-break:break-all">${location.origin}/api/v1/feedback/login/callback</code>
+      ${rl ? html`<div><button class="ghost" @click=${() => { s.reporterLogin = null; this.up(); }}>${icon("Trash2", 14)} ${t("fbl.remove")}</button></div>` : nothing}
+    </div>`;
   }
 
   private widgetCard(p: Portal, s: Settings) {

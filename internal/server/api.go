@@ -69,6 +69,9 @@ func (a *api) routes(r chi.Router) {
 	// Feedback portals: public page data, reports, status links.
 	r.Get("/feedback/{handle}", a.publicPortal)
 	r.Post("/feedback/{handle}/reports", a.submitFeedback)
+	r.Get("/feedback/login/callback", a.reporterCallback)
+	r.Get("/feedback/{handle}/login", a.reporterLogin)
+	r.With(requireHeader).Delete("/feedback/{handle}/login", a.reporterLogout)
 	// Public view: released topics, votes, following, moderated comments.
 	r.Get("/feedback/{handle}/topics", a.publicTopics)
 	r.Get("/feedback/{handle}/topics/{id}", a.publicTopic)

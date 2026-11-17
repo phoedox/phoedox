@@ -107,6 +107,10 @@ who reports. Such reports have `via: widget`.
 - Portals with "answer known issues automatically" give a new report the answer of a
   matching topic closed in the last 90 days (or of the AI's duplicate); such answers are
   marked `answerAuto`.
+- Portals of organizations can let reporters sign in with the product's own login
+  (OpenID Connect, portal settings; optionally required). Such reports carry
+  `reporter`, `reporter_name` and `reporter_verified: login` in their context, and answers
+  go to the e-mail address of that account.
 - Products can sign who reports and from which build (reporter tokens with the portal's
   player key); such reports carry `player`, `player_name`, `build` and
   `player_verified: yes` in their context.

@@ -25,6 +25,7 @@ interface Portal {
   handle: string; name: string; project: string; intro: string; privacy: string; types: string[]; fields: PortalField[]; attachments: AttachRules;
   anonymous: boolean; accounts: boolean; askEmail: boolean; theme: { accent?: string; accentDark?: string; logo?: string }; accepting: boolean; filesFull: boolean;
   publicView: boolean; publicComments: boolean;
+  login?: { label: string; required: boolean }; reporter?: { sub: string; name: string; email?: string };
 }
 interface Comment { id: string; authorName: string; body: string; team: boolean; createdAt: string }
 interface PublicTopic {
@@ -113,6 +114,7 @@ export class PhxFeedbackPortal extends LitElement {
     .wrap.embed header > div { flex: 1; min-width: 0; }
     .wrap.embed .card { padding: 14px; border-radius: 12px; }
     .file img { width: 40px; height: 28px; object-fit: cover; border-radius: 4px; }
+    .linkish { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; }
   `];
 
   handle = "";
@@ -237,6 +239,24 @@ export class PhxFeedbackPortal extends LitElement {
     return u;
   }
 
+  /** Sign-in with the product's own login: a full page navigation (the
+   * identity provider comes back to the portal). In the widget frame it
+   * opens the portal in a new tab, because the frame cannot keep the
+   * sign-in. */
+  private loginButton(p: Portal, inline = false) {
+    const href = this.embed ? `/feedback/${p.handle}` : `/api/v1/feedback/${p.handle}/login`;
+    return html`<a class=${inline ? "" : "btn"} href=${href} target=${this.embed ? "_blank" : nothing} rel="noopener">${inline ? nothing : icon("LogIn", 14)} ${t("fbl.signin", { label: p.login!.label })}</a>`;
+  }
+
+  private logout = async () => {
+    try {
+      await api("DELETE", `/feedback/${this.handle}/login`);
+    } catch {
+      /* signed out anyway */
+    }
+    this.portal = { ...this.portal!, reporter: undefined };
+  };
+
   private get canShot() {
     return this.embed && (this.hostShot || !!navigator.mediaDevices?.getDisplayMedia);
   }
@@ -254,6 +274,7 @@ export class PhxFeedbackPortal extends LitElement {
       this.type = this.portal.types[0] ?? "bug";
       document.title = this.portal.name;
       if (this.embed) toHost({ t: "ready" });
+      if (new URLSearchParams(location.search).get("login") === "failed") toast(t("fbl.failed"), "error");
       const open = new URLSearchParams(location.search).get("topic");
       if (this.portal.publicView && (open || new URLSearchParams(location.search).get("tab") === "topics")) {
         this.tab = "topics";
@@ -426,7 +447,7 @@ export class PhxFeedbackPortal extends LitElement {
     this.busy = true;
     this.error = "";
     try {
-      const signedIn = !!currentUser.get();
+      const signedIn = !!currentUser.get() || !!p.reporter;
       const botToken = signedIn ? undefined : await this.renderRoot.querySelector<PhxBotcheck>("phx-botcheck")?.token();
       const report = {
         type: this.type, title: String(fd.get("title") ?? ""), body: String(fd.get("body") ?? ""), fields, lang: locale(),
@@ -454,7 +475,9 @@ export class PhxFeedbackPortal extends LitElement {
     const p = this.portal;
     if (!p) return html`<div class="wrap"><p class="sub">${t("app.loading")}</p></div>`;
     const user = currentUser.get();
-    const canReport = p.accepting && (user ? p.accounts || p.anonymous : p.anonymous);
+    const reporter = p.reporter;
+    const loginNeeded = !!p.login?.required && !reporter;
+    const canReport = p.accepting && !loginNeeded && (reporter || (user ? p.accounts || p.anonymous : p.anonymous));
     const status = this.done ? `${location.origin}/feedback/status/${this.done.statusToken}` : "";
     const target = this.embed ? "_blank" : nothing;
     return html`<div class=${`wrap${p.theme.accent ? " themed" : ""}${this.embed ? " embed" : ""}`} style=${themeStyle(p.theme)}>
@@ -473,6 +496,8 @@ export class PhxFeedbackPortal extends LitElement {
             <a class="btn ghost" href=${status} target=${target} rel="noopener">${t("fb.open_status")}</a>
             <button class="ghost" @click=${() => { this.done = undefined; this.files = []; this.prefillTitle = ""; }}>${t("fb.another")}</button></div>
         </div>`
+      : !canReport && p.accepting && loginNeeded ? html`<div class="card"><p style="margin:0">${t("fbl.needed", { label: p.login!.label })}</p>
+          <div>${this.loginButton(p)}</div></div>`
       : !canReport ? html`<div class="card"><p>${!p.accepting ? t("fb.closed") : t("fb.signin_needed")}</p>
           ${p.accepting && !user ? html`<a class="btn" href=${`/login?next=${encodeURIComponent(this.embed ? `/feedback/${p.handle}` : location.pathname)}`} target=${target}>${t("login.submit")}</a>` : nothing}</div>`
       : html`<form class="card" @submit=${this.submit}>
@@ -495,8 +520,10 @@ export class PhxFeedbackPortal extends LitElement {
                 <button type="button" class="ghost" aria-label=${t("fb.remove_file")} @click=${() => (this.files = this.files.filter((_, j) => j !== i))}>${icon("X", 13)}</button></div>`;
               })}
             </div>` : nothing}
-          ${!user && p.askEmail ? html`<label class="field">${t("fb.email")}<input name="email" type="email" autocomplete="email" placeholder=${t("fb.email_ph")}></label>` : nothing}
-          ${user ? html`<p class="sub">${t("fb.as_user", { name: user.name })}</p>` : html`<phx-botcheck place="feedback"></phx-botcheck>`}
+          ${!user && !reporter?.email && p.askEmail ? html`<label class="field">${t("fb.email")}<input name="email" type="email" autocomplete="email" placeholder=${t("fb.email_ph")}></label>` : nothing}
+          ${reporter ? html`<p class="sub">${t("fbl.as", { name: reporter.name, label: p.login!.label })} · <button type="button" class="linkish" @click=${this.logout}>${t("fbl.logout")}</button></p>`
+            : user ? html`<p class="sub">${t("fb.as_user", { name: user.name })}</p>` : html`<phx-botcheck place="feedback"></phx-botcheck>`}
+          ${!reporter && p.login && !this.embed ? html`<p class="sub">${t("fbl.offer", { label: p.login.label })} ${this.loginButton(p, true)}</p>` : nothing}
           ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : nothing}
           <div class="row"><button ?disabled=${this.busy}>${icon("Send", 14)} ${t("fb.send")}</button></div>
           <details><summary class="sub">${t("fb.privacy")}</summary><p class="privacy">${p.privacy}</p></details>

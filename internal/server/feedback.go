@@ -18,8 +18,66 @@ import (
 // moderators' side.
 
 func (a *api) publicPortal(w http.ResponseWriter, r *http.Request) {
-	v, err := a.core.PublicFeedbackPortal(r.Context(), chi.URLParam(r, "handle"), r.URL.Query().Get("lang"))
+	handle := chi.URLParam(r, "handle")
+	v, err := a.core.PublicFeedbackPortal(r.Context(), handle, r.URL.Query().Get("lang"))
+	if err == nil && v.Login != nil {
+		v.Reporter = a.reporter(r, handle)
+	}
 	respond(w, v, err)
+}
+
+// reporter is the person signed in with a portal's own login (cookie).
+func (a *api) reporter(r *http.Request, handle string) *core.Reporter {
+	c, err := r.Cookie(core.ReporterCookie)
+	if err != nil {
+		return nil
+	}
+	return a.core.ReporterFor(r.Context(), handle, c.Value)
+}
+
+const reporterStateCookie = "phx_fblogin"
+
+// reporterLogin sends the browser to the portal's identity provider.
+func (a *api) reporterLogin(w http.ResponseWriter, r *http.Request) {
+	handle := chi.URLParam(r, "handle")
+	u, state, err := a.core.ReporterLoginStart(r.Context(), handle)
+	if err != nil {
+		http.Redirect(w, r, "/feedback/"+handle+"?login=failed", http.StatusFound)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: reporterStateCookie, Value: state, Path: "/api/v1/feedback/login", MaxAge: 600, HttpOnly: true, Secure: a.auth.SecureCookies, SameSite: http.SameSiteLaxMode})
+	http.Redirect(w, r, u, http.StatusFound)
+}
+
+// reporterCallback finishes the sign-in and returns to the portal.
+func (a *api) reporterCallback(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	cookieState := ""
+	if c, err := r.Cookie(reporterStateCookie); err == nil {
+		cookieState = c.Value
+	}
+	http.SetCookie(w, &http.Cookie{Name: reporterStateCookie, Value: "", Path: "/api/v1/feedback/login", MaxAge: -1, HttpOnly: true, Secure: a.auth.SecureCookies, SameSite: http.SameSiteLaxMode})
+	handle, session, err := a.core.ReporterLoginCallback(r.Context(), q.Get("state"), cookieState, q.Get("code"), q.Get("error"))
+	if handle == "" {
+		http.Redirect(w, r, "/", http.StatusFound)
+		return
+	}
+	if err != nil {
+		http.Redirect(w, r, "/feedback/"+handle+"?login=failed", http.StatusFound)
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: core.ReporterCookie, Value: session, Path: "/api/v1/feedback/" + handle, MaxAge: 7 * 24 * 3600, HttpOnly: true, Secure: a.auth.SecureCookies, SameSite: http.SameSiteLaxMode})
+	http.Redirect(w, r, "/feedback/"+handle, http.StatusFound)
+}
+
+// reporterLogout ends the sign-in with the portal's login.
+func (a *api) reporterLogout(w http.ResponseWriter, r *http.Request) {
+	handle := chi.URLParam(r, "handle")
+	if c, err := r.Cookie(core.ReporterCookie); err == nil {
+		a.core.ReporterLogout(r.Context(), c.Value)
+	}
+	http.SetCookie(w, &http.Cookie{Name: core.ReporterCookie, Value: "", Path: "/api/v1/feedback/" + handle, MaxAge: -1, HttpOnly: true, Secure: a.auth.SecureCookies, SameSite: http.SameSiteLaxMode})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // submitFeedback takes a report as JSON or as multipart form (field
@@ -91,8 +149,11 @@ func (a *api) submitFeedback(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("via") == "widget" && intake.Via == "form" {
 		intake.Via = "widget"
 	}
+	if intake.Via == "form" || intake.Via == "widget" {
+		intake.Reporter = a.reporter(r, handle)
+	}
 	// Anonymous reports and reports with the public key pass the bot check.
-	if (actor == nil && intake.Via != "server_key") && a.core.Bot != nil && a.core.Bot.Enabled(r.Context(), botcheck.PlaceFeedback) {
+	if (actor == nil && intake.Reporter == nil && intake.Via != "server_key") && a.core.Bot != nil && a.core.Bot.Enabled(r.Context(), botcheck.PlaceFeedback) {
 		if !a.botCheck(w, r, botcheck.PlaceFeedback, in.BotToken) {
 			return
 		}
