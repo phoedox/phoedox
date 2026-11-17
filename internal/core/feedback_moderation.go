@@ -99,8 +99,10 @@ func (s *Service) FeedbackTopic(ctx context.Context, a Actor, ref, id string) (T
 		ids[i] = r.ID
 	}
 	files, _ := s.DB.FeedbackFiles(ctx, ids)
+	replies, _ := s.DB.FeedbackReplies(ctx, t.ID)
 	for i := range reports {
 		reports[i].Attachments = files[reports[i].ID]
+		reports[i].Replies = replies[reports[i].ID]
 		// Moderators see the reporter, never secrets or the status link.
 		reports[i].StatusHash = ""
 	}
@@ -131,6 +133,9 @@ type TopicPatch struct {
 	DismissDuplicate bool  `json:"dismissDuplicate,omitempty"`
 	// FixedIn is the version that fixed it (told reporters).
 	FixedIn *string `json:"fixedIn,omitempty"`
+	// Question asks the reporters for more information; they answer on
+	// their status link ("" withdraws it).
+	Question *string `json:"question,omitempty"`
 	// Entities replaces the linked entries (slugs or ids).
 	Entities *[]string `json:"entities,omitempty"`
 }
@@ -182,6 +187,12 @@ func (s *Service) UpdateFeedbackTopic(ctx context.Context, a Actor, ref, id stri
 	if patch.FixedIn != nil {
 		t.FixedIn = excerpt(strings.TrimSpace(*patch.FixedIn), 60)
 	}
+	if patch.Question != nil {
+		t.Question = excerpt(strings.TrimSpace(*patch.Question), 2000)
+	}
+	if patch.Answer != nil && t.Answer != before.Answer {
+		t.AnswerAuto = false // a person answered
+	}
 	if patch.Entities != nil {
 		if len(*patch.Entities) > 50 {
 			return TopicDetail{}, invalid("validation.feedback_entities", nil, "at most 50 entries per topic")
@@ -211,7 +222,7 @@ func (s *Service) UpdateFeedbackTopic(ctx context.Context, a Actor, ref, id stri
 		return TopicDetail{}, err
 	}
 	s.event(ctx, a, "feedback.topic", t.ID, patch)
-	if t.State != before.State || t.Answer != before.Answer || t.FixedIn != before.FixedIn {
+	if t.State != before.State || t.Answer != before.Answer || t.FixedIn != before.FixedIn || (t.Question != before.Question && t.Question != "") {
 		s.tellReporters(ctx, p, portal, t)
 	}
 	return s.FeedbackTopic(ctx, a, ref, id)
@@ -249,7 +260,7 @@ func (s *Service) tellReporters(ctx context.Context, p store.Project, portal sto
 			if lang != "de" {
 				lang = "en"
 			}
-			subject, body, err := renderMail("feedback_update", lang, map[string]any{"Portal": portal.Name, "Title": t.Title, "State": t.State, "Answer": t.Answer, "FixedIn": t.FixedIn})
+			subject, body, err := renderMail("feedback_update", lang, map[string]any{"Portal": portal.Name, "Title": t.Title, "State": t.State, "Answer": t.Answer, "FixedIn": t.FixedIn, "Question": t.Question, "Auto": t.AnswerAuto})
 			if err == nil {
 				_ = s.Mail.Send(ctx, mail.Message{To: r.Email, Subject: subject, Body: body})
 			}

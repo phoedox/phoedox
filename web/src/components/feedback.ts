@@ -10,10 +10,11 @@ interface PortalSettings { types: string[]; categories: string[]; states: string
 interface Portal { id: string; handle: string; name: string; settings: PortalSettings }
 interface Topic { id: string; portalId: string; title: string; summary: string; type: string; category: string; tags: string[]; priority: number; state: string; answer: string; reportCount: number; updatedAt: string; tickets: number; aiNote?: string; duplicateOf?: string; spam?: boolean }
 interface FileMeta { id: string; name: string; mime: string; size: number }
-interface Report { id: string; type: string; title: string; body: string; fields: Record<string, unknown>; context: Record<string, string>; userName?: string; userId?: string; email?: string; via: string; check?: string; deleted: boolean; createdAt: string; attachments?: FileMeta[] }
+interface Reply { id: string; body: string; createdAt: string }
+interface Report { replies?: Reply[]; id: string; type: string; title: string; body: string; fields: Record<string, unknown>; context: Record<string, string>; userName?: string; userId?: string; email?: string; via: string; check?: string; deleted: boolean; createdAt: string; attachments?: FileMeta[] }
 interface Ticket { taskId: string; title: string; boardSlug: string; board: string; column: string; done: boolean }
 interface TopicEntity { id: string; slug: string; name: string; kind: string; source: "person" | "ai" }
-interface Detail extends Omit<Topic, "tickets"> { portal: Portal; reports: Report[]; tickets: Ticket[]; entities: TopicEntity[]; fixedIn?: string }
+interface Detail extends Omit<Topic, "tickets"> { portal: Portal; reports: Report[]; tickets: Ticket[]; entities: TopicEntity[]; fixedIn?: string; question?: string; answerAuto?: boolean }
 interface List { portals: Portal[]; topics: Topic[]; owner: boolean }
 interface Doc { id: string; slug: string; title: string; type: string; content?: Board }
 
@@ -43,6 +44,7 @@ export class PhxFeedback extends LitElement {
     .report { border-top: 1px solid var(--line); padding-top: 12px; display: grid; gap: 6px; }
     .report .meta { font-size: 12.5px; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; }
     .report .body { white-space: pre-wrap; overflow-wrap: anywhere; }
+    .report .reply { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-left: 3px solid var(--accent); background: var(--surface2); border-radius: 0 8px 8px 0; }
     .fields { font-size: 13px; display: flex; gap: 6px; flex-wrap: wrap; }
     .fields span { background: var(--surface2); border-radius: 6px; padding: 2px 8px; }
     .att { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -81,7 +83,7 @@ export class PhxFeedback extends LitElement {
       const id = new URLSearchParams(location.search).get("topic");
       if (id) void this.open(id);
     });
-    void api<Doc[]>("GET", `/projects/${this.project}/documents?type=board`).then((b) => (this.boards = b)).catch(() => {});
+    void api<Doc[]>("GET", `/projects/${this.project}/documents?type=board`).then((b) => (this.boards = b ?? [])).catch(() => {});
   }
 
   private async load() {
@@ -190,10 +192,13 @@ export class PhxFeedback extends LitElement {
         <label class="field">${t("fb.category")}<select @change=${(e: Event) => void this.patch({ category: (e.target as HTMLSelectElement).value })}><option value="">–</option>${s.categories.map((c) => html`<option ?selected=${c === d.category}>${c}</option>`)}</select></label>
         <label class="field">${t("fb.tags")}<input .value=${d.tags.join(", ")} @change=${(e: Event) => void this.patch({ tags: (e.target as HTMLInputElement).value.split(",").map((x) => x.trim()).filter(Boolean) })}></label>
       </div>
-      <label class="field">${t("fb.answer")}<textarea rows="3" .value=${d.answer} placeholder=${t("fb.answer_ph")} id="answer"></textarea></label>
+      <label class="field">${t("fb.answer")}${d.answerAuto ? html` <span class="chip">${icon("Bot", 12)} ${t("fb.answer_was_auto")}</span>` : nothing}<textarea rows="3" .value=${d.answer} placeholder=${t("fb.answer_ph")} id="answer"></textarea></label>
       <div class="actions"><button @click=${() => void this.patch({ answer: (this.renderRoot.querySelector("#answer") as HTMLTextAreaElement).value }, t("fb.answer_sent"))}>${icon("Send", 14)} ${t("fb.answer_send")}</button>
         <button class="ghost" ?disabled=${this.busy} @click=${() => void this.draftAnswer(d)}>${icon("Sparkles", 14)} ${t("fb.answer_draft")}</button>
         <span class="muted">${t("fb.answer_hint")}</span></div>
+      <label class="field">${t("fb.question")}<textarea rows="2" .value=${d.question ?? ""} placeholder=${t("fb.question_ph")} id="question"></textarea></label>
+      <div class="actions"><button class="ghost" @click=${() => void this.patch({ question: (this.renderRoot.querySelector("#question") as HTMLTextAreaElement).value }, t("fb.question_sent"))}>${icon("CircleHelp", 14)} ${t("fb.question_send")}</button>
+        <span class="muted">${t("fb.question_hint")}</span></div>
       <label class="field" style="max-width:260px">${t("fb.fixed_in")}<input .value=${d.fixedIn ?? ""} placeholder="1.5.0" @change=${(e: Event) => void this.patch({ fixedIn: (e.target as HTMLInputElement).value }, t("fb.fixed_in_saved"))}></label>
       <div><strong>${t("fb.entities")}</strong>
         <div class="ents">${d.entities.map((x) => html`<span class="ent ${x.source}">${x.source === "ai" ? icon("Sparkles", 12) : nothing}<a href="/p/${this.project}/e/${x.slug}">${x.name}</a>
@@ -225,6 +230,7 @@ export class PhxFeedback extends LitElement {
             <span>${t(`fb.via.${r.via}` as any)}${r.check ? ` · ${t("fb.checked", { policy: r.check })}` : ""}</span></div>
           <strong>${r.title}</strong>
           ${r.body ? html`<div class="body">${r.body}</div>` : nothing}
+          ${(r.replies ?? []).map((x) => html`<div class="reply">${icon("MessageSquare", 13)}<div><div class="muted">${t("fb.reporter_reply", { date: date(x.createdAt) })}</div><div class="body">${x.body}</div></div></div>`)}
           ${Object.keys(r.fields ?? {}).length ? html`<div class="fields">${Object.entries(r.fields).map(([k, v]) => html`<span>${fieldLabel(k)}: ${Array.isArray(v) ? v.join(", ") : String(v)}</span>`)}</div>` : nothing}
           ${r.attachments?.length ? html`<div class="att">${r.attachments.map((f) => {
             const url = `/api/v1/projects/${this.project}/feedback/attachments/${f.id}`;

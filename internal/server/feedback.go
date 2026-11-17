@@ -280,3 +280,21 @@ func (a *api) entityFeedback(w http.ResponseWriter, r *http.Request) {
 func (a *api) taskFeedbackSeen(w http.ResponseWriter, r *http.Request) {
 	respond(w, nil, a.core.SeenTaskFeedback(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id")))
 }
+
+type feedbackReplyIn struct {
+	Body string `json:"body"`
+}
+
+func (a *api) replyFeedbackStatus(w http.ResponseWriter, r *http.Request) {
+	if !a.feedbackIP.allow(clientIP(r)) {
+		writeJSON(w, http.StatusTooManyRequests, errBody("rate_limited", "Too many answers. Please wait a while."))
+		return
+	}
+	var in feedbackReplyIn
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.ReplyFeedbackByToken(r.Context(), chi.URLParam(r, "token"), in.Body)
+	respond(w, v, err)
+}

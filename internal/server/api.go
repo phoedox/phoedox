@@ -80,6 +80,7 @@ func (a *api) routes(r chi.Router) {
 	// Fonts and logos of themes (public: sign-in pages, publications, e-mails).
 	r.Get("/theme-assets/{file}", a.themeAsset)
 	r.Get("/feedback/status/{token}", a.feedbackStatus)
+	r.With(requireHeader).Post("/feedback/status/{token}/reply", a.replyFeedbackStatus)
 	r.With(requireHeader).Delete("/feedback/status/{token}", a.deleteFeedbackStatus)
 	r.Get("/feedback/status/{token}/export", a.exportFeedbackStatus)
 	// One-time secret links: POST so link previews cannot burn them.

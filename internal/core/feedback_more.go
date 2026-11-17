@@ -2,6 +2,10 @@ package core
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -194,4 +198,148 @@ func (s *Service) DraftFeedbackAnswer(ctx context.Context, a Actor, ref, id, lan
 	}
 	s.event(ctx, a, "feedback.answer_draft", t.ID, nil)
 	return FeedbackAnswerDraft{Text: excerpt(strings.TrimSpace(text), 4000)}, nil
+}
+
+// --- reporter tokens signed by the product ----------------------------------
+
+func (s *Service) sealPlayerKey(key string) (string, error) {
+	if s.Box == nil {
+		return "plain:" + key, nil // tests
+	}
+	return s.Box.Seal([]byte(key), "feedback-player")
+}
+
+func (s *Service) openPlayerKey(sealed string) (string, error) {
+	if k, ok := strings.CutPrefix(sealed, "plain:"); ok && s.Box == nil {
+		return k, nil
+	}
+	if s.Box == nil {
+		return "", ErrNotFound
+	}
+	raw, err := s.Box.Open(sealed, "feedback-player")
+	return string(raw), err
+}
+
+// playerClaims is what a product's backend signs about a reporter.
+type playerClaims struct {
+	Sub   string `json:"sub"`             // the player's id in the product
+	Name  string `json:"name,omitempty"`  // display name
+	Build string `json:"build,omitempty"` // version or build of the product
+	Exp   int64  `json:"exp"`             // unix seconds
+}
+
+// PlayerToken makes a reporter token (for tests and the documentation):
+// base64url(JSON claims) "." base64url(HMAC-SHA256(key, first part)).
+func PlayerToken(key, sub, name, build string, exp time.Time) string {
+	raw, _ := json.Marshal(playerClaims{Sub: sub, Name: name, Build: build, Exp: exp.Unix()})
+	body := base64.RawURLEncoding.EncodeToString(raw)
+	m := hmac.New(sha256.New, []byte(key))
+	m.Write([]byte(body))
+	return body + "." + base64.RawURLEncoding.EncodeToString(m.Sum(nil))
+}
+
+func (s *Service) verifyPlayerToken(portal store.FeedbackPortal, tok string) (playerClaims, error) {
+	var c playerClaims
+	bad := func() (playerClaims, error) {
+		return c, invalid("validation.feedback_player_token", nil, "the reporter token is not valid")
+	}
+	if portal.PlayerKeySealed == "" {
+		return bad()
+	}
+	key, err := s.openPlayerKey(portal.PlayerKeySealed)
+	if err != nil {
+		return bad()
+	}
+	body, sig, ok := strings.Cut(strings.TrimSpace(tok), ".")
+	if !ok || len(tok) > 4096 {
+		return bad()
+	}
+	want := hmac.New(sha256.New, []byte(key))
+	want.Write([]byte(body))
+	got, err := base64.RawURLEncoding.DecodeString(sig)
+	if err != nil || !hmac.Equal(got, want.Sum(nil)) {
+		return bad()
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(body)
+	if err != nil || json.Unmarshal(raw, &c) != nil || c.Sub == "" || c.Exp == 0 || time.Now().Unix() > c.Exp || c.Exp-time.Now().Unix() > 7*24*3600 {
+		return bad()
+	}
+	return c, nil
+}
+
+// --- questions to reporters and their answers -------------------------------
+
+// ReplyFeedbackByToken stores a reporter's answer to the moderators'
+// question (status link) and tells the moderators.
+func (s *Service) ReplyFeedbackByToken(ctx context.Context, token, body string) (ReportStatus, error) {
+	r, portal, err := s.reportByToken(ctx, token)
+	if err != nil {
+		return ReportStatus{}, err
+	}
+	body = strings.TrimSpace(body)
+	if body == "" || len(body) > 4000 {
+		return ReportStatus{}, invalid("validation.feedback_reply", nil, "the answer is empty or longer than 4,000 characters")
+	}
+	if r.TopicID == "" || r.Deleted {
+		return ReportStatus{}, ErrNotFound
+	}
+	t, err := s.DB.FeedbackTopic(ctx, "", r.TopicID)
+	if err != nil || t.Question == "" || t.ClosedAt != nil {
+		return ReportStatus{}, invalid("validation.feedback_no_question", nil, "there is no open question")
+	}
+	reps, _ := s.DB.FeedbackReplies(ctx, t.ID)
+	if len(reps[r.ID]) >= 20 {
+		return ReportStatus{}, invalid("validation.feedback_reply", nil, "too many answers")
+	}
+	if err := s.DB.AddFeedbackReply(ctx, t.ProjectID, store.FeedbackReply{ID: newID(), TopicID: t.ID, ReportID: r.ID, Body: scrubSecrets(body), CreatedAt: store.Now()}); err != nil {
+		return ReportStatus{}, err
+	}
+	if p, err := s.DB.ProjectFor(ctx, t.ProjectID, ""); err == nil {
+		s.notifyModerators(ctx, portal, Note{Kind: "feedback.reply", ProjectID: p.ID, Project: p.Name, Subject: t.ID, Title: t.Title,
+			Body: excerpt(body, 300), Link: "/p/" + p.Slug + "/feedback?topic=" + t.ID})
+	}
+	s.event(ctx, Actor{User: store.User{ID: "anonymous:" + portal.Handle}, Via: "status"}, "feedback.reply", t.ID, nil)
+	return s.FeedbackStatus(ctx, token)
+}
+
+// --- automatic answers ------------------------------------------------------
+
+// autoAnswer answers a new topic at once when it matches a topic the team
+// closed in the last 90 days with an answer or a fixed version (rule-based,
+// by title), and tells the reporter. The answer is marked as automatic.
+func (s *Service) autoAnswer(ctx context.Context, p store.Project, portal store.FeedbackPortal, ps PortalSettings, t store.FeedbackTopic) store.FeedbackTopic {
+	closed, err := s.DB.RecentlyClosedTopics(ctx, portal.ID, store.Time{Time: time.Now().Add(-90 * 24 * time.Hour)})
+	if err != nil {
+		return t
+	}
+	best, score := -1, 0.0
+	for i, c := range closed {
+		if c.Type != t.Type || (c.Answer == "" && c.FixedIn == "") {
+			continue
+		}
+		if sc := similarity(c.Title, t.Title); sc > score {
+			best, score = i, sc
+		}
+	}
+	if best < 0 || score < 0.5 {
+		return t
+	}
+	return s.applyAutoAnswer(ctx, p, portal, t, closed[best])
+}
+
+func (s *Service) applyAutoAnswer(ctx context.Context, p store.Project, portal store.FeedbackPortal, t, from store.FeedbackTopic) store.FeedbackTopic {
+	if t.Answer != "" {
+		return t
+	}
+	t.Answer, t.FixedIn, t.AnswerAuto = from.Answer, from.FixedIn, true
+	if t.DuplicateOf == "" {
+		t.DuplicateOf = from.ID
+	}
+	t.UpdatedAt = store.Now()
+	if s.DB.SaveFeedbackTopic(ctx, t) != nil {
+		return t
+	}
+	s.event(ctx, Actor{Via: "system"}, "feedback.auto_answer", t.ID, map[string]string{"from": from.ID})
+	s.tellReporters(ctx, p, portal, t)
+	return t
 }

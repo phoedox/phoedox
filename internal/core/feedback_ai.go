@@ -120,6 +120,11 @@ func (s *Service) triageReport(ctx context.Context, p store.Project, portal stor
 		return
 	}
 	s.event(ctx, Actor{Via: "system"}, "feedback.triage", t.ID, map[string]any{"priority": t.Priority, "category": t.Category, "spam": t.Spam, "duplicate": t.DuplicateOf != ""})
+	if isNew && ps.AutoAnswers && t.DuplicateOf != "" && t.Answer == "" {
+		if dup, err := s.DB.FeedbackTopic(ctx, p.ID, t.DuplicateOf); err == nil && dup.Answer != "" {
+			t = s.applyAutoAnswer(ctx, p, portal, t, dup)
+		}
+	}
 	if isNew {
 		s.suggestEntities(ctx, p, t.ID, ans.Entities)
 		s.ruleFeedbackTopic(ctx, p, portal, t)

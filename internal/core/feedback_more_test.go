@@ -2,7 +2,9 @@ package core
 
 import (
 	"context"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestFeedbackRoutingAndLinks(t *testing.T) {
@@ -88,5 +90,69 @@ func TestFeedbackRoutingAndLinks(t *testing.T) {
 	}
 	if again, _ := s.DB.FeedbackTopic(ctx, p.ID, rec.TopicID); again.Answer != "" {
 		t.Fatalf("draft must not be saved: %q", again.Answer)
+	}
+}
+
+func TestFeedbackPlayerQuestionsAutoAnswer(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _ := setup(t)
+	s.SyncNotify = true
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Starfall"})
+	settings := DefaultPortalSettings()
+	settings.Anonymous = true
+	settings.AutoAnswers = true
+	portal, err := s.SaveFeedbackPortal(ctx, owner, p.Slug, "", PortalInput{Handle: "starfall", Name: "Starfall", Settings: &settings})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Reporter tokens signed by the product's backend.
+	v, err := s.RotateFeedbackKey(ctx, owner, p.Slug, portal.ID, "player")
+	if err != nil || v.PlayerKey == "" || !v.HasPlayerKey {
+		t.Fatalf("player key: %v %+v", err, v)
+	}
+	tok := PlayerToken(v.PlayerKey, "player-42", "Nova", "1.4.2", time.Now().Add(time.Hour))
+	rec, err := s.SubmitFeedback(ctx, nil, "starfall", ReportInput{Type: "bug", Title: "Map crashes on open", Body: "x", PlayerToken: tok}, nil, Intake{Via: "form"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, _ := s.FeedbackTopic(ctx, owner, p.Slug, rec.TopicID)
+	if c := d.Reports[0].Context; c["player"] != "player-42" || c["build"] != "1.4.2" || c["player_verified"] != "yes" {
+		t.Fatalf("player: %+v", c)
+	}
+	if _, err := s.SubmitFeedback(ctx, nil, "starfall", ReportInput{Type: "bug", Title: "x", PlayerToken: tok + "x"}, nil, Intake{Via: "form"}); invalidKey(err) != "validation.feedback_player_token" {
+		t.Fatalf("bad token: %v", err)
+	}
+	expired := PlayerToken(v.PlayerKey, "p", "", "", time.Now().Add(-time.Minute))
+	if _, err := s.SubmitFeedback(ctx, nil, "starfall", ReportInput{Type: "bug", Title: "x", PlayerToken: expired}, nil, Intake{Via: "form"}); invalidKey(err) != "validation.feedback_player_token" {
+		t.Fatalf("expired token: %v", err)
+	}
+	// Moderators ask; the reporter answers on the status link.
+	if _, err := s.ReplyFeedbackByToken(ctx, rec.StatusToken, "hello"); invalidKey(err) != "validation.feedback_no_question" {
+		t.Fatalf("no question: %v", err)
+	}
+	q := "Which graphics card do you have?"
+	if _, err := s.UpdateFeedbackTopic(ctx, owner, p.Slug, rec.TopicID, TopicPatch{Question: &q}); err != nil {
+		t.Fatal(err)
+	}
+	st, err := s.ReplyFeedbackByToken(ctx, rec.StatusToken, "An RTX 9070, token=abcdef123456")
+	if err != nil || st.Question != q || len(st.Replies) != 1 || strings.Contains(st.Replies[0].Body, "abcdef123456") {
+		t.Fatalf("reply: %v %+v", err, st)
+	}
+	d, _ = s.FeedbackTopic(ctx, owner, p.Slug, rec.TopicID)
+	if len(d.Reports[0].Replies) != 1 {
+		t.Fatalf("moderators see replies: %+v", d.Reports[0])
+	}
+	// Answered and closed: a later report of the same issue gets the answer at once.
+	ans, state, fixed := "Fixed, please update.", "done", "1.5.0"
+	if _, err := s.UpdateFeedbackTopic(ctx, owner, p.Slug, rec.TopicID, TopicPatch{Answer: &ans, State: &state, FixedIn: &fixed}); err != nil {
+		t.Fatal(err)
+	}
+	rec2, err := s.SubmitFeedback(ctx, nil, "starfall", ReportInput{Type: "bug", Title: "Map crashes when I open it", Body: "y"}, nil, Intake{Via: "form"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	st2, _ := s.FeedbackStatus(ctx, rec2.StatusToken)
+	if rec2.TopicID == rec.TopicID || st2.Answer != ans || !st2.AnswerAuto || st2.FixedIn != "1.5.0" {
+		t.Fatalf("auto answer: %+v %+v", rec2, st2)
 	}
 }

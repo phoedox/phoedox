@@ -30,6 +30,9 @@ builds – a game, a website, a system. Reports that describe the same thing are
    - `fixed_in`: the product version that fixed it (reporters are told);
    - `entities`: the knowledge-graph entries the topic is about (slugs); entry pages then
      list the topic for moderators. The AI triage may already have suggested some.
+   - `question`: asks the reporters for more information; they answer on their status
+     link and the answers appear under their reports (`replies` in `get_feedback_topic`).
+     Like `answer`, set it only when a person asked for it.
 4. Duplicates: `merge_feedback_topics` (into = the topic that stays, from = the duplicate).
 5. Into work: `feedback_to_board` creates a card on a board linked to the topic. Make one
    ticket per team or part (e.g. "Frontend" and "Backend"). When all tickets of a topic are
@@ -71,3 +74,9 @@ AI never merges or deletes. When you check a topic, merge real duplicates with
   digest is the person's notification setting.
 - In the moderation view the AI can draft an answer to the reporters; nothing is sent
   until a moderator saves it.
+- Portals with "answer known issues automatically" give a new report the answer of a
+  matching topic closed in the last 90 days (or of the AI's duplicate); such answers are
+  marked `answerAuto`.
+- Products can sign who reports and from which build (reporter tokens with the portal's
+  player key); such reports carry `player`, `player_name`, `build` and
+  `player_verified: yes` in their context.

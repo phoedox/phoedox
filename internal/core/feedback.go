@@ -92,6 +92,9 @@ type PortalSettings struct {
 	Tags []string `json:"tags,omitempty"`
 	// AITriage sorts new reports with the project's background AI (ADR-0077).
 	AITriage bool `json:"aiTriage,omitempty"`
+	// AutoAnswers tells reporters at once when their report matches a topic
+	// the team already answered or fixed (marked as automatic).
+	AutoAnswers bool `json:"autoAnswers,omitempty"`
 }
 
 var reportTypes = []string{"bug", "idea", "question", "praise"}
@@ -183,6 +186,8 @@ type PortalView struct {
 	Moderators []store.OrgMember `json:"moderators"`
 	// ServerKey is shown once, right after it was created.
 	ServerKey string `json:"serverKey,omitempty"`
+	// PlayerKey (signing key for reporter tokens) is shown once, too.
+	PlayerKey string `json:"playerKey,omitempty"`
 }
 
 // PortalInput creates or changes a portal.
@@ -338,15 +343,23 @@ func (s *Service) RotateFeedbackKey(ctx context.Context, a Actor, ref, id, kind 
 	if err != nil {
 		return PortalView{}, err
 	}
-	var serverKey string
+	var serverKey, playerKey string
 	switch kind {
+	case "player":
+		playerKey = newSecret("ppk_")
+		sealed, err := s.sealPlayerKey(playerKey)
+		if err != nil {
+			return PortalView{}, err
+		}
+		portal.PlayerKeySealed = sealed
+		portal.HasPlayerKey = true
 	case "public":
 		portal.PublicKey = newSecret("pfk_")
 	case "server":
 		serverKey = newSecret("sfk_")
 		portal.ServerKeyHash = hashSecret(serverKey)
 	default:
-		return PortalView{}, invalid("validation.feedback_key", nil, "kind must be public or server")
+		return PortalView{}, invalid("validation.feedback_key", nil, "kind must be public, server or player")
 	}
 	portal.UpdatedAt = store.Now()
 	if err := s.DB.SaveFeedbackPortal(ctx, portal); err != nil {
@@ -354,7 +367,7 @@ func (s *Service) RotateFeedbackKey(ctx context.Context, a Actor, ref, id, kind 
 	}
 	s.event(ctx, a, "feedback.key", portal.ID, map[string]string{"kind": kind})
 	v := s.portalView(ctx, portal)
-	v.ServerKey = serverKey
+	v.ServerKey, v.PlayerKey = serverKey, playerKey
 	return v, nil
 }
 
@@ -500,6 +513,9 @@ type ReportInput struct {
 	Context map[string]string `json:"context,omitempty"`
 	Email   string            `json:"email,omitempty"`
 	Lang    string            `json:"lang,omitempty"`
+	// PlayerToken is signed by the product's backend with the portal's
+	// player key: who reports and from which build.
+	PlayerToken string `json:"playerToken,omitempty"`
 }
 
 // ReportFile is an uploaded attachment (spooled to a temporary file).
@@ -798,6 +814,20 @@ func (s *Service) SubmitFeedback(ctx context.Context, a *Actor, handle string, i
 			ctxFields[k] = excerpt(scrubSecrets(v), 500)
 		}
 	}
+	if strings.TrimSpace(in.PlayerToken) != "" {
+		pc, err := s.verifyPlayerToken(portal, in.PlayerToken)
+		if err != nil {
+			return ReportReceipt{}, err
+		}
+		ctxFields["player"] = excerpt(pc.Sub, 200)
+		if pc.Name != "" {
+			ctxFields["player_name"] = excerpt(pc.Name, 200)
+		}
+		if pc.Build != "" {
+			ctxFields["build"] = excerpt(pc.Build, 100)
+		}
+		ctxFields["player_verified"] = "yes"
+	}
 	email := strings.TrimSpace(in.Email)
 	if email != "" && (!strings.Contains(email, "@") || len(email) > 254 || !ps.AskEmail) {
 		email = ""
@@ -866,6 +896,9 @@ func (s *Service) SubmitFeedback(ctx context.Context, a *Actor, handle string, i
 	}
 	if fresh, err := s.DB.FeedbackTopic(ctx, proj.ID, topic.ID); err == nil {
 		topic = fresh // with the recounted reports
+	}
+	if isNew && ps.AutoAnswers {
+		topic = s.autoAnswer(ctx, proj, portal, ps, topic)
 	}
 	if isNew {
 		s.notifyModerators(ctx, portal, Note{Kind: "feedback.topic", ProjectID: proj.ID, Project: proj.Name, Subject: topic.ID, Title: topic.Title,
@@ -1027,9 +1060,14 @@ type ReportStatus struct {
 	Finished  bool       `json:"finished"`
 	Answer    string     `json:"answer,omitempty"`
 	FixedIn   string     `json:"fixedIn,omitempty"`
-	Reports   int        `json:"reports"`
-	Deleted   bool       `json:"deleted"`
-	Files     int        `json:"files"`
+	// AnswerAuto marks an answer Phoedox gave by itself.
+	AnswerAuto bool `json:"answerAuto,omitempty"`
+	// Question asks the reporter for more; Replies are their answers.
+	Question string                `json:"question,omitempty"`
+	Replies  []store.FeedbackReply `json:"replies,omitempty"`
+	Reports  int                   `json:"reports"`
+	Deleted  bool                  `json:"deleted"`
+	Files    int                   `json:"files"`
 }
 
 func (s *Service) reportByToken(ctx context.Context, token string) (store.FeedbackReport, store.FeedbackPortal, error) {
@@ -1052,6 +1090,10 @@ func (s *Service) FeedbackStatus(ctx context.Context, token string) (ReportStatu
 	if r.TopicID != "" {
 		if t, err := s.DB.FeedbackTopic(ctx, "", r.TopicID); err == nil {
 			out.State, out.Answer, out.Reports, out.Finished, out.FixedIn = t.State, t.Answer, t.ReportCount, t.State == ps.FinishedState, t.FixedIn
+			out.AnswerAuto, out.Question = t.AnswerAuto, t.Question
+			if reps, err := s.DB.FeedbackReplies(ctx, t.ID); err == nil {
+				out.Replies = reps[r.ID]
+			}
 		}
 	}
 	files, _ := s.DB.FeedbackFiles(ctx, []string{r.ID})

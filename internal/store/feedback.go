@@ -23,32 +23,36 @@ type FeedbackPortal struct {
 	PublicKey     string          `json:"publicKey,omitempty"`
 	ServerKeyHash string          `json:"-"`
 	HasServerKey  bool            `json:"hasServerKey"`
-	CreatedBy     string          `json:"createdBy"`
-	CreatedAt     Time            `json:"createdAt"`
-	UpdatedAt     Time            `json:"updatedAt"`
+	// PlayerKey is the sealed key products sign reporter tokens with.
+	PlayerKeySealed string `json:"-"`
+	HasPlayerKey    bool   `json:"hasPlayerKey"`
+	CreatedBy       string `json:"createdBy"`
+	CreatedAt       Time   `json:"createdAt"`
+	UpdatedAt       Time   `json:"updatedAt"`
 }
 
-const portalCols = `id, project_id, handle, name, enabled, settings, public_key, server_key_hash, created_by, created_at, updated_at`
+const portalCols = `id, project_id, handle, name, enabled, settings, public_key, server_key_hash, created_by, created_at, updated_at, player_key_sealed`
 
 func scanPortal(r interface{ Scan(...any) error }) (FeedbackPortal, error) {
 	var p FeedbackPortal
 	var settings string
-	err := r.Scan(&p.ID, &p.ProjectID, &p.Handle, &p.Name, &p.Enabled, &settings, &p.PublicKey, &p.ServerKeyHash, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt)
+	err := r.Scan(&p.ID, &p.ProjectID, &p.Handle, &p.Name, &p.Enabled, &settings, &p.PublicKey, &p.ServerKeyHash, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt, &p.PlayerKeySealed)
 	if errors.Is(err, sql.ErrNoRows) {
 		return p, ErrNotFound
 	}
 	p.Settings = json.RawMessage(settings)
 	p.HasServerKey = p.ServerKeyHash != ""
+	p.HasPlayerKey = p.PlayerKeySealed != ""
 	return p, err
 }
 
 // SaveFeedbackPortal inserts or updates a portal.
 func (d *DB) SaveFeedbackPortal(ctx context.Context, p FeedbackPortal) error {
-	_, err := d.Exec(ctx, `INSERT INTO feedback_portals (id, tenant_id, project_id, handle, name, enabled, settings, public_key, server_key_hash, created_by, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := d.Exec(ctx, `INSERT INTO feedback_portals (id, tenant_id, project_id, handle, name, enabled, settings, public_key, server_key_hash, created_by, created_at, updated_at, player_key_sealed)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET handle = excluded.handle, name = excluded.name, enabled = excluded.enabled, settings = excluded.settings,
-		public_key = excluded.public_key, server_key_hash = excluded.server_key_hash, updated_at = excluded.updated_at`,
-		p.ID, TenantOf(ctx), p.ProjectID, p.Handle, p.Name, p.Enabled, string(p.Settings), p.PublicKey, p.ServerKeyHash, p.CreatedBy, p.CreatedAt, p.UpdatedAt)
+		public_key = excluded.public_key, server_key_hash = excluded.server_key_hash, updated_at = excluded.updated_at, player_key_sealed = excluded.player_key_sealed`,
+		p.ID, TenantOf(ctx), p.ProjectID, p.Handle, p.Name, p.Enabled, string(p.Settings), p.PublicKey, p.ServerKeyHash, p.CreatedBy, p.CreatedAt, p.UpdatedAt, p.PlayerKeySealed)
 	if err != nil && strings.Contains(strings.ToLower(err.Error()), "unique") {
 		return ErrConflict
 	}
@@ -170,16 +174,20 @@ type FeedbackTopic struct {
 	Spam        bool   `json:"spam,omitempty"`
 	// FixedIn is the product version that fixed the topic (told reporters).
 	FixedIn string `json:"fixedIn,omitempty"`
+	// Question asks the reporters for more information (they answer on
+	// their status link); AnswerAuto marks an answer Phoedox gave by itself.
+	Question   string `json:"question,omitempty"`
+	AnswerAuto bool   `json:"answerAuto,omitempty"`
 }
 
 const topicCols = `t.id, t.project_id, t.portal_id, t.title, t.summary, t.type, t.category, t.tags, t.priority, t.state, t.answer, t.report_count, t.created_at, t.updated_at, t.closed_at,
-	(SELECT COUNT(*) FROM feedback_topic_links l WHERE l.topic_id = t.id), t.ai_note, t.duplicate_of, t.spam, t.fixed_in`
+	(SELECT COUNT(*) FROM feedback_topic_links l WHERE l.topic_id = t.id), t.ai_note, t.duplicate_of, t.spam, t.fixed_in, t.question, t.answer_auto`
 
 func scanTopic(r interface{ Scan(...any) error }) (FeedbackTopic, error) {
 	var t FeedbackTopic
 	var tags string
 	var closed sql.Null[Time]
-	err := r.Scan(&t.ID, &t.ProjectID, &t.PortalID, &t.Title, &t.Summary, &t.Type, &t.Category, &tags, &t.Priority, &t.State, &t.Answer, &t.ReportCount, &t.CreatedAt, &t.UpdatedAt, &closed, &t.Tickets, &t.AINote, &t.DuplicateOf, &t.Spam, &t.FixedIn)
+	err := r.Scan(&t.ID, &t.ProjectID, &t.PortalID, &t.Title, &t.Summary, &t.Type, &t.Category, &tags, &t.Priority, &t.State, &t.Answer, &t.ReportCount, &t.CreatedAt, &t.UpdatedAt, &closed, &t.Tickets, &t.AINote, &t.DuplicateOf, &t.Spam, &t.FixedIn, &t.Question, &t.AnswerAuto)
 	if errors.Is(err, sql.ErrNoRows) {
 		return t, ErrNotFound
 	}
@@ -201,13 +209,13 @@ func (d *DB) SaveFeedbackTopic(ctx context.Context, t FeedbackTopic) error {
 	if t.ClosedAt != nil {
 		closed = *t.ClosedAt
 	}
-	_, err := d.Exec(ctx, `INSERT INTO feedback_topics (id, tenant_id, project_id, portal_id, title, summary, type, category, tags, priority, state, answer, report_count, created_at, updated_at, closed_at, ai_note, duplicate_of, spam, fixed_in)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := d.Exec(ctx, `INSERT INTO feedback_topics (id, tenant_id, project_id, portal_id, title, summary, type, category, tags, priority, state, answer, report_count, created_at, updated_at, closed_at, ai_note, duplicate_of, spam, fixed_in, question, answer_auto)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET portal_id = excluded.portal_id, title = excluded.title, summary = excluded.summary, type = excluded.type, category = excluded.category,
-		ai_note = excluded.ai_note, duplicate_of = excluded.duplicate_of, spam = excluded.spam, fixed_in = excluded.fixed_in,
+		ai_note = excluded.ai_note, duplicate_of = excluded.duplicate_of, spam = excluded.spam, fixed_in = excluded.fixed_in, question = excluded.question, answer_auto = excluded.answer_auto,
 		tags = excluded.tags, priority = excluded.priority, state = excluded.state, answer = excluded.answer, report_count = excluded.report_count,
 		updated_at = excluded.updated_at, closed_at = excluded.closed_at`,
-		t.ID, TenantOf(ctx), t.ProjectID, t.PortalID, t.Title, t.Summary, t.Type, t.Category, string(tags), t.Priority, t.State, t.Answer, t.ReportCount, t.CreatedAt, t.UpdatedAt, closed, t.AINote, t.DuplicateOf, t.Spam, t.FixedIn)
+		t.ID, TenantOf(ctx), t.ProjectID, t.PortalID, t.Title, t.Summary, t.Type, t.Category, string(tags), t.Priority, t.State, t.Answer, t.ReportCount, t.CreatedAt, t.UpdatedAt, closed, t.AINote, t.DuplicateOf, t.Spam, t.FixedIn, t.Question, t.AnswerAuto)
 	return err
 }
 
@@ -325,6 +333,8 @@ type FeedbackReport struct {
 	Deleted     bool              `json:"deleted"`
 	CreatedAt   Time              `json:"createdAt"`
 	Attachments []FeedbackFile    `json:"attachments,omitempty"`
+	// Replies are the reporter's answers to the moderators' question.
+	Replies []FeedbackReply `json:"replies,omitempty"`
 }
 
 const reportCols = `r.id, r.project_id, r.portal_id, COALESCE(r.topic_id, ''), r.type, r.title, r.body, r.fields, r.context, r.lang, r.user_id, COALESCE(u.name, ''), r.email, r.status_hash, r.via, r.check_kind, r.spam, r.deleted, r.created_at`
@@ -734,6 +744,58 @@ func (d *DB) AddTopicEntity(ctx context.Context, projectID, topicID, entityID, s
 func (d *DB) EntityTopics(ctx context.Context, entityID string) ([]FeedbackTopic, error) {
 	rows, err := d.Query(ctx, `SELECT `+topicCols+` FROM feedback_topics t JOIN feedback_topic_entities l ON l.topic_id = t.id
 		WHERE l.entity_id = ? ORDER BY (t.closed_at IS NULL) DESC, t.updated_at DESC LIMIT 100`, entityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []FeedbackTopic{}
+	for rows.Next() {
+		t, err := scanTopic(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// FeedbackReply is a reporter's answer to a moderator's question.
+type FeedbackReply struct {
+	ID        string `json:"id"`
+	TopicID   string `json:"topicId"`
+	ReportID  string `json:"reportId"`
+	Body      string `json:"body"`
+	CreatedAt Time   `json:"createdAt"`
+}
+
+// AddFeedbackReply stores a reporter's answer.
+func (d *DB) AddFeedbackReply(ctx context.Context, projectID string, r FeedbackReply) error {
+	_, err := d.Exec(ctx, `INSERT INTO feedback_replies (id, tenant_id, project_id, topic_id, report_id, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		r.ID, TenantOf(ctx), projectID, r.TopicID, r.ReportID, r.Body, r.CreatedAt)
+	return err
+}
+
+// FeedbackReplies lists the answers of reporters on a topic (by report).
+func (d *DB) FeedbackReplies(ctx context.Context, topicID string) (map[string][]FeedbackReply, error) {
+	rows, err := d.Query(ctx, `SELECT id, topic_id, report_id, body, created_at FROM feedback_replies WHERE topic_id = ? ORDER BY created_at`, topicID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][]FeedbackReply{}
+	for rows.Next() {
+		var r FeedbackReply
+		if err := rows.Scan(&r.ID, &r.TopicID, &r.ReportID, &r.Body, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		out[r.ReportID] = append(out[r.ReportID], r)
+	}
+	return out, rows.Err()
+}
+
+// RecentlyClosedTopics lists topics of a portal closed since a time.
+func (d *DB) RecentlyClosedTopics(ctx context.Context, portalID string, since Time) ([]FeedbackTopic, error) {
+	rows, err := d.Query(ctx, `SELECT `+topicCols+` FROM feedback_topics t WHERE t.portal_id = ? AND t.closed_at IS NOT NULL AND t.closed_at >= ? ORDER BY t.closed_at DESC LIMIT 200`, portalID, since)
 	if err != nil {
 		return nil, err
 	}

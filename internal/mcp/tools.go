@@ -455,6 +455,7 @@ type feedbackUpdateIn struct {
 	DismissDuplicate bool      `json:"dismiss_duplicate,omitempty" jsonschema:"drop the AI's duplicate suggestion (duplicateOf) when the topics differ"`
 	FixedIn          *string   `json:"fixed_in,omitempty" jsonschema:"product version that fixed it; reporters are told"`
 	Entities         *[]string `json:"entities,omitempty" jsonschema:"replaces the linked knowledge-graph entries (slugs) the topic is about"`
+	Question         *string   `json:"question,omitempty" jsonschema:"ask the reporters for more information (they answer on their status link); only when a person asked for it, \"\" withdraws it"`
 }
 
 type feedbackMergeIn struct {
@@ -1276,7 +1277,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		return svc.FeedbackTopic(ctx, a, in.Project, in.Topic)
 	})
 	tool(s, "update_feedback_topic", "Triage a feedback topic: title, summary, category and tags from the portal's lists, priority 1–4, state, the version that fixed it, the knowledge-graph entries it is about; an answer is sent to the reporters, so set it only when a person asked for it.", func(ctx context.Context, a core.Actor, in feedbackUpdateIn) (any, error) {
-		return svc.UpdateFeedbackTopic(ctx, a, in.Project, in.Topic, core.TopicPatch{Title: in.Title, Summary: in.Summary, Category: in.Category, Tags: in.Tags, Priority: in.Priority, State: in.State, Answer: in.Answer, Spam: in.Spam, DismissDuplicate: in.DismissDuplicate, FixedIn: in.FixedIn, Entities: in.Entities})
+		return svc.UpdateFeedbackTopic(ctx, a, in.Project, in.Topic, core.TopicPatch{Title: in.Title, Summary: in.Summary, Category: in.Category, Tags: in.Tags, Priority: in.Priority, State: in.State, Answer: in.Answer, Spam: in.Spam, DismissDuplicate: in.DismissDuplicate, FixedIn: in.FixedIn, Entities: in.Entities, Question: in.Question})
 	})
 	tool(s, "merge_feedback_topics", "Merge a duplicate feedback topic into another: its reports and tickets move over and it is removed.", func(ctx context.Context, a core.Actor, in feedbackMergeIn) (any, error) {
 		return svc.MergeFeedbackTopics(ctx, a, in.Project, in.Into, in.From)

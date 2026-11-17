@@ -9,11 +9,11 @@ import { base } from "./shared";
 import { toast } from "./toasts";
 
 interface Settings {
-  intro: Record<string, string>; privacy: Record<string, string>; languages: string[]; types: string[]; categories: string[]; tags?: string[]; aiTriage?: boolean; fields: PortalField[];
+  intro: Record<string, string>; privacy: Record<string, string>; languages: string[]; types: string[]; categories: string[]; tags?: string[]; aiTriage?: boolean; autoAnswers?: boolean; fields: PortalField[];
   attachments: AttachRules; anonymous: boolean; accounts: boolean; askEmail: boolean; states: string[]; defaultState: string; finishedState: string;
   storageFull: string; theme: { accent?: string; accentDark?: string; logo?: string }; publicKeyOn: boolean; serverKeyOn: boolean; retentionMonths: number;
 }
-interface Portal { id: string; handle: string; name: string; enabled: boolean; settings: Settings; publicKey?: string; hasServerKey: boolean; serverKey?: string; moderators: { email: string; name: string }[] }
+interface Portal { id: string; handle: string; name: string; enabled: boolean; settings: Settings; publicKey?: string; hasServerKey: boolean; serverKey?: string; hasPlayerKey?: boolean; playerKey?: string; moderators: { email: string; name: string }[] }
 
 const TYPES = ["bug", "idea", "question", "praise"];
 const KINDS = ["images", "videos", "logs", "other"] as const;
@@ -89,12 +89,13 @@ export class PhxFeedbackSettings extends LitElement {
     }
   }
 
-  private async rotate(kind: "public" | "server") {
-    if (!confirm(t("fb.rotate_confirm"))) return;
+  private async rotate(kind: "public" | "server" | "player") {
+    if ((kind !== "player" || this.edit?.hasPlayerKey) && !confirm(t("fb.rotate_confirm"))) return;
     try {
       const out = await api<Portal>("POST", `/projects/${this.project}/feedback/portals/${this.edit!.id}/keys`, { kind });
       if (out.serverKey) this.shownKey = out.serverKey;
-      this.edit = { ...this.edit!, publicKey: out.publicKey, hasServerKey: out.hasServerKey };
+      if (out.playerKey) this.shownKey = out.playerKey;
+      this.edit = { ...this.edit!, publicKey: out.publicKey, hasServerKey: out.hasServerKey, hasPlayerKey: out.hasPlayerKey };
       await this.load();
     } catch (err) {
       toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
@@ -163,6 +164,8 @@ export class PhxFeedbackSettings extends LitElement {
         ${p.hasServerKey ? html`<div class="muted">${t("fb.server_key_set")} <button class="ghost" @click=${() => void this.rotate("server")}>${t("fb.rotate")}</button></div>` : nothing}
         ${this.shownKey ? html`<div role="status"><strong>${t("fb.server_key_once")}</strong><br><code class="key">${this.shownKey}</code></div>` : nothing}
         <p class="muted">${t("fb.keys_hint", { handle: p.handle })}</p>
+        <div class="muted"><strong>${t("fb.player_key")}</strong> – ${t("fb.player_key_help")}
+          <button class="ghost" @click=${() => void this.rotate("player")}>${t(p.hasPlayerKey ? "fb.rotate" : "fb.player_key_create")}</button></div>
       </div>
       <div class="card"><h3>${icon("ListChecks", 15)} ${t("fb.form")}</h3>
         <div class="checks">${TYPES.map((ty) => html`<label class="check"><input type="checkbox" .checked=${s.types.includes(ty)} @change=${(e: Event) => { s.types = (e.target as HTMLInputElement).checked ? [...s.types, ty] : s.types.filter((x) => x !== ty); }}> ${t(`fb.type.${ty}` as any)}</label>`)}</div>
@@ -170,6 +173,8 @@ export class PhxFeedbackSettings extends LitElement {
         <label class="field">${t("fb.tags_list")}<input .value=${(s.tags ?? []).join(", ")} placeholder="crash, map, save" @change=${(e: Event) => (s.tags = csv((e.target as HTMLInputElement).value))}></label>
         <label class="check"><input type="checkbox" .checked=${!!s.aiTriage} @change=${(e: Event) => (s.aiTriage = (e.target as HTMLInputElement).checked)}> ${t("fb.ai_triage")}</label>
         <p class="muted" style="margin:0">${t("fb.ai_triage_help")}</p>
+        <label class="check"><input type="checkbox" .checked=${!!s.autoAnswers} @change=${(e: Event) => (s.autoAnswers = (e.target as HTMLInputElement).checked)}> ${t("fb.auto_answers")}</label>
+        <p class="muted" style="margin:0">${t("fb.auto_answers_help")}</p>
         <strong style="font-size:14px">${t("fb.fields")}</strong>
         ${this.fieldEditor(s)}
       </div>

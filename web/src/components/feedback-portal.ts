@@ -14,7 +14,7 @@ interface Portal {
   handle: string; name: string; project: string; intro: string; privacy: string; types: string[]; fields: PortalField[]; attachments: AttachRules;
   anonymous: boolean; accounts: boolean; askEmail: boolean; theme: { accent?: string; accentDark?: string; logo?: string }; accepting: boolean; filesFull: boolean;
 }
-interface Status { portal: string; handle: string; type: string; title: string; body: string; createdAt: string; state: string; finished: boolean; answer?: string; fixedIn?: string; reports: number; deleted: boolean; files: number }
+interface Status { portal: string; handle: string; type: string; title: string; body: string; createdAt: string; state: string; finished: boolean; answer?: string; fixedIn?: string; answerAuto?: boolean; question?: string; replies?: { id: string; body: string; createdAt: string }[]; reports: number; deleted: boolean; files: number }
 
 export const label = (m: Record<string, string> | undefined) => (m ? m[locale()] || m.en || m.de || Object.values(m)[0] || "" : "");
 
@@ -226,6 +226,20 @@ export class PhxFeedbackStatus extends LitElement {
     }
   }
 
+  private reply = async (e: SubmitEvent) => {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const body = String(new FormData(form).get("body") ?? "").trim();
+    if (!body) return;
+    try {
+      this.st = await api<Status>("POST", `/feedback/status/${this.token}/reply`, { body });
+      form.reset();
+      toast(t("fb.reply_sent"));
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+    }
+  };
+
   render() {
     if (this.gone) return html`<div class="wrap"><div class="card"><h1 style="margin:0;font-size:20px">${t("fb.status_gone")}</h1><p class="muted">${t("fb.status_gone_hint")}</p></div></div>`;
     const s = this.st;
@@ -237,7 +251,12 @@ export class PhxFeedbackStatus extends LitElement {
       <span class=${s.finished ? "state done" : "state"}>${icon(s.finished ? "CircleCheck" : "Clock", 14)} ${stateLabel(s.state)}</span>
       ${s.reports > 1 ? html`<p class="muted">${t("fb.others", { n: s.reports - 1 })}</p>` : nothing}
       ${s.fixedIn ? html`<p><strong>${t("fb.fixed_in_status", { version: s.fixedIn })}</strong></p>` : nothing}
-      ${s.answer ? html`<div><div class="muted">${t("fb.team_answer")}</div><div class="answer">${s.answer}</div></div>` : nothing}
+      ${s.answer ? html`<div><div class="muted">${t(s.answerAuto ? "fb.auto_answer" : "fb.team_answer")}</div><div class="answer">${s.answer}</div></div>` : nothing}
+      ${s.question && !s.finished ? html`<div><div class="muted">${t("fb.team_question")}</div><div class="answer">${s.question}</div>
+        ${(s.replies ?? []).map((r) => html`<p class="body" style="margin:8px 0 0"><span class="muted">${t("fb.your_reply")}</span><br>${r.body}</p>`)}
+        <form @submit=${this.reply} style="display:grid;gap:8px;margin-top:8px">
+          <textarea name="body" rows="3" required maxlength="4000" aria-label=${t("fb.reply")} placeholder=${t("fb.reply_ph")}></textarea>
+          <div class="row"><button type="submit">${icon("Send", 14)} ${t("fb.reply_send")}</button></div></form></div>` : nothing}
       ${s.body ? html`<details><summary class="muted">${t("fb.your_text")}</summary><p class="body">${s.body}</p></details>` : nothing}
       <div class="row">
         <a class="btn ghost" href=${`/api/v1/feedback/status/${this.token}/export`} download>${icon("Download", 14)} ${t("fb.export")}</a>
