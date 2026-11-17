@@ -75,6 +75,9 @@ func (a *api) routes(r chi.Router) {
 	r.Post("/shared-apps/{token}/ai", a.askSharedApp)
 	// Pull request events of a project's code connection (signed).
 	r.Post("/hooks/code/{id}", a.codeHook)
+	// Payment provider events (signed; ADR-0079).
+	r.Post("/payments/webhook/{provider}", a.paymentWebhook)
+	r.Get("/payments/pay/{ref}", a.payInfo)
 	// Short-lived download links of project exports (sealed token).
 	r.Get("/exports/{token}", a.openExportLink)
 	// Fonts and logos of themes (public: sign-in pages, publications, e-mails).
@@ -149,6 +152,14 @@ func (a *api) routes(r chi.Router) {
 		r.Get("/me/tasks", a.myTasks)
 		r.Get("/me/usage", a.myUsage)
 		r.Get("/me/feedback", a.myFeedback)
+		r.Get("/me/purchases", a.myPurchases)
+		r.Post("/me/payments/portal", a.paymentPortal)
+		r.Get("/admin/payments", a.adminPayments)
+		r.Put("/admin/payments", a.setAdminPayments)
+		r.Post("/admin/payments/check", a.checkPayments)
+		r.Post("/admin/payments/test", a.testPurchase)
+		r.Get("/admin/payments/purchases", a.adminPurchases)
+		r.Post("/admin/payments/purchases/{id}/refund", a.refundPurchase)
 		r.Get("/themes", a.themes)
 		r.Get("/themes/{id}", a.getTheme)
 		r.Post("/themes/check", a.checkTheme)

@@ -20,6 +20,8 @@ import { base } from "./shared";
 import "./auth-pages";
 import "./kiosk";
 import "./shared-app";
+import "./pay";
+import "./payments";
 import "./print";
 import "./login";
 import "./profile";
@@ -89,6 +91,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/login", render: () => html`<phx-login></phx-login>` },
     { path: "/feedback/status/:token", render: ({ token }) => html`<phx-feedback-status .token=${token!}></phx-feedback-status>` },
     { path: "/feedback/:handle", render: ({ handle }) => html`<phx-feedback-portal .handle=${handle!}></phx-feedback-portal>` },
+    { path: "/pay", render: () => html`<phx-pay></phx-pay>` },
     { path: "/shared/app/:token", render: ({ token }) => html`<phx-shared-app .token=${token!}></phx-shared-app>` },
     { path: "/identify", render: () => html`<phx-identify></phx-identify>` },
     { path: "/kiosk/:project/:doc", render: ({ project, doc }) => html`<phx-kiosk .project=${project!} .doc=${doc!}></phx-kiosk>` },
@@ -120,6 +123,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/settings/account", render: () => me("account", html`<phx-account></phx-account>`) },
     { path: "/settings/usage", render: () => me("usage", html`<phx-usage level="me"></phx-usage>`) },
     { path: "/settings/feedback", render: () => me("feedback", html`<phx-my-feedback></phx-my-feedback>`) },
+    { path: "/settings/billing", render: () => me("billing", html`<phx-my-purchases></phx-my-purchases>`) },
     { path: "/settings/appearance", render: () => me("appearance", html`<phx-appearance></phx-appearance>`) },
     { path: "/settings/themes/new", render: () => {
       const q = new URLSearchParams(location.search);
@@ -131,6 +135,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/admin/user-content", render: () => adm("usercontent", html`<phx-usercontent-admin></phx-usercontent-admin><phx-app-policy scope="instance"></phx-app-policy>`) },
     { path: "/admin/usage", render: () => adm("usage", html`<phx-usage level="admin"></phx-usage>`) },
     { path: "/admin/bot-protection", render: () => adm("bot", html`<phx-bot-admin></phx-bot-admin>`) },
+    { path: "/admin/payments", render: () => adm("payments", html`<phx-payments-admin></phx-payments-admin>`) },
     { path: "/admin/orgs/:slug/usage", render: ({ slug }) => adm("orgs", html`<phx-usage level="org" .ref=${slug!}></phx-usage>`) },
     { path: "/orgs/:slug/usage", render: ({ slug }) => me(`org:${slug}`, html`<phx-usage level="org" .ref=${slug!}></phx-usage>`) },
     { path: "/admin", render: () => adm("") },
@@ -220,7 +225,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     if (!this.ready) return html`<p class="muted" style="padding:24px">${t("app.loading")}</p>`;
     const user = currentUser.get();
     // Shared pages and the wall display show no app header.
-    const shared = location.pathname.startsWith("/s/") || location.pathname.startsWith("/kiosk/") || location.pathname.startsWith("/print/") || location.pathname.startsWith("/feedback/") || location.pathname.startsWith("/shared/");
+    const shared = location.pathname.startsWith("/s/") || location.pathname.startsWith("/kiosk/") || location.pathname.startsWith("/print/") || location.pathname.startsWith("/feedback/") || location.pathname.startsWith("/shared/") || location.pathname === "/pay";
     return html`
       ${user && !shared && focusMode.get()
         ? html`<button class="ghost unfocus" @click=${() => setFocusMode(false)} title=${t("focus.leave_hint", { key: comboLabel(comboFor("focus")) })}>${icon("Minimize2", 14)} ${t("focus.leave")}</button>`

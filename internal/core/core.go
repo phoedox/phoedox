@@ -94,6 +94,10 @@ type Service struct {
 	readingSeen sync.Map
 	// prChecked throttles pull request checks per repository (id → time.Time).
 	prChecked sync.Map
+	// PaymentsBaseURL replaces the payment provider's API address (tests).
+	PaymentsBaseURL string
+	paymentMu       sync.Mutex
+	paymentHandlers map[string]PaymentHandler
 	// MaxDepth limits traversals (admin setting, default 6).
 	MaxDepth int
 	// Box decrypts project secrets for request blocks.
