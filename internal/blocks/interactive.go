@@ -6,20 +6,14 @@ import (
 	"strings"
 )
 
-// The interactive blocks (ADR-0085): polls, decision matrices, calculators
-// and quizzes. Their line formats are read like web/src/blocks/*.ts does.
+// The interactive blocks (ADR-0085): polls and quizzes, read like
+// web/src/blocks/*.ts does. Decision matrices and calculators are plugins
+// (ADR-0087).
 
 var (
-	keyLine    = regexp.MustCompile(`^([A-Za-z]+)\s*:\s*(.*)$`)
-	listLine   = regexp.MustCompile(`^[-*+]\s+(.+)$`)
-	calcNumRe  = regexp.MustCompile(`^-?\d[\d ]*(?:[.,]\d+)?$`)
-	calcEntRe  = regexp.MustCompile(`^@([a-z0-9-]+)\.([A-Za-z0-9_]+)$`)
-	calcUnitRe = regexp.MustCompile(`^(.*?)\s*\(([^)]*)\)\s*$`)
-	nonNameRe  = regexp.MustCompile(`[^\p{L}\p{N}_]+`)
-	tokenRe    = regexp.MustCompile(`^(?:\s+|\d+(?:[.,]\d+)?|"[^"]*"|[\p{L}_][\p{L}\p{N}_]*|<=|>=|<>|[-+*/^&(),;=<>%])`)
-	nameRe     = regexp.MustCompile(`^[\p{L}_][\p{L}\p{N}_]*$`)
-	quizLine   = regexp.MustCompile(`^([?+\-=>])\s*(.*)$`)
-	formulaFns = map[string]bool{"SUM": true, "AVERAGE": true, "AVG": true, "MIN": true, "MAX": true, "ROUND": true, "CEIL": true, "FLOOR": true, "ABS": true, "SQRT": true, "IF": true}
+	keyLine  = regexp.MustCompile(`^([A-Za-z]+)\s*:\s*(.*)$`)
+	listLine = regexp.MustCompile(`^[-*+]\s+(.+)$`)
+	quizLine = regexp.MustCompile(`^([?+\-=>])\s*(.*)$`)
 )
 
 func lines(src []byte) []string {
@@ -90,118 +84,6 @@ func parsePoll(src []byte) (question string, options []string, ps []Problem) {
 	return
 }
 
-// --- calc -------------------------------------------------------------------------
-
-// CalcName turns a label into the name formulas use: "Kosten pro Jahr (€)" → Kosten_pro_Jahr.
-func CalcName(label string) string {
-	if m := calcUnitRe.FindStringSubmatch(label); m != nil {
-		label = m[1]
-	}
-	return strings.Trim(nonNameRe.ReplaceAllString(strings.TrimSpace(label), "_"), "_")
-}
-
-// formulaNames returns the names a formula uses, or an error when it cannot be read.
-func formulaNames(f string) ([]string, error) {
-	var names []string
-	depth := 0
-	for rest := f; rest != ""; {
-		m := tokenRe.FindString(rest)
-		if m == "" {
-			return nil, fmt.Errorf("unexpected %q", rest[:1])
-		}
-		rest = rest[len(m):]
-		switch {
-		case m == "(":
-			depth++
-		case m == ")":
-			depth--
-			if depth < 0 {
-				return nil, fmt.Errorf("unbalanced brackets")
-			}
-		case nameRe.MatchString(m):
-			if formulaFns[strings.ToUpper(m)] && strings.HasPrefix(strings.TrimLeft(rest, " "), "(") {
-				continue
-			}
-			names = append(names, m)
-		}
-	}
-	if depth != 0 {
-		return nil, fmt.Errorf("unbalanced brackets")
-	}
-	return names, nil
-}
-
-func checkCalc(src []byte) (names []string, ps []Problem) {
-	deps := map[string][]string{}
-	for _, l := range lines(src) {
-		if _, _, ok := key(l, "title", "titel"); ok {
-			continue
-		}
-		i := strings.Index(l, "=")
-		if i <= 0 {
-			ps = append(ps, problem("%q: a line needs label = value or formula", l))
-			continue
-		}
-		name, expr := CalcName(l[:i]), strings.TrimSpace(l[i+1:])
-		if name == "" || expr == "" {
-			ps = append(ps, problem("%q: a line needs label = value or formula", l))
-			continue
-		}
-		if _, dup := deps[name]; dup {
-			ps = append(ps, problem("the name %q is there twice", name))
-		}
-		names = append(names, name)
-		deps[name] = nil
-		if calcNumRe.MatchString(expr) || calcEntRe.MatchString(expr) {
-			continue
-		}
-		used, err := formulaNames(expr)
-		if err != nil {
-			ps = append(ps, problem("the formula of %q cannot be read: %v", name, err))
-			continue
-		}
-		deps[name] = used
-	}
-	for _, n := range names {
-		for _, u := range deps[n] {
-			if _, ok := deps[u]; !ok {
-				ps = append(ps, problem("%q uses %q, which does not exist (names are labels with _ for spaces, without the unit)", n, u))
-			}
-		}
-	}
-	if len(names) == 0 {
-		ps = append(ps, problem("the calculator is empty"))
-	}
-	if len(ps) == 0 {
-		// Cycles: a formula that (through others) uses itself.
-		state := map[string]int{}
-		var visit func(string) bool
-		visit = func(n string) bool {
-			if state[n] == 1 {
-				return true
-			}
-			if state[n] == 2 {
-				return false
-			}
-			state[n] = 1
-			for _, u := range deps[n] {
-				if visit(u) {
-					return true
-				}
-			}
-			state[n] = 2
-			return false
-		}
-		for _, n := range names {
-			if visit(n) {
-				ps = append(ps, problem("%q depends on itself", n))
-				break
-			}
-		}
-	}
-	return
-}
-
 // --- quiz -------------------------------------------------------------------------
 
 func parseQuiz(src []byte) (questions []string, ps []Problem) {
@@ -264,10 +146,6 @@ func init() {
 			q, o, _ := parsePoll(src)
 			return strings.Join(append([]string{q}, o...), " ")
 		},
-	})
-	Register(Def{Kind: "calc", Board: true,
-		Check: func(src []byte) []Problem { _, ps := checkCalc(src); return ps },
-		Text:  func(src []byte) string { return strings.Join(lines(src), " ") },
 	})
 	Register(Def{Kind: "quiz",
 		Check: func(src []byte) []Problem { _, ps := parseQuiz(src); return ps },

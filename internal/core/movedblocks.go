@@ -25,6 +25,7 @@ type MovedBlock struct {
 // movedBlocks maps each moved kind to its plugin.
 var movedBlocks = map[string]MovedBlock{
 	"gantt":   {Plugin: "com.phoedox.gantt", Label: "Schedule (Gantt)"},
+	"calc":    {Plugin: "com.phoedox.calc", Label: "Calculator"},
 	"matrix":  {Plugin: "com.phoedox.matrix", Label: "Decision matrix"},
 	"mindmap": {Plugin: "com.phoedox.mindmap", Label: "Mind map"},
 }

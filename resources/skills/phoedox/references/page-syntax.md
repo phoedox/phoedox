@@ -90,7 +90,7 @@ whiteboards and published pages) – read the one you are about to write.
 | ```chart | line, area, bar, scatter charts and annotated timelines | `blocks/chart.md` |
 | ```poll | a poll readers vote in | `blocks/poll.md` |
 | ```matrix | a weighted decision matrix (plugin `com.phoedox.matrix`) | `blocks/matrix.md` |
-| ```calc | a calculator with inputs and formulas | `blocks/calc.md` |
+| ```calc | a calculator with inputs and formulas (plugin `com.phoedox.calc`) | `blocks/calc.md` |
 | ```quiz | a quiz or flashcards | `blocks/quiz.md` |
 | ```mindmap | a mind map from an outline (plugin `com.phoedox.mindmap`) | `blocks/mindmap.md` |
 | ```beforeafter | two photos with a slider | `blocks/beforeafter.md` |

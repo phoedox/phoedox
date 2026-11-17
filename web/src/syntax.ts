@@ -98,5 +98,5 @@ export function blockId(): string {
 }
 
 /** Fenced blocks with their own rendering. */
-export const FENCES = ["math", "embed", "iframe", "board", "whiteboard", "app", "mermaid", "chart", "poll", "calc", "quiz", "beforeafter", "annotate", "tree", "rack", "floorplan", "compare", "dbmodel", "status", "entity", "include", "query", "map"] as const;
+export const FENCES = ["math", "embed", "iframe", "board", "whiteboard", "app", "mermaid", "chart", "poll", "quiz", "beforeafter", "annotate", "tree", "rack", "floorplan", "compare", "dbmodel", "status", "entity", "include", "query", "map"] as const;
 export type FenceKind = (typeof FENCES)[number];

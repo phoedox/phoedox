@@ -1,5 +1,9 @@
 # ```calc – calculators
 
+This block comes from the official plugin `com.phoedox.calc` (ADR-0087). `get_project` lists it in
+`pluginBlocks`; with `missing: true` the plugin is not active in the project yet, so the
+block keeps its source until a project owner or administrator enables it (see `blocks/plugins.md`).
+
 One line per value, `Label (unit) = …`. A number is an input readers can change,
 `@entry.attr` takes an entry's attribute as input, anything else is a formula. Formulas
 use other values by their label with spaces as `_` and without the unit
