@@ -150,7 +150,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/admin/users", render: () => adm("users", html`<phx-users></phx-users>`) },
     { path: "/admin/signup", render: () => adm("signup", html`<phx-admin-settings section="signup"></phx-admin-settings>`) },
     { path: "/admin/ai", render: () => adm("ai", html`<phx-admin-settings section="ai"></phx-admin-settings><phx-embeddings-admin></phx-embeddings-admin>`) },
-    { path: "/admin/storage", render: () => adm("storage", html`<phx-admin-settings section="storage"></phx-admin-settings>`) },
+    { path: "/admin/storage", render: () => adm("storage", html`<phx-admin-settings section="storage"></phx-admin-settings><phx-feedback-storage-admin></phx-feedback-storage-admin>`) },
     { path: "/admin/security", render: () => adm("security", html`<phx-admin-settings section="security"></phx-admin-settings>`) },
     // Old address of the instance settings.
     { path: "/admin/settings", render: () => { queueMicrotask(() => { history.replaceState({}, "", "/admin/ai"); window.dispatchEvent(new PopStateEvent("popstate")); }); return html``; } },

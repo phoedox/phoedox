@@ -598,11 +598,12 @@ func defaultPrivacy(lang, name string) string {
 
 // feedbackQuotaBytes is a project's feedback storage limit (0 = none).
 func (s *Service) feedbackQuotaBytes(ctx context.Context, p store.Project) int64 {
-	mb := s.intSetting(ctx, settingFeedbackQuota, 1024)
-	if own, err := s.DB.FeedbackQuota(ctx, p.ID); err == nil && own != nil {
-		mb = *own
+	mb := s.feedbackBaseMB(ctx, p)
+	if mb <= 0 {
+		return 0
 	}
-	return int64(mb) << 20
+	extra, _ := s.DB.FeedbackExtraMB(ctx, p.ID, time.Now())
+	return int64(mb+extra) << 20
 }
 
 const settingFeedbackQuota = "feedback.quota_mb"

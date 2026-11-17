@@ -185,6 +185,7 @@ type Service struct {
 func New(db *store.DB) *Service {
 	s := &Service{DB: db, MaxDepth: 6, Preview: preview.Tools{MaxPixels: 60_000_000, MaxText: 2 << 20, Size: 480, MaxPages: 20, Timeout: 90 * time.Second}}
 	s.OnPayment("ai_credits", s.creditsPaid)
+	s.OnPayment("feedback_storage", s.feedbackStoragePaid)
 	return s
 }
 

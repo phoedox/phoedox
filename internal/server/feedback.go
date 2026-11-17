@@ -397,3 +397,37 @@ func (a *api) refreshFeedbackForwards(w http.ResponseWriter, r *http.Request) {
 	v, err := a.core.RefreshFeedbackForwards(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"))
 	respond(w, v, err)
 }
+
+// --- more feedback storage ------------------------------------------------------
+
+func (a *api) feedbackStorage(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.ProjectFeedbackStorage(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, v, err)
+}
+
+func (a *api) buyFeedbackStorage(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Offer string `json:"offer"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.BuyFeedbackStorage(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.Offer)
+	respond(w, v, err)
+}
+
+func (a *api) feedbackStorageOffers(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.FeedbackStorageOffers(r.Context(), actorOf(r))
+	respond(w, v, err)
+}
+
+func (a *api) setFeedbackStorageOffers(w http.ResponseWriter, r *http.Request) {
+	var in []core.StorageOffer
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.SetFeedbackStorageOffers(r.Context(), actorOf(r), in)
+	respond(w, v, err)
+}
