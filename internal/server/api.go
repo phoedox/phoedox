@@ -273,6 +273,8 @@ func (a *api) routes(r chi.Router) {
 			r.Post("/{o}/providers", a.grantProvider)
 			r.Delete("/{o}/providers/{id}", a.revokeProvider)
 			r.Get("/{o}/customers", a.customerOverview)
+			r.Get("/{o}/templates", a.orgTemplates)
+			r.Put("/{o}/templates", a.setOrgTemplates)
 			r.Get("/{o}/customers/time.csv", a.customerTimeCSV)
 			r.Get("/{o}/store-access", a.orgStoreAccess)
 			r.Put("/{o}/store-access", a.setOrgStoreAccess)
@@ -307,7 +309,7 @@ func (a *api) routes(r chi.Router) {
 		r.Get("/search", a.search)
 		r.Get("/projects", a.listProjects)
 		r.Get("/templates", func(w http.ResponseWriter, r *http.Request) {
-			writeJSON(w, http.StatusOK, core.Templates(r.URL.Query().Get("lang")))
+			writeJSON(w, http.StatusOK, a.core.ProjectTemplates(r.Context(), actorOf(r), r.URL.Query().Get("lang")))
 		})
 		r.Post("/projects", a.createProject)
 		r.Post("/projects/import", a.importProject)

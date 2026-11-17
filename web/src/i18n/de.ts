@@ -4203,4 +4203,6 @@ export const de = {
   "validation.month": "Gib den Monat als JJJJ-MM an.",
   "audit.via_provider": "über {name}",
   "audit.via_provider_help": "Über eine Dienstleister-Organisation gearbeitet",
+  "prov.templates": "Projektvorlagen",
+  "prov.templates_intro": "Hier angehakte Projekte werden beim Anlegen eines Projekts als Vorlage angeboten – auch bei Kunden, wenn diese Organisation dort Dienstleister mit der Rolle Admin ist. Kopiert werden Seiten, Boards (ohne Karten), Apps und das Datenmodell.",
 } as const;

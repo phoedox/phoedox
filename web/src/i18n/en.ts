@@ -4205,4 +4205,6 @@ export const en: Record<keyof typeof de, string> = {
   "validation.month": "Give the month as YYYY-MM.",
   "audit.via_provider": "via {name}",
   "audit.via_provider_help": "Worked through a service provider organization",
+  "prov.templates": "Project templates",
+  "prov.templates_intro": "Projects ticked here are offered as templates when members create a project – also at customers, if this organization is their service provider with the admin role. Pages, boards (without cards), apps and the data model are copied.",
 };

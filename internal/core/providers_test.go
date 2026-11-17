@@ -103,11 +103,45 @@ func TestServiceProviders(t *testing.T) {
 	if _, err := s.Project(ctx, reader, net.Slug); err == nil {
 		t.Fatal("access after revoke")
 	}
+	// Template projects of the provider, used at the customer.
+	tplOrg := prov.Slug
+	tpl, _ := s.CreateProject(ctx, stranger, ProjectInput{Name: "Standard IT", Org: &tplOrg, Features: &[]string{"decisions"}})
+	_, _ = s.CreateDocument(ctx, stranger, tpl.Slug, DocumentInput{Type: store.DocMarkdown, Title: "Emergency plan", Category: "Ops", Markdown: "Call us."})
+	_, _ = s.CreateDocument(ctx, stranger, tpl.Slug, DocumentInput{Type: store.DocBoard, Title: "Tickets", Board: &Board{}})
+	if _, err := s.SetOrgTemplates(ctx, reader, prov.Slug, []string{tpl.Slug}); err == nil {
+		t.Fatal("members cannot choose templates")
+	}
+	if _, err := s.SetOrgTemplates(ctx, stranger, prov.Slug, []string{tpl.Slug}); err != nil {
+		t.Fatal(err)
+	}
+	found = false
+	for _, x := range s.ProjectTemplates(ctx, stranger, "en") {
+		found = found || x.ID == "project:"+tpl.ID
+	}
+	if !found {
+		t.Fatal("template project not listed")
+	}
+	// Only provider admins with the admin role start projects at the customer.
+	custSlug := cust.Slug
+	if _, err := s.CreateProject(ctx, stranger, ProjectInput{Name: "Neu", Org: &custSlug, Template: "project:" + tpl.ID}); err == nil {
+		t.Fatal("editor providers cannot create customer projects")
+	}
+
 	// All projects, admin role.
 	if _, err := s.GrantProvider(ctx, owner, cust.Slug, ProviderInput{Provider: prov.Slug, Role: "admin"}); err != nil {
 		t.Fatal(err)
 	}
 	if p, err := s.Project(ctx, reader, hr.Slug); err != nil || p.Role != store.RoleOwner {
 		t.Fatalf("all projects: %v %+v", err, p.Role)
+	}
+	np, err := s.CreateProject(ctx, stranger, ProjectInput{Name: "Neu", Org: &custSlug, Template: "project:" + tpl.ID})
+	if err != nil || np.OrgID != cust.ID {
+		t.Fatalf("customer project from template: %v %+v", err, np)
+	}
+	if d, err := s.Document(ctx, stranger, np.Slug, "emergency-plan"); err != nil || markdownOf(d) != "Call us." || d.Category != "Ops" {
+		t.Fatalf("copied page: %v", err)
+	}
+	if _, err := s.Document(ctx, owner, np.Slug, "tickets"); err != nil {
+		t.Fatalf("copied board: %v", err)
 	}
 }

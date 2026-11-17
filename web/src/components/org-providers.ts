@@ -23,7 +23,7 @@ const hours = (m: number) => (m ? `${Math.floor(m / 60)}:${String(m % 60).padSta
 
 /** The org page section for providers (as customer) and customers (as provider). */
 export class PhxOrgProviders extends LitElement {
-  static properties = { org: {}, admin: { type: Boolean }, projects: { attribute: false }, links: { state: true }, customers: { state: true }, busy: { state: true }, all: { state: true } };
+  static properties = { org: {}, admin: { type: Boolean }, projects: { attribute: false }, links: { state: true }, customers: { state: true }, busy: { state: true }, all: { state: true }, templates: { state: true } };
   static styles = [base, css`
     :host { display: block; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -51,6 +51,8 @@ export class PhxOrgProviders extends LitElement {
   customers: Customer[] = [];
   busy = false;
   all = true;
+  /** Ids of the organization's template projects. */
+  templates: string[] = [];
 
   willUpdate(ch: Map<string, unknown>) {
     if (ch.has("org") && this.org) void this.load();
@@ -58,6 +60,7 @@ export class PhxOrgProviders extends LitElement {
 
   private async load() {
     this.links = await api<Links>("GET", `/orgs/${this.org}/providers`).catch(() => undefined);
+    this.templates = await api<string[]>("GET", `/orgs/${this.org}/templates`).catch(() => []);
     this.customers = this.links?.customers.length ? await api<Customer[]>("GET", `/orgs/${this.org}/customers`).catch(() => []) : [];
   }
 
@@ -90,6 +93,25 @@ export class PhxOrgProviders extends LitElement {
     } catch (err) {
       toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
     }
+  }
+
+  private async saveTemplates(id: string, on: boolean) {
+    const ids = on ? [...this.templates, id] : this.templates.filter((x) => x !== id);
+    const slugs = ids.map((x) => this.projects.find((p) => p.id === x)?.slug ?? x);
+    try {
+      this.templates = await api<string[]>("PUT", `/orgs/${this.org}/templates`, { projects: slugs });
+      toast(t("doc.saved"));
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+    }
+  }
+
+  private templatesView() {
+    if (!this.projects.length) return nothing;
+    return html`<h2 id="templates">${icon("Copy", 16)} ${t("prov.templates")}</h2>
+      <p class="muted" style="margin-top:0">${t("prov.templates_intro")}</p>
+      <div class="checks">${this.projects.map((p) => html`<label class="inline-check"><input type="checkbox" .checked=${this.templates.includes(p.id)}
+        @change=${(e: Event) => this.saveTemplates(p.id, (e.target as HTMLInputElement).checked)}> ${p.name}</label>`)}</div>`;
   }
 
   private scope(l: Link) {
@@ -139,7 +161,7 @@ export class PhxOrgProviders extends LitElement {
 
   render() {
     if (!this.links) return nothing;
-    return html`${this.admin ? this.providers() : nothing}${this.customersView()}`;
+    return html`${this.admin ? this.providers() : nothing}${this.customersView()}${this.admin ? this.templatesView() : nothing}`;
   }
 }
 customElements.get("phx-org-providers") || customElements.define("phx-org-providers", PhxOrgProviders);

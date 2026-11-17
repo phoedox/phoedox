@@ -33,7 +33,7 @@ const readLayout = (): Layout => {
  * Creating and importing live in a dialog. */
 export class PhxProjects extends SignalWatcher(LitElement) {
   static properties = {
-    recent: { state: true }, projects: { state: true }, orgs: { state: true }, templates: { state: true }, error: { state: true },
+    recent: { state: true }, projects: { state: true }, orgs: { state: true }, customerOrgs: { state: true }, templates: { state: true }, error: { state: true },
     home: { state: true }, q: { state: true }, layout: { state: true }, tab: { state: true }, loaded: { state: true }, busy: { state: true },
   };
   static styles = [base, css`
@@ -111,6 +111,8 @@ export class PhxProjects extends SignalWatcher(LitElement) {
   projects: Project[] = [];
   recent: RecentItem[] = [];
   orgs: Org[] = [];
+  /** Customers where one of my organizations is service provider with the admin role (ADR-0073). */
+  customerOrgs: { slug: string; name: string }[] = [];
   templates: Template[] = [];
   home?: Home;
   error = "";
@@ -125,6 +127,23 @@ export class PhxProjects extends SignalWatcher(LitElement) {
     this.projects = (await api<Project[]>("GET", projectsPath()).catch(() => [])) ?? [];
   };
 
+  private async loadCustomers() {
+    type L = { customerSlug: string; customerName: string; role: string; projects: string[]; revokedAt?: string; expiresAt?: string };
+    const seen = new Set(this.orgs.map((o) => o.slug));
+    const out: { slug: string; name: string }[] = [];
+    for (const o of this.orgs) {
+      const links = await api<{ customers: L[] }>("GET", `/orgs/${o.slug}/providers`).catch(() => undefined);
+      for (const l of links?.customers ?? []) {
+        const active = !l.revokedAt && (!l.expiresAt || Date.parse(l.expiresAt) > Date.now());
+        if (active && l.role === "admin" && !l.projects.length && !seen.has(l.customerSlug)) {
+          seen.add(l.customerSlug);
+          out.push({ slug: l.customerSlug, name: l.customerName });
+        }
+      }
+    }
+    this.customerOrgs = out;
+  }
+
   async connectedCallback() {
     super.connectedCallback();
     currentProject.set(null);
@@ -136,6 +155,7 @@ export class PhxProjects extends SignalWatcher(LitElement) {
     ]);
     this.projects = projects ?? [];
     this.orgs = orgs ?? [];
+    void this.loadCustomers();
     this.recent = recent ?? [];
     this.home = home;
     this.loaded = true;
@@ -274,7 +294,8 @@ export class PhxProjects extends SignalWatcher(LitElement) {
           <label class="field">${t("projects.name")}<input name="name" required autocomplete="off"></label>
           ${this.orgs.length ? html`<label class="field">${t("projects.org")}<select name="org">
             <option value="">${t("projects.personal")}</option>
-            ${this.orgs.map((o) => html`<option value=${o.slug} ?selected=${appOrg.get()?.slug === o.slug}>${o.name}</option>`)}</select></label>` : ""}
+            ${this.orgs.map((o) => html`<option value=${o.slug} ?selected=${appOrg.get()?.slug === o.slug}>${o.name}</option>`)}
+            ${this.customerOrgs.length ? html`<optgroup label=${t("prov.customers")}>${this.customerOrgs.map((o) => html`<option value=${o.slug}>${o.name}</option>`)}</optgroup>` : ""}</select></label>` : ""}
         </div>
         <label class="field">${t("projects.description_optional")}<input name="description" autocomplete="off"></label>
         ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}

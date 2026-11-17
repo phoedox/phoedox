@@ -45,3 +45,20 @@ func (a *api) customerTimeCSV(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="time-customers-`+month+`.csv"`)
 	_, _ = w.Write(b)
 }
+
+func (a *api) orgTemplates(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.OrgTemplates(r.Context(), actorOf(r), chi.URLParam(r, "o"))
+	respond(w, v, err)
+}
+
+func (a *api) setOrgTemplates(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Projects []string `json:"projects"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.SetOrgTemplates(r.Context(), actorOf(r), chi.URLParam(r, "o"), in.Projects)
+	respond(w, v, err)
+}

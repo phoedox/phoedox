@@ -251,6 +251,8 @@ var apiDocs = map[string]op{
 	"DELETE /orgs/{o}/providers/{id}":                    {Tag: "organizations", Summary: "Revoke a provider's access (customer admins, or the provider's admins giving it up)."},
 	"GET /orgs/{o}/customers":                            {Tag: "organizations", Summary: "Overview across the customers of a provider organization: open cards, failing checks, maintenance due and time logged this month per project.", Out: []core.CustomerOverview{}},
 	"GET /orgs/{o}/customers/time.csv":                   {Tag: "organizations", Summary: "Time the provider's people logged at all customers in a month (?month=YYYY-MM) as CSV (provider admins)."},
+	"GET /orgs/{o}/templates":                            {Tag: "organizations", Summary: "Projects the organization offers as templates (ids); new projects start from them with template project:<id>.", Out: []string{}},
+	"PUT /orgs/{o}/templates":                            {Tag: "organizations", Summary: "Choose the template projects ({projects: [slug]}, admins): pages, boards (without cards), apps and the data model are copied into new projects, also at customers of a service provider."},
 	"GET /orgs/{o}/store-access":                         {Tag: "organizations", Summary: "Who may install themes and app templates from the store (all, groups or none) and whether people can send requests (admins).", Out: core.StoreAccess{}},
 	"PUT /orgs/{o}/store-access":                         {Tag: "organizations", Summary: "Change the organization's store access (admins).", In: core.StoreAccess{}, Out: core.StoreAccess{}},
 	"GET /orgs/{o}/store/requests":                       {Tag: "organizations", Summary: "Requests for store items (admins).", Out: []store.StoreRequest{}},

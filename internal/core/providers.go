@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"encoding/json"
 	"slices"
 	"strconv"
 	"strings"
@@ -263,4 +264,122 @@ func (s *Service) notifyOrgAdmins(ctx context.Context, orgID string, n Note) {
 			s.notify(ctx, u, n)
 		}
 	}
+}
+
+// --- project templates of an organization ----------------------------------
+
+func orgTemplatesKey(orgID string) string { return "org.templates:" + orgID }
+
+// OrgTemplates lists the projects an organization offers as templates.
+func (s *Service) OrgTemplates(ctx context.Context, a Actor, ref string) ([]string, error) {
+	o, err := s.org(ctx, a, ref, store.OrgMemberRole)
+	if err != nil {
+		return nil, err
+	}
+	return s.orgTemplateIDs(ctx, o.ID), nil
+}
+
+func (s *Service) orgTemplateIDs(ctx context.Context, orgID string) []string {
+	var ids []string
+	if raw, _ := s.DB.Setting(ctx, orgTemplatesKey(orgID), ""); raw != "" {
+		_ = json.Unmarshal([]byte(raw), &ids)
+	}
+	if ids == nil {
+		ids = []string{}
+	}
+	return ids
+}
+
+// SetOrgTemplates chooses which of the organization's projects are
+// templates (its admins), e.g. a provider's standard documentation that it
+// starts every customer with.
+func (s *Service) SetOrgTemplates(ctx context.Context, a Actor, ref string, projects []string) ([]string, error) {
+	o, err := s.org(ctx, a, ref, store.OrgAdmin)
+	if err != nil {
+		return nil, err
+	}
+	ids := []string{}
+	for _, pr := range projects {
+		p, err := s.DB.ProjectFor(ctx, pr, a.User.ID)
+		if err != nil || p.OrgID != o.ID {
+			return nil, invalid("validation.provider_project", map[string]any{"project": pr}, "project %q is not in the organization", pr)
+		}
+		if !slices.Contains(ids, p.ID) {
+			ids = append(ids, p.ID)
+		}
+	}
+	raw, _ := json.Marshal(ids)
+	if err := s.DB.SetSetting(ctx, orgTemplatesKey(o.ID), string(raw), a.User.ID); err != nil {
+		return nil, err
+	}
+	s.event(ctx, a, "org.templates", o.ID, ids)
+	return ids, nil
+}
+
+// ProjectTemplates are the built-in templates plus the template projects
+// of the person's organizations ("project:<id>").
+func (s *Service) ProjectTemplates(ctx context.Context, a Actor, locale string) []Template {
+	out := Templates(locale)
+	if a.User.ID == "" {
+		return out
+	}
+	orgs, _ := s.DB.ListOrgs(ctx, a.User.ID, false)
+	for _, o := range orgs {
+		for _, id := range s.orgTemplateIDs(ctx, o.ID) {
+			p, err := s.DB.ProjectFor(ctx, id, a.User.ID)
+			if err != nil {
+				continue
+			}
+			out = append(out, Template{ID: "project:" + p.ID, Name: p.Name, Description: o.Name, Icon: "Building2", Features: p.Features})
+		}
+	}
+	return out
+}
+
+// copyTemplateProject fills a new project from a template project: pages,
+// boards (columns, no cards), apps and the data model.
+func (s *Service) copyTemplateProject(ctx context.Context, a Actor, dst store.Project, src store.Project) {
+	docs, err := s.DB.ListDocuments(ctx, src.ID, store.DocFilter{WithContent: true})
+	if err != nil {
+		return
+	}
+	for _, d := range docs {
+		if d.Restricted {
+			continue
+		}
+		in := DocumentInput{Type: d.Type, Title: d.Title, Category: d.Category, Slug: d.Slug}
+		switch d.Type {
+		case store.DocMarkdown:
+			in.Markdown = markdownOf(d)
+		case store.DocBoard:
+			var b Board
+			_ = json.Unmarshal(d.Content, &b)
+			in.Board = &b
+		case store.DocApp:
+			app := appOf(d)
+			app.Build = nil
+			in.App = &app
+		default:
+			continue // decisions, floor plans, whiteboards and links belong to one customer
+		}
+		_, _ = s.createDocument(ctx, a, dst, in)
+	}
+	if kinds, err := s.DB.ProjectKinds(ctx, src.ID); err == nil {
+		for _, k := range kinds {
+			k.ProjectID, k.UpdatedBy, k.UpdatedAt = dst.ID, a.String(), store.Now()
+			_ = s.DB.SetProjectKind(ctx, k)
+		}
+	}
+	s.event(ctx, a, "project.template", dst.ID, map[string]string{"template": "project:" + src.ID})
+}
+
+// templateSource checks a "project:<id>" template: a template project of
+// an organization the person belongs to, readable by them.
+func (s *Service) templateSource(ctx context.Context, a Actor, ref string) (store.Project, error) {
+	id := strings.TrimPrefix(ref, "project:")
+	p, err := s.project(ctx, a, id, store.RoleReader)
+	if err != nil || p.OrgID == "" || !slices.Contains(s.orgTemplateIDs(ctx, p.OrgID), p.ID) {
+		return store.Project{}, invalid("validation.template", map[string]any{"template": ref}, "unknown template %q", ref)
+	}
+	return p, nil
 }

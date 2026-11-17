@@ -123,3 +123,13 @@ func (d *DB) ProviderVia(ctx context.Context, projectID, userID string) string {
 	}
 	return slug
 }
+
+// ProviderAdmin tells whether a user works for a provider that has the
+// admin role at a customer organization (for all projects).
+func (d *DB) ProviderAdmin(ctx context.Context, customerOrgID, userID string) bool {
+	var n int
+	err := d.QueryRow(ctx, `SELECT COUNT(*) FROM provider_links pl JOIN org_members pm ON pm.org_id = pl.provider_org_id AND pm.user_id = ?
+		WHERE pl.customer_org_id = ? AND pl.role = 'admin' AND pl.projects = '' AND pl.revoked_at IS NULL AND (pl.expires_at IS NULL OR pl.expires_at > ?)`,
+		userID, customerOrgID, Now()).Scan(&n)
+	return err == nil && n > 0
+}

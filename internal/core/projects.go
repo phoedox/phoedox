@@ -60,6 +60,10 @@ func (s *Service) orgFor(ctx context.Context, a Actor, ref *string) (string, err
 	}
 	o, err := s.org(ctx, a, *ref, "")
 	if err != nil {
+		// Admins of a service provider may start projects at their customers (ADR-0073).
+		if c, cerr := s.DB.OrgFor(ctx, *ref, ""); cerr == nil && s.DB.ProviderAdmin(ctx, c.ID, a.User.ID) {
+			return c.ID, nil
+		}
 		return "", invalid("validation.org_unknown", map[string]any{"org": *ref}, "organization %q not found", *ref)
 	}
 	return o.ID, nil
@@ -131,7 +135,15 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, in ProjectInput) (
 	}
 	features := []string{}
 	var tpl Template
-	if in.Template != "" {
+	var tplProject store.Project
+	if strings.HasPrefix(in.Template, "project:") {
+		if tplProject, err = s.templateSource(ctx, a, in.Template); err != nil {
+			return store.Project{}, err
+		}
+		if in.Features == nil {
+			in.Features = &tplProject.Features
+		}
+	} else if in.Template != "" {
 		var ok bool
 		if tpl, ok = loadTemplate(in.Template, in.TemplateLocale); !ok {
 			return store.Project{}, invalid("validation.template", map[string]any{"template": in.Template}, "unknown template %q", in.Template)
@@ -153,6 +165,9 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, in ProjectInput) (
 	s.event(ctx, a, "project.create", p.ID, in)
 	if tpl.ID != "" {
 		s.applyTemplate(ctx, a, p, tpl)
+	}
+	if tplProject.ID != "" {
+		s.copyTemplateProject(ctx, a, p, tplProject)
 	}
 	if full, err := s.DB.ProjectFor(ctx, p.ID, a.User.ID); err == nil {
 		full.Role = store.RoleOwner
