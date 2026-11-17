@@ -8,4 +8,7 @@ import "./mindmap";
 import "./gantt";
 import "./beforeafter";
 import "./annotate";
+import "./tree";
+import "./rackblock";
+import "./floorplanblock";
 export * from "./registry";

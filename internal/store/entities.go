@@ -192,6 +192,8 @@ type Hop struct {
 	Depth  int    `json:"depth"`
 	Entity Entity `json:"entity"`
 	Via    string `json:"via"` // relation used to reach this entity
+	// Parent is the id of the entity this one was reached from (trees).
+	Parent string `json:"parent,omitempty"`
 }
 
 // Traverse follows edges from an entity. dir is "out", "in" or "both";
@@ -214,14 +216,14 @@ func (d *DB) Traverse(ctx context.Context, startID, rel, dir string, maxDepth in
 		args = append(args, rel)
 	}
 	args = append(args, maxDepth)
-	query := `WITH RECURSIVE walk(id, depth, via, path) AS (
-		SELECT CAST(? AS TEXT), 0, CAST('' AS TEXT), CAST(',' || ? || ',' AS TEXT)
+	query := `WITH RECURSIVE walk(id, depth, via, path, parent) AS (
+		SELECT CAST(? AS TEXT), 0, CAST('' AS TEXT), CAST(',' || ? || ',' AS TEXT), CAST('' AS TEXT)
 		UNION ALL
-		SELECT ` + next + `, w.depth + 1, e.rel, w.path || ` + next + ` || ','
+		SELECT ` + next + `, w.depth + 1, e.rel, w.path || ` + next + ` || ',', w.id
 		FROM walk w JOIN edges e ON ` + join + ` AND e.deleted_at IS NULL` + relSQL + `
 		WHERE w.depth < ? AND w.path NOT LIKE '%,' || ` + next + ` || ',%'
 	)
-	SELECT w.depth, w.via, ` + prefixCols("en.", entityCols) + `
+	SELECT w.depth, w.via, w.parent, ` + prefixCols("en.", entityCols) + `
 	FROM walk w JOIN entities en ON en.id = w.id
 	WHERE w.depth > 0 AND en.deleted_at IS NULL
 	ORDER BY w.depth, en.name`
@@ -235,7 +237,7 @@ func (d *DB) Traverse(ctx context.Context, startID, rel, dir string, maxDepth in
 	for rows.Next() {
 		var h Hop
 		e := &h.Entity
-		if err := rows.Scan(&h.Depth, &h.Via, &e.ID, &e.ProjectID, &e.Kind, &e.Slug, &e.Name, &e.Attrs, &e.Source, &e.CreatedAt, &e.UpdatedAt); err != nil {
+		if err := rows.Scan(&h.Depth, &h.Via, &h.Parent, &e.ID, &e.ProjectID, &e.Kind, &e.Slug, &e.Name, &e.Attrs, &e.Source, &e.CreatedAt, &e.UpdatedAt); err != nil {
 			return nil, err
 		}
 		if seen[e.ID] {

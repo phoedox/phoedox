@@ -143,7 +143,7 @@ func WriteOffline(ctx context.Context, w io.Writer, d core.OfflineData, open fun
 			b.WriteString(offlineBoard(doc, d.Tasks[doc.ID], t))
 		case store.DocFloorplan:
 			b.WriteString(md(str("description")))
-			b.WriteString(floorplanSVG(doc, "files/"))
+			b.WriteString(floorplanSVG(doc, "files/", ""))
 		case store.DocWhiteboard:
 			b.WriteString(whiteboardSVG(doc, "files/"))
 		case store.DocApp:

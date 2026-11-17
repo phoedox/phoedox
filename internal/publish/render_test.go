@@ -124,3 +124,33 @@ func TestBlockImagesFromPublication(t *testing.T) {
 		t.Fatalf("image not rewritten: %s", out)
 	}
 }
+
+func TestDataBlocksOnPublishedPages(t *testing.T) {
+	plan := store.Document{Title: "EG", Type: store.DocFloorplan, Content: []byte(`{"width":10000,"height":8000,"rooms":[{"id":"k","name":"Küche","points":[[0,0],[4000,0],[4000,4000],[0,4000]]},{"id":"b","name":"Bad","points":[[4000,0],[8000,0],[8000,4000]]}],"devices":[]}`)}
+	links := Links{File: "/f/", Floorplan: func(p, room string) string {
+		if p != "eg" {
+			return ""
+		}
+		return floorplanSVG(plan, "/f/", room)
+	}}
+	out := Markdown("```tree\nroot: @router\n```\n\n```rack\n@rack\n```\n\n```floorplan\nplan: eg\nroom: Küche\n```", links)
+	if strings.Contains(out, "router") || strings.Contains(out, "@rack") {
+		t.Fatalf("entries must stay private: %s", out)
+	}
+	// Cut to the kitchen (with a margin); the bathroom fades.
+	if !strings.Contains(out, `viewBox="-240 -240 4480 4480"`) || !strings.Contains(out, "Küche") || !strings.Contains(out, `opacity=".35"`) {
+		t.Fatalf("floor plan excerpt: %s", out)
+	}
+}
+
+// Generated embeds (here a whiteboard) survive the sanitizer; a marker
+// written by hand cannot pull in anything that was not generated.
+func TestTrustedEmbeds(t *testing.T) {
+	links := Links{Whiteboard: func(ref string) string {
+		return `<figure class="wb"><svg viewBox="0 0 10 10"><rect width="5" height="5"/></svg></figure>`
+	}}
+	out := Markdown("```whiteboard\nideen\n```\n\n<phx-trusted data-i=\"7\"></phx-trusted>", links)
+	if !strings.Contains(out, `<svg viewBox="0 0 10 10"><rect`) || strings.Count(out, "<svg") != 1 {
+		t.Fatalf("whiteboard embed: %s", out)
+	}
+}

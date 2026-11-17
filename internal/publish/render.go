@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"html"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/microcosm-cc/bluemonday"
@@ -33,6 +34,9 @@ type Links struct {
 	Whiteboard func(ref string) string
 	// Include renders an included page (```include) or returns "".
 	Include func(ref string) string
+	// Floorplan renders a floor plan of the publication (```floorplan), cut
+	// to a room if one is given, or returns "".
+	Floorplan func(plan, room string) string
 	// PageRef resolves a [[page]] link (slug, ADR-0007 or the start of a
 	// title, optionally "project/ref") to its URL, or "" if it is not part
 	// of the publication.
@@ -225,7 +229,24 @@ func lineAt(lines []string, i int) string {
 }
 
 // fenceRenderer renders our fenced blocks; other code blocks stay code.
-type fenceRenderer struct{ links Links }
+type fenceRenderer struct {
+	links Links
+	// trusted holds HTML the site itself generates (boards, whiteboards,
+	// floor plans, included pages): it is put in after sanitizing, at the
+	// place of a <phx-trusted> marker, so the sanitizer does not strip SVG.
+	trusted *[]string
+}
+
+// trust writes a marker for generated HTML.
+func (r fenceRenderer) trust(w util.BufWriter, h string) {
+	if h == "" {
+		return
+	}
+	*r.trusted = append(*r.trusted, h)
+	_, _ = w.WriteString(`<phx-trusted data-i="` + strconv.Itoa(len(*r.trusted)-1) + `"></phx-trusted>`)
+}
+
+var trustedRe = regexp.MustCompile(`<phx-trusted data-i="(\d+)"></phx-trusted>`)
 
 func (r fenceRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
 	reg.Register(ast.KindFencedCodeBlock, r.render)
@@ -244,6 +265,16 @@ func (r fenceRenderer) render(w util.BufWriter, src []byte, n ast.Node, entering
 	}
 	text := strings.TrimSpace(body.String())
 	esc := html.EscapeString(text)
+	if def, ok := blocks.Get(lang); ok && def.Data {
+		// Blocks of project data: entries stay private; floor plans of the
+		// publication are drawn, the rest is left out.
+		if lang == "floorplan" && r.links.Floorplan != nil {
+			if plan, room, _ := blocks.ParsePlan([]byte(text)); plan != "" {
+				r.trust(w, r.links.Floorplan(plan, room))
+			}
+		}
+		return ast.WalkSkipChildren, nil
+	}
 	if _, ok := blocks.Get(lang); ok {
 		// Registered blocks (ADR-0085): the web draws them from the source.
 		// Images in the source (annotated images, before/after) load from the publication.
@@ -262,18 +293,18 @@ func (r fenceRenderer) render(w util.BufWriter, src []byte, n ast.Node, entering
 		_, _ = w.WriteString(`<phx-compare><pre>` + esc + `</pre></phx-compare>`)
 	case "board":
 		if r.links.Board != nil {
-			_, _ = w.WriteString(r.links.Board(text))
+			r.trust(w, r.links.Board(text))
 		}
 	case "whiteboard":
 		if r.links.Whiteboard != nil {
-			_, _ = w.WriteString(r.links.Whiteboard(text))
+			r.trust(w, r.links.Whiteboard(text))
 		}
 	case "app":
 		// Apps run only inside Phoedox (they need a signed-in person).
 		_, _ = w.WriteString(`<p class="muted">` + esc + `</p>`)
 	case "include":
 		if r.links.Include != nil {
-			_, _ = w.WriteString(r.links.Include(text))
+			r.trust(w, r.links.Include(text))
 		}
 	case "map":
 		_, _ = w.WriteString(mapList(text))
@@ -293,11 +324,12 @@ var policy = func() *bluemonday.Policy {
 	p := bluemonday.UGCPolicy()
 	p.AllowAttrs("class").OnElements("span", "div", "code", "pre", "ul", "li", "input", "table", "td", "th", "section", "small", "h3", "h4", "details")
 	p.AllowAttrs("data-kind", "data-icon").OnElements("div", "span")
-	p.AllowElements("u", "phx-math", "phx-embed", "phx-mermaid", "phx-chart", "phx-block", "phx-compare", "phx-tabs", "time", "section", "article", "h2", "h3", "h4", "details", "summary")
+	p.AllowElements("phx-trusted", "u", "phx-math", "phx-embed", "phx-mermaid", "phx-chart", "phx-block", "phx-compare", "phx-tabs", "time", "section", "article", "h2", "h3", "h4", "details", "summary")
 	p.AllowNoAttrs().OnElements("phx-mermaid", "phx-chart", "phx-compare", "phx-tabs") // the source is the <pre> inside
 	p.AllowAttrs("data-kind", "open").OnElements("details")
 	p.AllowAttrs("data-title").OnElements("section")
 	p.AllowAttrs("data-key").OnElements("phx-steps")
+	p.AllowAttrs("data-i").Matching(regexp.MustCompile(`^\d+$`)).OnElements("phx-trusted")
 	p.AllowAttrs("data-kind").OnElements("phx-block")
 	p.AllowAttrs("data-tex", "data-display").OnElements("phx-math")
 	p.AllowAttrs("data-url", "data-kind").OnElements("phx-embed")
@@ -315,15 +347,23 @@ var fileLink = regexp.MustCompile(`(src|href)="/api/v1/files/([A-Za-z0-9]+)(/[^"
 // Markdown renders a page for the site: our extensions, safe HTML, links
 // to pages and files of the publication.
 func Markdown(md string, links Links) string {
+	var trusted []string
 	g := goldmark.New(
 		goldmark.WithExtensions(extension.GFM),
-		goldmark.WithRendererOptions(ghtml.WithUnsafe(), renderer.WithNodeRenderers(util.Prioritized(fenceRenderer{links}, 100))),
+		goldmark.WithRendererOptions(ghtml.WithUnsafe(), renderer.WithNodeRenderers(util.Prioritized(fenceRenderer{links, &trusted}, 100))),
 	)
 	var buf bytes.Buffer
 	if err := g.Convert([]byte(preprocess(md, links)), &buf); err != nil {
 		return "<p>" + html.EscapeString(md) + "</p>"
 	}
 	out := policy.Sanitize(buf.String())
+	out = trustedRe.ReplaceAllStringFunc(out, func(m string) string {
+		i, _ := strconv.Atoi(trustedRe.FindStringSubmatch(m)[1])
+		if i < len(trusted) {
+			return trusted[i]
+		}
+		return ""
+	})
 	out = pageLink.ReplaceAllStringFunc(out, func(m string) string {
 		p := pageLink.FindStringSubmatch(m)
 		if links.Page != nil {

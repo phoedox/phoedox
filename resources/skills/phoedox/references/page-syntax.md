@@ -133,6 +133,9 @@ Each is a fenced code block with this info string:
 | ```gantt | `Name [id]: start, end or duration`, `## Section`, `today`, `board: slug` | a schedule with sections, milestones, progress and dependency arrows |
 | ```beforeafter | `before: <image> label`, `after: <image> label` | two photos with a slider between them |
 | ```annotate | `image: <image>`, `- x, y: text` per marker | a photo with numbered markers and their list |
+| ```tree | `root: @entry`, `relation: wired_to`, `direction: in` or `out`, `depth: 4` | a tree of entries along one relation (network, team, family) with live status |
+| ```rack | the rack's entry, e.g. `@rack-basement` | the rack by height unit with the mounted devices and their live status |
+| ```floorplan | `plan: <floor plan>`, optional `room: <room>`, `devices: no` | a floor plan or one room of it with its devices, always current |
 | ```math | LaTeX | a formula (inline: `$…$`) |
 | ```dbmodel | SQL `CREATE TABLE` statements | an entity-relationship diagram |
 | ```embed | a URL | an embedded video or page (e.g. YouTube) |
@@ -140,7 +143,7 @@ Each is a fenced code block with this info string:
 Mermaid ids must not be Mermaid keywords: in a `sequenceDiagram`, a participant called
 `Off`, `End`, `Loop`, `Alt` or `Note` breaks the diagram (`participant Remote as Off-site`
 works). Pages show such an error in the block. `validate_blocks` checks mermaid,
-dbmodel, chart, poll, matrix, calc, quiz, mindmap, gantt, beforeafter and annotate blocks before or after saving (common mistakes, not the full Mermaid parser);
+dbmodel, chart, poll, matrix, calc, quiz, mindmap, gantt, beforeafter, annotate, tree, rack and floorplan blocks before or after saving (common mistakes, not the full Mermaid parser);
 `create_document` and `update_document` return the same findings as `blockProblems`.
 
 **One database schema per project.** All `dbmodel` blocks of a project together form its
@@ -234,6 +237,27 @@ Power (W) = 25
 Price (€/kWh) = 0.32
 Cost per year (€) = Power * 24 * 365 / 1000 * Price
 ```
+
+### Blocks from the knowledge graph
+
+They only name entries and documents and always show the current state;
+`validate_blocks` warns when a named entry, floor plan or room does not exist.
+Published pages leave trees and racks out (entries stay private) and draw floor plans
+that are part of the publication.
+
+**Trees** (```tree): `root: @entry` and the `relation` to follow. `direction: in`
+(default) collects entries whose relation points *to* the root – switches and devices
+`wired_to` the router (or `uplink` over Wi-Fi), people with `reports_to` their lead; `direction: out` follows the
+relation from the root (e.g. `parent_of`). `depth` 1–8 (default 4). Without a relation
+every relation is followed.
+
+**Racks** (```rack): the rack entry. Devices appear by their `mounted_in` relation with
+`u` (lowest height unit) and `height` on the relation; the rack's `height_units`
+attribute sets its size.
+
+**Floor plan excerpts** (```floorplan): `plan:` the floor plan page, `room:` a room by
+its name or entry to cut the view to it; devices placed on the plan are shown with
+their live status (`devices: no` hides them).
 
 ### Pictures and plans
 

@@ -463,7 +463,7 @@ func (s *Site) docPage(w http.ResponseWriter, r *http.Request, p store.Publicati
 		body.WriteString(s.board(r, pp, d, t))
 	case store.DocFloorplan:
 		body.WriteString(Markdown(str("description"), links))
-		body.WriteString(floorplanSVG(d, links.File))
+		body.WriteString(floorplanSVG(d, links.File, ""))
 	case store.DocWhiteboard:
 		body.WriteString(whiteboardSVG(d, links.File))
 	case store.DocApp:
@@ -571,6 +571,14 @@ func (s *Site) links(r *http.Request, base string, site []core.PubProject, pp co
 			}
 			return ""
 		},
+		Floorplan: func(plan, room string) string {
+			for _, d := range pp.Docs {
+				if d.Type == store.DocFloorplan && (d.Slug == plan || d.ID == plan) {
+					return floorplanSVG(d, base+"/_files/", room)
+				}
+			}
+			return ""
+		},
 		Board: func(ref string) string {
 			for _, d := range pp.Docs {
 				if d.Type == store.DocBoard && (d.Slug == ref || d.ID == ref) {
@@ -585,15 +593,34 @@ func (s *Site) links(r *http.Request, base string, site []core.PubProject, pp co
 // board renders a board read-only.
 // floorplanSVG draws a plan as static SVG: background, rooms with names and
 // devices as dots.
-func floorplanSVG(d store.Document, files string) string {
+func floorplanSVG(d store.Document, files, room string) string {
 	var fp core.Floorplan
 	if json.Unmarshal(d.Content, &fp) != nil || fp.Width <= 0 || fp.Height <= 0 {
 		return ""
 	}
 	esc := template.HTMLEscapeString
 	num := func(v float64) string { return strconv.FormatFloat(v, 'f', 0, 64) }
+	// A room cuts the view to its outline (with a margin); other rooms fade.
+	x0, y0, w, h := 0.0, 0.0, fp.Width, fp.Height
+	only := ""
+	if room != "" {
+		for _, r := range fp.Rooms {
+			if (strings.EqualFold(r.Name, room) || r.Entity == strings.TrimPrefix(room, "@")) && len(r.Points) > 0 {
+				minX, minY, maxX, maxY := r.Points[0][0], r.Points[0][1], r.Points[0][0], r.Points[0][1]
+				for _, p := range r.Points {
+					minX, minY, maxX, maxY = min(minX, p[0]), min(minY, p[1]), max(maxX, p[0]), max(maxY, p[1])
+				}
+				pad := max(maxX-minX, maxY-minY) * 0.06
+				x0, y0, w, h, only = minX-pad, minY-pad, maxX-minX+2*pad, maxY-minY+2*pad, r.ID
+				break
+			}
+		}
+		if only == "" {
+			return ""
+		}
+	}
 	var out strings.Builder
-	fmt.Fprintf(&out, `<figure class="floorplan"><svg viewBox="0 0 %s %s" role="img" aria-label="%s">`, num(fp.Width), num(fp.Height), esc(d.Title))
+	fmt.Fprintf(&out, `<figure class="floorplan"><svg viewBox="%s %s %s %s" role="img" aria-label="%s">`, num(x0), num(y0), num(w), num(h), esc(d.Title))
 	if fp.Image != "" && fp.ImageWidth > 0 {
 		fmt.Fprintf(&out, `<image href="%s%s" x="0" y="0" width="%s" opacity=".55"/>`, esc(files), esc(url.PathEscape(fp.Image)), num(fp.ImageWidth))
 	}
@@ -610,7 +637,11 @@ func floorplanSVG(d store.Document, files string) string {
 		if color == "" {
 			color = "gray"
 		}
-		fmt.Fprintf(&out, `<polygon class="room c-%s" points="%s"/>`, esc(color), strings.Join(pts, " "))
+		faded := ""
+		if only != "" && r.ID != only {
+			faded = ` opacity=".35"`
+		}
+		fmt.Fprintf(&out, `<polygon class="room c-%s" points="%s"%s/>`, esc(color), strings.Join(pts, " "), faded)
 		fmt.Fprintf(&out, `<text x="%s" y="%s" font-size="%s" text-anchor="middle">%s</text>`, num(cx), num(cy), num(font), esc(r.Name))
 	}
 	for _, dv := range fp.Devices {

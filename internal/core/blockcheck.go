@@ -385,5 +385,62 @@ func (s *Service) ValidateBlocks(ctx context.Context, a Actor, ref, docRef strin
 		}
 		schema = schemaTables(blocks)
 	}
-	return CheckBlocks(*markdown, schema), nil
+	out := CheckBlocks(*markdown, schema)
+	return append(out, s.checkGraphBlocks(ctx, a, ref, *markdown)...), nil
+}
+
+// checkGraphBlocks warns about tree, rack and floor plan blocks that name
+// entries, floor plans or rooms the project does not have.
+func (s *Service) checkGraphBlocks(ctx context.Context, a Actor, ref, md string) []BlockProblem {
+	var out []BlockProblem
+	p, err := s.project(ctx, a, ref, store.RoleReader)
+	if err != nil {
+		return nil
+	}
+	warn := func(i int, b fencedBlock, f string, args ...any) {
+		out = append(out, BlockProblem{Kind: b.Lang, Block: i + 1, Line: b.Line + 1, Severity: "warning", Message: fmt.Sprintf(f, args...)})
+	}
+	entity := func(i int, b fencedBlock, slug string) {
+		if slug == "" {
+			return
+		}
+		if _, err := s.DB.GetEntity(ctx, p.ID, slug); err != nil {
+			warn(i, b, "there is no entry %q in this project", slug)
+		}
+	}
+	for i, b := range fencedBlocks(md) {
+		switch b.Lang {
+		case "tree":
+			t, _ := blocks.ParseTree([]byte(b.Body))
+			entity(i, b, t.Root)
+		case "rack":
+			r, _ := blocks.ParseRack([]byte(b.Body))
+			entity(i, b, r)
+		case "floorplan":
+			plan, room, _ := blocks.ParsePlan([]byte(b.Body))
+			if plan == "" {
+				continue
+			}
+			_, doc, err := s.docAccess(ctx, a, ref, plan, store.RoleReader)
+			if err != nil || doc.Type != store.DocFloorplan {
+				warn(i, b, "there is no floor plan %q in this project", plan)
+				continue
+			}
+			if room == "" {
+				continue
+			}
+			var fp Floorplan
+			_ = json.Unmarshal(doc.Content, &fp)
+			found := false
+			for _, r := range fp.Rooms {
+				if strings.EqualFold(r.Name, room) || r.Entity == strings.TrimPrefix(room, "@") {
+					found = true
+				}
+			}
+			if !found {
+				warn(i, b, "the floor plan %q has no room %q", plan, room)
+			}
+		}
+	}
+	return out
 }

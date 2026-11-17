@@ -162,6 +162,9 @@ func runStore(t *testing.T, d *DB) {
 	if len(hops) != 3 || hops[0].Entity.Slug != "repeater-az" || hops[2].Entity.Slug != "internet" || hops[2].Depth != 3 {
 		t.Fatalf("traverse: %+v", hops)
 	}
+	if hops[0].Parent != laptop.ID || hops[2].Parent != router.ID {
+		t.Fatalf("traverse parents: %+v", hops)
+	}
 	if in, _ := d.Traverse(ctx, router.ID, "", "in", 1); len(in) != 1 || in[0].Entity.ID != rep.ID {
 		t.Fatalf("traverse in: %+v", in)
 	}

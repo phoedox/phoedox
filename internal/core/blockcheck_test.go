@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -36,6 +37,39 @@ func TestCheckBlocks(t *testing.T) {
 	for _, p := range ps {
 		if p.Block == 3 && p.Line != 19 {
 			t.Fatalf("line of block 3: %d", p.Line)
+		}
+	}
+}
+
+// Tree, rack and floor plan blocks name entries and documents; validate_blocks
+// warns when they do not exist in the project.
+func TestGraphBlockChecks(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _ := setup(t)
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Haus"})
+	if _, err := s.UpsertEntity(ctx, owner, p.Slug, EntityInput{Kind: "router", Name: "Router", Slug: "router"}); err != nil {
+		t.Fatal(err)
+	}
+	fp := Floorplan{Width: 10000, Height: 8000, Rooms: []FloorRoom{{ID: "r1", Name: "Küche", Points: [][2]float64{{0, 0}, {4000, 0}, {4000, 4000}}}}}
+	if _, err := s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: "floorplan", Title: "Erdgeschoss", Slug: "eg", Floorplan: &fp}); err != nil {
+		t.Fatal(err)
+	}
+	ok := "```tree\nroot: @router\nrelation: uplink\n```\n```floorplan\nplan: eg\nroom: küche\n```"
+	if ps, err := s.ValidateBlocks(ctx, owner, p.Slug, "", &ok); err != nil || len(ps) > 0 {
+		t.Fatalf("valid blocks: %v %v", ps, err)
+	}
+	bad := "```tree\nroot: @switch\n```\n```rack\n@rack-keller\n```\n```floorplan\nplan: eg\nroom: Bad\n```\n```floorplan\nplan: og\n```"
+	ps, err := s.ValidateBlocks(ctx, owner, p.Slug, "", &bad)
+	if err != nil || len(ps) != 4 {
+		t.Fatalf("expected 4 warnings: %v %v", ps, err)
+	}
+	for _, want := range []string{`entry "switch"`, `entry "rack-keller"`, `no room "Bad"`, `floor plan "og"`} {
+		found := false
+		for _, p := range ps {
+			found = found || strings.Contains(p.Message, want)
+		}
+		if !found {
+			t.Errorf("missing warning %s in %v", want, ps)
 		}
 	}
 }

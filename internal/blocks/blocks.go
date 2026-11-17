@@ -24,6 +24,9 @@ type Def struct {
 	Kind string
 	// Board: the block may also be placed on whiteboards.
 	Board bool
+	// Data: the block shows project data (entries, other documents) that
+	// only signed-in readers may see; published pages leave it out.
+	Data bool
 	// Check returns the problems of a source (nil when it is fine).
 	Check func(src []byte) []Problem
 	// Text is what search and mentions see of a source.

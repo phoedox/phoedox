@@ -90,3 +90,31 @@ export function pickImage(project: string, doc: string): Promise<string | undefi
     input.click();
   });
 }
+
+export interface LiveEntry { slug: string; name: string; kind: string; status: string }
+
+/** Names, kinds and live status of entries (the status API of ```status blocks). */
+export async function liveStatus(project: string, slugs: string[]): Promise<Map<string, LiveEntry>> {
+  const out = new Map<string, LiveEntry>();
+  const { api } = await import("../api");
+  for (let i = 0; i < slugs.length; i += 100) {
+    const q = new URLSearchParams();
+    for (const s of slugs.slice(i, i + 100)) q.append("e", s);
+    try {
+      const r = await api<{ entries: LiveEntry[] }>("GET", `/projects/${project}/status?${q}`);
+      for (const e of r.entries ?? []) out.set(e.slug, e);
+    } catch { /* no status: names come from the graph */ }
+  }
+  return out;
+}
+
+/** Status colour of an entry (the same as ```status tiles). */
+export const statusColor = (s?: string) => (s === "ok" ? "var(--good)" : s === "warn" ? "var(--signal)" : s === "down" || s === "fail" ? "var(--bad)" : "var(--line)");
+
+/** Opens an entry inside the app (links in shadow roots do not reach the router). */
+export async function openEntry(e: Event, href: string) {
+  const m = e as MouseEvent;
+  if (m.ctrlKey || m.metaKey || m.shiftKey || m.button > 0) return;
+  e.preventDefault();
+  (await import("../state")).navigate(href);
+}
