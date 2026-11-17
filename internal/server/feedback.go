@@ -2,6 +2,8 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
+	"io"
 	"mime"
 	"net/http"
 	"strconv"
@@ -449,4 +451,47 @@ func (a *api) setPortalDomain(w http.ResponseWriter, r *http.Request) {
 func (a *api) verifyPortalDomain(w http.ResponseWriter, r *http.Request) {
 	v, err := a.core.VerifyFeedbackPortalDomain(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"))
 	respond(w, v, err)
+}
+
+// --- reports by e-mail ------------------------------------------------------------
+
+// inboundMail takes an e-mail for a portal: raw MIME as the body, Mailgun's
+// "body-mime" form field, or Postmark's JSON with "RawEmail".
+func (a *api) inboundMail(w http.ResponseWriter, r *http.Request) {
+	key := chi.URLParam(r, "key")
+	if !a.feedbackMail.allow(key) {
+		writeJSON(w, http.StatusTooManyRequests, errBody("rate_limited", "Too many mails. Please wait a while."))
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 32<<20)
+	var raw io.Reader = r.Body
+	ctype, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	switch ctype {
+	case "multipart/form-data", "application/x-www-form-urlencoded":
+		if err := r.ParseMultipartForm(32 << 20); err != nil && ctype == "multipart/form-data" {
+			writeErr(w, &core.InvalidError{Key: "validation.feedback_mail", Msg: "invalid form"})
+			return
+		}
+		raw = strings.NewReader(r.FormValue("body-mime"))
+	case "application/json":
+		var in struct {
+			RawEmail string `json:"RawEmail"`
+			Raw      string `json:"raw"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			writeErr(w, &core.InvalidError{Key: "validation.feedback_mail", Msg: "invalid JSON"})
+			return
+		}
+		raw = strings.NewReader(in.RawEmail + in.Raw)
+	}
+	res, err := a.core.SubmitFeedbackMail(r.Context(), key, raw)
+	if errors.Is(err, core.ErrIgnoredMail) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]string{"id": res.ID})
 }

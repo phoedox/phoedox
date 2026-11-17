@@ -4772,4 +4772,13 @@ export const en: Record<keyof typeof de, string> = {
   "validation.storage_offer": "This pack does not exist.",
   "validation.storage_offer_invalid": "Pack {n}: give an id (a–z, 0–9, -), name, price, MB and 0–120 months.",
   "fbd.intro": "The portal at your own address, e.g. feedback.example.com – the domain's start page opens the portal.",
+  "fbm.title": "Reports by e-mail",
+  "fbm.help": "Phoedox gives the portal a secret inbound address. Forward the mails of your support mailbox there as raw messages (MIME) – e.g. with Mailgun (body-mime), Postmark (RawEmail), Cloudflare Email Workers or a Postfix pipe with curl --data-binary @-. The subject becomes the title, answers go to the sender; automatic mails are ignored.",
+  "fbm.create": "Create an inbound address",
+  "fbm.on": "on",
+  "fbm.off": "Switch off",
+  "fbm.off_confirm": "Switch reports by e-mail off? The current inbound address stops working.",
+  "validation.feedback_mail": "This is not a readable e-mail message.",
+  "fb.via.email": "e-mail",
+  "fbm.address_once": "Inbound address – shown only now, keep it safe:",
 };

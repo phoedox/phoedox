@@ -41,6 +41,8 @@ type api struct {
 	loginFails failures
 	// feedbackIP limits feedback reports per client address.
 	feedbackIP *limiter
+	// feedbackMail limits inbound mails per portal address.
+	feedbackMail *limiter
 	// sharedAppIP limits reads of public apps per client address.
 	sharedAppIP *limiter
 	// root is the whole router (for the OpenAPI description).
@@ -70,6 +72,7 @@ func (a *api) routes(r chi.Router) {
 	r.Get("/feedback/{handle}", a.publicPortal)
 	r.Post("/feedback/{handle}/reports", a.submitFeedback)
 	r.Get("/feedback/login/callback", a.reporterCallback)
+	r.Post("/feedback/inbound/{key}", a.inboundMail)
 	r.Get("/feedback/{handle}/login", a.reporterLogin)
 	r.With(requireHeader).Delete("/feedback/{handle}/login", a.reporterLogout)
 	// Public view: released topics, votes, following, moderated comments.

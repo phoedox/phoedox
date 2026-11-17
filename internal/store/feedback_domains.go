@@ -47,3 +47,30 @@ func (d *DB) PortalDomainTaken(ctx context.Context, domain, exceptPortal string)
 		(SELECT COUNT(*) FROM feedback_portals WHERE domain = ? AND id <> ?)`, domain, domain, domain, domain, exceptPortal).Scan(&n)
 	return n > 0, err
 }
+
+// SetFeedbackEmailKey stores the hash of a portal's inbound e-mail key
+// ("" switches e-mail in off).
+func (d *DB) SetFeedbackEmailKey(ctx context.Context, id, hash string) error {
+	_, err := d.Exec(ctx, `UPDATE feedback_portals SET email_key_hash = ?, updated_at = ? WHERE id = ?`, hash, Now(), id)
+	return err
+}
+
+// FeedbackEmailKeySet tells whether a portal takes reports by e-mail.
+func (d *DB) FeedbackEmailKeySet(ctx context.Context, id string) bool {
+	var h string
+	_ = d.QueryRow(ctx, `SELECT email_key_hash FROM feedback_portals WHERE id = ?`, id).Scan(&h)
+	return h != ""
+}
+
+// FeedbackPortalByEmailKey finds the portal of an inbound e-mail key (any
+// tenant) and returns its handle and tenant.
+func (d *DB) FeedbackPortalByEmailKey(ctx context.Context, hash string) (handle, tenantID string, err error) {
+	if hash == "" {
+		return "", "", ErrNotFound
+	}
+	err = d.QueryRow(System(ctx), `SELECT handle, tenant_id FROM feedback_portals WHERE email_key_hash = ?`, hash).Scan(&handle, &tenantID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", "", ErrNotFound
+	}
+	return handle, tenantID, err
+}

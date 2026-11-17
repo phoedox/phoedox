@@ -4770,4 +4770,13 @@ export const de = {
   "validation.storage_offer": "Dieses Paket gibt es nicht.",
   "validation.storage_offer_invalid": "Paket {n}: ID (a–z, 0–9, -), Name, Preis, MB und 0–120 Monate angeben.",
   "fbd.intro": "Das Portal unter eurer eigenen Adresse, z. B. feedback.example.com – die Startseite der Domain öffnet das Portal.",
+  "fbm.title": "Meldungen per E-Mail",
+  "fbm.help": "Phoedox gibt dem Portal eine geheime Eingangsadresse. Leite E-Mails eures Support-Postfachs als rohe Nachricht (MIME) dorthin weiter – z. B. mit Mailgun (body-mime), Postmark (RawEmail), Cloudflare Email Workers oder per Postfix-Pipe mit curl --data-binary @-. Der Betreff wird zum Titel, Antworten gehen an den Absender; automatische Mails werden ignoriert.",
+  "fbm.create": "Eingangsadresse erzeugen",
+  "fbm.on": "an",
+  "fbm.off": "Ausschalten",
+  "fbm.off_confirm": "Meldungen per E-Mail ausschalten? Die bisherige Eingangsadresse funktioniert dann nicht mehr.",
+  "validation.feedback_mail": "Das ist keine lesbare E-Mail-Nachricht.",
+  "fb.via.email": "E-Mail",
+  "fbm.address_once": "Eingangsadresse – nur jetzt sichtbar, gut aufbewahren:",
 } as const;

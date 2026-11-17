@@ -253,6 +253,10 @@ type PortalView struct {
 	PlayerKey string `json:"playerKey,omitempty"`
 	// DomainInfo is the own domain with the DNS records to create.
 	DomainInfo *PortalDomain `json:"domainInfo,omitempty"`
+	// EmailIn: reports by e-mail are on; EmailAddress (the inbound address
+	// with its key) is shown once, right after it was created.
+	EmailIn      bool   `json:"emailIn"`
+	EmailAddress string `json:"emailAddress,omitempty"`
 }
 
 // PortalInput creates or changes a portal.
@@ -322,7 +326,7 @@ func (s *Service) portalView(ctx context.Context, p store.FeedbackPortal) Portal
 		rl.ClientSecretSealed = ""
 		ps.ReporterLogin = &rl
 	}
-	return PortalView{FeedbackPortal: p, Settings: ps, Moderators: mods, DomainInfo: s.portalDomain(p)}
+	return PortalView{FeedbackPortal: p, Settings: ps, Moderators: mods, DomainInfo: s.portalDomain(p), EmailIn: s.DB.FeedbackEmailKeySet(ctx, p.ID)}
 }
 
 // FeedbackPortals lists a project's portals (editors and owners).
@@ -423,7 +427,7 @@ func (s *Service) RotateFeedbackKey(ctx context.Context, a Actor, ref, id, kind 
 	if err != nil {
 		return PortalView{}, err
 	}
-	var serverKey, playerKey string
+	var serverKey, playerKey, emailKey string
 	switch kind {
 	case "player":
 		playerKey = newSecret("ppk_")
@@ -433,13 +437,22 @@ func (s *Service) RotateFeedbackKey(ctx context.Context, a Actor, ref, id, kind 
 		}
 		portal.PlayerKeySealed = sealed
 		portal.HasPlayerKey = true
+	case "email", "email_off":
+		key := ""
+		if kind == "email" {
+			key = newSecret("fem_")
+			emailKey = key
+		}
+		if err := s.DB.SetFeedbackEmailKey(ctx, portal.ID, hashIf(key)); err != nil {
+			return PortalView{}, err
+		}
 	case "public":
 		portal.PublicKey = newSecret("pfk_")
 	case "server":
 		serverKey = newSecret("sfk_")
 		portal.ServerKeyHash = hashSecret(serverKey)
 	default:
-		return PortalView{}, invalid("validation.feedback_key", nil, "kind must be public, server or player")
+		return PortalView{}, invalid("validation.feedback_key", nil, "kind must be public, server, player, email or email_off")
 	}
 	portal.UpdatedAt = store.Now()
 	if err := s.DB.SaveFeedbackPortal(ctx, portal); err != nil {
@@ -448,7 +461,17 @@ func (s *Service) RotateFeedbackKey(ctx context.Context, a Actor, ref, id, kind 
 	s.event(ctx, a, "feedback.key", portal.ID, map[string]string{"kind": kind})
 	v := s.portalView(ctx, portal)
 	v.ServerKey, v.PlayerKey = serverKey, playerKey
+	if emailKey != "" {
+		v.EmailAddress = s.PublicURL + "/api/v1/feedback/inbound/" + emailKey
+	}
 	return v, nil
+}
+
+func hashIf(key string) string {
+	if key == "" {
+		return ""
+	}
+	return hashSecret(key)
 }
 
 // DeleteFeedbackPortal removes a portal with its topics and reports (owners).
@@ -654,7 +677,7 @@ type ReportReceipt struct {
 
 // Intake tells how a report came in.
 type Intake struct {
-	Via   string // form | widget | public_key | server_key | mcp
+	Via   string // form | widget | public_key | server_key | mcp | email
 	Check string // the bot check that passed ("" when none applied)
 	// Reporter signed in with the portal's login (nil when none).
 	Reporter *Reporter
@@ -902,7 +925,7 @@ func (s *Service) SubmitFeedback(ctx context.Context, a *Actor, handle string, i
 		return ReportReceipt{}, invalid("validation.feedback_closed", nil, "this portal does not take reports right now")
 	}
 	switch {
-	case intake.Via == "server_key", intake.Via == "public_key", intake.Via == "mcp":
+	case intake.Via == "server_key", intake.Via == "public_key", intake.Via == "mcp", intake.Via == "email":
 	case intake.Reporter != nil && ps.ReporterLogin != nil:
 	case ps.ReporterLogin != nil && ps.ReporterLogin.Required:
 		return ReportReceipt{}, invalid("validation.feedback_login_required", nil, "sign in to send a report")
@@ -928,6 +951,9 @@ func (s *Service) SubmitFeedback(ctx context.Context, a *Actor, handle string, i
 		return ReportReceipt{}, invalid("validation.feedback_too_long", nil, "the report is too long")
 	}
 	fields, err := ps.checkFields(typ, in.Fields)
+	if err != nil && intake.Via == "email" {
+		fields, err = map[string]any{}, nil // mails cannot fill the portal's own fields
+	}
 	if err != nil {
 		return ReportReceipt{}, err
 	}
@@ -957,7 +983,7 @@ func (s *Service) SubmitFeedback(ctx context.Context, a *Actor, handle string, i
 		ctxFields["reporter_verified"] = "login"
 	}
 	email := strings.TrimSpace(in.Email)
-	if email != "" && (!strings.Contains(email, "@") || len(email) > 254 || !ps.AskEmail) {
+	if email != "" && (!strings.Contains(email, "@") || len(email) > 254 || (!ps.AskEmail && intake.Via != "email")) {
 		email = ""
 	}
 	if a != nil {

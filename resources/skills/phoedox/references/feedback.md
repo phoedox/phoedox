@@ -63,7 +63,9 @@ builds – a game, a website, a system. Reports that describe the same thing are
 - Owners set portals up under project settings → Feedback portals; people point others to
   `/feedback/<handle>`.
 - Portals can have their own domain (e.g. `feedback.example.com`, verified by a DNS TXT
-  record; part of the custom-domains feature). Owners can buy more feedback storage there
+  record; part of the custom-domains feature). Portals can also take reports by e-mail (a secret
+  inbound address in the portal settings; such reports have `via: email` and answers go to
+  the sender). Owners can buy more feedback storage there
   when the instance offers packs. Status pages get own domains as publications.
 
 ## AI triage

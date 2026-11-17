@@ -16,7 +16,7 @@ interface Settings {
   storageFull: string; theme: { accent?: string; accentDark?: string; logo?: string }; publicKeyOn: boolean; serverKeyOn: boolean; retentionMonths: number;
 }
 interface Portal { id: string; handle: string; name: string; enabled: boolean; settings: Settings; publicKey?: string; hasServerKey: boolean; serverKey?: string; hasPlayerKey?: boolean; playerKey?: string; moderators: { email: string; name: string }[];
-  domainInfo?: { domain: string; verified: boolean; recordName: string; recordText: string; target?: string } }
+  domainInfo?: { domain: string; verified: boolean; recordName: string; recordText: string; target?: string }; emailIn?: boolean; emailAddress?: string }
 
 const TYPES = ["bug", "idea", "question", "praise"];
 const KINDS = ["images", "videos", "logs", "other"] as const;
@@ -94,13 +94,14 @@ export class PhxFeedbackSettings extends LitElement {
     }
   }
 
-  private async rotate(kind: "public" | "server" | "player") {
-    if ((kind !== "player" || this.edit?.hasPlayerKey) && !confirm(t("fb.rotate_confirm"))) return;
+  private async rotate(kind: "public" | "server" | "player" | "email" | "email_off") {
+    if (kind === "email_off" ? !confirm(t("fbm.off_confirm")) : (kind !== "player" || this.edit?.hasPlayerKey) && (kind !== "email" || this.edit?.emailIn) && !confirm(t("fb.rotate_confirm"))) return;
     try {
       const out = await api<Portal>("POST", `/projects/${this.project}/feedback/portals/${this.edit!.id}/keys`, { kind });
       if (out.serverKey) this.shownKey = out.serverKey;
       if (out.playerKey) this.shownKey = out.playerKey;
-      this.edit = { ...this.edit!, publicKey: out.publicKey, hasServerKey: out.hasServerKey, hasPlayerKey: out.hasPlayerKey };
+      if (out.emailAddress) this.shownKey = out.emailAddress;
+      this.edit = { ...this.edit!, publicKey: out.publicKey, hasServerKey: out.hasServerKey, hasPlayerKey: out.hasPlayerKey, emailIn: out.emailIn };
       await this.load();
     } catch (err) {
       toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
@@ -205,10 +206,14 @@ export class PhxFeedbackSettings extends LitElement {
         </div>
         ${p.publicKey ? html`<div class="muted">${t("fb.public_key_is")} <code class="key">${p.publicKey}</code> <button class="ghost" @click=${() => void this.rotate("public")}>${t("fb.rotate")}</button></div>` : nothing}
         ${p.hasServerKey ? html`<div class="muted">${t("fb.server_key_set")} <button class="ghost" @click=${() => void this.rotate("server")}>${t("fb.rotate")}</button></div>` : nothing}
-        ${this.shownKey ? html`<div role="status"><strong>${t("fb.server_key_once")}</strong><br><code class="key">${this.shownKey}</code></div>` : nothing}
+        ${this.shownKey ? html`<div role="status"><strong>${t(this.shownKey.startsWith("http") ? "fbm.address_once" : "fb.server_key_once")}</strong><br><code class="key">${this.shownKey}</code></div>` : nothing}
         <p class="muted">${t("fb.keys_hint", { handle: p.handle })}</p>
         <div class="muted"><strong>${t("fb.player_key")}</strong> – ${t("fb.player_key_help")}
           <button class="ghost" @click=${() => void this.rotate("player")}>${t(p.hasPlayerKey ? "fb.rotate" : "fb.player_key_create")}</button></div>
+        <div class="muted"><strong>${t("fbm.title")}</strong> – ${t("fbm.help")}
+          ${p.emailIn ? html`<span>${icon("CircleCheck", 13)} ${t("fbm.on")}</span>` : nothing}
+          <button class="ghost" @click=${() => void this.rotate("email")}>${t(p.emailIn ? "fb.rotate" : "fbm.create")}</button>
+          ${p.emailIn ? html`<button class="ghost" @click=${() => void this.rotate("email_off")}>${t("fbm.off")}</button>` : nothing}</div>
       </div>
       ${this.widgetCard(p, s)}
       ${this.loginCard(s)}
