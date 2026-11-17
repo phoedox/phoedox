@@ -337,6 +337,9 @@ type AppFrame struct {
 	Devices      []string        `json:"devices"`
 	DeviceGrants map[string]bool `json:"deviceGrants"`
 	SelfEdit     bool            `json:"selfEdit,omitempty"`
+	// NeedsPreview asks the page (of someone who may edit) for a picture of
+	// the app: there is none of this version yet.
+	NeedsPreview bool `json:"needsPreview,omitempty"`
 }
 
 const appFrameTTL = 12 * time.Hour
@@ -369,7 +372,7 @@ func (s *Service) OpenApp(ctx context.Context, a Actor, ref, docRef string) (App
 	devs, grants := s.appDeviceState(ctx, a, doc.ID, app, pol)
 	canEdit := rank[p.Role] >= rank[store.RoleEditor] && !s.readOnly(a, p)
 	return AppFrame{URL: url, Isolated: isolated, Level: app.Level, MaxLevel: level, Granted: min(granted, level), Sources: nonNil(app.Sources), AI: app.AI && !pol.NoAI, StorageMB: app.StorageMB, Errors: errs,
-		CanEdit: canEdit, Devices: devs, DeviceGrants: grants, SelfEdit: app.SelfEdit && canEdit}, nil
+		CanEdit: canEdit, Devices: devs, DeviceGrants: grants, SelfEdit: app.SelfEdit && canEdit, NeedsPreview: canEdit && a.Via == "web" && s.previewStale(ctx, p.ID, doc)}, nil
 }
 
 // frameURL is where a frame loads: <label>.<user content domain>, or the
@@ -784,6 +787,7 @@ type AppView struct {
 	Document store.Document `json:"document"`
 	App      App            `json:"app"`
 	Console  []AppLog       `json:"console"`
+	Assets   []AppAsset     `json:"assets"` // served at assets/<name> next to index.html
 	URL      string         `json:"url"`
 }
 
@@ -801,7 +805,11 @@ func (s *Service) GetApp(ctx context.Context, a Actor, ref, docRef string) (AppV
 		app.Build.Files = nil // compiled code is noise for readers
 	}
 	doc.Content = nil
-	return AppView{Document: doc, App: app, Console: appLogs(doc.ID), URL: s.PublicURL + "/p/" + p.Slug + "/d/" + doc.Slug}, nil
+	assets, err := s.AppAssets(ctx, a, p.Slug, doc.ID)
+	if err != nil {
+		return AppView{}, err
+	}
+	return AppView{Document: doc, App: app, Console: appLogs(doc.ID), Assets: assets, URL: s.PublicURL + "/p/" + p.Slug + "/d/" + doc.Slug}, nil
 }
 
 // AppEdit is one change of a file (exact text, like page edits).

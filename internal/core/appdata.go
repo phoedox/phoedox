@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -713,7 +714,23 @@ func (s *Service) appEditor(ctx context.Context, a Actor, ref, docRef string) (s
 	if doc.Type != store.DocApp {
 		return p, doc, invalid("validation.not_app", nil, "%s is not an app", docRef)
 	}
+	// Files cannot wait as suggestions: AI clients need direct writes.
+	if err := aiMayUpload(a, p); err != nil {
+		return p, doc, err
+	}
 	return p, doc, nil
+}
+
+// AddAppAssetBase64 adds an asset sent as base64 (or a data: URL), for AI clients.
+func (s *Service) AddAppAssetBase64(ctx context.Context, a Actor, ref, docRef, name, data string) (AppAsset, error) {
+	if i := strings.Index(data, ";base64,"); strings.HasPrefix(data, "data:") && i > 0 {
+		data = data[i+len(";base64,"):]
+	}
+	b, err := base64.StdEncoding.DecodeString(strings.TrimSpace(data))
+	if err != nil {
+		return AppAsset{}, invalid("validation.base64", nil, "data is not valid base64")
+	}
+	return s.AddAppAsset(ctx, a, ref, docRef, name, bytes.NewReader(b))
 }
 
 func (s *Service) appAssets(ctx context.Context, p store.Project, docID string) ([]store.File, error) {
@@ -960,6 +977,15 @@ func (s *Service) appPreviewFile(ctx context.Context, projectID, docID string) (
 		return store.File{}, false
 	}
 	return fs[0], true
+}
+
+// previewStale: no picture of the app's current version yet.
+func (s *Service) previewStale(ctx context.Context, projectID string, doc store.Document) bool {
+	if s.Blobs == nil {
+		return false
+	}
+	f, ok := s.appPreviewFile(ctx, projectID, doc.ID)
+	return !ok || f.Name != fmt.Sprintf("preview-v%d.png", doc.Version)
 }
 
 // AppPreview opens an app's preview picture (people who can read it).

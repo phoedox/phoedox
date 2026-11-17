@@ -2,7 +2,7 @@
 // calls, the app's page, and the editor with live preview and console.
 
 import { LitElement, css, html, nothing } from "lit";
-import { ApiError, api, type Doc } from "../api";
+import { ApiError, api, apiRaw, type Doc } from "../api";
 import { t, type Key } from "../i18n";
 import { icon } from "../icon";
 import { docsVersion, navigate } from "../state";
@@ -13,11 +13,29 @@ import type { AppShareView, PhxAppShare } from "./app-share";
 import "./app-share";
 import type { PhxBotcheck } from "./botcheck";
 import "./botcheck";
+import "./app-extras";
+import type { PhxAppCopy, PhxAppDevices } from "./app-extras";
 
-export interface AppSource { id: string; kind: "query" | "board" | "checks" | "entities"; ref?: string; label?: string }
+export interface AppSource { id: string; kind: "query" | "board" | "checks" | "entities" | "request" | "readings"; ref?: string; label?: string }
+export type AppDevice = "camera" | "microphone" | "location" | "screen" | "motion";
+export const APP_DEVICES: AppDevice[] = ["camera", "microphone", "location", "screen", "motion"];
 export interface AppDiag { file: string; line: number; column: number; text: string }
-export interface AppContent { files: Record<string, string>; level: number; sources?: AppSource[]; storageMb?: number; ai?: boolean; build?: { errors: AppDiag[] } }
-export interface AppFrameInfo { url: string; isolated?: boolean; level: number; granted: number; sources: AppSource[]; ai: boolean; storageMb: number; errors: AppDiag[]; canEdit: boolean; maxLevel?: number; snapshotAt?: string }
+export interface AppContent { files: Record<string, string>; level: number; sources?: AppSource[]; storageMb?: number; ai?: boolean; devices?: AppDevice[]; selfEdit?: boolean; build?: { errors: AppDiag[] } }
+export interface AppFrameInfo {
+  url: string; isolated?: boolean; level: number; granted: number; sources: AppSource[]; ai: boolean; storageMb: number; errors: AppDiag[]; canEdit: boolean; maxLevel?: number; snapshotAt?: string;
+  devices?: AppDevice[]; deviceGrants?: Partial<Record<AppDevice, boolean>>; selfEdit?: boolean; needsPreview?: boolean;
+}
+
+/** Features that need the browser's permission inside the frame (the frame reloads with them). */
+const FRAME_DEVICES: Partial<Record<AppDevice, string>> = { camera: "camera", microphone: "microphone", screen: "display-capture" };
+
+function dataURLBlob(url: string): Blob {
+  const [head, b64] = url.split(",", 2);
+  const bin = atob(b64 ?? "");
+  const b = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+  return new Blob([b], { type: head.match(/data:([^;]+)/)?.[1] ?? "application/octet-stream" });
+}
 export interface ConsoleEntry { level: string; text: string; line?: number; col?: number; file?: string }
 
 type Proposal =
@@ -36,7 +54,7 @@ function isDark() {
 export class PhxAppFrame extends LitElement {
   static properties = {
     project: {}, doc: {}, info: { attribute: false }, autoHeight: { type: Boolean, attribute: "auto-height" }, width: {}, dark: {}, shared: {},
-    asking: { state: true }, proposal: { state: true },
+    asking: { state: true }, proposal: { state: true }, consent: { state: true }, offer: { state: true }, selfSave: { state: true },
   };
   static styles = [base, css`
     :host { display: block; position: relative; }
@@ -52,6 +70,8 @@ export class PhxAppFrame extends LitElement {
     .lvl { display: grid; gap: 8px; margin: 12px 0; }
     .lvl div { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
     .lvl div .ico { color: var(--accent); margin-top: 2px; }
+    dialog .dev { display: flex; gap: 12px; align-items: flex-start; margin: 8px 0 14px; }
+    dialog .dev .ico { color: var(--accent); flex: none; }
   `];
 
   project = "";
@@ -66,6 +86,19 @@ export class PhxAppFrame extends LitElement {
   proposal?: Proposal;
   private grantWait?: (level: number) => void;
   private proposalWait?: (ok: boolean) => void;
+  /** A device feature the app asks for (one dialog per feature). */
+  consent?: AppDevice;
+  private consentWait?: (ok: boolean) => void;
+  /** A file the app offers to save. */
+  offer?: { name: string; blob: Blob };
+  private offerWait?: (ok: boolean) => void;
+  /** Files an app wants to save of itself. */
+  selfSave?: string[];
+  private selfWait?: (ok: boolean) => void;
+  private events?: EventSource;
+  private motion?: (e: DeviceMotionEvent) => void;
+  private motionAt = 0;
+  private captured = false;
   private consoleBuf: ConsoleEntry[] = [];
   private consoleTimer = 0;
   private themeObserver?: MutationObserver;
@@ -81,6 +114,8 @@ export class PhxAppFrame extends LitElement {
     super.disconnectedCallback();
     window.removeEventListener("message", this.onMessage);
     this.themeObserver?.disconnect();
+    this.events?.close();
+    if (this.motion) window.removeEventListener("devicemotion", this.motion);
   }
 
   updated(ch: Map<string, unknown>) {
@@ -123,6 +158,16 @@ export class PhxAppFrame extends LitElement {
         case "ready":
           this.sendTheme();
           if (this.autoHeight) this.resize(a.height);
+          // A picture of this version for the gallery and AI clients.
+          if (this.info?.needsPreview && !this.shared && !this.captured && this.doc) {
+            this.captured = true;
+            window.setTimeout(() => this.frame?.contentWindow?.postMessage({ phx: 1, event: "capture" }, "*"), 3000);
+          }
+          return;
+        case "capture":
+          if (typeof a.png === "string" && a.png.startsWith("data:image/png") && this.info?.needsPreview && this.doc) {
+            void apiRaw("PUT", `${this.base()}/preview`, dataURLBlob(a.png)).then(() => { if (this.info) this.info = { ...this.info, needsPreview: false }; }).catch(() => undefined);
+          }
           return;
         case "resize":
           if (this.autoHeight) this.resize(a.height);
@@ -155,6 +200,63 @@ export class PhxAppFrame extends LitElement {
         case "write":
           await this.need(3);
           return this.reply(m.id, await this.write(a as Proposal));
+        case "me":
+          if (this.shared) return this.reply(m.id, null);
+          await this.need(1);
+          return this.reply(m.id, await api("GET", `${this.base()}/me`));
+        case "db.query":
+        case "db.add":
+        case "db.put":
+        case "db.delete":
+        case "db.watch": {
+          if (this.shared) throw new Error("not_allowed");
+          await this.need(2);
+          const coll = `${this.base()}/db/${encodeURIComponent(String(a.collection ?? ""))}`;
+          if (m.op === "db.query") return this.reply(m.id, await api("POST", `${coll}/query`, { personal: !!a.personal, ...(a.query ?? {}) }));
+          if (m.op === "db.add") return this.reply(m.id, await api("POST", coll, { personal: !!a.personal, data: a.data }));
+          if (m.op === "db.put") return this.reply(m.id, await api("PUT", `${coll}/${encodeURIComponent(String(a.id))}`, { data: a.data, merge: !!a.merge }));
+          if (m.op === "db.delete") { await api("DELETE", `${coll}/${encodeURIComponent(String(a.id))}`); return this.reply(m.id, true); }
+          this.watch();
+          return this.reply(m.id, true);
+        }
+        case "files.upload":
+        case "files.list":
+        case "files.get":
+        case "files.delete": {
+          if (this.shared) throw new Error("not_allowed");
+          await this.need(2);
+          const up = `${this.base()}/uploads`;
+          if (m.op === "files.list") return this.reply(m.id, await api("GET", up));
+          if (m.op === "files.delete") { await api("DELETE", `${up}/${encodeURIComponent(String(a.id))}`); return this.reply(m.id, true); }
+          if (m.op === "files.upload") {
+            if (!(a.file instanceof Blob)) throw new Error("not a file");
+            return this.reply(m.id, await apiRaw("POST", `${up}?name=${encodeURIComponent(String(a.name ?? "file"))}`, a.file));
+          }
+          const res = await fetch(`/api/v1${up}/${encodeURIComponent(String(a.id))}`, { credentials: "same-origin", headers: { "X-Phoedox": "1" } });
+          if (!res.ok) throw new Error("not_found");
+          return this.reply(m.id, await res.blob());
+        }
+        case "download":
+          return this.reply(m.id, await this.download(String(a.name ?? "file.txt"), a.data instanceof Blob ? a.data : new Blob([String(a.data ?? "")], { type: String(a.type ?? "text/plain") })));
+        case "device.status":
+          return this.reply(m.id, this.shared ? {} : { ...(this.info?.deviceGrants ?? {}) });
+        case "device.request":
+          return this.reply(m.id, await this.requestDevice(String(a.feature ?? "") as AppDevice));
+        case "device.location": {
+          if (!(await this.requestDevice("location"))) throw new Error("not_allowed");
+          const pos = await new Promise<GeolocationPosition>((ok, no) => navigator.geolocation.getCurrentPosition(ok, no, { enableHighAccuracy: true, timeout: 20000 }));
+          return this.reply(m.id, { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy, at: pos.timestamp });
+        }
+        case "device.motion":
+          if (!(await this.requestDevice("motion"))) throw new Error("not_allowed");
+          this.startMotion();
+          return this.reply(m.id, true);
+        case "self.files":
+          if (this.shared || !this.info?.selfEdit) throw new Error("not_allowed");
+          return this.reply(m.id, await api("GET", `${this.base()}/self`));
+        case "self.save":
+          if (this.shared || !this.info?.selfEdit) throw new Error("not_allowed");
+          return this.reply(m.id, await this.saveSelf(a.files as Record<string, string | null>));
         case "open": {
           if (this.shared) return this.reply(m.id, false);
           const ref = String(a.ref ?? "");
@@ -234,6 +336,137 @@ export class PhxAppFrame extends LitElement {
     return api("POST", `${pr}/entities`, { kind: p.entityKind, name: p.name, attrs: p.attrs ?? {} });
   }
 
+  /** Live changes of the app's records go to the frame. */
+  private watch() {
+    if (this.events || !this.doc) return;
+    this.events = new EventSource(`/api/v1${this.base()}/events`);
+    this.events.addEventListener("change", (e) => {
+      try {
+        this.frame?.contentWindow?.postMessage({ phx: 1, event: "db", change: JSON.parse((e as MessageEvent).data) }, "*");
+      } catch { /* ignore */ }
+    });
+  }
+
+  /** Asks the person for one device feature (each one separately, once; they change it later in the app's permissions). */
+  private async requestDevice(f: AppDevice): Promise<boolean> {
+    if (this.shared || !this.info?.devices?.includes(f)) throw new Error("not_allowed");
+    const g = this.info.deviceGrants ?? {};
+    if (g[f] !== undefined) return !!g[f];
+    this.consent = f;
+    await this.updateComplete;
+    this.renderRoot.querySelector<HTMLDialogElement>("dialog.consent")?.showModal();
+    const ok = await new Promise<boolean>((r) => (this.consentWait = r));
+    this.consent = undefined;
+    const grants = await api<Partial<Record<AppDevice, boolean>>>("PUT", `${this.base()}/devices/${f}`, { allowed: ok });
+    this.info = { ...this.info, deviceGrants: grants };
+    this.dispatchEvent(new CustomEvent("devices", { detail: grants, bubbles: true, composed: true }));
+    // Camera, microphone and screen need the browser's permission inside the frame: reload it with them.
+    if (ok && FRAME_DEVICES[f]) {
+      await this.updateComplete;
+      const fr = this.frame;
+      if (fr) fr.src = this.info.url;
+    }
+    return ok;
+  }
+
+  private startMotion() {
+    if (this.motion) return;
+    this.motion = (e: DeviceMotionEvent) => {
+      const now = performance.now();
+      if (now - this.motionAt < 100) return;
+      this.motionAt = now;
+      const acc = e.accelerationIncludingGravity, rot = e.rotationRate;
+      this.frame?.contentWindow?.postMessage({ phx: 1, event: "motion", motion: { x: acc?.x ?? null, y: acc?.y ?? null, z: acc?.z ?? null, alpha: rot?.alpha ?? null, beta: rot?.beta ?? null, gamma: rot?.gamma ?? null } }, "*");
+    };
+    window.addEventListener("devicemotion", this.motion);
+  }
+
+  private allowAttr() {
+    const g = this.info?.deviceGrants ?? {};
+    return (Object.keys(FRAME_DEVICES) as AppDevice[]).filter((d) => g[d] && this.info?.devices?.includes(d)).map((d) => FRAME_DEVICES[d]).join("; ");
+  }
+
+  /** The app gives the person a file; they confirm before it is saved. */
+  private async download(name: string, blob: Blob) {
+    name = name.replace(/[\\/:*?"<>|\u0000-\u001f]/g, "_").slice(0, 120) || "file";
+    if (blob.size > 50 << 20) throw new Error("too_large");
+    this.offer = { name, blob };
+    await this.updateComplete;
+    this.renderRoot.querySelector<HTMLDialogElement>("dialog.offer")?.showModal();
+    const ok = await new Promise<boolean>((r) => (this.offerWait = r));
+    this.offer = undefined;
+    if (!ok) throw new Error("declined");
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = name;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    return true;
+  }
+
+  /** An app with selfEdit saves its own files; the person confirms. */
+  private async saveSelf(files: Record<string, string | null>) {
+    if (!files || typeof files !== "object" || !Object.keys(files).length) throw new Error("bad_files");
+    this.selfSave = Object.keys(files);
+    await this.updateComplete;
+    this.renderRoot.querySelector<HTMLDialogElement>("dialog.selfsave")?.showModal();
+    const ok = await new Promise<boolean>((r) => (this.selfWait = r));
+    this.selfSave = undefined;
+    if (!ok) throw new Error("declined");
+    await api("PUT", `${this.base()}/self`, { files });
+    docsVersion.set(docsVersion.get() + 1);
+    return true;
+  }
+
+  private consentDialog() {
+    const f = this.consent;
+    const close = (ok: boolean) => {
+      // iOS asks for motion only during a tap: ask now.
+      const DME = (window as unknown as { DeviceMotionEvent?: { requestPermission?: () => Promise<string> } }).DeviceMotionEvent;
+      if (ok && f === "motion" && DME?.requestPermission) void DME.requestPermission().catch(() => undefined);
+      this.renderRoot.querySelector<HTMLDialogElement>("dialog.consent")?.close();
+      this.consentWait?.(ok);
+      this.consentWait = undefined;
+    };
+    const ico: Record<AppDevice, string> = { camera: "Camera", microphone: "Mic", location: "MapPin", screen: "MonitorPlay", motion: "Activity" };
+    return html`<dialog class="consent" aria-labelledby="ct" @cancel=${(e: Event) => { e.preventDefault(); close(false); }}>
+      <h2 id="ct">${t(`app.device_title_${f}` as Key)}</h2>
+      <div class="dev">${icon(ico[f!], 22)}<p style="margin:0">${t(`app.device_text_${f}` as Key)}</p></div>
+      <p class="muted" style="font-size:13px">${t("app.device_note")}</p>
+      <div class="row"><button class="ghost" @click=${() => close(false)}>${t("app.device_no")}</button><button @click=${() => close(true)}>${t("app.device_yes")}</button></div>
+    </dialog>`;
+  }
+
+  private offerDialog() {
+    const o = this.offer;
+    const close = (ok: boolean) => {
+      this.renderRoot.querySelector<HTMLDialogElement>("dialog.offer")?.close();
+      this.offerWait?.(ok);
+      this.offerWait = undefined;
+    };
+    const kb = o ? Math.max(1, Math.round(o.blob.size / 1024)) : 0;
+    return html`<dialog class="offer" aria-labelledby="ot" @cancel=${(e: Event) => { e.preventDefault(); close(false); }}>
+      <h2 id="ot">${t("app.download_title")}</h2>
+      <div class="dev">${icon("Download", 22)}<p style="margin:0">${t("app.download_text", { name: o?.name ?? "", size: kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} KB` })}</p></div>
+      <div class="row"><button class="ghost" @click=${() => close(false)}>${t("app.download_no")}</button><button @click=${() => close(true)}>${t("app.download_yes")}</button></div>
+    </dialog>`;
+  }
+
+  private selfDialog() {
+    const close = (ok: boolean) => {
+      this.renderRoot.querySelector<HTMLDialogElement>("dialog.selfsave")?.close();
+      this.selfWait?.(ok);
+      this.selfWait = undefined;
+    };
+    return html`<dialog class="selfsave" aria-labelledby="st" @cancel=${(e: Event) => { e.preventDefault(); close(false); }}>
+      <h2 id="st">${t("app.self_title")}</h2>
+      <p>${t("app.self_text")}</p>
+      <ul>${(this.selfSave ?? []).map((f) => html`<li><code>${f}</code></li>`)}</ul>
+      <div class="row"><button class="ghost" @click=${() => close(false)}>${t("app.self_no")}</button><button @click=${() => close(true)}>${t("app.self_yes")}</button></div>
+    </dialog>`;
+  }
+
   private grantDialog() {
     const want = this.info?.level ?? 0;
     const close = (lvl: number) => {
@@ -271,13 +504,16 @@ export class PhxAppFrame extends LitElement {
   render() {
     if (!this.info) return nothing;
     return html`<div class="stage">
-        <iframe src=${this.info.url} title=${t("app.frame_title")} style=${this.width ? `max-width:${this.width}` : ""}
+        <iframe src=${this.info.url} title=${t("app.frame_title")} style=${this.width ? `max-width:${this.width}` : ""} allow=${this.allowAttr()}
           sandbox=${this.info.isolated ? "allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads" : "allow-scripts allow-forms allow-modals allow-popups allow-downloads"} referrerpolicy="no-referrer"
           @load=${this.sendTheme}></iframe>
       </div>
       ${this.shared && this.info.ai ? html`<phx-botcheck place="apps"></phx-botcheck>` : nothing}
       ${this.asking ? this.grantDialog() : nothing}
-      ${this.proposal ? this.proposalDialog() : nothing}`;
+      ${this.proposal ? this.proposalDialog() : nothing}
+      ${this.consent ? this.consentDialog() : nothing}
+      ${this.offer ? this.offerDialog() : nothing}
+      ${this.selfSave ? this.selfDialog() : nothing}`;
   }
 }
 
@@ -391,6 +627,9 @@ export class PhxAppView extends LitElement {
         ${this.share?.shared ? html`<span class="chip" title=${t("appshare.public_help")}>${icon("Globe", 12)} ${t("appshare.public")}</span>` : nothing}
         <span class="sp"></span>
         ${this.share?.canEdit ? html`<button class="ghost" @click=${() => this.renderRoot.querySelector<PhxAppShare>("phx-app-share")?.open()}>${icon("Globe", 14)} ${t("appshare.button")}</button>` : nothing}
+        ${i.devices?.length ? html`<button class="ghost" @click=${() => this.renderRoot.querySelector<PhxAppDevices>("phx-app-devices")?.open()}>${icon("ShieldCheck", 14)} ${t("app.devices_button")}</button>` : nothing}
+        <button class="ghost" title=${t("appcopy.help")} @click=${() => void this.renderRoot.querySelector<PhxAppCopy>("phx-app-copy")?.open()}>${icon("CopyPlus", 14)} ${t("appcopy.button")}</button>
+        <a class="btn ghost" href="/p/${this.project}/apps" title=${t("appgal.title")}>${icon("LayoutGrid", 14)}</a>
         ${i.canEdit ? html`<button class="ghost" aria-pressed=${this.isTemplate ? "true" : "false"} title=${t("app.template_help")} @click=${() => this.toggleTemplate()}>${icon("Copy", 14)} ${t(this.isTemplate ? "app.is_template" : "app.make_template")}</button>
           <a class="btn ghost" href="/p/${this.project}/d/${this.doc.slug}/app-edit">${icon("Code", 14)} ${t("app.edit")}</a>` : nothing}
         <button class="ghost" @click=${() => this.setFull(!this.full)}>${icon(this.full ? "Minimize2" : "Maximize2", 14)} ${t(this.full ? "app.exit_full" : "app.full")}</button>
@@ -400,7 +639,10 @@ export class PhxAppView extends LitElement {
       ${i.errors.length ? html`<div class="errs" role="alert">${i.errors.map((e) => `${e.file}:${e.line}:${e.column} ${e.text}`).join("\n")}</div>` : nothing}
       <div class="box"><phx-app-frame .project=${this.project} .doc=${this.doc.id} .info=${i}
         @granted=${(e: CustomEvent<number>) => (this.info = { ...i, granted: e.detail })}></phx-app-frame></div>
-      ${this.share?.canEdit ? html`<phx-app-share .project=${this.project} .doc=${this.doc.id} .view=${this.share} @changed=${(e: CustomEvent<AppShareView>) => (this.share = e.detail)}></phx-app-share>` : nothing}`;
+      ${this.share?.canEdit ? html`<phx-app-share .project=${this.project} .doc=${this.doc.id} .view=${this.share} @changed=${(e: CustomEvent<AppShareView>) => (this.share = e.detail)}></phx-app-share>` : nothing}
+      <phx-app-copy .project=${this.project} .doc=${this.doc.id} .appTitle=${this.doc.title}></phx-app-copy>
+      ${i.devices?.length ? html`<phx-app-devices .project=${this.project} .doc=${this.doc.id} .devices=${i.devices} .grants=${i.deviceGrants ?? {}}
+        @devices=${(e: CustomEvent<AppFrameInfo["deviceGrants"]>) => (this.info = { ...i, deviceGrants: e.detail })}></phx-app-devices>` : nothing}`;
   }
 }
 
@@ -518,7 +760,7 @@ export class PhxAppEditor extends LitElement {
     try {
       this.doc = await api<Doc>("GET", `/projects/${this.project}/documents/${this.docSlug}`);
       const c = (this.doc.content ?? {}) as AppContent;
-      this.app = { files: { ...(c.files ?? {}) }, level: c.level ?? 0, sources: [...(c.sources ?? [])], storageMb: c.storageMb ?? 10, ai: !!c.ai };
+      this.app = { files: { ...(c.files ?? {}) }, level: c.level ?? 0, sources: [...(c.sources ?? [])], storageMb: c.storageMb ?? 10, ai: !!c.ai, devices: [...(c.devices ?? [])], selfEdit: !!c.selfEdit };
       this.file = Object.keys(this.app.files).sort((a, b) => order(a) - order(b))[0] ?? "";
       void this.refresh();
     } catch (e) {
@@ -609,8 +851,8 @@ export class PhxAppEditor extends LitElement {
         ${(a.sources ?? []).map((s, i) => html`<div class="src">
           <input placeholder="id" .value=${s.id} aria-label="id" @change=${(e: Event) => this.setSource(i, { id: (e.target as HTMLInputElement).value.trim() })}>
           <select aria-label=${t("app.source_kind")} @change=${(e: Event) => this.setSource(i, { kind: (e.target as HTMLSelectElement).value as AppSource["kind"] })}>
-            ${(["query", "board", "checks", "entities"] as const).map((k) => html`<option value=${k} ?selected=${s.kind === k}>${t(`app.kind.${k}` as Key)}</option>`)}</select>
-          <input placeholder=${t("app.source_ref")} .value=${s.ref ?? ""} aria-label=${t("app.source_ref")} @change=${(e: Event) => this.setSource(i, { ref: (e.target as HTMLInputElement).value.trim() })}>
+            ${(["query", "board", "checks", "entities", "request", "readings"] as const).map((k) => html`<option value=${k} ?selected=${s.kind === k}>${t(`app.kind.${k}` as Key)}</option>`)}</select>
+          <input placeholder=${s.kind === "request" ? t("app.source_ref_request") : s.kind === "readings" ? t("app.source_ref_readings") : t("app.source_ref")} .value=${s.ref ?? ""} aria-label=${t("app.source_ref")} @change=${(e: Event) => this.setSource(i, { ref: (e.target as HTMLInputElement).value.trim() })}>
           <input placeholder=${t("app.source_label")} .value=${s.label ?? ""} aria-label=${t("app.source_label")} @change=${(e: Event) => this.setSource(i, { label: (e.target as HTMLInputElement).value })}>
           <button class="danger" aria-label=${t("doc.delete")} @click=${() => this.setManifest({ sources: (a.sources ?? []).filter((_, j) => j !== i) })}>${icon("Trash2", 13)}</button></div>`)}
         <div><button class="ghost" @click=${() => this.setManifest({ sources: [...(a.sources ?? []), { id: `source${(a.sources?.length ?? 0) + 1}`, kind: "query", ref: "" }] })}>${icon("Plus", 14)} ${t("app.source_add")}</button></div>` : nothing}
@@ -619,6 +861,16 @@ export class PhxAppEditor extends LitElement {
         <b>${t("app.ai_on")}</b><span>${t("app.ai_help")}</span></label></div>
       ${a.level >= 2 ? html`<label class="field">${t("app.storage_mb")}<input type="number" min="1" max="100" .value=${String(a.storageMb ?? 10)} style="max-width:140px"
         @change=${(e: Event) => this.setManifest({ storageMb: Number((e.target as HTMLInputElement).value) || 10 })}></label>` : nothing}
+      <h3>${t("app.devices_manifest")}</h3>
+      <p class="muted" style="margin:0;font-size:13px">${t("app.devices_manifest_help")}</p>
+      <div class="levels">${APP_DEVICES.map((d) => html`<label><input type="checkbox" .checked=${!!a.devices?.includes(d)}
+        @change=${(e: Event) => this.setManifest({ devices: (e.target as HTMLInputElement).checked ? [...(a.devices ?? []), d] : (a.devices ?? []).filter((x) => x !== d) })}>
+        <b>${t(`app.device_${d}` as Key)}</b><span>${t(`app.device_help_${d}` as Key)}</span></label>`)}</div>
+      <h3>${t("app.self_manifest")}</h3>
+      <div class="levels"><label><input type="checkbox" .checked=${!!a.selfEdit} @change=${(e: Event) => this.setManifest({ selfEdit: (e.target as HTMLInputElement).checked })}>
+        <b>${t("app.self_on")}</b><span>${t("app.self_help")}</span></label></div>
+      <h3>${t("appasset.title")}</h3>
+      ${this.doc ? html`<phx-app-assets .project=${this.project} .doc=${this.doc.id}></phx-app-assets>` : nothing}
     </div>`;
   }
 

@@ -227,6 +227,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "trash", render: () => html`<phx-trash .project=${this.slug}></phx-trash>` },
     { path: "history", render: () => html`<phx-project-history .project=${this.slug}></phx-project-history>` },
     { path: "replace", render: () => html`<phx-find-replace .project=${this.slug}></phx-find-replace>` },
+    { path: "apps", render: () => { void import("./app-extras"); return html`<phx-app-gallery .project=${this.slug}></phx-app-gallery>`; } },
     { path: "d/:doc", render: ({ doc }) => html`<phx-doc-view .project=${this.slug} .docSlug=${doc!}></phx-doc-view>` },
     { path: "new/:type", render: ({ type }) => html`<phx-doc-form .project=${this.slug} .type=${type!}></phx-doc-form>` },
     { path: "e/:entity/edit", render: ({ entity }) => html`<phx-entity-form .project=${this.slug} .entity=${entity!}></phx-entity-form>` },
@@ -838,6 +839,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
               <button class=${this.toolsOpen || at("replace") || at("history") || at("trash") ? "ib on" : "ib"} aria-haspopup="menu" aria-expanded=${this.toolsOpen ? "true" : "false"}
                 title=${t("nav.more_tools")} aria-label=${t("nav.more_tools")} @click=${(e: Event) => { e.stopPropagation(); this.newOpen = false; this.toolsOpen = !this.toolsOpen; }}>${icon("Ellipsis", 16)}</button>
               ${this.toolsOpen ? html`<div class="menu right" role="menu" @keydown=${(e: KeyboardEvent) => e.key === "Escape" && (this.toolsOpen = false)} @click=${() => (this.toolsOpen = false)}>
+                <a role="menuitem" href="/p/${this.slug}/apps" class=${at("apps") ? "on" : ""}>${icon("LayoutGrid", 15)} ${t("appgal.nav")}</a>
                 <a role="menuitem" href="/p/${this.slug}/replace" class=${at("replace") ? "on" : ""}>${icon(canEdit ? "Replace" : "TextSearch", 15)} ${t(canEdit ? "replace.nav" : "replace.nav_find")}</a>
                 ${canEdit ? html`<a role="menuitem" href="/p/${this.slug}/history" class=${at("history") ? "on" : ""}>${icon("History", 15)} ${t("phist.nav")}
                   ${comboFor("history") ? html`<kbd>${comboLabel(comboFor("history"))}</kbd>` : ""}</a>

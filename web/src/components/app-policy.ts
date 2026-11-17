@@ -8,7 +8,7 @@ import { scard, settingsUI, srow, sseg, sswitch } from "./settings-ui";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
-interface Policy { off?: boolean; maxLevel?: number | null; noAi?: boolean; noPublic?: boolean; noWebEmbeds?: boolean; embedSites?: string[]; hosts?: string[]; orgHosts?: boolean; instanceOrgHosts?: boolean }
+interface Policy { off?: boolean; maxLevel?: number | null; noAi?: boolean; noPublic?: boolean; noDevices?: boolean; noWebEmbeds?: boolean; embedSites?: string[]; hosts?: string[]; orgHosts?: boolean; instanceOrgHosts?: boolean }
 
 export class PhxAppPolicy extends LitElement {
   static properties = { scope: {}, org: {}, p: { state: true }, busy: { state: true } };
@@ -60,6 +60,7 @@ export class PhxAppPolicy extends LitElement {
         [["any", t("apppol.level_any")], ["0", "0"], ["1", "1"], ["2", "2"]], (v) => this.save({ ...p, maxLevel: v === "any" ? null : Number(v) })))}
       ${srow(t("apppol.no_ai"), t("apppol.no_ai_help"), sswitch(!!p.noAi, t("apppol.no_ai"), (on) => this.save({ ...p, noAi: on }), this.busy))}
       ${srow(t("apppol.no_public"), t("apppol.no_public_help"), sswitch(!!p.noPublic, t("apppol.no_public"), (on) => this.save({ ...p, noPublic: on }), this.busy))}
+      ${srow(t("apppol.no_devices"), t("apppol.no_devices_help"), sswitch(!!p.noDevices, t("apppol.no_devices"), (on) => this.save({ ...p, noDevices: on }), this.busy))}
       ${this.scope === "instance" ? srow(t("apppol.org_hosts"), t("apppol.org_hosts_help"), sswitch(!!p.orgHosts, t("apppol.org_hosts"), (on) => this.save({ ...p, orgHosts: on }), this.busy)) : nothing}
       <div class="body">
         <b>${t("apppol.hosts")}</b>

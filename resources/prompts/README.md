@@ -13,3 +13,6 @@ embedded ones by name.
 | `chat-system.md` | AI chat in projects (ADR-0066): instructions, the same for every chat |
 | `chat-context.md` | AI chat: the situation (date, person, project); placeholders `{{…}}` |
 | `chat-page.md` | AI chat: the page that is open, added to `chat-context.md` as `{{page}}` |
+| `app-ai.md` | Apps asking the AI through the bridge (`phoedox.ai`) |
+| `app-comment.md` | Background AI answering "@AI" comments on apps (reply and edits as JSON) |
+| `app-comment-failed.md`, `app-comment-suggested.md` | Notes added to that reply when a change failed or waits as a suggestion |

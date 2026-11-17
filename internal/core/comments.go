@@ -141,6 +141,9 @@ func (s *Service) AddComment(ctx context.Context, a Actor, ref, docRef string, i
 	}
 	s.event(ctx, a, "comment.create", c.ID, map[string]any{"document": doc.ID, "parent": c.ParentID, "mentions": c.Mentions})
 	s.notifyComment(ctx, a, p, doc, c, thread)
+	if doc.Type == store.DocApp && askAIRe.MatchString(c.Body) && a.Via != "mcp" {
+		go s.askAIAboutApp(context.WithoutCancel(ctx), a, p, doc, c)
+	}
 	return c, nil
 }
 

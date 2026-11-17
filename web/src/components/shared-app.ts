@@ -8,6 +8,7 @@ import { icon } from "../icon";
 import { base } from "./shared";
 import { type AppFrameInfo, type AppSource } from "./apps";
 import "./apps";
+import { signedIn, type PhxAppCopy } from "./app-extras";
 
 interface SharedApp { title: string; project: string; url: string; isolated?: boolean; level: number; sources: AppSource[]; snapshotAt?: string; ai: boolean; locale: string }
 
@@ -52,9 +53,11 @@ export class PhxSharedApp extends LitElement {
         <h1>${a.title}</h1><span class="muted">${a.project}</span>
         <span class="sp"></span>
         ${a.snapshotAt ? html`<span class="chip" title=${t("appshare.visitor_snapshot_help")}>${icon("Database", 12)} ${t("appshare.visitor_snapshot", { date: formatDate(a.snapshotAt) })}</span>` : nothing}
+        ${signedIn() ? html`<button class="ghost" title=${t("appcopy.help")} @click=${() => void this.renderRoot.querySelector<PhxAppCopy>("phx-app-copy")?.open()}>${icon("CopyPlus", 14)} ${t("appcopy.button")}</button>` : nothing}
         <a class="brand" href="/" rel="noopener"><img src="/logo.svg" alt="" />${t("appshare.made_with")}</a>
       </header>
-      <div class="box"><phx-app-frame .shared=${this.token} .info=${info}></phx-app-frame></div>`;
+      <div class="box"><phx-app-frame .shared=${this.token} .info=${info}></phx-app-frame></div>
+      ${signedIn() ? html`<phx-app-copy .token=${this.token} .appTitle=${a.title}></phx-app-copy>` : nothing}`;
   }
 }
 customElements.get("phx-shared-app") || customElements.define("phx-shared-app", PhxSharedApp);

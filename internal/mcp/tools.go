@@ -121,9 +121,11 @@ type createAppIn struct {
 	Category  string            `json:"category,omitempty"`
 	Files     map[string]string `json:"files" jsonschema:"file name → source: index.html, or app.tsx/app.jsx (React, compiled on save) with an index.html made around it; plus .css, .js, .ts, .json, .svg. At most 40 files, 1 MB"`
 	Level     int               `json:"level,omitempty" jsonschema:"bridge level the app asks for: 0 none, 1 read its sources, 2 own storage, 3 propose changes the person confirms"`
-	Sources   []core.AppSource  `json:"sources,omitempty" jsonschema:"what the app may read at level 1: {id, kind query|board|checks|entities, ref (saved query, board, or kind), label}"`
+	Sources   []core.AppSource  `json:"sources,omitempty" jsonschema:"what the app may read at level 1: {id, kind query|board|checks|entities|request|readings, ref (saved query, board, kind, page#n for the n-th request block of a page (GET only), or entry[:metric] for readings), label}"`
 	StorageMB int               `json:"storageMb,omitempty" jsonschema:"limit of the app's own storage in MB (default 10)"`
 	AI        bool              `json:"ai,omitempty" jsonschema:"the app may call phoedox.ai(prompt, {json}) on the viewer's AI budget"`
+	Devices   []string          `json:"devices,omitempty" jsonschema:"device features the app may ask for: camera, microphone, screen, location, motion; each person allows each one separately"`
+	SelfEdit  bool              `json:"self_edit,omitempty" jsonschema:"the app may save its own files with phoedox.self.save (people who may edit it confirm each save)"`
 }
 
 type editAppIn struct {
@@ -131,7 +133,34 @@ type editAppIn struct {
 	Document string             `json:"document" jsonschema:"app slug or id"`
 	Edits    []core.AppEdit     `json:"edits,omitempty" jsonschema:"exact replacements {file, old, new}; old must occur exactly once in the file"`
 	Files    map[string]*string `json:"files,omitempty" jsonschema:"whole files to add or replace; null removes a file"`
-	Manifest *core.App          `json:"manifest,omitempty" jsonschema:"new level, sources, storageMb (files here are ignored)"`
+	Manifest *core.App          `json:"manifest,omitempty" jsonschema:"new level, sources, storageMb, ai, devices, selfEdit (files here are ignored)"`
+}
+
+type appAssetIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Document string `json:"document" jsonschema:"app slug or id"`
+	Name     string `json:"name" jsonschema:"file name, e.g. logo.png or data.json; the app loads it as assets/<name>; the same name replaces the asset"`
+	Data     string `json:"data" jsonschema:"content as base64 (or a data: URL), at most 25 MB"`
+}
+
+type copyAppAssetsIn struct {
+	Project     string   `json:"project" jsonschema:"project of the app that receives the assets"`
+	Document    string   `json:"document" jsonschema:"app slug or id that receives them"`
+	FromProject string   `json:"from_project,omitempty" jsonschema:"project of the source app (default: the same project)"`
+	From        string   `json:"from" jsonschema:"source app slug or id"`
+	Names       []string `json:"names,omitempty" jsonschema:"asset names to copy; empty copies all"`
+}
+
+type appScreenshotIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Document string `json:"document" jsonschema:"app slug or id"`
+}
+
+type waitChangesIn struct {
+	Project   string   `json:"project" jsonschema:"project slug"`
+	Documents []string `json:"documents,omitempty" jsonschema:"only changes of these pages or apps (slugs); empty = the whole project"`
+	Cursor    int64    `json:"cursor,omitempty" jsonschema:"cursor from the previous answer; without it the tool returns the current cursor at once"`
+	Wait      int      `json:"wait,omitempty" jsonschema:"seconds to wait for the first change, at most 50 (default 0: answer at once)"`
 }
 
 type createBoardIn struct {
@@ -978,14 +1007,24 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocWhiteboard, Title: in.Title, Category: in.Category, Whiteboard: &in.Whiteboard})
 	})
-	tool(s, "create_app", "Create an app: a small web program in the project (HTML/CSS/JS or React JSX/TypeScript, compiled on save) that runs in an isolated frame. Libraries by import name: react, react-dom/client, lit, chart.js, d3; no other network. Data only through window.phoedox: info(), requestAccess(), read(sourceId) (level 1), storage.get/set/delete/list(key, value, {personal}) (level 2), propose({kind: task|comment|entity, ...}) (level 3, the person confirms), open(ref), ai(prompt, {json}) (with ai: true, on the viewer's budget). Ask for the lowest level that does the job. Check get_app afterwards for compile and console errors.", func(ctx context.Context, a core.Actor, in createAppIn) (any, error) {
-		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocApp, Title: in.Title, Category: in.Category, App: &core.App{Files: in.Files, Level: in.Level, Sources: in.Sources, StorageMB: in.StorageMB, AI: in.AI}})
+	tool(s, "create_app", "Create an app: a small web program in the project (HTML/CSS/JS or React JSX/TypeScript, compiled on save) that runs in an isolated frame. Libraries by import name: react, react-dom/client, lit, chart.js, d3; no other network (pictures, fonts, data files: upload_app_asset, used as assets/<name>). Data only through window.phoedox: info(), requestAccess(), me() and read(sourceId) (level 1); storage.get/set/delete/list(key, value, {personal}), db.collection(name, {personal}) with add/put/update/delete/query({where, order, desc, limit})/subscribe(f) for records and live changes, files.upload/list/get/delete for files people add (level 2); propose({kind: task|comment|entity, ...}) (level 3, the person confirms); download(name, data, type) (the person confirms); device.request(camera|microphone|screen|location|motion) for features listed in devices (each person allows each one); self.files()/save(files) with self_edit; open(ref); ai(prompt, {json}) (with ai: true, on the viewer's budget). Ask for the lowest level and the fewest devices that do the job. Check get_app afterwards for compile and console errors, app_screenshot for how it looks.", func(ctx context.Context, a core.Actor, in createAppIn) (any, error) {
+		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocApp, Title: in.Title, Category: in.Category, App: &core.App{Files: in.Files, Level: in.Level, Sources: in.Sources, StorageMB: in.StorageMB, AI: in.AI, Devices: in.Devices, SelfEdit: in.SelfEdit}})
 	})
-	tool(s, "get_app", "Read an app: its files, manifest (level, sources, storage), compile errors and the last console errors and warnings from people using it. Use it before edit_app and after changes to fix errors.", func(ctx context.Context, a core.Actor, in wbDocIn) (any, error) {
+	tool(s, "get_app", "Read an app: its files, manifest (level, sources, storage, devices, selfEdit), assets, compile errors and the last console errors and warnings from people using it. Use it before edit_app and after changes to fix errors.", func(ctx context.Context, a core.Actor, in wbDocIn) (any, error) {
 		return svc.GetApp(ctx, a, in.Project, in.Document)
 	})
 	tool(s, "edit_app", "Change an app with exact edits {file, old, new} (old exactly once), whole files (null removes one) or a new manifest. Saved as a new version; compile errors come back in the result's build.", func(ctx context.Context, a core.Actor, in editAppIn) (any, error) {
 		return svc.EditApp(ctx, a, in.Project, in.Document, in.Files, in.Edits, in.Manifest)
+	})
+	appScreenshotTool(s, svc)
+	tool(s, "upload_app_asset", "Add a binary file to an app (picture, font, sound, data file) from base64; the app loads it as assets/<name> (e.g. <img src=\"assets/logo.png\">). Needs the project's AI write mode \"direct\".", func(ctx context.Context, a core.Actor, in appAssetIn) (any, error) {
+		return svc.AddAppAssetBase64(ctx, a, in.Project, in.Document, in.Name, in.Data)
+	})
+	tool(s, "copy_app_assets", "Copy assets from another app (also in another project you can read) into an app, e.g. shared logos or fonts. Needs the project's AI write mode \"direct\".", func(ctx context.Context, a core.Actor, in copyAppAssetsIn) (any, error) {
+		return svc.CopyAppAssets(ctx, a, in.Project, in.Document, in.FromProject, in.From, in.Names)
+	})
+	tool(s, "wait_for_changes", "Notice what people do while you work: changes and comments on pages and apps (also whiteboard comments, cards, decisions, uploads, app permissions) by anyone but this AI session. Call once without cursor to get one, then with the cursor and wait (up to 50 s) to wait for the next changes; answers with the changes (kind, document, comment text, who, when) and the cursor for the next call. Use it when the person asks you to watch a page or app, e.g. to answer their comments.", func(ctx context.Context, a core.Actor, in waitChangesIn) (any, error) {
+		return svc.WaitForChanges(ctx, a, in.Project, in.Documents, in.Cursor, in.Wait)
 	})
 	tool(s, "create_board", "Create a task board (a document of type board with columns).", func(ctx context.Context, a core.Actor, in createBoardIn) (any, error) {
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocBoard, Title: in.Title, Category: in.Category, Board: &core.Board{Description: in.Description, Columns: in.Columns}})
@@ -1669,4 +1708,29 @@ type replaceIn struct {
 	Apply    bool             `json:"apply,omitempty" jsonschema:"false (default): preview only; true: write the replacement"`
 	Only     map[string][]int `json:"only,omitempty" jsonschema:"document id → match numbers from the preview to replace; a document not listed gets all its matches, an empty list none"`
 	Versions map[string]int   `json:"versions,omitempty" jsonschema:"document id → version from the preview; documents changed since are skipped"`
+}
+
+// appScreenshotTool returns the latest picture of an app as an image, so AI
+// clients see how it looks (taken in the browser of someone who may edit it).
+func appScreenshotTool(s *sdk.Server, svc *core.Service) {
+	schema, err := inputSchema[appScreenshotIn]()
+	if err != nil {
+		panic(err)
+	}
+	desc := "See how an app looks: the latest picture of it as PNG, taken when someone who may edit it had it open in the browser after its last change. The note says which version it shows; if it is older than the current one, ask the person to open the app once."
+	sdk.AddTool(s, &sdk.Tool{Name: "app_screenshot", Description: desc, InputSchema: schema}, func(ctx context.Context, req *sdk.CallToolRequest, in appScreenshotIn) (*sdk.CallToolResult, any, error) {
+		a, err := actorFrom(req)
+		if err != nil {
+			return nil, nil, err
+		}
+		pic, err := svc.AppPicture(ctx, a, in.Project, in.Document)
+		if err != nil {
+			return nil, nil, friendly(err)
+		}
+		note := fmt.Sprintf("Picture of version %d, taken %s.", pic.Version, pic.At.UTC().Format(time.RFC3339))
+		if pic.Version < pic.Current {
+			note += fmt.Sprintf(" The app is at version %d now: the picture may be outdated until someone opens the app.", pic.Current)
+		}
+		return &sdk.CallToolResult{Content: []sdk.Content{&sdk.ImageContent{Data: pic.PNG, MIMEType: "image/png"}, &sdk.TextContent{Text: note}}}, nil, nil
+	})
 }

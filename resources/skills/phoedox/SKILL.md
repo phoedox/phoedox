@@ -29,7 +29,7 @@ examples:
 | Feedback portals: triage topics, merge duplicates, tickets, submit a report | `references/feedback.md` |
 | Floor plans (with a complete example) | `references/floorplans.md` |
 | Whiteboards: diagrams, single changes, comments | `references/whiteboards.md` |
-| Apps: build, fix errors, data bridge levels, storage, proposals | `references/apps.md` |
+| Apps: build, fix errors, data bridge levels, storage, collections, files, devices, assets, screenshots, watching comments | `references/apps.md` |
 | Languages: translations, stale translations, folder names | `references/languages.md` |
 | Monitoring, APIs, maintenance, real devices, plugins, documentation health | `references/operations.md` |
 | Flows across areas: document a network, onboard a server, troubleshoot, move existing docs in | `references/workflows.md` |

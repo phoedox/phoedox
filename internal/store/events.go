@@ -229,7 +229,9 @@ type EventFilter struct {
 	Subject   string // exact
 	Since     Time
 	Before    int64
-	Limit     int
+	// After lists entries after this id, oldest first.
+	After int64
+	Limit int
 }
 
 // Events lists audit log entries, newest first.
@@ -260,10 +262,16 @@ func (d *DB) Events(ctx context.Context, f EventFilter) ([]Event, error) {
 		q += ` AND id < ?`
 		args = append(args, f.Before)
 	}
+	order := ` ORDER BY id DESC LIMIT ?`
+	if f.After > 0 {
+		q += ` AND id > ?`
+		args = append(args, f.After)
+		order = ` ORDER BY id LIMIT ?`
+	}
 	if f.Limit <= 0 || f.Limit > 200 {
 		f.Limit = 100
 	}
-	rows, err := d.Query(ctx, q+` ORDER BY id DESC LIMIT ?`, append(args, f.Limit)...)
+	rows, err := d.Query(ctx, q+order, append(args, f.Limit)...)
 	if err != nil {
 		return nil, err
 	}
