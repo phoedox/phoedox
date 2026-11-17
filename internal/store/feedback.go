@@ -32,8 +32,8 @@ type FeedbackPortal struct {
 	DomainToken      string `json:"domainToken,omitempty"`
 	DomainVerifiedAt *Time  `json:"domainVerifiedAt,omitempty"`
 	CreatedBy        string `json:"createdBy"`
-	CreatedAt       Time   `json:"createdAt"`
-	UpdatedAt       Time   `json:"updatedAt"`
+	CreatedAt        Time   `json:"createdAt"`
+	UpdatedAt        Time   `json:"updatedAt"`
 }
 
 const portalCols = `id, project_id, handle, name, enabled, settings, public_key, server_key_hash, created_by, created_at, updated_at, player_key_sealed, domain, domain_token, domain_verified_at`
