@@ -14,7 +14,7 @@ interface Budget { key: string; name?: string; usedCents: number; limitCents: nu
 interface Storage { id: string; name: string; slug?: string; usedBytes: number; limitBytes: number }
 interface Report {
   level: Level; name: string; since: string; chargedCents: number; costCents?: number; budgets: Budget[];
-  byProject?: Line[]; byUser?: Line[]; byModel?: Line[]; byOrg?: Line[]; storage?: Storage[]; storageBytes: number;
+  byProject?: Line[]; byUser?: Line[]; byModel?: Line[]; byOrg?: Line[]; storage?: Storage[]; storageBytes: number; apps?: { id: string; slug: string; title: string; usedBytes: number; limitBytes: number }[];
   up: { level: "org" | "admin"; href: string; name?: string }[];
   pricesHidden: boolean; calls: number; tokens: number; feedback?: Storage;
 }
@@ -151,7 +151,10 @@ export class PhxUsage extends LitElement {
       ${r.storage && r.storage.length > 1 ? html`<h2>${icon("HardDrive", 16)} ${t(admin ? "usage.storage_by_org" : "usage.storage_by_project")}</h2>
         <div class="tbl"><table><thead><tr><th>${t(admin ? "usage.col.org" : "usage.col.project")}</th><th class="n">${t("usage.used")}</th><th class="n">${t("usage.limit")}</th></tr></thead>
         <tbody>${r.storage.map((s) => html`<tr><td>${s.name || html`<span class="muted">${t("usage.personal")}</span>`}</td><td class="n">${bytes(s.usedBytes)}</td>
-          <td class="n">${s.limitBytes ? bytes(s.limitBytes) : "–"}</td></tr>`)}</tbody></table></div>` : nothing}`;
+          <td class="n">${s.limitBytes ? bytes(s.limitBytes) : "–"}</td></tr>`)}</tbody></table></div>` : nothing}
+      ${r.apps?.length ? html`<h2>${icon("AppWindow", 16)} ${t("usage.apps")}</h2>
+        <div class="tbl"><table><thead><tr><th>${t("usage.col.app")}</th><th class="n">${t("usage.used")}</th><th class="n">${t("usage.limit")}</th></tr></thead>
+        <tbody>${r.apps.map((x) => html`<tr><td><a href="/p/${this.ref}/d/${x.slug}">${x.title}</a></td><td class="n">${bytes(x.usedBytes)}</td><td class="n">${bytes(x.limitBytes)}</td></tr>`)}</tbody></table></div>` : nothing}`;
   }
 
   render() {

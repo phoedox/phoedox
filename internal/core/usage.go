@@ -56,6 +56,15 @@ type UsageStorage struct {
 	LimitBytes int64  `json:"limitBytes"`
 }
 
+// UsageApp is the storage an app keeps (counted against the project).
+type UsageApp struct {
+	ID         string `json:"id"`
+	Slug       string `json:"slug"`
+	Title      string `json:"title"`
+	UsedBytes  int64  `json:"usedBytes"`
+	LimitBytes int64  `json:"limitBytes"`
+}
+
 // UsageLink points to the usage page of a higher level.
 type UsageLink struct {
 	Level string `json:"level"` // org | admin
@@ -76,6 +85,8 @@ type UsageReport struct {
 	ByModel      []UsageLine    `json:"byModel,omitempty"`
 	ByOrg        []UsageLine    `json:"byOrg,omitempty"`
 	Storage      []UsageStorage `json:"storage,omitempty"`
+	// Apps is the own storage of each app of the project (project level).
+	Apps []UsageApp `json:"apps,omitempty"`
 	StorageBytes int64          `json:"storageBytes"`
 	Up           []UsageLink    `json:"up"`
 	// PricesHidden: amounts are left out; bars show percentages and the
@@ -259,6 +270,14 @@ func (s *Service) ProjectUsage(ctx context.Context, a Actor, ref string) (UsageR
 	r.ByUser, r.ChargedCents, _ = s.lines(ctx, f, "user", names.user, false)
 	r.ByModel, _, _ = s.lines(ctx, f, "model", nil, false)
 	r.Storage, r.StorageBytes = s.storageOf(ctx, []store.Project{p})
+	if sizes, err := s.DB.AppStorageByDocument(ctx, p.ID); err == nil && len(sizes) > 0 {
+		if docs, err := s.DB.ListDocuments(ctx, p.ID, store.DocFilter{Type: store.DocApp, WithContent: true}); err == nil {
+			for _, d := range docs {
+				app := appOf(d)
+				r.Apps = append(r.Apps, UsageApp{ID: d.ID, Slug: d.Slug, Title: d.Title, UsedBytes: sizes[d.ID], LimitBytes: int64(app.StorageMB) << 20})
+			}
+		}
+	}
 	// The AI budget the project draws from: its organization's, or the
 	// viewer's personal budget for personal projects.
 	if p.OrgID != "" {

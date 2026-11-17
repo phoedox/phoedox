@@ -4238,4 +4238,6 @@ export const de = {
   "app.template_help": "Diese App unter Neu → App aus einer Vorlage anbieten",
   "app.template_on": "Die App wird als Vorlage angeboten.",
   "app.template_off": "Keine Vorlage mehr.",
+  "usage.apps": "Speicher der Apps",
+  "usage.col.app": "App",
 } as const;

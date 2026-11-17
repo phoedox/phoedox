@@ -89,3 +89,22 @@ func (d *DB) ProjectAppStorage(ctx context.Context, projectID string) (int64, er
 	err := d.QueryRow(ctx, `SELECT SUM(size) FROM app_storage WHERE project_id = ?`, projectID).Scan(&n)
 	return n.Int64, err
 }
+
+// AppStorageByDocument sums the storage of a project's apps (document id → bytes).
+func (d *DB) AppStorageByDocument(ctx context.Context, projectID string) (map[string]int64, error) {
+	rows, err := d.Query(ctx, `SELECT document_id, SUM(size) FROM app_storage WHERE project_id = ? GROUP BY document_id`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int64{}
+	for rows.Next() {
+		var id string
+		var n int64
+		if err := rows.Scan(&id, &n); err != nil {
+			return nil, err
+		}
+		out[id] = n
+	}
+	return out, rows.Err()
+}

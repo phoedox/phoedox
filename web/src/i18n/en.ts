@@ -4240,4 +4240,6 @@ export const en: Record<keyof typeof de, string> = {
   "app.template_help": "Offer this app under New → App from a template",
   "app.template_on": "The app is offered as template.",
   "app.template_off": "No longer a template.",
+  "usage.apps": "Storage of apps",
+  "usage.col.app": "App",
 };
