@@ -316,7 +316,14 @@ func (s *Service) eventProject(ctx context.Context, subject string, payload any)
 
 func (s *Service) event(ctx context.Context, a Actor, kind, subject string, payload any) {
 	project := s.eventProject(ctx, subject, payload)
-	_ = s.DB.AddProjectEvent(ctx, a.String(), kind, subject, project, payload)
+	actor := a.String()
+	// Work through a service provider is logged as such (ADR-0073).
+	if project != "" && a.User.ID != "" {
+		if via := s.DB.ProviderVia(ctx, project, a.User.ID); via != "" {
+			actor += "~provider:" + via
+		}
+	}
+	_ = s.DB.AddProjectEvent(ctx, actor, kind, subject, project, payload)
 	s.projectChanged(a, project, kind, subject)
 	s.emitWebhooks(ctx, a, kind, subject, payload)
 	s.emitPluginEvents(ctx, a, kind, subject, payload)

@@ -46,6 +46,7 @@ func (d *DB) UserNames(ctx context.Context, ids []string) (map[string]string, er
 // ActorUserID extracts the user id from an actor string
 // (user:<id>, mcp:<id>:<token>, token:<id>:<token>).
 func ActorUserID(actor string) string {
+	actor, _, _ = strings.Cut(actor, "~") // "~provider:<org>" marks work through a service provider
 	parts := strings.Split(actor, ":")
 	if len(parts) >= 2 && (parts[0] == "user" || parts[0] == "mcp" || parts[0] == "token" || parts[0] == "plugin") {
 		return parts[1]

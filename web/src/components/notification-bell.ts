@@ -7,7 +7,7 @@ import { navigate } from "../state";
 import { base } from "./shared";
 
 const kindIcon: Record<string, string> = {
-  "comment.mention": "AtSign", "comment.reply": "MessageSquare", "check.fail": "TriangleAlert", "check.recover": "CircleCheck", "task.assigned": "ListChecks", "budget.warning": "Gauge", "budget.request": "Inbox", "budget.request_decided": "Inbox", "store.request": "Store", "store.request_decided": "Store",
+  "comment.mention": "AtSign", "comment.reply": "MessageSquare", "check.fail": "TriangleAlert", "check.recover": "CircleCheck", "task.assigned": "ListChecks", "budget.warning": "Gauge", "budget.request": "Inbox", "budget.request_decided": "Inbox", "store.request": "Store", "store.request_decided": "Store", "provider.granted": "Handshake",
 };
 
 /** Bell in the top bar: unread count and the newest notifications. */

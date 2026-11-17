@@ -2,6 +2,7 @@ import "./org-ai-chat";
 import "./themes";
 import "./bgai";
 import "./store-items";
+import "./org-providers";
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
 import { ApiError, api, type Group, type Org, type OrgDetail } from "../api";
@@ -94,7 +95,7 @@ customElements.define("phx-orgs", PhxOrgs);
 
 /** One organization: settings, members and groups (admins edit). */
 export class PhxOrg extends SignalWatcher(LitElement) {
-  static properties = { slug: {}, inAdmin: { type: Boolean }, o: { state: true }, error: { state: true } };
+  static properties = { slug: {}, inAdmin: { type: Boolean }, o: { state: true }, error: { state: true }, orgProjects: { state: true } };
   static styles = [base, pageStyles];
   slug = "";
   /** Shown in the administration (no link back to the own list). */
@@ -111,9 +112,14 @@ export class PhxOrg extends SignalWatcher(LitElement) {
     }
   }
 
+  /** The organization's projects (for choosing what a provider may see). */
+  orgProjects: { id: string; slug: string; name: string }[] = [];
+
   private async load() {
     try {
       this.o = await api<OrgDetail>("GET", `/orgs/${this.slug}`);
+      const ps = await api<{ id: string; slug: string; name: string; orgId?: string }[]>("GET", "/projects").catch(() => []);
+      this.orgProjects = ps.filter((p) => p.orgId === this.o?.id);
     } catch (e) {
       this.error = e instanceof ApiError ? e.text : t("error.unknown");
     }
@@ -211,6 +217,8 @@ export class PhxOrg extends SignalWatcher(LitElement) {
         <phx-theme-list scope="org" .owner=${this.slug}></phx-theme-list>
         <h2 id="store">${icon("Store", 16)} ${t("store.org_title")}</h2>
         <phx-org-store .org=${this.slug} .groups=${o.groups}></phx-org-store>` : ""}
+
+      <phx-org-providers .org=${this.slug} ?admin=${admin} .projects=${this.orgProjects}></phx-org-providers>
 
       <h2>${t("orgs.members")}</h2>
       <table>${o.members.map((m) => html`<tr><td>${m.name}</td><td class="muted">${m.email}</td>

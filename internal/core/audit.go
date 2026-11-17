@@ -21,6 +21,9 @@ type AuditEvent struct {
 	Via string `json:"via"`
 	// Detail names the plugin or token where it helps.
 	Detail string `json:"detail,omitempty"`
+	// Provider is the service provider organization (slug) the person
+	// worked through (ADR-0073).
+	Provider string `json:"provider,omitempty"`
 }
 
 // AuditQuery filters the log (query parameters of the API).
@@ -93,7 +96,9 @@ func (s *Service) describeEvents(ctx context.Context, events []store.Event) []Au
 	out := make([]AuditEvent, len(events))
 	for i, e := range events {
 		ae := AuditEvent{Event: e}
-		parts := strings.SplitN(e.Actor, ":", 3)
+		actor, via, _ := strings.Cut(e.Actor, "~")
+		ae.Provider = strings.TrimPrefix(via, "provider:")
+		parts := strings.SplitN(actor, ":", 3)
 		ae.Via = parts[0]
 		switch parts[0] {
 		case "user":
@@ -116,7 +121,7 @@ func (s *Service) describeEvents(ctx context.Context, events []store.Event) []Au
 				}
 			}
 		default:
-			ae.Who = e.Actor
+			ae.Who = actor
 		}
 		out[i] = ae
 	}

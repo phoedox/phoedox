@@ -75,12 +75,19 @@ func (d *DB) rankExpr() string {
 		COALESCE((SELECT ` + rank("m.role") + ` FROM project_members m WHERE m.project_id = p.id AND m.user_id = ? AND (m.expires_at IS NULL OR m.expires_at > ?)), 0),
 		COALESCE((SELECT MAX(` + rank("pg.role") + `) FROM project_groups pg JOIN group_members gm ON gm.group_id = pg.group_id WHERE pg.project_id = p.id AND gm.user_id = ?), 0),
 		CASE WHEN EXISTS (SELECT 1 FROM org_members om WHERE om.org_id = p.org_id AND om.user_id = ? AND om.role = 'admin') THEN 4 ELSE 0 END,
+		COALESCE((SELECT MAX(CASE pl.role WHEN 'admin' THEN 4 WHEN 'editor' THEN 3 WHEN 'reader' THEN 2 ELSE 0 END) FROM provider_links pl
+			JOIN org_members pm ON pm.org_id = pl.provider_org_id AND pm.user_id = ?
+			WHERE pl.customer_org_id = p.org_id AND pl.revoked_at IS NULL AND (pl.expires_at IS NULL OR pl.expires_at > ?)
+			AND (pl.projects = '' OR ',' || pl.projects || ',' LIKE '%,' || p.id || ',%')), 0),
 		CASE WHEN EXISTS (SELECT 1 FROM document_grants dg JOIN documents dd ON dd.id = dg.document_id
 			WHERE dd.project_id = p.id AND dd.deleted_at IS NULL
 			AND (dg.user_id = ? OR dg.group_id IN (SELECT group_id FROM group_members WHERE user_id = ?))) THEN 1 ELSE 0 END)`
 }
 
-func rankArgs(userID string) []any { return []any{userID, Now(), userID, userID, userID, userID} }
+func rankArgs(userID string) []any {
+	now := Now()
+	return []any{userID, now, userID, userID, userID, now, userID, userID}
+}
 
 func scanProject(r interface{ Scan(...any) error }, withRole bool) (Project, error) {
 	var p Project

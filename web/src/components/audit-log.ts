@@ -4,7 +4,7 @@ import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
 import { base } from "./shared";
 
-interface AuditEntry { id: number; actor: string; kind: string; subject: string; projectId?: string; payload: unknown; createdAt: string; who: string; via: string; detail?: string }
+interface AuditEntry { id: number; actor: string; kind: string; subject: string; projectId?: string; payload: unknown; createdAt: string; who: string; via: string; detail?: string; provider?: string }
 
 const VIA_ICON: Record<string, string> = { web: "UserRound", mcp: "Bot", token: "KeyRound", plugin: "Puzzle", agent: "Server", cli: "SquareCode", oauth: "Link" };
 
@@ -87,7 +87,7 @@ export class PhxAuditLog extends LitElement {
         <thead><tr><th>${t("audit.when")}</th><th>${t("audit.who")}</th><th>${t("audit.what")}</th><th></th></tr></thead>
         <tbody>${this.events.map((e) => html`<tr>
           <td class="when">${formatDate(e.createdAt)}</td>
-          <td><span class="via" title=${t(`audit.via.${e.via}` as any)}>${icon(VIA_ICON[e.via] ?? "Circle", 12)} ${e.who}</span>${e.detail ? html` <code>${e.detail}</code>` : ""}</td>
+          <td><span class="via" title=${t(`audit.via.${e.via}` as any)}>${icon(VIA_ICON[e.via] ?? "Circle", 12)} ${e.who}</span>${e.detail ? html` <code>${e.detail}</code>` : ""}${e.provider ? html` <span class="chip" title=${t("audit.via_provider_help")}>${t("audit.via_provider", { name: e.provider })}</span>` : ""}</td>
           <td><code>${e.kind}</code></td>
           <td>${e.payload && JSON.stringify(e.payload) !== "null" && JSON.stringify(e.payload) !== "{}" ? html`<button class="ghost small" @click=${() => (this.open = this.open === e.id ? 0 : e.id)}>${t("audit.details")}</button>` : ""}</td></tr>
           ${this.open === e.id ? html`<tr><td colspan="4"><pre>${JSON.stringify(e.payload, null, 2)}</pre><span class="muted">${t("audit.subject")}: <code>${e.subject}</code></span></td></tr>` : ""}`)}</tbody></table>`
