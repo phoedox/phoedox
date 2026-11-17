@@ -285,6 +285,8 @@ export class PhxThemeEditor extends LitElement {
     .srow:has(.sw) { grid-template-columns: minmax(0, 1fr) auto; }
     input[type=range] { accent-color: var(--accent); padding: 0; border: 0; background: transparent; }
     .top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+    .font-slot { display: grid; gap: 6px; align-content: start; }
+    .font-slot button { justify-self: start; }
     .top a.back { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); text-decoration: none; font-size: 13.5px; }
     .top input.name { flex: 1 1 220px; font-size: 20px; font-weight: 600; font-family: var(--font-display); }
     .top .chip { white-space: nowrap; }
@@ -517,16 +519,50 @@ export class PhxThemeEditor extends LitElement {
     </label>`;
   }
 
+  /** Uploads a theme asset (font: woff2, logo: PNG/JPEG/WebP) and returns its address. */
+  private async uploadAsset(kind: "font" | "logo"): Promise<{ url: string; name: string } | undefined> {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = kind === "font" ? ".woff2,font/woff2" : "image/png,image/jpeg,image/webp";
+    const file = await new Promise<File | undefined>((res) => { input.onchange = () => res(input.files?.[0]); input.click(); });
+    if (!file) return undefined;
+    const body = new FormData();
+    body.append("kind", kind);
+    body.append("name", file.name);
+    body.append("file", file, file.name);
+    const res = await fetch("/api/v1/themes/assets", { method: "POST", body, headers: { "X-Phoedox": "1" }, credentials: "same-origin" });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast(new ApiError(res.status, json.code ?? "error", json.key ?? "error.unknown", json.params ?? {}).text, "error");
+      return undefined;
+    }
+    return { url: json.url, name: file.name };
+  }
+
+  private async uploadFont(which: "body" | "display" | "mono") {
+    const up = await this.uploadAsset("font");
+    if (!up) return;
+    const family = up.name.replace(/\.woff2$/i, "").replace(/[-_]+/g, " ").replace(/["';{}<>]/g, "").trim() || "Custom";
+    this.change((d) => (d[which] = { family, url: up.url, license: "" }));
+    toast(t("theme.font_uploaded"));
+  }
+
   private fontSelect(which: "body" | "display" | "mono") {
     const fonts = this.cat?.fonts ?? [];
     const cur = this.data[which]?.family ?? "";
+    const own = this.data[which]?.url;
     const list = which === "mono" ? fonts.filter((f) => /Mono|system-ui/.test(f)) : fonts.filter((f) => !/Mono/.test(f));
-    return html`<label class="field">${t(`theme.font_${which}` as Key)}
+    return html`<div class="font-slot"><label class="field">${t(`theme.font_${which}` as Key)}
       <select @change=${(e: Event) => this.change((d) => (d[which] = { family: (e.target as HTMLSelectElement).value }))}>
         <option value="" ?selected=${cur === ""}>${t("theme.font_default")}</option>
-        ${list.map((f) => html`<option value=${f} ?selected=${cur === f} style="font-family:'${f}'">${f}</option>`)}
-        ${cur && !list.includes(cur) ? html`<option value=${cur} selected>${cur}</option>` : nothing}
-      </select></label>`;
+        ${list.map((f) => html`<option value=${f} ?selected=${cur === f && !own} style="font-family:'${f}'">${f}</option>`)}
+        ${cur && (own || !list.includes(cur)) ? html`<option value=${cur} selected>${cur}${own ? ` (${t("theme.font_own")})` : ""}</option>` : nothing}
+      </select></label>
+      <button type="button" class="ghost small" @click=${() => this.uploadFont(which)}>${icon("Upload", 13)} ${t("theme.font_upload")}</button>
+      ${own ? html`<label class="field">${t("theme.font_family")}<input .value=${cur} maxlength="60"
+          @change=${(e: Event) => this.change((d) => (d[which] = { ...d[which], family: (e.target as HTMLInputElement).value.replace(/["';{}<>]/g, "").trim() }))}></label>
+        <label class="field">${t("theme.font_license")}<input .value=${this.data[which]?.license ?? ""} maxlength="200" required placeholder=${t("theme.font_license_ph")}
+          @change=${(e: Event) => this.change((d) => (d[which] = { ...d[which], license: (e.target as HTMLInputElement).value.trim() }))}></label>` : nothing}</div>`;
   }
 
   private preview() {
@@ -597,7 +633,9 @@ export class PhxThemeEditor extends LitElement {
             ${srow(t("theme.radius"), t("theme.radius_help"), html`<input type="range" min="0" max="24" .value=${String(this.data.radius)} aria-label=${t("theme.radius")}
               @input=${(e: Event) => this.change((d) => (d.radius = Number((e.target as HTMLInputElement).value)))}><span class="mono">${this.data.radius ? `${this.data.radius}px` : t("theme.font_default")}</span>`)}
             ${srow(t("theme.density"), t("theme.density_help"), sseg(t("theme.density"), (this.data.density || "normal") as "compact" | "normal" | "comfortable", [["compact", t("theme.density_compact")], ["normal", t("theme.density_normal")], ["comfortable", t("theme.density_comfortable")]], (x) => this.change((d) => (d.density = x === "normal" ? "" : x))))}
-            ${srow(t("theme.logo"), t("theme.logo_help"), html`<input type="url" placeholder="https://…" .value=${this.data.logo ?? ""} @change=${(e: Event) => this.change((d) => (d.logo = (e.target as HTMLInputElement).value.trim() || undefined))}>`)}`)}
+            ${srow(t("theme.logo"), t("theme.logo_help"), html`<span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <input type="url" placeholder="https://…" .value=${this.data.logo ?? ""} @change=${(e: Event) => this.change((d) => (d.logo = (e.target as HTMLInputElement).value.trim() || undefined))}>
+              <button type="button" class="ghost small" @click=${async () => { const up = await this.uploadAsset("logo"); if (up) this.change((d) => (d.logo = up.url)); }}>${icon("Upload", 13)} ${t("theme.logo_upload")}</button></span>`)}`)}
           ${scard(t("theme.css"), t("theme.css_text"), html`
             <div class="body"><textarea class="css" spellcheck="false" placeholder=".card { border-width: 2px; }" .value=${this.cssText}
               @input=${(e: Event) => { this.cssText = (e.target as HTMLTextAreaElement).value; this.dirty = true; this.check(); }}></textarea></div>

@@ -4207,4 +4207,13 @@ export const en: Record<keyof typeof de, string> = {
   "audit.via_provider_help": "Worked through a service provider organization",
   "prov.templates": "Project templates",
   "prov.templates_intro": "Projects ticked here are offered as templates when members create a project – also at customers, if this organization is their service provider with the admin role. Pages, boards (without cards), apps and the data model are copied.",
+  "theme.font_upload": "Upload woff2",
+  "theme.font_uploaded": "Font uploaded – add the licence note.",
+  "theme.font_own": "uploaded",
+  "theme.font_family": "Font name",
+  "theme.font_license": "Licence note",
+  "theme.font_license_ph": "e.g. SIL Open Font License 1.1",
+  "theme.logo_upload": "Upload logo",
+  "validation.theme_asset_type": "Fonts must be woff2 files, logos PNG, JPEG or WebP.",
+  "validation.theme_asset_size": "The file is larger than {kb} KB.",
 };

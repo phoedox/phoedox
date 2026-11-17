@@ -136,10 +136,13 @@ type page struct {
 	Version      string
 	Accent       template.CSS
 	Custom       template.CSS
-	Lang         string
-	Status       int
-	Login        bool
-	LoginError   bool
+	// Theme and Logo come from the theme of the published projects.
+	Theme      template.CSS
+	Logo       string
+	Lang       string
+	Status     int
+	Login      bool
+	LoginError bool
 	// Plain: no page menu (status pages).
 	Plain bool
 	// Embed: only the content, for iframes on other sites; links open on top.
@@ -770,6 +773,9 @@ func (s *Site) sitemap(w http.ResponseWriter, r *http.Request, p store.Publicati
 func (s *Site) render(w http.ResponseWriter, r *http.Request, status int, pg *page) {
 	pg.JS, pg.CSS = s.islands()
 	pg.Version = s.Version
+	if css, logo := s.Core.PubTheme(r.Context(), pg.Pub); css != "" {
+		pg.Theme, pg.Logo = template.CSS(css), logo
+	}
 	if pg.Pub.Color != "" {
 		pg.Accent = template.CSS("--accent:" + pg.Pub.Color + ";")
 	}

@@ -71,6 +71,8 @@ func (a *api) routes(r chi.Router) {
 	r.Post("/hooks/code/{id}", a.codeHook)
 	// Short-lived download links of project exports (sealed token).
 	r.Get("/exports/{token}", a.openExportLink)
+	// Fonts and logos of themes (public: sign-in pages, publications, e-mails).
+	r.Get("/theme-assets/{file}", a.themeAsset)
 	r.Get("/feedback/status/{token}", a.feedbackStatus)
 	r.With(requireHeader).Delete("/feedback/status/{token}", a.deleteFeedbackStatus)
 	r.Get("/feedback/status/{token}/export", a.exportFeedbackStatus)
@@ -206,6 +208,7 @@ func (a *api) routes(r chi.Router) {
 			r.Post("/themes/{id}/release", a.releaseTheme)
 			r.Post("/themes/generate", a.generateTheme)
 			r.Post("/store/themes", a.installStoreTheme)
+			r.Post("/themes/assets", a.uploadThemeAsset)
 			r.Post("/oauth/authorize", a.oauthAuthorize)
 			r.Delete("/oauth/grants/{id}", a.revokeGrant)
 		})

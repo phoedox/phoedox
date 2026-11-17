@@ -13,13 +13,14 @@
 {{if .Description}}<meta property="og:description" content="{{.Description}}">{{end}}
 {{range .CSS}}<link rel="stylesheet" href="{{$.Base}}/{{.}}?v={{$.Version}}">{{end}}
 {{if .JS}}<script type="module" src="{{.Base}}/{{.JS}}?v={{.Version}}"></script>{{end}}
+{{if .Theme}}<style>{{.Theme}}</style>{{end}}
 <style>:root{ {{.Accent}} } {{.Custom}}</style>
 {{if .Embed}}<base target="_top"><style>body{background:transparent} .wrap.plain{padding:0} main article{margin:0;max-width:none} .embed-src{font-size:12px;margin:12px 0 0;opacity:.75}</style>{{end}}
 </head>
 <body{{if .Embed}} class="embed"{{end}}>
 {{if not .Embed}}<header class="top">
   <button class="menu-toggle" type="button" aria-label="{{index .T "menu"}}">☰</button>
-  <a class="brand" href="{{.Base}}/">{{.Pub.Title}}</a>
+  <a class="brand" href="{{.Base}}/">{{if .Logo}}<img src="{{.Logo}}" alt="" height="22" style="vertical-align:middle;margin-right:8px">{{end}}{{.Pub.Title}}</a>
   {{if gt (len .Site) 1}}<nav class="projects" aria-label="{{index .T "pages"}}">{{range .Site}}<a href="{{$.Base}}/{{.Project.Slug}}" {{if and $.Project (eq $.Project.Project.ID .Project.ID)}}aria-current="page"{{end}}>{{.Project.Name}}</a>{{end}}</nav>{{end}}
   {{if .Site}}<form action="{{.Base}}/search" role="search"><input type="search" name="q" value="{{.Search}}" placeholder="{{index .T "search_placeholder"}}" aria-label="{{index .T "search"}}"></form>{{end}}
   {{if .Langs}}<nav class="langs" aria-label="{{index .T "language"}}">{{range .Langs}}<a href="{{.URL}}" hreflang="{{.Code}}" {{if .Current}}aria-current="true"{{end}}>{{.Code}}</a>{{end}}</nav>{{end}}

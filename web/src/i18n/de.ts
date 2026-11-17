@@ -4205,4 +4205,13 @@ export const de = {
   "audit.via_provider_help": "Über eine Dienstleister-Organisation gearbeitet",
   "prov.templates": "Projektvorlagen",
   "prov.templates_intro": "Hier angehakte Projekte werden beim Anlegen eines Projekts als Vorlage angeboten – auch bei Kunden, wenn diese Organisation dort Dienstleister mit der Rolle Admin ist. Kopiert werden Seiten, Boards (ohne Karten), Apps und das Datenmodell.",
+  "theme.font_upload": "woff2 hochladen",
+  "theme.font_uploaded": "Schrift hochgeladen – trag den Lizenzhinweis ein.",
+  "theme.font_own": "hochgeladen",
+  "theme.font_family": "Name der Schrift",
+  "theme.font_license": "Lizenzhinweis",
+  "theme.font_license_ph": "z. B. SIL Open Font License 1.1",
+  "theme.logo_upload": "Logo hochladen",
+  "validation.theme_asset_type": "Schriften müssen woff2-Dateien sein, Logos PNG, JPEG oder WebP.",
+  "validation.theme_asset_size": "Die Datei ist größer als {kb} KB.",
 } as const;

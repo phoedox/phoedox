@@ -142,6 +142,8 @@ type AppOrg struct {
 	ID   string `json:"id"`
 	Slug string `json:"slug"`
 	Name string `json:"name"`
+	// Logo of the organization's theme (sign-in page of its own domain).
+	Logo string `json:"logo,omitempty"`
 }
 
 // AppContextFor returns the context for a request host.
@@ -157,7 +159,14 @@ func (s *Service) AppContextFor(ctx context.Context, host string) AppContext {
 	if err != nil {
 		return AppContext{}
 	}
-	return AppContext{Org: &AppOrg{ID: o.ID, Slug: o.Slug, Name: o.Name}}
+	org := &AppOrg{ID: o.ID, Slug: o.Slug, Name: o.Name}
+	tctx := store.WithTenant(ctx, d.TenantID)
+	if id, _, _ := s.DB.OrgTheme(tctx, o.ID); id != "" {
+		if t, err := s.DB.GetTheme(tctx, id); err == nil {
+			org.Logo = publicLogo(themeData(t).Logo)
+		}
+	}
+	return AppContext{Org: org}
 }
 
 // OrgDomainAccess tells whether the organization may use its own domain

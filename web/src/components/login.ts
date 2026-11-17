@@ -165,6 +165,7 @@ export class PhxLogin extends LitElement {
     if (this.step) return this.secondStep(this.step);
     return html`<form class="card" @submit=${this.submit}>
       <div class="logo"><img src="/logo.svg" alt="" />Phoedox</div>
+      ${this.instance?.org?.logo ? html`<img src=${this.instance.org.logo} alt=${this.instance.org.name} style="max-height:48px;max-width:220px;margin:0 0 8px">` : ""}
       ${this.instance?.org ? html`<p class="muted" style="margin:0 0 4px;font-weight:600">${this.instance.org.name}</p>` : ""}
       <h1 style="font-size:20px">${t("login.title")}</h1>
       <label class="field">${t("login.email")}<input name="email" type="email" autocomplete="username webauthn" required /></label>
