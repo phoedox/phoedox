@@ -26,7 +26,7 @@ pixels at 100 %), y grows downwards.
   `entity` on a shape shows that entry; `doc` links a page.
 - **Blocks:** `{type: block, kind, source, x, y, w, h}` puts a content block on the
   board; `source` is the same text as the fenced block of that kind in a page
-  (`page-syntax.md`), e.g. `kind: chart` with the chart JSON. Blocks look the same as in
+  (`blocks/<kind>.md`), e.g. `kind: chart` with the chart JSON. Blocks look the same as in
   pages; polls and calculators can be used right on the board, decision matrices show
   their bars; trees, racks and floor plan excerpts are live; mind maps, schedules, before/after and annotated images are pictures
   (quizzes are for pages only). A mind map in a page can be copied onto a board as
@@ -103,4 +103,4 @@ flows and small tools; for a real program write an app (`create_app`).
 - `save_whiteboard` creates or replaces a whole board (e.g. an import); for changes
   use `edit_whiteboard`, for diagrams `draw_diagram`.
 - Pages can show a whiteboard read-only with a ```whiteboard block (see
-  `page-syntax.md`).
+  `blocks/whiteboard.md`).

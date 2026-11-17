@@ -3,7 +3,7 @@
 ## Monitoring and APIs
 
 - `list_environment` lists the project's `{{variables}}` (secret values are never
-  shown). Request blocks on pages use them (see `page-syntax.md`).
+  shown). Request blocks on pages use them (see `blocks/request.md`).
 - `run_request` runs a request block of a page – only GET, HEAD and OPTIONS. People
   run any method from the page.
 - `create_check` monitors a reading request block on a schedule; `list_checks` shows

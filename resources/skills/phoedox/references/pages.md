@@ -1,7 +1,7 @@
 # Pages
 
 Pages are documents of type `markdown`. What they can contain (links, callouts,
-request blocks, live blocks, diagrams) is in `page-syntax.md`.
+request blocks, live blocks, diagrams) is in `page-syntax.md`, each block kind in `blocks/<kind>.md`.
 
 ## Read
 

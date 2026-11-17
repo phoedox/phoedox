@@ -147,7 +147,7 @@ admins. Point users there instead of copying a template's code by hand.
 
 ## Where apps show up
 
-- On pages with an ```app block holding the app's slug (`page-syntax.md`).
+- On pages with an ```app block holding the app's slug (`blocks/app.md`).
 - On whiteboards as an embed `{kind: app, doc: <slug>}` (`whiteboards.md`).
 - On task cards: link the app document to the card (`documents` of the task);
   people start it inside the card.
