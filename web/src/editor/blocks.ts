@@ -179,6 +179,8 @@ export class FenceNode extends DecoratorNode<null> {
       el.dataset.kind = this.__kind;
       el.dataset.src = src;
       el.dataset.project = project;
+      el.dataset.doc = (config.theme as { doc?: string }).doc ?? "";
+      el.dataset.editable = "1";
     } else if (this.__kind === "dbmodel") {
       el = document.createElement("phx-dbmodel");
       el.dataset.src = src;

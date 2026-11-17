@@ -14,6 +14,10 @@ export interface BlockCtx {
   locale: string;
   /** On a whiteboard (as an activated element), not in a page. */
   board?: boolean;
+  /** The block's source text. */
+  source?: string;
+  /** In the page editor: replaces the block's source (e.g. a marker placed by clicking). */
+  edit?(source: string): void;
 }
 
 export interface BlockDef<M = any> {

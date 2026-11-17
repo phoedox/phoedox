@@ -246,6 +246,8 @@ func (r fenceRenderer) render(w util.BufWriter, src []byte, n ast.Node, entering
 	esc := html.EscapeString(text)
 	if _, ok := blocks.Get(lang); ok {
 		// Registered blocks (ADR-0085): the web draws them from the source.
+		// Images in the source (annotated images, before/after) load from the publication.
+		esc = blockFile.ReplaceAllString(esc, r.links.File+"$1$2")
 		_, _ = w.WriteString(`<phx-block data-kind="` + html.EscapeString(lang) + `"><pre>` + esc + `</pre></phx-block>`)
 		return ast.WalkSkipChildren, nil
 	}
@@ -307,6 +309,7 @@ var policy = func() *bluemonday.Policy {
 }()
 
 var pageLink = regexp.MustCompile(`href="/p/([a-z0-9-]+)/d/([a-z0-9-]+)"`)
+var blockFile = regexp.MustCompile(`/api/v1/files/([A-Za-z0-9]+)(/[^\s"'<>&]*)?`)
 var fileLink = regexp.MustCompile(`(src|href)="/api/v1/files/([A-Za-z0-9]+)(/[^"]*)?"`)
 
 // Markdown renders a page for the site: our extensions, safe HTML, links

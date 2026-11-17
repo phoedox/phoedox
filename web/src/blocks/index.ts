@@ -4,4 +4,8 @@ import "./poll";
 import "./matrix";
 import "./calc";
 import "./quiz";
+import "./mindmap";
+import "./gantt";
+import "./beforeafter";
+import "./annotate";
 export * from "./registry";

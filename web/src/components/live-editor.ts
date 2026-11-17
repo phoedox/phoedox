@@ -371,6 +371,17 @@ export class PhxLiveEditor extends LitElement {
       }
       return false;
     }, COMMAND_PRIORITY_CRITICAL);
+    // A block changed its own source (e.g. a marker placed on an image).
+    element.addEventListener("phx-block-edit", (e) => {
+      const key = (e.target as HTMLElement).closest(".ed-fence")?.querySelector<HTMLElement>(".ed-fence-edit")?.dataset.key;
+      const src = (e as CustomEvent<{ source: string }>).detail?.source;
+      if (!key || typeof src !== "string") return;
+      this.live!.markInput();
+      ed.update(() => {
+        const n = $getNodeByKey(key);
+        if ($isFenceNode(n)) n.setSource(src.replace(/\s+$/, ""));
+      });
+    });
     // Clicks on blocks edit them: formulas, embeds, boards, dates.
     element.addEventListener("click", (e) => {
       const target = e.target as HTMLElement;

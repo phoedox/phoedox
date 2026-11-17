@@ -117,3 +117,10 @@ func TestStructureBlocks(t *testing.T) {
 		t.Errorf("tab group:\n%s", out)
 	}
 }
+
+func TestBlockImagesFromPublication(t *testing.T) {
+	out := Markdown("```annotate\nimage: /api/v1/files/AB12/kasten.jpg Kasten\n- 1, 2: x\n```", Links{File: "/pub/x/_files/"})
+	if !strings.Contains(out, "image: /pub/x/_files/AB12/kasten.jpg Kasten") {
+		t.Fatalf("image not rewritten: %s", out)
+	}
+}

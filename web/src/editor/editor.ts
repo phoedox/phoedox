@@ -92,7 +92,7 @@ export function createLiveEditor(o: LiveEditorOptions): LiveEditor {
     namespace: "phoedox",
     nodes: NODES,
     // The project lets embedded boards load (FenceNode).
-    theme: { ...theme, project: o.project ?? "" },
+    theme: { ...theme, project: o.project ?? "", doc: o.docId },
     editable: o.editable,
     onError: (e) => console.error(e),
   });

@@ -24,7 +24,7 @@ export class PhxBlock extends HTMLElement {
   private shown = "";
 
   static get observedAttributes() {
-    return ["data-src", "data-kind"];
+    return ["data-src", "data-kind", "data-editable"];
   }
 
   connectedCallback() {
@@ -71,6 +71,11 @@ export class PhxBlock extends HTMLElement {
         key: this.dataset.key || blockKey(def, model, src),
         locale: locale(),
         board: this.hasAttribute("data-board"),
+        source: src,
+        // In the editor the block may change its own source; the editor applies it.
+        edit: this.hasAttribute("data-editable")
+          ? (source: string) => this.dispatchEvent(new CustomEvent("phx-block-edit", { detail: { source }, bubbles: true, composed: true }))
+          : undefined,
       });
       return;
     }

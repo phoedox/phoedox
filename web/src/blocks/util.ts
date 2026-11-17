@@ -53,3 +53,40 @@ button.ghost { border: 1px solid var(--line); background: var(--surface); color:
 button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) { button.ghost:hover { background: var(--surface2); } }
 `;
+
+/** An image of a block: a file of the project (/api/v1/files/<id>, or just the id) or an https URL. */
+export function imageSrc(v: string): string | undefined {
+  const s = v.trim().split(/\s+/)[0] ?? "";
+  if (/^\/api\/v1\/files\/[A-Za-z0-9]+(\/[^\s"'<>]*)?$/.test(s)) return s;
+  if (/^[0-9A-HJKMNP-TV-Z]{26}$/.test(s)) return `/api/v1/files/${s}`;
+  if (/^https:\/\/[^\s"'<>]+$/.test(s)) return s;
+  return undefined;
+}
+
+/** "image: <url> label words" → the url and the label. */
+export function imageLine(v: string): { src?: string; label: string } {
+  const [first = "", ...rest] = v.trim().split(/\s+/);
+  return { src: imageSrc(first), label: rest.join(" ") };
+}
+
+/** In the editor: lets the author choose an image, uploads it to the project and returns its URL. */
+export function pickImage(project: string, doc: string): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.addEventListener("change", async () => {
+      const f = input.files?.[0];
+      if (!f) return resolve(undefined);
+      try {
+        const { uploadFile } = await import("../files");
+        const info = await uploadFile(project, f, doc ? { document: doc } : {});
+        resolve(`/api/v1/files/${info.id}`);
+      } catch {
+        resolve(undefined);
+      }
+    });
+    input.addEventListener("cancel", () => resolve(undefined));
+    input.click();
+  });
+}

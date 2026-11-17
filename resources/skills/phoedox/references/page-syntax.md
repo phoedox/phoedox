@@ -129,6 +129,10 @@ Each is a fenced code block with this info string:
 | ```matrix | `criteria: Price*3, Noise*2`, `scale: 1-5`, `- Option: 4, 3` | a decision matrix with weighted totals; readers try other weights; one click makes it an open decision with the options |
 | ```calc | `Label (unit) = 25` (input), `Label (unit) = formula`, `Label = @entry.attr` | a calculator: readers change inputs and see results at once |
 | ```quiz | `? question`, `+ right` / `- wrong` answers or `= answer` (flashcard), `> explanation` | a quiz or flashcards; each reader's answers are their own |
+| ```mindmap | an indented outline (first line = centre) | a mind map; readers collapse branches and copy it onto a whiteboard |
+| ```gantt | `Name [id]: start, end or duration`, `## Section`, `today`, `board: slug` | a schedule with sections, milestones, progress and dependency arrows |
+| ```beforeafter | `before: <image> label`, `after: <image> label` | two photos with a slider between them |
+| ```annotate | `image: <image>`, `- x, y: text` per marker | a photo with numbered markers and their list |
 | ```math | LaTeX | a formula (inline: `$…$`) |
 | ```dbmodel | SQL `CREATE TABLE` statements | an entity-relationship diagram |
 | ```embed | a URL | an embedded video or page (e.g. YouTube) |
@@ -136,7 +140,7 @@ Each is a fenced code block with this info string:
 Mermaid ids must not be Mermaid keywords: in a `sequenceDiagram`, a participant called
 `Off`, `End`, `Loop`, `Alt` or `Note` breaks the diagram (`participant Remote as Off-site`
 works). Pages show such an error in the block. `validate_blocks` checks mermaid,
-dbmodel, chart, poll, matrix, calc and quiz blocks before or after saving (common mistakes, not the full Mermaid parser);
+dbmodel, chart, poll, matrix, calc, quiz, mindmap, gantt, beforeafter and annotate blocks before or after saving (common mistakes, not the full Mermaid parser);
 `create_document` and `update_document` return the same findings as `blockProblems`.
 
 **One database schema per project.** All `dbmodel` blocks of a project together form its
@@ -230,6 +234,43 @@ Power (W) = 25
 Price (€/kWh) = 0.32
 Cost per year (€) = Power * 24 * 365 / 1000 * Price
 ```
+
+### Pictures and plans
+
+**Mind maps** (```mindmap): the first line is the centre; lines indented under a line
+(spaces or `- ` lists, the same step throughout) are its branches. At most 400 items.
+
+**Schedules** (```gantt): one line per item, `Name [id]: start, end or duration, …`.
+Start is a date (`2026-03-01`) or `after id` (several ids: `after a b`); then an end date,
+a duration (`3d`, `2w`, `1m`) or nothing for a milestone; optionally `done`, `50%` and a
+colour. `## Section` groups items, `today` draws today's line, `board: slug` adds the
+board's cards that have a due date (from the day they were created to the due date).
+A range can also be written `2026-02-02 – 2026-02-06`.
+
+```gantt
+title: Bathroom renovation
+today
+## Planning
+Get quotes [quotes]: 2026-01-05, 2w, done
+Choose a contractor [choose]: after quotes, 3d
+## Work
+Demolition [demo]: after choose, 1w
+Tiles: after demo, 10d, 30%
+Done: 2026-03-20
+```
+
+**Images in blocks** (`beforeafter`, `annotate`) are files of the project
+(`/api/v1/files/<id>`, see `list_files` and `upload_image`) or https addresses. Attach the
+file to the page so published pages show it. Words after the address are the label.
+
+**Before/after** (```beforeafter): `before: <image> label` and `after: <image> label`
+(or two Markdown images), optional `title:` and `start: 30` (slider position in percent).
+
+**Annotated images** (```annotate): `image: <image> description`, then one line per
+marker: `- x, y: text` with x and y in percent of the picture (0–100, from the top left),
+optionally a colour after the position (`- 74, 64 blue: RCD`). `@entry` in a text links
+the entry. Markers are numbered in order. People can also place markers by clicking in
+the editor. `validate_blocks` checks all four.
 
 ## Images and files
 
