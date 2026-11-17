@@ -200,17 +200,44 @@ export class PhxStoreThemes extends StoreList {
 
 /** App templates of the store for a project (create dialog). */
 export class PhxStoreApps extends StoreList {
-  static properties = { ...StoreList.properties, project: {}, category: {} };
-  static styles = [base, settingsUI, listStyles, css`.it { padding: 10px 0; } .note, .empty, .off { margin: 0 0 10px; padding-left: 0; padding-right: 0; }`];
+  static properties = { ...StoreList.properties, project: {}, category: {}, local: { state: true } };
+  /** App templates of this project. */
+  local: { id: string; document: string; title: string }[] = [];
+  static styles = [base, settingsUI, listStyles, css`.it { padding: 10px 0; } .note, .empty, .off { margin: 0 0 10px; padding-left: 0; padding-right: 0; }
+    h3.sub { font-size: 13px; color: var(--muted); font-weight: 600; margin: 10px 0 2px; text-transform: uppercase; letter-spacing: .04em; }`];
   project = "";
   category = "";
 
   willUpdate(ch: Map<string, unknown>) {
-    if (ch.has("project") && this.project) void this.load();
+    if (ch.has("project") && this.project) {
+      void this.load();
+      void api<{ id: string; document: string; title: string }[]>("GET", `/projects/${this.project}/app-templates`).then((l) => (this.local = l)).catch(() => undefined);
+    }
   }
 
   protected query() {
     return `type=app&project=${encodeURIComponent(this.project)}`;
+  }
+
+  private async copy(tpl: { id: string; title: string }) {
+    this.busy = true;
+    try {
+      const r = await api<{ document: { slug: string } }>("POST", `/projects/${this.project}/apps/${tpl.id}/copy`, { category: this.category });
+      this.dispatchEvent(new CustomEvent("done", { bubbles: true, composed: true }));
+      navigate(`/p/${this.project}/d/${r.document.slug}`);
+    } catch (e) {
+      toast(errText(e), "error");
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private localList() {
+    if (!this.local.length) return nothing;
+    return html`<h3 class="sub">${t("store.project_templates")}</h3><div class="items">${this.local.map((tpl) => html`<div class="it">
+      <span class="bx">${icon("Copy", 16)}</span><div><b>${tpl.title}</b></div>
+      <div class="acts"><button ?disabled=${this.busy} @click=${() => this.copy(tpl)}>${icon("Plus", 14)} ${t("store.use_template")}</button></div></div>`)}</div>
+      <h3 class="sub">${t("store.from_store_title")}</h3>`;
   }
 
   private async create(it: StoreItem) {
@@ -229,10 +256,10 @@ export class PhxStoreApps extends StoreList {
 
   render() {
     const d = this.data;
-    if (!d) return html`<p class="empty">${t("store.loading")}</p>`;
-    if (d.off) return html`<p class="off">${t("store.off")}</p>`;
-    if (!d.items.length) return html`<p class="empty">${t("store.no_apps")}</p>`;
-    return html`${d.access === "request" ? html`<p class="note">${icon("Info", 15)}<span>${t("store.request_hint")}</span></p>` : nothing}
+    if (!d) return html`${this.localList()}<p class="empty">${t("store.loading")}</p>`;
+    if (d.off) return html`${this.localList()}<p class="off">${t("store.off")}</p>`;
+    if (!d.items.length) return html`${this.localList()}<p class="empty">${t("store.no_apps")}</p>`;
+    return html`${this.localList()}${d.access === "request" ? html`<p class="note">${icon("Info", 15)}<span>${t("store.request_hint")}</span></p>` : nothing}
       <div class="items">${d.items.map((it) => html`<div class="it">
         <span class="bx">${icon("AppWindow", 16)}</span>
         <div><b>${it.name}</b> ${this.by(it)}${it.summary ? html`<p class="sum">${it.summary}</p>` : nothing}

@@ -274,7 +274,7 @@ function appOrigin(doc: Doc): { id: string; version: string; name?: string } | u
 }
 
 export class PhxAppView extends LitElement {
-  static properties = { project: {}, doc: { attribute: false }, info: { state: true }, error: { state: true }, full: { state: true } };
+  static properties = { project: {}, doc: { attribute: false }, info: { state: true }, error: { state: true }, full: { state: true }, isTemplate: { state: true } };
   static styles = [base, css`
     :host { display: block; }
     .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
@@ -302,11 +302,26 @@ export class PhxAppView extends LitElement {
     if (!this.doc) return;
     try {
       const info = await api<AppFrameInfo>("POST", `/projects/${this.project}/apps/${this.doc.id}/open`);
+      void api<{ id: string }[]>("GET", `/projects/${this.project}/app-templates`).then((l) => (this.isTemplate = l.some((x) => x.id === this.doc?.id))).catch(() => undefined);
       // The instance or organization may allow less than the app asks for.
       if (info.maxLevel !== undefined && info.maxLevel < info.level) info.level = info.maxLevel;
       this.info = info;
     } catch (e) {
       this.error = e instanceof ApiError ? e.text : t("error.unknown");
+    }
+  }
+
+  /** The app is offered as template in its project (New → App from a template). */
+  isTemplate = false;
+
+  private async toggleTemplate() {
+    if (!this.doc) return;
+    try {
+      const list = await api<{ id: string }[]>("PUT", `/projects/${this.project}/apps/${this.doc.id}/template`, { on: !this.isTemplate });
+      this.isTemplate = list.some((x) => x.id === this.doc!.id);
+      toast(t(this.isTemplate ? "app.template_on" : "app.template_off"));
+    } catch (e) {
+      toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
     }
   }
 
@@ -324,7 +339,8 @@ export class PhxAppView extends LitElement {
         <span class="chip lvl" title=${t("app.level_help")}>${icon(["Box", "Eye", "HardDrive", "Pencil"][i.level], 12)} ${t(`app.level${i.level}` as Key)}</span>
         ${i.level > 0 ? html`<span class="chip">${granted >= i.level ? t("app.allowed") : t("app.not_allowed_yet")}</span>` : nothing}
         <span class="sp"></span>
-        ${i.canEdit ? html`<a class="btn ghost" href="/p/${this.project}/d/${this.doc.slug}/app-edit">${icon("Code", 14)} ${t("app.edit")}</a>` : nothing}
+        ${i.canEdit ? html`<button class="ghost" aria-pressed=${this.isTemplate ? "true" : "false"} title=${t("app.template_help")} @click=${() => this.toggleTemplate()}>${icon("Copy", 14)} ${t(this.isTemplate ? "app.is_template" : "app.make_template")}</button>
+          <a class="btn ghost" href="/p/${this.project}/d/${this.doc.slug}/app-edit">${icon("Code", 14)} ${t("app.edit")}</a>` : nothing}
         <button class="ghost" @click=${() => this.setFull(!this.full)}>${icon(this.full ? "Minimize2" : "Maximize2", 14)} ${t(this.full ? "app.exit_full" : "app.full")}</button>
       </div>
       ${appOrigin(this.doc) ? html`<phx-app-origin style="margin-bottom:10px" .project=${this.project} .doc=${this.doc.id} .origin=${appOrigin(this.doc)} ?canEdit=${i.canEdit}

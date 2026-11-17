@@ -39,3 +39,30 @@ func (a *api) setOrgAppPolicy(w http.ResponseWriter, r *http.Request) {
 	v, err := a.core.SetOrgAppPolicy(r.Context(), actorOf(r), chi.URLParam(r, "o"), in)
 	respond(w, v, err)
 }
+
+func (a *api) appTemplates(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.AppTemplates(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, v, err)
+}
+
+func (a *api) setAppTemplate(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		On bool `json:"on"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.SetAppTemplate(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "doc"), in.On)
+	respond(w, v, err)
+}
+
+func (a *api) copyApp(w http.ResponseWriter, r *http.Request) {
+	var in core.AppCopyInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.CopyApp(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "doc"), in)
+	respond(w, v, err)
+}

@@ -3,6 +3,8 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -155,4 +157,92 @@ func (s *Service) SetOrgAppPolicy(ctx context.Context, a Actor, ref string, in A
 	}
 	s.event(ctx, a, "apps.policy", o.ID, in)
 	return OrgAppPolicy{AppPolicy: in, InstanceOrgHosts: s.readAppPolicy(ctx, settingAppPolicy).OrgHosts}, nil
+}
+
+// --- app templates in a project ---------------------------------------------
+
+func appTemplatesKey(projectID string) string { return "apps.templates:" + projectID }
+
+func (s *Service) appTemplateIDs(ctx context.Context, projectID string) []string {
+	var ids []string
+	if raw, _ := s.DB.Setting(ctx, appTemplatesKey(projectID), ""); raw != "" {
+		_ = json.Unmarshal([]byte(raw), &ids)
+	}
+	return ids
+}
+
+// AppTemplate is an app of the project offered as template.
+type AppTemplate struct {
+	Document string `json:"document"` // slug
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Category string `json:"category,omitempty"`
+}
+
+// AppTemplates lists the project's app templates (readers).
+func (s *Service) AppTemplates(ctx context.Context, a Actor, ref string) ([]AppTemplate, error) {
+	p, err := s.project(ctx, a, ref, store.RoleReader)
+	if err != nil {
+		return nil, err
+	}
+	out := []AppTemplate{}
+	for _, id := range s.appTemplateIDs(ctx, p.ID) {
+		if d, err := s.DB.GetDocument(ctx, p.ID, id); err == nil && d.Type == store.DocApp {
+			out = append(out, AppTemplate{Document: d.Slug, ID: d.ID, Title: d.Title, Category: d.Category})
+		}
+	}
+	return out, nil
+}
+
+// SetAppTemplate marks an app as template of its project, or not (editors).
+func (s *Service) SetAppTemplate(ctx context.Context, a Actor, ref, docRef string, on bool) ([]AppTemplate, error) {
+	p, doc, err := s.docAccess(ctx, a, ref, docRef, store.RoleEditor)
+	if err != nil {
+		return nil, err
+	}
+	if doc.Type != store.DocApp {
+		return nil, invalid("validation.not_app", nil, "%s is not an app", docRef)
+	}
+	ids := slices.DeleteFunc(s.appTemplateIDs(ctx, p.ID), func(x string) bool { return x == doc.ID })
+	if on {
+		ids = append(ids, doc.ID)
+	}
+	raw, _ := json.Marshal(ids)
+	if err := s.DB.SetSetting(ctx, appTemplatesKey(p.ID), string(raw), a.User.ID); err != nil {
+		return nil, err
+	}
+	s.event(ctx, a, "app.template", doc.ID, map[string]bool{"on": on})
+	return s.AppTemplates(ctx, a, ref)
+}
+
+// AppCopyInput makes a new app from an existing one.
+type AppCopyInput struct {
+	Title    string `json:"title"`
+	Category string `json:"category,omitempty"`
+}
+
+// CopyApp creates a new app with the files and manifest of another (its
+// storage and grants stay with the original).
+func (s *Service) CopyApp(ctx context.Context, a Actor, ref, docRef string, in AppCopyInput) (DocResult, error) {
+	_, doc, err := s.docAccess(ctx, a, ref, docRef, store.RoleReader)
+	if err != nil {
+		return DocResult{}, err
+	}
+	if doc.Type != store.DocApp {
+		return DocResult{}, invalid("validation.not_app", nil, "%s is not an app", docRef)
+	}
+	app := appOf(doc)
+	app.Build, app.Origin = nil, nil
+	title := strings.TrimSpace(in.Title)
+	if title == "" {
+		title = doc.Title
+	}
+	res, err := s.CreateDocument(ctx, a, ref, DocumentInput{Type: store.DocApp, Title: title, Category: in.Category, App: &app})
+	for n := 2; errors.Is(err, store.ErrConflict) && n <= 20; n++ {
+		res, err = s.CreateDocument(ctx, a, ref, DocumentInput{Type: store.DocApp, Title: fmt.Sprintf("%s %d", title, n), Category: in.Category, App: &app})
+	}
+	if err == nil {
+		s.event(ctx, a, "app.copy", res.Document.ID, map[string]string{"from": doc.ID})
+	}
+	return res, err
 }

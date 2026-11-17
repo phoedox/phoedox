@@ -62,3 +62,28 @@ func TestAppPolicy(t *testing.T) {
 		t.Fatalf("create while off: %v", err)
 	}
 }
+
+func TestAppTemplates(t *testing.T) {
+	ctx := context.Background()
+	s, owner, reader, _ := setup(t)
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Apps"})
+	_ = s.SetMember(ctx, owner, p.Slug, "reader@x.de", store.RoleReader)
+	res, _ := s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: store.DocApp, Title: "Checklist", App: &App{Level: 2, Files: map[string]string{"index.html": "<h1>List</h1>"}}})
+	if _, err := s.SetAppTemplate(ctx, reader, p.Slug, res.Document.Slug, true); err == nil {
+		t.Fatal("readers cannot mark templates")
+	}
+	list, err := s.SetAppTemplate(ctx, owner, p.Slug, res.Document.Slug, true)
+	if err != nil || len(list) != 1 || list[0].Title != "Checklist" {
+		t.Fatalf("template: %v %+v", err, list)
+	}
+	cp, err := s.CopyApp(ctx, owner, p.Slug, res.Document.Slug, AppCopyInput{})
+	if err != nil || cp.Document.Title != "Checklist 2" {
+		t.Fatalf("copy: %v %+v", err, cp.Document)
+	}
+	if got, _ := s.GetApp(ctx, owner, p.Slug, cp.Document.ID); got.App.Level != 2 || got.App.Files["index.html"] != "<h1>List</h1>" {
+		t.Fatalf("copied app: %+v", got.App)
+	}
+	if list, _ := s.SetAppTemplate(ctx, owner, p.Slug, res.Document.Slug, false); len(list) != 0 {
+		t.Fatal("unmark")
+	}
+}
