@@ -408,3 +408,31 @@ func (d *DB) UpdateDocumentPlace(ctx context.Context, doc Document, expectVersio
 	_, err := d.Exec(ctx, `UPDATE documents SET slug = ?, category = ?, position = ?, ext_ref = ? WHERE id = ?`, doc.Slug, doc.Category, doc.Position, doc.ExtRef, doc.ID)
 	return doc, err
 }
+
+// DocumentsContaining returns live documents (with content) whose stored
+// content contains any of the words; callers check the hits themselves.
+func (d *DB) DocumentsContaining(ctx context.Context, words []string) ([]Document, error) {
+	if len(words) == 0 {
+		return nil, nil
+	}
+	var where []string
+	var args []any
+	for _, w := range words {
+		where = append(where, `CAST(content AS TEXT) LIKE ? ESCAPE '\'`)
+		args = append(args, "%"+escapeLike(w)+"%")
+	}
+	rows, err := d.Query(ctx, `SELECT `+docCols+`, content FROM documents WHERE deleted_at IS NULL AND (`+strings.Join(where, " OR ")+`)`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Document
+	for rows.Next() {
+		doc, err := scanDoc(rows, true)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, doc)
+	}
+	return out, rows.Err()
+}

@@ -5,11 +5,13 @@
 import { signal } from "@lit-labs/signals";
 import { api } from "./api";
 
+/** A kind that moved out of the core (ADR-0088) whose plugin is not active here. */
+export interface MissingPlugin { plugin: string; installed: boolean; store: boolean }
 export interface PluginBlockInfo {
-  kind: string; label: string; icon?: string; plugin: string; version: string;
-  element?: string; frontend?: string; board?: boolean; example?: string;
+  kind: string; label: string; icon?: string; plugin: string; version?: string;
+  element?: string; frontend?: string; board?: boolean; example?: string; missing?: MissingPlugin;
 }
-export interface PluginBlockResult { svg: string; problems: { line: number; message: string; severity: string }[] }
+export interface PluginBlockResult { svg: string; problems: { line: number; message: string; severity: string }[]; missing?: MissingPlugin }
 
 /** kind -> info of the current project's plugin blocks. */
 export const pluginBlocks = signal<Map<string, PluginBlockInfo>>(new Map());
@@ -17,6 +19,16 @@ let loadedFor = "";
 
 export function pluginBlock(kind: string): PluginBlockInfo | undefined {
   return pluginBlocks.get().get(kind);
+}
+
+/** The plugin blocks that can be drawn here (for menus). */
+export function activePluginBlocks(): PluginBlockInfo[] {
+  return [...pluginBlocks.get().values()].filter((b) => !b.missing);
+}
+
+/** Forgets drawn pictures, e.g. after a plugin was enabled. */
+export function clearPluginBlockCache() {
+  cache.clear();
 }
 
 export async function loadPluginBlocks(project: string, force = false) {

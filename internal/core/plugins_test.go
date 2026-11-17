@@ -395,7 +395,10 @@ func TestPluginBlocks(t *testing.T) {
 	}
 	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Haus"})
 	_ = s.SetMember(ctx, owner, p.Slug, reader.User.Email, store.RoleReader)
-	if list, _ := s.PluginBlocks(ctx, reader, p.Slug); len(list) != 0 {
+	active := func(list []PluginBlockInfo) []PluginBlockInfo {
+		return slices.DeleteFunc(list, func(b PluginBlockInfo) bool { return b.Missing != nil })
+	}
+	if list, _ := s.PluginBlocks(ctx, reader, p.Slug); len(active(list)) != 0 {
 		t.Fatalf("not enabled yet: %+v", list)
 	}
 	if _, err := s.RenderPluginBlock(ctx, reader, p.Slug, "timeline", "x", "de", 0); !errors.Is(err, ErrNotFound) {
@@ -405,6 +408,7 @@ func TestPluginBlocks(t *testing.T) {
 		t.Fatal(err)
 	}
 	list, err := s.PluginBlocks(ctx, reader, p.Slug)
+	list = active(list)
 	if err != nil || len(list) != 1 || list[0].Kind != "timeline" || list[0].Element != "phx-timeline" || !list[0].Board ||
 		list[0].Frontend != "/api/v1/plugins/de.example.ups/1.2.0/files/frontend/index.js" {
 		t.Fatalf("blocks: %v %+v", err, list)

@@ -35,12 +35,17 @@ type PluginBlockInfo struct {
 	Frontend string `json:"frontend,omitempty"`
 	Board    bool   `json:"board,omitempty"`
 	Example  string `json:"example,omitempty"`
+	// Missing is set for a kind that moved out of the core (ADR-0088) whose
+	// plugin is not active here: clients show which plugin it needs.
+	Missing *MissingPlugin `json:"missing,omitempty"`
 }
 
 // PluginBlockResult is a drawn plugin block.
 type PluginBlockResult struct {
 	SVG      string         `json:"svg"`
 	Problems []BlockProblem `json:"problems"`
+	// Missing: the kind moved to a plugin that is not active (ADR-0088).
+	Missing *MissingPlugin `json:"missing,omitempty"`
 }
 
 const (
@@ -97,11 +102,24 @@ func (s *Service) PluginBlocks(ctx context.Context, a Actor, ref string) ([]Plug
 	if err != nil {
 		return nil, err
 	}
-	out, _, err := s.pluginBlockDefs(ctx, p.ID)
+	out, by, err := s.pluginBlockDefs(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
 	if out == nil {
 		out = []PluginBlockInfo{}
 	}
-	return out, err
+	kinds := make([]string, 0, len(movedBlocks))
+	for k := range movedBlocks {
+		kinds = append(kinds, k)
+	}
+	slices.Sort(kinds)
+	for _, k := range kinds {
+		if _, ok := by[k]; !ok {
+			out = append(out, PluginBlockInfo{Kind: k, Label: movedBlocks[k].Label, Plugin: movedBlocks[k].Plugin, Missing: s.missingPlugin(ctx, k)})
+		}
+	}
+	return out, nil
 }
 
 // RenderPluginBlock draws a plugin block of the project.
@@ -123,6 +141,9 @@ func (s *Service) renderPluginBlock(ctx context.Context, p store.Project, kind, 
 	}
 	ap, ok := by[kind]
 	if !ok {
+		if _, moved := movedBlocks[kind]; moved {
+			return s.missingBlockResult(ctx, kind), nil
+		}
 		return PluginBlockResult{}, ErrNotFound
 	}
 	if width <= 0 || width > 4000 {
@@ -182,7 +203,7 @@ func (s *Service) renderPluginBlock(ctx context.Context, p store.Project, kind, 
 // checkPluginBlocks adds the problems of plugin blocks to validate_blocks.
 func (s *Service) checkPluginBlocks(ctx context.Context, p store.Project, md string) []BlockProblem {
 	defs, _, err := s.pluginBlockDefs(ctx, p.ID)
-	if err != nil || len(defs) == 0 {
+	if err != nil {
 		return nil
 	}
 	kinds := map[string]bool{}
@@ -191,6 +212,12 @@ func (s *Service) checkPluginBlocks(ctx context.Context, p store.Project, md str
 	}
 	var out []BlockProblem
 	for i, b := range fencedBlocks(md) {
+		if mb, moved := movedBlocks[b.Lang]; moved && !kinds[b.Lang] {
+			// Kept as written; it shows once the plugin is active (ADR-0088).
+			out = append(out, BlockProblem{Kind: b.Lang, Block: i + 1, Line: b.Line, Severity: "warning",
+				Message: "this block needs the plugin " + mb.Label + " (" + mb.Plugin + "), which is not active in this project"})
+			continue
+		}
 		if !kinds[b.Lang] {
 			continue
 		}

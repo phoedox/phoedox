@@ -227,6 +227,11 @@ func (s *Service) InstallPlugin(ctx context.Context, a Actor, data []byte, sig *
 	if err := s.adminOnly(a); err != nil {
 		return PluginInfo{}, err
 	}
+	return s.installPackage(ctx, a, data, sig, source)
+}
+
+// installPackage checks and installs a plugin package; callers check rights.
+func (s *Service) installPackage(ctx context.Context, a Actor, data []byte, sig *plugins.Signature, source string) (PluginInfo, error) {
 	if !s.pluginsOn() {
 		return PluginInfo{}, errPluginsOff()
 	}
@@ -1075,6 +1080,16 @@ func (s *Service) InstallFromStore(ctx context.Context, a Actor, id, version str
 	if s.Plugins.Store == nil {
 		return PluginInfo{}, invalid("validation.store_off", nil, "no plugin store configured")
 	}
+	if version == "" {
+		v, err := s.latestStoreVersion(ctx, id)
+		if err != nil {
+			return PluginInfo{}, invalid("validation.store_failed", map[string]any{"reason": err.Error()}, "store: %v", err)
+		}
+		if v == "" {
+			return PluginInfo{}, ErrNotFound
+		}
+		version = v
+	}
 	data, sig, err := s.Plugins.Store.Download(ctx, id, version)
 	if err != nil {
 		return PluginInfo{}, invalid("validation.store_failed", map[string]any{"reason": err.Error()}, "store: %v", err)
@@ -1083,6 +1098,22 @@ func (s *Service) InstallFromStore(ctx context.Context, a Actor, id, version str
 		return PluginInfo{}, invalid("validation.plugin_signature", nil, "the store sent no signature")
 	}
 	return s.InstallPlugin(ctx, a, data, &sig, "store")
+}
+
+// latestStoreVersion is the newest version of a plugin the store offers
+// this server ("" if none).
+func (s *Service) latestStoreVersion(ctx context.Context, id string) (string, error) {
+	list, err := s.Plugins.Store.Catalog(ctx, s.Plugins.Version, plugins.HostAPI, s.pluginChannel(ctx))
+	if err != nil {
+		return "", err
+	}
+	version := ""
+	for _, e := range list {
+		if e.ID == id && (version == "" || plugins.CompareVersions(e.Version, version) > 0) {
+			version = e.Version
+		}
+	}
+	return version, nil
 }
 
 // SyncPluginStore asks the store for updates and recalls of installed

@@ -5192,4 +5192,12 @@ export const de = {
   "plugin_block.line": "Zeile {line}:",
   "plugin_block.failed": "Das Plugin konnte den Block nicht zeichnen.",
   "plugin_block.drawing": "Wird gezeichnet …",
+  "plugin_block.needs": "braucht das Plugin {plugin}",
+  "plugin_block.enable": "Plugin in diesem Projekt aktivieren",
+  "plugin_block.install": "Plugin aus dem Store installieren",
+  "plugin_block.install_failed": "Der Store ist nicht erreichbar. Lade das Plugin-Paket unter Administration → Plugins hoch.",
+  "plugin_block.upload_hint": "Ohne Store: Lade das Plugin-Paket (.phxp) unter Administration → Plugins hoch.",
+  "plugin_block.ask_owner": "Ein Projektinhaber kann es in den Projekteinstellungen aktivieren.",
+  "plugin_block.ask_admin": "Ein Administrator kann es installieren.",
+  "validation.block_source": "Der Block ist zu groß.",
 } as const;

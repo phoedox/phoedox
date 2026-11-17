@@ -11,6 +11,13 @@ the example, and read the plugin's own description when it has one.
 - `validate_blocks`, `create_document` and `update_document` report the plugin's findings
   like those of core blocks.
 - Some plugin blocks are interactive in the web app and the mobile app.
+- Some kinds moved from Phoedox into official plugins (ADR-0087), first `gantt`. Where
+  the plugin is not active, `pluginBlocks` marks the kind `missing: true`: existing
+  blocks keep their source and show which plugin they need, and Phoedox installs and
+  enables the plugin by itself when the store can be reached (ADR-0088).
+  `validate_blocks` then warns instead of checking the format. You may still write such
+  a block, but tell the user that a project owner or administrator has to enable the
+  plugin before it shows as a picture.
 
 **Schedules (Gantt)** come from the official plugin `com.phoedox.gantt` (block `gantt`):
 one line per item, `Name [id]: start, end or duration, …`. Start is a date

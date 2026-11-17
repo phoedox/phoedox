@@ -5194,4 +5194,12 @@ export const en: Record<keyof typeof de, string> = {
   "plugin_block.line": "Line {line}:",
   "plugin_block.failed": "The plugin could not draw the block.",
   "plugin_block.drawing": "Drawing …",
+  "plugin_block.needs": "needs the plugin {plugin}",
+  "plugin_block.enable": "Enable the plugin in this project",
+  "plugin_block.install": "Install the plugin from the store",
+  "plugin_block.install_failed": "The store cannot be reached. Upload the plugin package under Administration → Plugins.",
+  "plugin_block.upload_hint": "Without a store: upload the plugin package (.phxp) under Administration → Plugins.",
+  "plugin_block.ask_owner": "A project owner can enable it in the project settings.",
+  "plugin_block.ask_admin": "An administrator can install it.",
+  "validation.block_source": "The block is too large.",
 };

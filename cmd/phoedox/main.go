@@ -184,6 +184,10 @@ func runPlugins(ctx context.Context, a *app.App, log *slog.Logger) {
 				if err := a.Core.SyncPluginStore(store.WithTenant(ctx, t.ID)); err != nil {
 					log.Warn("plugin store sync", "tenant", t.ID, "err", err)
 				}
+				// Moved block kinds get their plugins where content uses them (ADR-0088).
+				if err := a.Core.InstallMovedBlockPlugins(store.WithTenant(ctx, t.ID)); err != nil {
+					log.Warn("plugins for moved blocks", "tenant", t.ID, "err", err)
+				}
 			}
 		}
 		select {

@@ -670,6 +670,9 @@ type pluginBlockSummary struct {
 	Label   string `json:"label"`
 	Plugin  string `json:"plugin"`
 	Example string `json:"example,omitempty"`
+	// Missing: a kind that moved into this plugin, which is not active in the
+	// project (ADR-0088); such blocks keep their source and show a note.
+	Missing bool `json:"missing,omitempty"`
 }
 
 type docSummary struct {
@@ -794,7 +797,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		if pbs, err := svc.PluginBlocks(ctx, a, p.Slug); err == nil {
 			for _, b := range pbs {
-				ov.PluginBlocks = append(ov.PluginBlocks, pluginBlockSummary{Kind: b.Kind, Label: b.Label, Plugin: b.Plugin, Example: b.Example})
+				ov.PluginBlocks = append(ov.PluginBlocks, pluginBlockSummary{Kind: b.Kind, Label: b.Label, Plugin: b.Plugin, Example: b.Example, Missing: b.Missing != nil})
 			}
 		}
 		if p.AIWriteMode == "suggest" {

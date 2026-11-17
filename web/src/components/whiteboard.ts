@@ -27,7 +27,7 @@ import { base } from "./shared";
 import { toast } from "./toasts";
 import "./block-view";
 import "./plugin-block";
-import { cachedPluginBlock, pluginBlock, pluginBlocks } from "../plugin-blocks";
+import { activePluginBlocks, cachedPluginBlock, pluginBlock } from "../plugin-blocks";
 
 type Tool = "select" | "hand" | "rect" | "ellipse" | "diamond" | "arrow" | "line" | "pen" | "text" | "sticky" | "frame" | "image" | "embed" | "entity" | "comment" | "laser" | "eraser" | "screen" | "ui";
 const TOOLS: (readonly [Tool, string, string] | "|")[] = [
@@ -875,11 +875,12 @@ export class PhxWhiteboard extends LitElement {
     const parsed = def?.parse(b.source ?? "");
     if (!def && pluginBlock(b.kind ?? "")) {
       // A plugin's block: the server draws it; the picture arrives later and repaints.
-      const r = cachedPluginBlock(this.project, b.kind!, b.source ?? "", w - 16, locale());
+      const r = pluginBlock(b.kind!)!.missing ? undefined : cachedPluginBlock(this.project, b.kind!, b.source ?? "", w - 16, locale());
       if (!r?.svg) {
         const tx = mk("text", { x: x + 14, y: y + 26 }, g);
         tx.style.cssText = "font:13px var(--font-body);fill:var(--muted)";
-        tx.textContent = `${pluginBlock(b.kind!)!.label} · ${t(r ? "block.cannot_show" : "plugin_block.drawing")}`;
+        const info = pluginBlock(b.kind!)!;
+        tx.textContent = `${info.label} · ${info.missing ? t("plugin_block.needs", { plugin: info.plugin }) : t(r ? "block.cannot_show" : "plugin_block.drawing")}`;
         return;
       }
       const pic = document.importNode(new DOMParser().parseFromString(r.svg, "image/svg+xml").documentElement, true) as unknown as SVGSVGElement;
@@ -2851,7 +2852,7 @@ export class PhxWhiteboard extends LitElement {
       ${c.id ? nothing : html`<label class="kindsel">${t("wb.block_kind")}
         <select @change=${(ev: Event) => { const k = (ev.target as HTMLSelectElement).value; this.chartEdit = { kind: k, src: blockDef(k)?.example ?? pluginBlock(k)?.example ?? "" }; }}>
           ${boardKinds().map((d) => html`<option value=${d.kind} ?selected=${d.kind === c.kind}>${t(d.label as any)}</option>`)}
-          ${[...pluginBlocks.get().values()].filter((p) => p.board).map((p) => html`<option value=${p.kind} ?selected=${p.kind === c.kind}>${p.label}</option>`)}
+          ${activePluginBlocks().filter((p) => p.board).map((p) => html`<option value=${p.kind} ?selected=${p.kind === c.kind}>${p.label}</option>`)}
         </select></label>`}
       <p class="muted">${def ? t(def.hint as any) : pluginBlock(c.kind)?.label ?? ""}</p>
       <div class="chartgrid">

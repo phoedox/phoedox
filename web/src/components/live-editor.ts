@@ -1,4 +1,4 @@
-import { pluginBlocks } from "../plugin-blocks";
+import { activePluginBlocks, pluginBlocks } from "../plugin-blocks";
 import { $createCodeNode } from "@lexical/code";
 import { blockDef } from "../blocks";
 import { TOGGLE_LINK_COMMAND } from "@lexical/link";
@@ -416,7 +416,7 @@ export class PhxLiveEditor extends LitElement {
 
   private slashItems(query = this.slash?.query ?? ""): SlashItem[] {
     // Blocks of the project's plugins (ADR-0086) join the core ones.
-    const plugin: SlashItem[] = [...pluginBlocks.get().values()].map((b) => ({
+    const plugin: SlashItem[] = activePluginBlocks().map((b) => ({
       id: `plugin-${b.kind}`, group: "blocks", label: b.label, words: `${b.kind} ${b.label} plugin`,
       icon: (b.icon ?? "puzzle").split("-").map((p) => p[0].toUpperCase() + p.slice(1)).join(""), run: `plugin:${b.kind}`,
     }));
@@ -476,7 +476,7 @@ export class PhxLiveEditor extends LitElement {
     else if (kind === "request") ed.update(() => $insertRequest());
     else if (kind === "plugin") {
       const b = pluginBlocks.get().get(arg);
-      if (b) ed.update(() => $insertCodeBlock(b.kind, b.example ?? ""));
+      if (b && !b.missing) ed.update(() => $insertCodeBlock(b.kind, b.example ?? ""));
     }
     else if (kind === "color") this.pop = "color";
     else if (kind === "file") this.renderRoot.querySelector<HTMLInputElement>("input.pick")!.click();

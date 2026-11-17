@@ -2,8 +2,11 @@
 // The server's picture (the plugin's block_render, cleaned) shows first; a
 // plugin element, when the plugin has one, then takes over with the source,
 // the picture and the project.
+import { api } from "../api";
 import { locale, t } from "../i18n";
-import { pluginBlock, renderPluginBlock } from "../plugin-blocks";
+import { clearPluginBlockCache, loadPluginBlocks, pluginBlock, renderPluginBlock, type PluginBlockInfo } from "../plugin-blocks";
+import { reloadProjectPlugins } from "../plugin-host";
+import { currentProject, currentUser } from "../state";
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
@@ -16,11 +19,18 @@ const STYLE = `
 .err ul { margin: 4px 0 0; padding-left: 18px; }
 .err pre { margin: 6px 0 0; white-space: pre-wrap; font: 12px/1.45 var(--font-mono, monospace); color: var(--muted); }
 .by { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.need { border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; background: var(--surface); font-size: 13px; }
+.need b { display: block; margin-bottom: 2px; }
+.need p { margin: 2px 0 0; color: var(--muted); }
+.need button { margin-top: 8px; font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: var(--on-color); cursor: pointer; }
+.need button:disabled { opacity: .6; cursor: default; }
+.need pre { margin: 8px 0 0; white-space: pre-wrap; font: 12px/1.45 var(--font-mono, monospace); color: var(--muted); }
 `;
 
 export class PhxPluginBlock extends HTMLElement {
   source?: string;
-  private shown = "";
+  shown = "";
+  private renderMissing = missingView;
 
   static get observedAttributes() {
     return ["data-src", "data-kind"];
@@ -42,6 +52,10 @@ export class PhxPluginBlock extends HTMLElement {
     this.shown = kind + "\n" + src;
     const root = this.shadowRoot ?? this.attachShadow({ mode: "open" });
     const info = pluginBlock(kind);
+    if (info?.missing) {
+      this.renderMissing(root, info, project, src);
+      return;
+    }
     const width = Math.max(320, Math.floor(this.getBoundingClientRect().width) || 720);
     root.innerHTML = `<style>${STYLE}</style><div class="pic" aria-busy="true"></div>`;
     try {
@@ -65,9 +79,50 @@ export class PhxPluginBlock extends HTMLElement {
         return;
       }
       root.innerHTML = `<style>${STYLE}</style><div class="pic" role="img" aria-label="${esc(info?.label ?? kind)}">${r.svg}</div>`;
+      // The plugin's module may still be loading (e.g. right after enabling it).
+      if (tag && tag.includes("-")) void customElements.whenDefined(tag).then(() => {
+        if (this.shown !== kind + "\n" + src) return;
+        this.shown = "";
+        void this.render();
+      });
     } catch {
       root.innerHTML = `<style>${STYLE}</style><div class="err" role="alert"><b>${esc(info?.label ?? kind)}: ${esc(t("plugin_block.failed"))}</b><pre>${esc(src)}</pre></div>`;
     }
   }
 }
+// A kind that moved into a plugin which is not active here (ADR-0088): say
+// which plugin it needs and let owners enable it, admins install it.
+function missingView(this: PhxPluginBlock, root: ShadowRoot, info: PluginBlockInfo, project: string, src: string) {
+  const m = info.missing!;
+  const owner = currentProject.get()?.slug === project && currentProject.get()?.role === "owner";
+  const admin = !!currentUser.get()?.isAdmin;
+  let action = "", hint = "";
+  if (m.installed && owner) action = "enable";
+  else if (!m.installed && admin && m.store) action = "install";
+  else if (!m.installed && admin) hint = t("plugin_block.upload_hint");
+  else if (m.installed) hint = t("plugin_block.ask_owner");
+  else hint = t("plugin_block.ask_admin");
+  root.innerHTML = `<style>${STYLE}</style><div class="need" role="note"><b>${esc(info.label)}: ${esc(t("plugin_block.needs", { plugin: m.plugin }))}</b>
+    ${hint ? `<p>${esc(hint)}</p>` : ""}${action ? `<button type="button">${esc(t(action === "enable" ? "plugin_block.enable" : "plugin_block.install"))}</button>` : ""}
+    <pre>${esc(src)}</pre></div>`;
+  const btn = root.querySelector("button");
+  btn?.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      if (action === "install") await api("POST", "/admin/plugins/install", { id: m.plugin });
+      if (action === "enable" || owner) await api("PUT", `/projects/${project}/plugins/${m.plugin}`, { enabled: true });
+      clearPluginBlockCache();
+      this.shown = "";
+      reloadProjectPlugins(); // loads the plugin's elements as well
+      await loadPluginBlocks(project, true);
+      void this.render();
+    } catch {
+      btn.disabled = false;
+      const p = document.createElement("p");
+      p.textContent = t(action === "install" ? "plugin_block.install_failed" : "plugin_block.failed");
+      btn.after(p);
+    }
+  });
+}
+
 customElements.get("phx-plugin-block") || customElements.define("phx-plugin-block", PhxPluginBlock);
