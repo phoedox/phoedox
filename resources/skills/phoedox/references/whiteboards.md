@@ -6,7 +6,10 @@ pixels at 100 %), y grows downwards.
 
 - **Read first:** `get_whiteboard` returns each element with `id`, `type`, `text`,
   `box` [x, y, w, h] or `points`, bound ends `from`/`to`, frames with their content,
-  embeds with title and status, and the open comments with the element they point to.
+  embeds with title and status, prototypes (`prototypes` with variables and data;
+  screens are frames with `screen`, components have `ui` and `actions`) and the open
+  comments with the element they point to (comments left while playing point to a
+  screen).
 - **Diagrams:** use `draw_diagram`. Send structure, not coordinates: `nodes` (`id`,
   `text`, `shape` rect|ellipse|diamond|sticky, `color`, `entity` slug, `group`),
   `edges` (`from`, `to`, `label`, `dashed`, `line`), `groups` (`id`, `label` – drawn as

@@ -3,8 +3,12 @@
 An app is a document of type `app`: a small web program that lives in the
 project, made mostly by the AI. People open it full screen, use it on its
 page and embed it in pages. Use an app when people want to **use** something
-(dashboard, checklist, form, calculator, clickable prototype); for reading,
-write a page.
+(dashboard, checklist, form, calculator, a high-fidelity prototype in code);
+for reading, write a page. For clickable screens people want to see and
+change on a whiteboard (flows, mock-ups), draw a prototype with
+`draw_screens` instead (`whiteboards.md`); people can turn one into an app
+later with "Make it an app", which creates an app whose `index.html` plays
+the prototype – build on that file with `edit_app`.
 
 ## Files
 
