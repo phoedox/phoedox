@@ -19,6 +19,9 @@ export function parsePoll(src: string): { model?: Poll; problems: BlockProblem[]
       else if (k === "id") p.id = v;
       continue;
     }
+    // A flag on its own line: "multiple" or "closed".
+    if (/^multiple$/i.test(l)) { p.multiple = true; continue; }
+    if (/^closed$/i.test(l)) { p.closed = true; continue; }
     const opt = /^[-*+]\s+(.+)$/.exec(l);
     if (opt) p.options.push(opt[1].trim());
     else if (!p.question) p.question = l;
@@ -66,7 +69,7 @@ registerBlock<Poll>({
     style.textContent = `${BLOCK_CSS}
       .opts { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
       .opt { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; background: var(--surface); color: var(--fg); overflow: hidden; }
-      .opt[aria-checked=true] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+      .opt[aria-checked=true] { border: 2px solid var(--accent); padding: 8px 11px; }
       .opt .bar { position: absolute; inset: 0 auto 0 0; background: var(--tb-blue); z-index: 0; transition: width var(--dur, 200ms) var(--ease-out, ease-out); }
       .opt > :not(.bar) { position: relative; z-index: 1; }
       .opt .mark { width: 16px; height: 16px; flex: none; border: 2px solid var(--muted); border-radius: 50%; box-sizing: border-box; }

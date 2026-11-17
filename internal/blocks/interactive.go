@@ -64,6 +64,9 @@ func parsePoll(src []byte) (question string, options []string, ps []Problem) {
 			}
 			continue
 		}
+		if f := strings.ToLower(l); f == "multiple" || f == "closed" {
+			continue // a flag on its own line
+		}
 		if m := listLine.FindStringSubmatch(l); m != nil {
 			options = append(options, strings.TrimSpace(m[1]))
 		} else if question == "" {

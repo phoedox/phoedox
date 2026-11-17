@@ -84,3 +84,10 @@ describe("quiz", () => {
     }
   });
 });
+
+test("poll flags on their own line", () => {
+  const r = parsePoll("multiple\nWas nehmen wir mit?\n- Picknick\n- Ball\nclosed");
+  expect(r.model?.question).toBe("Was nehmen wir mit?");
+  expect(r.model?.multiple).toBe(true);
+  expect(r.model?.closed).toBe(true);
+});

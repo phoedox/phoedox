@@ -7,7 +7,7 @@ import (
 
 func TestInteractiveBlocks(t *testing.T) {
 	ok := map[string]string{
-		"poll":   "question: Wohin?\n- Zoo\n- Museum\nmultiple: ja",
+		"poll":   "multiple\nWohin?\n- Zoo\n- Museum\nclosed",
 		"matrix": "title: NAS\ncriteria: Preis*3, Lautstärke*2, Speicher\n- A: 3, 4, 3\n- B: 5; 2; 5",
 		"calc":   "title: Strom\nLeistung (W) = 25\nPreis (€/kWh) = 0,32\nKosten pro Jahr (€) = ROUND(Leistung * 24 * 365 / 1000 * Preis; 2)\nNAS (W) = @nas.power_w\nSumme = Kosten_pro_Jahr + NAS",
 		"quiz":   "title: Netz\n? Router?\n- 1.1\n+ 10.1\n> Seit März.\n\n? WLAN?\n= Gartenhaus",
