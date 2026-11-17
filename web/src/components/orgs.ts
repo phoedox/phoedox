@@ -223,6 +223,9 @@ export class PhxOrg extends SignalWatcher(LitElement) {
 
       <phx-org-providers .org=${this.slug} ?admin=${admin} .projects=${this.orgProjects}></phx-org-providers>
 
+      <h2 id="dpa">${icon("FileSignature", 16)} ${t("dpa.title")}</h2>
+      <phx-org-dpa .org=${this.slug}></phx-org-dpa>
+
       <h2>${t("orgs.members")}</h2>
       <table>${o.members.map((m) => html`<tr><td>${m.name}</td><td class="muted">${m.email}</td>
         <td class="r">${admin ? html`<select aria-label=${t("orgs.role")} @change=${(e: Event) => this.run(() => api("PUT", `/orgs/${this.slug}/members`, { email: m.email, role: (e.target as HTMLSelectElement).value }))}>

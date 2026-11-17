@@ -25,6 +25,33 @@ var prompts embed.FS
 //go:embed mail/*.md mail/layout.html
 var mails embed.FS
 
+//go:embed legal/*.md
+var legal embed.FS
+
+// Legal returns a legal text (resources/legal/<name>.<lang>.md, English as
+// fallback), filled with data when it is a template. PHOEDOX_MAIL_DIR does
+// not apply; operators publish their own texts in the administration.
+func Legal(name, lang string, data any) (string, error) {
+	src, err := legal.ReadFile("legal/" + name + "." + lang + ".md")
+	if err != nil {
+		if src, err = legal.ReadFile("legal/" + name + ".en.md"); err != nil {
+			return "", fmt.Errorf("resources: unknown legal text %s", name)
+		}
+	}
+	if data == nil {
+		return string(src), nil
+	}
+	tpl, err := template.New(name).Option("missingkey=error").Parse(string(src))
+	if err != nil {
+		return "", err
+	}
+	var out bytes.Buffer
+	if err := tpl.Execute(&out, data); err != nil {
+		return "", err
+	}
+	return out.String(), nil
+}
+
 // MailLayout is the HTML frame of e-mails (resources/mail/layout.html, or
 // PHOEDOX_MAIL_DIR/layout.html), a html/template.
 func MailLayout() string {

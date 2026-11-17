@@ -31,6 +31,7 @@ require (
 	golang.org/x/term v0.48.0
 	modernc.org/sqlite v1.62.0
 	rsc.io/qr v0.2.0
+	golang.org/x/text v0.44.0
 )
 
 require (
@@ -123,7 +124,6 @@ require (
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
-	golang.org/x/text v0.44.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 	gopkg.in/ini.v1 v1.67.3 // indirect
