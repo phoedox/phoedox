@@ -298,3 +298,41 @@ func (a *api) replyFeedbackStatus(w http.ResponseWriter, r *http.Request) {
 	v, err := a.core.ReplyFeedbackByToken(r.Context(), chi.URLParam(r, "token"), in.Body)
 	respond(w, v, err)
 }
+
+// --- external trackers ---------------------------------------------------------
+
+func (a *api) feedbackTrackers(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.FeedbackTrackers(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, v, err)
+}
+
+func (a *api) saveFeedbackTracker(w http.ResponseWriter, r *http.Request) {
+	var in core.TrackerInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.SaveFeedbackTracker(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), in)
+	respond(w, v, err)
+}
+
+func (a *api) deleteFeedbackTracker(w http.ResponseWriter, r *http.Request) {
+	respond(w, nil, a.core.DeleteFeedbackTracker(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id")))
+}
+
+func (a *api) forwardFeedbackTopic(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Tracker string `json:"tracker"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.ForwardFeedbackTopic(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), in.Tracker)
+	respond(w, v, err)
+}
+
+func (a *api) refreshFeedbackForwards(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.RefreshFeedbackForwards(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"))
+	respond(w, v, err)
+}

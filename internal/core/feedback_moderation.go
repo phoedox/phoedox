@@ -68,6 +68,10 @@ type TopicDetail struct {
 	// Comments of the public view (all states) and how many people follow.
 	Comments  []store.FeedbackComment `json:"comments"`
 	Followers int                     `json:"followers"`
+	// Forwards are the topic's issues in external trackers; Trackers the
+	// project's trackers it can be forwarded to.
+	Forwards []store.FeedbackForward `json:"forwards"`
+	Trackers []TrackerRef            `json:"trackers"`
 }
 
 func (s *Service) moderatedTopic(ctx context.Context, a Actor, ref, id string) (store.Project, store.FeedbackPortal, store.FeedbackTopic, error) {
@@ -122,7 +126,17 @@ func (s *Service) FeedbackTopic(ctx context.Context, a Actor, ref, id string) (T
 		comments = []store.FeedbackComment{}
 	}
 	subs, _ := s.DB.FeedbackSubscriptions(ctx, t.ID)
-	return TopicDetail{FeedbackTopic: t, Portal: s.portalView(ctx, portal), Reports: reports, Tickets: tickets, Entities: ents, Comments: comments, Followers: len(subs)}, nil
+	forwards, _ := s.DB.TopicForwards(ctx, t.ID)
+	if forwards == nil {
+		forwards = []store.FeedbackForward{}
+	}
+	trackers := []TrackerRef{}
+	if list, err := s.DB.FeedbackTrackers(ctx, t.ProjectID); err == nil {
+		for _, k := range list {
+			trackers = append(trackers, TrackerRef{ID: k.ID, Name: k.Name, Kind: k.Kind})
+		}
+	}
+	return TopicDetail{FeedbackTopic: t, Portal: s.portalView(ctx, portal), Reports: reports, Tickets: tickets, Entities: ents, Comments: comments, Followers: len(subs), Forwards: forwards, Trackers: trackers}, nil
 }
 
 // TopicPatch changes a topic; nil fields stay.
@@ -301,6 +315,7 @@ func (s *Service) MergeFeedbackTopics(ctx context.Context, a Actor, ref, into, f
 	if err := s.DB.MoveTopicReports(ctx, src.ID, target.ID); err != nil {
 		return TopicDetail{}, err
 	}
+	_ = s.DB.MoveTopicForwards(ctx, src.ID, target.ID)
 	if err := s.DB.DeleteFeedbackTopic(ctx, src.ID); err != nil {
 		return TopicDetail{}, err
 	}
@@ -400,41 +415,54 @@ func (s *Service) feedbackTaskDone(ctx context.Context, taskID string) {
 		return
 	}
 	for _, id := range topics {
-		t, err := s.DB.FeedbackTopic(ctx, "", id)
-		if err != nil {
-			continue
+		s.syncTopicDone(ctx, id)
+	}
+}
+
+// syncTopicDone sets a topic done when all its tickets (cards) and issues in
+// external trackers are done, and opens it again when one is reopened.
+func (s *Service) syncTopicDone(ctx context.Context, id string) {
+	t, err := s.DB.FeedbackTopic(ctx, "", id)
+	if err != nil {
+		return
+	}
+	portal, err := s.DB.FeedbackPortal(ctx, "", t.PortalID)
+	if err != nil {
+		return
+	}
+	ps := portalSettings(portal)
+	tickets, err := s.DB.TopicTickets(ctx, id)
+	if err != nil {
+		return
+	}
+	total, done := s.forwardsDone(ctx, id)
+	for _, k := range tickets {
+		total++
+		if k.Done {
+			done++
 		}
-		portal, err := s.DB.FeedbackPortal(ctx, "", t.PortalID)
-		if err != nil {
-			continue
+	}
+	if total == 0 {
+		return
+	}
+	all := done == total
+	before := t.State
+	switch {
+	case all && t.State != ps.FinishedState:
+		t.State = ps.FinishedState
+	case !all && t.State == ps.FinishedState:
+		t.State = ps.DefaultState
+		if slices.Contains(ps.States, "in_progress") {
+			t.State = "in_progress"
 		}
-		ps := portalSettings(portal)
-		tickets, err := s.DB.TopicTickets(ctx, id)
-		if err != nil || len(tickets) == 0 {
-			continue
-		}
-		all := true
-		for _, k := range tickets {
-			all = all && k.Done
-		}
-		before := t.State
-		switch {
-		case all && t.State != ps.FinishedState:
-			t.State = ps.FinishedState
-		case !all && t.State == ps.FinishedState:
-			t.State = ps.DefaultState
-			if slices.Contains(ps.States, "in_progress") {
-				t.State = "in_progress"
-			}
-		default:
-			continue
-		}
-		s.setClosed(&t, ps)
-		t.UpdatedAt = store.Now()
-		if s.DB.SaveFeedbackTopic(ctx, t) == nil && t.State != before {
-			if p, err := s.DB.ProjectFor(ctx, t.ProjectID, ""); err == nil {
-				s.tellReporters(ctx, p, portal, t)
-			}
+	default:
+		return
+	}
+	s.setClosed(&t, ps)
+	t.UpdatedAt = store.Now()
+	if s.DB.SaveFeedbackTopic(ctx, t) == nil && t.State != before {
+		if p, err := s.DB.ProjectFor(ctx, t.ProjectID, ""); err == nil {
+			s.tellReporters(ctx, p, portal, t)
 		}
 	}
 }

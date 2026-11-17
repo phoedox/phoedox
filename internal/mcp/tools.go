@@ -473,6 +473,12 @@ type feedbackBoardIn struct {
 	Title   string `json:"title,omitempty" jsonschema:"card title (default: the topic's title)"`
 }
 
+type feedbackForwardIn struct {
+	Project string `json:"project" jsonschema:"project slug"`
+	Topic   string `json:"topic" jsonschema:"topic id"`
+	Tracker string `json:"tracker" jsonschema:"name or id of one of the project's external trackers (get_feedback_topic lists them under trackers)"`
+}
+
 type feedbackSubmitIn struct {
 	Portal string         `json:"portal" jsonschema:"portal handle, e.g. starfall (the address /feedback/<handle>)"`
 	Type   string         `json:"type,omitempty" jsonschema:"bug, idea, question or praise (one the portal accepts)"`
@@ -1285,6 +1291,9 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "feedback_to_board", "Turn a feedback topic into a ticket: a card on a board, linked to the topic and its reports. A topic can get several tickets (e.g. frontend and backend); when all are done, the topic is done and reporters are told.", func(ctx context.Context, a core.Actor, in feedbackBoardIn) (any, error) {
 		return svc.FeedbackToBoard(ctx, a, in.Project, in.Topic, core.TicketInput{Board: in.Board, Column: in.Column, Title: in.Title})
+	})
+	tool(s, "forward_feedback_topic", "Forward a feedback topic to an external tracker the project connected (GitHub, Gitea/Forgejo, GitLab, Jira): opens an issue with the summary and report texts (never who reported). Later reports are added there as +n comments; when the issue is closed, the topic counts as done like a finished ticket. Only when a person asked for it.", func(ctx context.Context, a core.Actor, in feedbackForwardIn) (any, error) {
+		return svc.ForwardFeedbackTopic(ctx, a, in.Project, in.Topic, in.Tracker)
 	})
 	tool(s, "get_feedback_portal", "The public settings of a feedback portal by its handle: report types, own form fields (ids, types, options, required), who may report.", func(ctx context.Context, a core.Actor, in feedbackPortalIn) (any, error) {
 		return svc.PublicFeedbackPortal(ctx, in.Portal, in.Lang)

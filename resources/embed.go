@@ -28,6 +28,30 @@ var mails embed.FS
 //go:embed legal/*.md
 var legal embed.FS
 
+//go:embed tracker/*.md
+var trackerTexts embed.FS
+
+// TrackerText is the text of an issue or comment Phoedox writes into an
+// external tracker (resources/tracker/<name>.<lang>.md, English as
+// fallback), a text/template.
+func TrackerText(name, lang string, data any) (string, error) {
+	src, err := trackerTexts.ReadFile("tracker/" + name + "." + lang + ".md")
+	if err != nil {
+		if src, err = trackerTexts.ReadFile("tracker/" + name + ".en.md"); err != nil {
+			return "", fmt.Errorf("resources: unknown tracker text %s", name)
+		}
+	}
+	tpl, err := template.New(name).Option("missingkey=error").Parse(string(src))
+	if err != nil {
+		return "", err
+	}
+	var out bytes.Buffer
+	if err := tpl.Execute(&out, data); err != nil {
+		return "", err
+	}
+	return out.String(), nil
+}
+
 // Legal returns a legal text (resources/legal/<name>.<lang>.md, English as
 // fallback), filled with data when it is a template. PHOEDOX_MAIL_DIR does
 // not apply; operators publish their own texts in the administration.

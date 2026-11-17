@@ -16,7 +16,8 @@ interface Ticket { taskId: string; title: string; boardSlug: string; board: stri
 interface TopicEntity { id: string; slug: string; name: string; kind: string; source: "person" | "ai" }
 interface PubComment { id: string; authorName: string; body: string; status: "pending" | "approved" | "rejected"; team: boolean; createdAt: string }
 interface Detail extends Omit<Topic, "tickets"> { portal: Portal; reports: Report[]; tickets: Ticket[]; entities: TopicEntity[]; fixedIn?: string; question?: string; answerAuto?: boolean;
-  public: boolean; votes: number; comments: PubComment[]; followers: number }
+  public: boolean; votes: number; comments: PubComment[]; followers: number; forwards: Forward[]; trackers: { id: string; name: string; kind: string }[] }
+interface Forward { id: string; trackerId: string; tracker: string; kind: string; ref: string; url: string; reportsSent: number; closed: boolean; lastError?: string }
 interface List { portals: Portal[]; topics: Topic[]; owner: boolean }
 interface Doc { id: string; slug: string; title: string; type: string; content?: Board }
 
@@ -248,6 +249,19 @@ export class PhxFeedback extends LitElement {
           <button class="ghost" @click=${() => { const b = (this.renderRoot.querySelector("#board") as HTMLSelectElement).value; if (!b) return; void this.post(`topics/${d.id}/tickets`, { board: b, column: (this.renderRoot.querySelector("#col") as HTMLSelectElement | null)?.value }, t("fb.ticket_created")); }}>${icon("SquareKanban", 14)} ${t("fb.to_board")}</button>
         </div><p class="muted">${t("fb.tickets_hint")}</p>` : html`<p class="muted">${t("fb.no_boards")}</p>`}
       </div>
+
+      ${d.trackers.length || d.forwards.length ? html`<div><strong>${t("fbt.issues")}</strong>
+        <div class="tickets">${d.forwards.map((f) => html`<div class="ticket">${icon(f.closed ? "CircleCheck" : f.kind === "jira" ? "SquareKanban" : "GitBranch", 15)}
+            <a href=${f.url} target="_blank" rel="noopener">${f.kind === "jira" ? f.ref : `#${f.ref}`}</a><span class="muted">${f.tracker}</span>
+            ${f.closed ? html`<span class="done">${t("fb.ticket_done")}</span>` : d.reportCount > f.reportsSent ? html`<span class="muted">${t("fbt.pending", { n: d.reportCount - f.reportsSent })}</span>` : nothing}
+            ${f.lastError ? html`<span class="muted" title=${f.lastError}>${icon("TriangleAlert", 13)} ${t("fbt.sync_failed")}</span>` : nothing}</div>`)}</div>
+        ${d.trackers.some((k) => !d.forwards.some((f) => f.trackerId === k.id)) ? html`<div class="actions" style="margin-top:8px">
+          <select id="tracker" aria-label=${t("fbt.tracker")}>${d.trackers.filter((k) => !d.forwards.some((f) => f.trackerId === k.id)).map((k) => html`<option value=${k.id}>${k.name}</option>`)}</select>
+          <button class="ghost" @click=${() => { const id = (this.renderRoot.querySelector("#tracker") as HTMLSelectElement).value; if (id) void this.post(`topics/${d.id}/forward`, { tracker: id }, t("fbt.forwarded")); }}>${icon("Send", 14)} ${t("fbt.forward")}</button>
+        </div>` : nothing}
+        ${d.forwards.length ? html`<div class="actions" style="margin-top:6px"><button class="ghost" @click=${() => void this.post(`topics/${d.id}/forwards/refresh`, {}, t("fbt.refreshed"))}>${icon("RefreshCw", 14)} ${t("fbt.refresh")}</button></div>` : nothing}
+        <p class="muted">${t("fbt.forward_hint")}</p>
+      </div>` : nothing}
 
       ${others.length ? html`<details><summary class="muted">${t("fb.merge_title")}</summary><div class="actions" style="margin-top:8px">
         <select id="merge" aria-label=${t("fb.merge_title")}>${others.map((o) => html`<option value=${o.id}>${o.title} (${o.reportCount})</option>`)}</select>

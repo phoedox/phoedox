@@ -39,6 +39,12 @@ builds – a game, a website, a system. Reports that describe the same thing are
 5. Into work: `feedback_to_board` creates a card on a board linked to the topic. Make one
    ticket per team or part (e.g. "Frontend" and "Backend"). When all tickets of a topic are
    done, the topic is done and the reporters are told automatically.
+6. External trackers: when the project connected GitHub, Gitea/Forgejo, GitLab or Jira
+   (project settings → Feedback portals → External trackers), `forward_feedback_topic`
+   opens an issue there (`get_feedback_topic` lists the `trackers` and existing
+   `forwards`). The issue gets the summary and report texts, never who reported; later
+   reports are added as "+n" comments, and a closed issue counts like a done ticket.
+   Forward only when a person asked for it.
 
 ## Reporting
 

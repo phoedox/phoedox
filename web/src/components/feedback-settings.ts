@@ -4,6 +4,7 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import type { AttachRules, PortalField } from "./feedback-portal";
 import { stateLabel } from "./feedback-portal";
+import "./feedback-trackers";
 import { pageHead, settingsUI } from "./settings-ui";
 import { base } from "./shared";
 import { toast } from "./toasts";
@@ -251,7 +252,8 @@ export class PhxFeedbackSettings extends LitElement {
           <div class="grid"><label class="field">${t("fb.portal_name")}<input name="name" required maxlength="100" placeholder="Starfall"></label>
             <label class="field">${t("fb.handle")}<input name="handle" required pattern="[a-z0-9][a-z0-9-]{1,38}[a-z0-9]" placeholder="starfall"></label></div>
           <p class="muted">${t("fb.handle_hint")}</p>
-          <div><button>${t("fb.create")}</button></div></form>`}`;
+          <div><button>${t("fb.create")}</button></div></form>
+        <div style="margin-top:14px"><phx-feedback-trackers .project=${this.project}></phx-feedback-trackers></div>`}`;
   }
 }
 customElements.get("phx-feedback-settings") || customElements.define("phx-feedback-settings", PhxFeedbackSettings);

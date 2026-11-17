@@ -94,6 +94,8 @@ type Service struct {
 	readingSeen sync.Map
 	// prChecked throttles pull request checks per repository (id → time.Time).
 	prChecked sync.Map
+	// trackerAPI points tracker addresses at test servers (tests only).
+	trackerAPI map[string]string
 	// PaymentsBaseURL replaces the payment provider's API address (tests).
 	PaymentsBaseURL string
 	paymentMu       sync.Mutex
