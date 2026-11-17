@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/phoedox/phoedox/internal/blocks"
 	"github.com/phoedox/phoedox/internal/store"
 )
 
@@ -17,13 +18,7 @@ import (
 // what it misses.
 
 // BlockProblem is one finding in a fenced block.
-type BlockProblem struct {
-	Block    int    `json:"block"` // 1-based number of the fenced block on the page
-	Kind     string `json:"kind"`  // mermaid | dbmodel | chart
-	Line     int    `json:"line"`  // line in the page (1-based)
-	Severity string `json:"severity"`
-	Message  string `json:"message"`
-}
+type BlockProblem = blocks.Problem
 
 // fencedBlock is a ```lang … ``` block of a Markdown text.
 type fencedBlock struct {
@@ -284,8 +279,10 @@ func CheckBlocks(md string, schema map[string][]string) []BlockProblem {
 			ps = checkMermaid(b.Body)
 		case "dbmodel":
 			ps = checkDBModel(b.Body, schema)
-		case "chart":
-			ps = checkChart(b.Body)
+		default:
+			if _, ok := blocks.Get(b.Lang); ok {
+				ps = blocks.Check(b.Lang, []byte(b.Body))
+			}
 		}
 		for _, p := range ps {
 			p.Block, p.Line = i+1, b.Line+p.Line
@@ -377,7 +374,7 @@ func (s *Service) ValidateBlocks(ctx context.Context, a Actor, ref, docRef strin
 		}
 		markdown = &c.Markdown
 	}
-	if !strings.Contains(*markdown, "mermaid") && !strings.Contains(*markdown, "dbmodel") && !strings.Contains(*markdown, "chart") {
+	if !strings.Contains(*markdown, "```") && !strings.Contains(*markdown, "~~~") {
 		return []BlockProblem{}, nil
 	}
 	var schema map[string][]string

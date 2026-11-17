@@ -5069,4 +5069,10 @@ export const en: Record<keyof typeof de, string> = {
   "compare.added": "added",
   "validation.block_key": "A block key has 1–40 letters, digits and -.",
   "validation.block_state": "The state of a block is a JSON object up to {max} KB.",
+  "validation.whiteboard_block_kind": "“{kind}” cannot be a block on a whiteboard.",
+  "block.unknown_kind": "Unknown block kind “{kind}”",
+  "block.cannot_show": "cannot be shown",
+  "block.source": "Content",
+  "wb.block_title": "Add a block",
+  "wb.block_kind": "Kind",
 };

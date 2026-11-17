@@ -1,6 +1,7 @@
 // Editor nodes for the page building blocks of ADR-0031 and their Markdown
 // transformers. Rendering reuses the elements in components/blocks.ts.
 
+import { blockDef } from "../blocks";
 import { $convertFromMarkdownString, $convertToMarkdownString, type MultilineElementTransformer, type TextFormatTransformer, type TextMatchTransformer, type Transformer } from "@lexical/markdown";
 import {
   $applyNodeReplacement, $isTextNode, DecoratorNode, ElementNode, TextNode, type EditorConfig, type LexicalNode, type NodeKey,
@@ -173,9 +174,11 @@ export class FenceNode extends DecoratorNode<null> {
     } else if (this.__kind === "compare") {
       el = document.createElement("phx-compare");
       el.dataset.src = src;
-    } else if (this.__kind === "chart") {
-      el = document.createElement("phx-chart");
+    } else if (blockDef(this.__kind)) {
+      el = document.createElement("phx-block");
+      el.dataset.kind = this.__kind;
       el.dataset.src = src;
+      el.dataset.project = project;
     } else if (this.__kind === "dbmodel") {
       el = document.createElement("phx-dbmodel");
       el.dataset.src = src;

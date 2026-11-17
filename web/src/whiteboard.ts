@@ -5,7 +5,7 @@
 import type { ChartSpec } from "./chart";
 
 export type Pt = [number, number];
-export type ElementType = "rect" | "ellipse" | "diamond" | "line" | "arrow" | "pen" | "text" | "sticky" | "frame" | "image" | "embed" | "entity" | "ui" | "chart";
+export type ElementType = "rect" | "ellipse" | "diamond" | "line" | "arrow" | "pen" | "text" | "sticky" | "frame" | "image" | "embed" | "entity" | "ui" | "chart" | "block";
 export type Color = "gray" | "red" | "orange" | "yellow" | "green" | "blue" | "purple" | "pink";
 export const PALETTE: Color[] = ["gray", "red", "orange", "yellow", "green", "blue", "purple", "pink"];
 
@@ -23,10 +23,13 @@ export interface WBElement {
   round?: boolean; start?: Binding; end?: Binding;
   frame?: string; groups?: string[]; locked?: boolean; seed?: number;
   entity?: string; doc?: string; file?: string;
-  url?: string; kind?: "video" | "code" | "link" | "web" | "app"; preview?: Preview;
+  /** Embeds: video | code | link | web | app. Blocks: the block kind (chart, poll, …). */
+  url?: string; kind?: string; preview?: Preview;
   /** Prototypes: a frame as a screen, a component, interactions. */
   screen?: WBScreen; ui?: WBUI; actions?: WBAction[];
-  /** Charts: the same JSON as a ```chart block in pages (chart.ts). */
+  /** Blocks (ADR-0085): the same source as the fenced block in a page. */
+  source?: string;
+  /** The older form of chart blocks (type "chart"); read as a block. */
   chart?: ChartSpec;
 }
 
@@ -55,12 +58,19 @@ export type Background = "" | "plain" | "grid" | "dots";
 export interface Whiteboard { version?: number; background?: Background; elements: WBElement[]; comments?: WBComment[]; prototypes?: WBPrototype[] }
 
 export const LINEAR = new Set<ElementType>(["line", "arrow"]);
-export const BOXY = new Set<ElementType>(["rect", "ellipse", "diamond", "sticky", "entity", "image", "embed", "frame", "text", "ui", "chart"]);
+export const BOXY = new Set<ElementType>(["rect", "ellipse", "diamond", "sticky", "entity", "image", "embed", "frame", "text", "ui", "chart", "block"]);
 /** Elements that hold a text a double-click edits. */
 export const TEXTUAL = new Set<ElementType>(["rect", "ellipse", "diamond", "sticky", "text", "arrow", "line", "ui"]);
 
+/** Charts of the older form become chart blocks. */
+export function asBlock(e: WBElement): WBElement {
+  if (e.type !== "chart") return { ...e };
+  const { chart, ...rest } = e;
+  return { ...rest, type: "block", kind: "chart", source: JSON.stringify(chart ?? {}, null, 2) };
+}
+
 export function normalizeBoard(c: Partial<Whiteboard> | undefined): Whiteboard {
-  return { version: 1, background: c?.background ?? "", elements: (c?.elements ?? []).map((e) => ({ ...e })), comments: (c?.comments ?? []).map((n) => ({ ...n })),
+  return { version: 1, background: c?.background ?? "", elements: (c?.elements ?? []).map(asBlock), comments: (c?.comments ?? []).map((n) => ({ ...n })),
     prototypes: (c?.prototypes ?? []).map((p) => ({ ...p })) };
 }
 
@@ -550,7 +560,7 @@ export function toExcalidraw(b: Whiteboard): string {
     const type = e.type === "ellipse" ? "ellipse" : e.type === "diamond" ? "diamond" : "rectangle";
     const el = base(e, type, box);
     if (e.type === "sticky") Object.assign(el, { backgroundColor: EX_FILL[(e.fill as Color) ?? "yellow"] ?? EX_FILL.yellow, strokeColor: "transparent" });
-    const label = e.text || (e.type === "entity" ? e.entity : e.type === "embed" ? e.url : e.type === "chart" ? e.chart?.title : "") || "";
+    const label = e.text || (e.type === "entity" ? e.entity : e.type === "embed" ? e.url : e.type === "block" ? e.kind : "") || "";
     out.push(el);
     if (label) {
       const tid = e.id + "-t";

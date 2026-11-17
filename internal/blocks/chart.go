@@ -1,4 +1,4 @@
-package core
+package blocks
 
 import (
 	"bytes"
@@ -166,9 +166,9 @@ var (
 
 // ParseChart reads and checks a chart; problems carry the line of the
 // mistake inside the JSON (1-based) where it is known.
-func ParseChart(src []byte) (*ChartSpec, []BlockProblem) {
-	bad := func(line int, f string, a ...any) []BlockProblem {
-		return []BlockProblem{{Kind: "chart", Line: line, Severity: "error", Message: fmt.Sprintf(f, a...)}}
+func ParseChart(src []byte) (*ChartSpec, []Problem) {
+	bad := func(line int, f string, a ...any) []Problem {
+		return []Problem{{Kind: "chart", Line: line, Severity: "error", Message: fmt.Sprintf(f, a...)}}
 	}
 	if len(src) > maxChartJSON {
 		return nil, bad(1, "the chart is larger than %d KB", maxChartJSON>>10)
@@ -189,9 +189,9 @@ func ParseChart(src []byte) (*ChartSpec, []BlockProblem) {
 		}
 		return nil, bad(line, "not valid JSON: %v", err)
 	}
-	var out []BlockProblem
+	var out []Problem
 	add := func(f string, a ...any) {
-		out = append(out, BlockProblem{Kind: "chart", Line: 1, Severity: "error", Message: fmt.Sprintf(f, a...)})
+		out = append(out, Problem{Kind: "chart", Line: 1, Severity: "error", Message: fmt.Sprintf(f, a...)})
 	}
 	if !chartTypes[c.Type] {
 		add("unknown type %q (line, area, bar, scatter)", c.Type)
@@ -208,7 +208,7 @@ func ParseChart(src []byte) (*ChartSpec, []BlockProblem) {
 		add("no points: give points, or series with points")
 	}
 	color := func(col, where string) {
-		if col != "" && !wbColors[col] {
+		if col != "" && !Colors[col] {
 			add("%s: unknown colour %q (gray, red, orange, yellow, green, blue, purple, pink)", where, col)
 		}
 	}
@@ -256,13 +256,8 @@ func ParseChart(src []byte) (*ChartSpec, []BlockProblem) {
 	return &c, nil
 }
 
-func checkChart(body string) []BlockProblem {
-	_, ps := ParseChart([]byte(body))
-	return ps
-}
-
-// chartText is what search and mentions see of a chart.
-func chartText(c *ChartSpec) string {
+// ChartText is what search and mentions see of a chart.
+func ChartText(c *ChartSpec) string {
 	parts := []string{c.Title}
 	for _, b := range c.Bands {
 		parts = append(parts, b.Label)
@@ -274,4 +269,20 @@ func chartText(c *ChartSpec) string {
 		}
 	}
 	return strings.Join(strings.Fields(strings.Join(parts, " ")), " ")
+}
+
+func init() {
+	Register(Def{Kind: "chart", Board: true,
+		Check: func(src []byte) []Problem {
+			_, ps := ParseChart(src)
+			return ps
+		},
+		Text: func(src []byte) string {
+			c, ps := ParseChart(src)
+			if len(ps) > 0 {
+				return ""
+			}
+			return ChartText(c)
+		},
+	})
 }

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/phoedox/phoedox/internal/blocks"
 	"github.com/phoedox/phoedox/internal/store"
 )
 
@@ -76,8 +77,11 @@ type WBElement struct {
 	URL     string     `json:"url,omitempty"`
 	Kind    string     `json:"kind,omitempty"` // video | code | link | web | app (Doc is the app)
 	Preview *WBPreview `json:"preview,omitempty"`
-	// Charts: the same JSON as a ```chart block in pages (chart.go).
-	Chart json.RawMessage `json:"chart,omitempty"`
+	// Blocks (ADR-0085): type "block" with the block's kind in Kind and the
+	// same source as the fenced block in a page. Chart is the older form of a
+	// chart block (type "chart"), still read.
+	Source string          `json:"source,omitempty"`
+	Chart  json.RawMessage `json:"chart,omitempty"`
 	// Prototypes: a frame as a screen, a component (type "ui") and what
 	// happens on click, change, hover or when a screen opens.
 	Screen  *WBScreen  `json:"screen,omitempty"`
@@ -143,7 +147,7 @@ const (
 
 var (
 	wbTypes = map[string]bool{"rect": true, "ellipse": true, "diamond": true, "line": true, "arrow": true, "pen": true, "text": true,
-		"sticky": true, "frame": true, "image": true, "embed": true, "entity": true, "ui": true, "chart": true}
+		"sticky": true, "frame": true, "image": true, "embed": true, "entity": true, "ui": true, "chart": true, "block": true}
 	wbLinear   = map[string]bool{"line": true, "arrow": true, "pen": true}
 	wbEmbeds   = map[string]bool{"video": true, "code": true, "link": true, "web": true, "app": true}
 	wbColors   = map[string]bool{"gray": true, "red": true, "orange": true, "yellow": true, "green": true, "blue": true, "purple": true, "pink": true}
@@ -223,14 +227,24 @@ func whiteboardContent(wb *Whiteboard) (store.JSON, string, error) {
 		if len(e.Text) > maxWBText {
 			return nil, "", bad("text")
 		}
-		if e.Type == "chart" {
-			c, ps := ParseChart(e.Chart)
-			if len(ps) > 0 {
-				return nil, "", invalid("validation.whiteboard_chart", map[string]any{"id": e.ID, "problem": ps[0].Message}, "whiteboard: chart %s: %s", e.ID, ps[0].Message)
+		switch {
+		case e.Type == "block" || e.Type == "chart":
+			kind, src := e.Kind, []byte(e.Source)
+			if e.Type == "chart" {
+				kind, src = "chart", e.Chart
 			}
-			text = append(text, chartText(c))
-		} else if len(e.Chart) > 0 {
-			return nil, "", bad("chart")
+			d, ok := blocks.Get(kind)
+			if !ok || !d.Board {
+				return nil, "", invalid("validation.whiteboard_block_kind", map[string]any{"id": e.ID, "kind": kind}, "whiteboard: %s cannot be a block on a whiteboard", kind)
+			}
+			if ps := errorsOnly(blocks.Check(kind, src)); len(ps) > 0 {
+				return nil, "", invalid("validation.whiteboard_chart", map[string]any{"id": e.ID, "problem": ps[0].Message}, "whiteboard: block %s: %s", e.ID, ps[0].Message)
+			}
+			if d.Text != nil {
+				text = append(text, d.Text(src))
+			}
+		case len(e.Chart) > 0 || e.Source != "":
+			return nil, "", bad("source")
 		}
 		if wbLinear[e.Type] {
 			if len(e.Points) < 2 || len(e.Points) > maxWBPoints {
@@ -292,7 +306,7 @@ func whiteboardContent(wb *Whiteboard) (store.JSON, string, error) {
 				}
 				text = append(text, pv.Title, pv.Description)
 			}
-		} else if e.URL != "" || e.Kind != "" || e.Preview != nil {
+		} else if e.URL != "" || (e.Kind != "" && e.Type != "block") || e.Preview != nil {
 			return nil, "", bad("url")
 		}
 		if e.Type == "entity" && e.Entity == "" {
@@ -569,3 +583,14 @@ func clip(s string, n int) string {
 }
 
 func utf8Valid(s string) bool { return strings.ToValidUTF8(s, "�") == s }
+
+// errorsOnly drops warnings.
+func errorsOnly(ps []blocks.Problem) []blocks.Problem {
+	var out []blocks.Problem
+	for _, p := range ps {
+		if p.Severity != "warning" {
+			out = append(out, p)
+		}
+	}
+	return out
+}

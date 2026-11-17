@@ -24,10 +24,12 @@ pixels at 100 %), y grows downwards.
   filled in. An app of the project goes on the board as `{type: embed, kind: app,
   doc: <app slug>, w, h}`; people start it there and it runs with their rights.
   `entity` on a shape shows that entry; `doc` links a page.
-- **Charts:** `{type: chart, x, y, w, h, chart: {…}}` – `chart` is the same JSON as a
-  ```chart block (`page-syntax.md`): series, numbered points, phases as bands,
-  segments of the time axis. On the board the points show their text on hover; the
-  numbered list appears where the chart is in a page. About 560×360 fits a timeline.
+- **Blocks:** `{type: block, kind, source, x, y, w, h}` puts a content block on the
+  board; `source` is the same text as the fenced block of that kind in a page
+  (`page-syntax.md`), e.g. `kind: chart` with the chart JSON. Blocks look the same as in
+  pages; interactive ones (polls) can be used right on the board. About 560×360 fits a
+  chart. Older boards may have `type: chart` with a `chart` object – read it as a chart
+  block; write new ones as `type: block`.
 - **Mermaid:** `draw_diagram` also takes `mermaid` (a flowchart: `graph`/`flowchart`
   with node shapes, labelled, dotted and thick links, `&`, subgraphs); it becomes
   editable shapes and bound arrows. Prefer it when you already have a flowchart.

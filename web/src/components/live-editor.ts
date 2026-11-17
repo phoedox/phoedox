@@ -1,5 +1,5 @@
 import { $createCodeNode } from "@lexical/code";
-import { CHART_EXAMPLE, parseChart } from "../chart";
+import { blockDef } from "../blocks";
 import { TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { INSERT_CHECK_LIST_COMMAND, INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND } from "@lexical/list";
 import { $createHeadingNode, $createQuoteNode, type HeadingTagType } from "@lexical/rich-text";
@@ -564,14 +564,15 @@ export class PhxLiveEditor extends LitElement {
       }
       return src || undefined;
     }
-    if (kind === "chart") {
-      const v = await this.askForm({ title: t("slash.chart"), hint: t("block.chart_hint"),
-        fields: [{ name: "v", label: t("block.chart_source"), type: "textarea", value: current || CHART_EXAMPLE }] });
+    const def = blockDef(kind);
+    if (def) {
+      const v = await this.askForm({ title: t(def.label as any), hint: t(def.hint as any),
+        fields: [{ name: "v", label: t("block.source"), type: "textarea", value: current || def.example }] });
       const src = v?.v.trim();
       if (!src) return undefined;
-      const { problems } = parseChart(src);
+      const { problems } = def.parse(src);
       if (problems.length) {
-        toast(`${t("chart.error")}: ${t(problems[0].key as any, problems[0].params ?? {})}`, "error");
+        toast(`${t("block.cannot_show")}: ${t(problems[0].key as any, problems[0].params ?? {})}`, "error");
         return undefined;
       }
       return src;

@@ -5067,4 +5067,10 @@ export const de = {
   "compare.added": "hinzugefügt",
   "validation.block_key": "Ein Block-Schlüssel hat 1–40 Buchstaben, Ziffern und -.",
   "validation.block_state": "Der Zustand eines Blocks ist ein JSON-Objekt bis {max} KB.",
+  "validation.whiteboard_block_kind": "„{kind}“ kann nicht als Block auf ein Whiteboard.",
+  "block.unknown_kind": "Unbekannte Blockart „{kind}“",
+  "block.cannot_show": "lässt sich nicht anzeigen",
+  "block.source": "Inhalt",
+  "wb.block_title": "Block einfügen",
+  "wb.block_kind": "Art",
 } as const;

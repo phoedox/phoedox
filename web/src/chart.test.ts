@@ -100,3 +100,19 @@ describe("charts", () => {
     expect((bars.match(/<rect/g) ?? []).length).toBe(2);
   });
 });
+
+describe("chart block", () => {
+  test("the registry reads charts and draws a picture with title and phases", async () => {
+    const { blockDef } = await import("./blocks");
+    const def = blockDef("chart")!;
+    const { model, problems } = def.parse(JSON.stringify(vormaerz));
+    expect(problems).toEqual([]);
+    expect(model).toBeDefined();
+    const svg = def.svg(model, { width: 600, height: 360, locale: "de" });
+    expect(svg).toContain("Pressure of the movement");
+    expect(svg).toContain("Restoration &amp; Vormärz");
+    expect(svg).toContain('data-k="0:2"');
+    expect(def.parse("{").model).toBeUndefined();
+    expect(def.board).toBeDefined();
+  });
+});

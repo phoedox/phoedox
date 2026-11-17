@@ -10,13 +10,13 @@ import rough from "roughjs";
 import { ApiError, api, type Doc, type Entity } from "../api";
 import { userColor } from "../collab";
 import { uploadFile } from "../files";
-import { CHART_EXAMPLE, chartSVG, parseChart } from "../chart";
+import { blockDef, boardKinds } from "../blocks";
 import { formatDate, locale, t } from "../i18n";
 import { icon, iconSVG } from "../icon";
 import { findKind, groupColor, kindName, loadModel, type Model } from "../model";
 import { currentUser, navigate } from "../state";
 import {
-  BOXY, LINEAR, PALETTE, TEXTUAL, alignTo, backKey, bbox, bindTarget, bindingAt, boxOf, codeLabel, embedKind, extent, frontKey, hitTest, inFrame, linePts,
+  BOXY, asBlock, LINEAR, PALETTE, TEXTUAL, alignTo, backKey, bbox, bindTarget, bindingAt, boxOf, codeLabel, embedKind, extent, frontKey, hitTest, inFrame, linePts,
   newId, normalizeBoard, playerURL, removeElement, sorted, wrapText, type Binding, type Color, type ElementType, type Preview, type Pt, type WBComment, type WBElement, type Whiteboard,
   alignEls, cloneEls, fromExcalidraw, slides, templateEls, toExcalidraw, TEMPLATES, type Template, type Box, distributeEls, groupOf, inBox, shiftEl, snapBox, CLIP_PREFIX, type AlignHow,
 } from "../whiteboard";
@@ -25,7 +25,7 @@ import type { Comp, Device, WBPrototype } from "../whiteboard";
 import { COMPS, DEVICES, PreviewCache, actionsView, drawFlow, drawScreen, inspector, newProtoId, protoById, screenOf, screensOf, settingsDialog, type InspectorCtx } from "./wb-proto";
 import { base } from "./shared";
 import { toast } from "./toasts";
-import "./chart-block";
+import "./block-view";
 
 type Tool = "select" | "hand" | "rect" | "ellipse" | "diamond" | "arrow" | "line" | "pen" | "text" | "sticky" | "frame" | "image" | "embed" | "entity" | "comment" | "laser" | "eraser" | "screen" | "ui";
 const TOOLS: (readonly [Tool, string, string] | "|")[] = [
@@ -104,12 +104,14 @@ export class PhxWhiteboard extends LitElement {
     dialog.wbdlg.chart { width: min(1040px, 96vw); }
     dialog.wbdlg .chartgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; align-items: start; }
     dialog.wbdlg .chartgrid textarea { min-height: 420px; margin: 0; }
-    dialog.wbdlg .chartgrid phx-chart { margin: 0; max-height: 60vh; overflow: auto; }
+    dialog.wbdlg .chartgrid phx-block { margin: 0; max-height: 60vh; overflow: auto; }
+    dialog.wbdlg .kindsel { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 6px 0; }
     @media (max-width: 760px) { dialog.wbdlg .chartgrid { grid-template-columns: 1fr; } }
     dialog.wbdlg textarea { width: 100%; min-height: 200px; box-sizing: border-box; font: 13px/1.5 var(--font-mono); margin: 10px 0 14px; }
     dialog.wbdlg .acts { display: flex; gap: 8px; justify-content: flex-end; }
     .apps { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
     .apps .app { position: absolute; transform-origin: 0 0; pointer-events: auto; border-radius: 0 0 10px 10px; overflow: hidden; }
+    .apps .app.live { border-radius: 10px; background: var(--surface); box-shadow: 0 0 0 1.5px var(--line); overflow: auto; }
     svg.board { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none; -webkit-user-select: none; outline: none; }
     svg.board.t-hand, svg.board.panning { cursor: grab; }
     svg.board.panning { cursor: grabbing; }
@@ -248,8 +250,8 @@ export class PhxWhiteboard extends LitElement {
   cards?: { items: { id: string; title: string; description: string; on: boolean }[]; boards: Doc[]; board: string; columns: { id: string; name: string }[]; column: string };
   /** A Mermaid flowchart to turn into shapes. */
   mermaid?: string;
-  /** The chart being written in the dialog (a new one without id). */
-  chartEdit?: { id?: string; src: string };
+  /** The block being written in the dialog (a new one without id). */
+  chartEdit?: { id?: string; kind: string; src: string };
   private chartTimer = 0;
   /** Live state of entries (slug → ok | warn | down | fail …). */
   private entStatus = new Map<string, string>();
@@ -721,7 +723,8 @@ export class PhxWhiteboard extends LitElement {
         break;
       }
       case "embed": this.drawEmbed(e, g); break;
-      case "chart": this.drawChart(e, g); break;
+      case "chart":
+      case "block": this.drawBlock(e, g); break;
       case "arrow":
       case "line": {
         const pts = linePts(e, this.byId);
@@ -857,44 +860,29 @@ export class PhxWhiteboard extends LitElement {
     ]), foot("Link", pv.site || "")));
   }
 
-  /** Charts are drawn as SVG (not HTML), so exports keep them; points show
-   * their text as a tooltip. The numbered list stays on pages. */
-  private drawChart(e: WBElement, g: SVGGElement) {
-    const x = e.x ?? 0, y = e.y ?? 0, w = Math.max(240, e.w ?? 0), h = Math.max(160, e.h ?? 0), spec = e.chart;
+  /** Blocks (ADR-0085) are drawn as SVG (not HTML), so exports keep them;
+   * live kinds (e.g. polls) run in the overlay above, like apps. */
+  private drawBlock(e: WBElement, g: SVGGElement) {
+    const b = asBlock(e);
+    const x = b.x ?? 0, y = b.y ?? 0, w = Math.max(200, b.w ?? 0), h = Math.max(120, b.h ?? 0);
     const card = mk("rect", { x, y, width: w, height: h, rx: 10 }, g);
     card.style.cssText = "fill:var(--surface);stroke:var(--line);stroke-width:1.5";
-    let top = y + 10;
-    if (spec?.title) {
-      const tx = mk("text", { x: x + 14, y: y + 28 }, g);
-      tx.style.cssText = "font:600 16px var(--font-body);fill:var(--fg)";
-      tx.textContent = spec.title;
-      top = y + 40;
-    }
-    const bands = (spec?.bands ?? []).filter((b) => b.label);
-    const legendH = bands.length ? 24 : 0;
-    if (!spec || parseChart(JSON.stringify(spec)).problems.length) {
-      const tx = mk("text", { x: x + 14, y: top + 20 }, g);
+    const def = blockDef(b.kind ?? "");
+    const parsed = def?.parse(b.source ?? "");
+    if (!def || !parsed?.model) {
+      const tx = mk("text", { x: x + 14, y: y + 26 }, g);
       tx.style.cssText = "font:13px var(--font-body);fill:var(--bad)";
-      tx.textContent = t("chart.error");
+      tx.textContent = `${b.kind ?? ""}: ${t("block.cannot_show")}`;
       return;
     }
-    const markup = chartSVG(spec, { width: w - 16, height: h - (top - y) - legendH - 6, locale: locale() });
+    if (def.board?.live && !this.still) return; // the overlay shows it
+    const markup = def.svg(parsed.model, { width: w - 16, height: h - 16, locale: locale() });
     const inner = document.importNode(new DOMParser().parseFromString(markup, "image/svg+xml").documentElement, true) as unknown as SVGSVGElement;
     inner.setAttribute("x", String(x + 8));
-    inner.setAttribute("y", String(top));
+    inner.setAttribute("y", String(y + 8));
     inner.removeAttribute("style");
     inner.style.fontFamily = "var(--font-body)";
     g.appendChild(inner);
-    let lx = x + 14;
-    for (const b of bands) {
-      if (lx > x + w - 60) break;
-      const sw = mk("rect", { x: lx, y: y + h - 20, width: 11, height: 11, rx: 2 }, g);
-      sw.style.cssText = `fill:var(--tb-${b.color ?? "gray"});stroke:var(--tc-${b.color ?? "gray"})`;
-      const tx = mk("text", { x: lx + 16, y: y + h - 10.5 }, g);
-      tx.style.cssText = "font:11px var(--font-body);fill:var(--muted)";
-      tx.textContent = b.label ?? "";
-      lx += 16 + (b.label ?? "").length * 6.2 + 14;
-    }
   }
 
   /** Running apps: frames in an overlay, positioned over their cards. */
@@ -922,6 +910,37 @@ export class PhxWhiteboard extends LitElement {
       }
       const [sx, sy] = this.toScreen(e.x ?? 0, (e.y ?? 0) + WB_APP_BAR);
       el.style.cssText = `left:${sx}px;top:${sy}px;width:${e.w ?? 0}px;height:${Math.max(0, (e.h ?? 0) - WB_APP_BAR)}px;transform:scale(${z})`;
+    }
+    this.syncLiveBlocks(host, z);
+  }
+
+  /** Live blocks (e.g. polls) run in the overlay, positioned over their card;
+   * their state is kept per element of this whiteboard. */
+  private liveBlocks = new Map<string, HTMLElement & { source?: string; render?: () => Promise<void> }>();
+
+  private syncLiveBlocks(host: HTMLElement, z: number) {
+    const want = new Set(this.still ? [] : this.els().filter((e) => e.type === "block" && blockDef(e.kind ?? "")?.board?.live).map((e) => e.id));
+    for (const [id, el] of this.liveBlocks) if (!want.has(id)) { el.remove(); this.liveBlocks.delete(id); }
+    for (const id of want) {
+      const e = this.byId(id)!;
+      let el = this.liveBlocks.get(id);
+      if (!el) {
+        el = document.createElement("phx-block") as HTMLElement & { source?: string; render?: () => Promise<void> };
+        el.className = "app live";
+        el.setAttribute("data-board", "");
+        el.dataset.project = this.project;
+        el.dataset.doc = this.doc?.id ?? "";
+        el.dataset.key = e.id;
+        el.dataset.kind = e.kind ?? "";
+        host.append(el);
+        this.liveBlocks.set(id, el);
+      }
+      if (el.source !== e.source) {
+        el.source = e.source;
+        void el.render?.();
+      }
+      const [sx, sy] = this.toScreen(e.x ?? 0, e.y ?? 0);
+      el.style.cssText = `left:${sx}px;top:${sy}px;width:${e.w ?? 0}px;height:${e.h ?? 0}px;transform:scale(${z})`;
     }
   }
 
@@ -1659,7 +1678,7 @@ export class PhxWhiteboard extends LitElement {
       return;
     }
     const h = hitTest(this.els(), x, y, 8 / this.view.z, this.byId);
-    if (h?.type === "chart") {
+    if (h?.type === "chart" || h?.type === "block") {
       this.select(h.id);
       void this.openChart(h);
       return;
@@ -2151,7 +2170,13 @@ export class PhxWhiteboard extends LitElement {
     const b = extent(this.els(), this.byId);
     if (!b) return;
     const pad = 40, cs = getComputedStyle(this);
-    const resolve = (s: string): string => s.replace(/var\((--[\w-]+)(?:,\s*([^)]+))?\)/g, (_m, v: string, fb?: string) => cs.getPropertyValue(v).trim() || (fb ? resolve(fb) : "#888"));
+    // Innermost var() first, so fallbacks like var(--canvas, var(--bg)) resolve too.
+    const resolve = (s: string): string => {
+      for (let i = 0; i < 6 && s.includes("var("); i++) {
+        s = s.replace(/var\((--[\w-]+)(?:,\s*([^()]*))?\)/g, (_m, v: string, fb?: string) => cs.getPropertyValue(v).trim() || fb?.trim() || "#888");
+      }
+      return s;
+    };
     const layer = this.svgEl.querySelector("g.layer")!.cloneNode(true) as SVGGElement;
     // Selection handles and invisible hit lines are not part of the picture.
     layer.querySelectorAll("[data-h],[data-pt],[data-mid]").forEach((n) => n.remove());
@@ -2758,8 +2783,10 @@ export class PhxWhiteboard extends LitElement {
     </dialog>`;
   }
 
-  private async openChart(e?: WBElement) {
-    this.chartEdit = { id: e?.id, src: e?.chart ? JSON.stringify(e.chart, null, 2) : CHART_EXAMPLE };
+  private async openChart(e?: WBElement, kind = "chart") {
+    const b = e ? asBlock(e) : undefined;
+    const k = b?.kind ?? kind;
+    this.chartEdit = { id: b?.id, kind: k, src: b?.source ?? blockDef(k)?.example ?? "" };
     await this.updateComplete;
     this.renderRoot.querySelector<HTMLDialogElement>("dialog.chart")?.showModal();
   }
@@ -2767,18 +2794,22 @@ export class PhxWhiteboard extends LitElement {
   private saveChart() {
     const c = this.chartEdit;
     if (!c) return;
-    const { spec, problems } = parseChart(c.src);
-    if (!spec) {
-      toast(`${t("chart.error")}: ${t(problems[0].key as any, problems[0].params ?? {})}`, "error");
+    const def = blockDef(c.kind);
+    const { model, problems } = def?.parse(c.src) ?? { problems: [{ key: "block.cannot_show" }] };
+    if (!model) {
+      toast(`${t("block.cannot_show")}: ${t(problems[0].key as any, problems[0].params ?? {})}`, "error");
       return;
     }
     const old = c.id ? this.byId(c.id) : undefined;
     if (old) {
-      old.chart = spec;
+      // Older chart elements become blocks when edited.
+      Object.assign(old, { type: "block", kind: c.kind, source: c.src });
+      delete old.chart;
     } else {
       const r = this.svgEl.getBoundingClientRect();
       const [cx, cy] = this.toWorld(r.left + r.width / 2, r.top + r.height / 2);
-      const el: WBElement = { id: newId(), type: "chart", chart: spec, x: cx - 280, y: cy - 180, w: 560, h: 360 };
+      const size = def?.board ?? { w: 560, h: 360 };
+      const el: WBElement = { id: newId(), type: "block", kind: c.kind, source: c.src, x: cx - size.w / 2, y: cy - size.h / 2, w: size.w, h: size.h };
       this.add(el);
       this.select(el.id);
     }
@@ -2790,23 +2821,28 @@ export class PhxWhiteboard extends LitElement {
   private chartDialog() {
     const c = this.chartEdit;
     if (!c) return nothing;
+    const def = blockDef(c.kind);
     const close = () => { this.renderRoot.querySelector<HTMLDialogElement>("dialog.chart")?.close(); this.chartEdit = undefined; };
     return html`<dialog class="chart wbdlg" aria-labelledby="wbct" @cancel=${(e: Event) => { e.preventDefault(); close(); }} @keydown=${(e: KeyboardEvent) => e.stopPropagation()}>
-      <h2 id="wbct">${t("wb.chart_title")}</h2>
-      <p class="muted">${t("block.chart_hint")}</p>
+      <h2 id="wbct">${t("wb.block_title")}</h2>
+      ${c.id ? nothing : html`<label class="kindsel">${t("wb.block_kind")}
+        <select @change=${(ev: Event) => { const k = (ev.target as HTMLSelectElement).value; this.chartEdit = { kind: k, src: blockDef(k)?.example ?? "" }; }}>
+          ${boardKinds().map((d) => html`<option value=${d.kind} ?selected=${d.kind === c.kind}>${t(d.label as any)}</option>`)}
+        </select></label>`}
+      <p class="muted">${def ? t(def.hint as any) : ""}</p>
       <div class="chartgrid">
-        <textarea aria-label=${t("block.chart_source")} .value=${c.src} spellcheck="false" @input=${(ev: Event) => {
+        <textarea aria-label=${t("block.source")} .value=${c.src} spellcheck="false" @input=${(ev: Event) => {
           const v = (ev.target as HTMLTextAreaElement).value;
           clearTimeout(this.chartTimer);
           this.chartTimer = window.setTimeout(() => { if (this.chartEdit) this.chartEdit = { ...this.chartEdit, src: v }; }, 300);
         }}></textarea>
-        <phx-chart data-src=${c.src}></phx-chart>
+        <phx-block data-kind=${c.kind} data-src=${c.src} data-project=${this.project} data-doc=${this.doc?.id ?? ""}></phx-block>
       </div>
       <div class="acts"><button class="ghost" @click=${close}>${t("doc.cancel")}</button><button @click=${() => {
         const v = this.renderRoot.querySelector<HTMLTextAreaElement>("dialog.chart textarea")?.value;
         if (v !== undefined && this.chartEdit) this.chartEdit = { ...this.chartEdit, src: v };
         this.saveChart();
-      }}>${icon("ChartSpline", 14)} ${t(c.id ? "wb.chart_save" : "wb.chart_add")}</button></div>
+      }}>${icon(def?.icon ?? "Shapes", 14)} ${t(c.id ? "wb.chart_save" : "wb.chart_add")}</button></div>
     </dialog>`;
   }
 
@@ -2998,7 +3034,7 @@ export class PhxWhiteboard extends LitElement {
         <button aria-label=${t("wb.export_excalidraw")} title=${t("wb.export_excalidraw")} @click=${() => this.exportExcalidraw()}>${icon("FileCode", 16)}</button>
         ${this.readOnly ? nothing : html`<button aria-label=${t("wb.import_excalidraw")} title=${t("wb.import_excalidraw")} @click=${() => this.pickExcalidraw()}>${icon("Upload", 16)}</button>
           <button aria-label=${t("wb.mermaid_title")} title=${t("wb.mermaid_title")} @click=${() => void this.openMermaid()}>${icon("Workflow", 16)}</button>
-          <button aria-label=${t("wb.chart_title")} title=${t("wb.chart_title")} @click=${() => void this.openChart()}>${icon("ChartSpline", 16)}</button>`}
+          <button aria-label=${t("wb.block_title")} title=${t("wb.block_title")} @click=${() => void this.openChart()}>${icon("Shapes", 16)}</button>`}
         <button aria-label=${t("wb.present")} title=${t("wb.present")} @click=${() => this.presentAt(0)}>${icon("Presentation", 16)}</button>
         ${(this.board.prototypes ?? []).length ? html`<button aria-label=${t("proto.prototypes")} title=${t("proto.prototypes")} @click=${() => {
           const list = this.board.prototypes ?? [];

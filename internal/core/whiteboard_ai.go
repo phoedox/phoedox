@@ -57,7 +57,9 @@ type WBViewItem struct {
 	Screen  *WBScreen  `json:"screen,omitempty"`
 	UI      *WBUI      `json:"ui,omitempty"`
 	Actions []WBAction `json:"actions,omitempty"`
-	// Charts: the chart JSON (as in a ```chart block).
+	// Blocks (type "block", kind in Kind): the source, as in a fenced block of a page.
+	Source string `json:"source,omitempty"`
+	// Charts in the older form (type "chart").
 	Chart json.RawMessage `json:"chart,omitempty"`
 }
 
@@ -109,7 +111,7 @@ func (s *Service) WhiteboardView(ctx context.Context, a Actor, ref, docRef strin
 	slices.SortStableFunc(els, func(x, y WBElement) int { return strings.Compare(x.Order, y.Order) })
 	for _, e := range els {
 		it := WBViewItem{ID: e.ID, Type: e.Type, Text: e.Text, Frame: e.Frame, Color: e.Stroke, Fill: e.Fill, Entity: e.Entity, Doc: e.Doc, URL: e.URL, Kind: e.Kind,
-			Screen: e.Screen, UI: e.UI, Actions: e.Actions, Chart: e.Chart}
+			Screen: e.Screen, UI: e.UI, Actions: e.Actions, Source: e.Source, Chart: e.Chart}
 		if len(e.Points) > 0 {
 			step := 1
 			if e.Type == "pen" && len(e.Points) > 12 {

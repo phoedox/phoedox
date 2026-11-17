@@ -16,6 +16,8 @@ import (
 	"github.com/yuin/goldmark/renderer"
 	ghtml "github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/util"
+
+	"github.com/phoedox/phoedox/internal/blocks"
 )
 
 // Links tells the renderer how page and file URLs look on the site.
@@ -242,6 +244,11 @@ func (r fenceRenderer) render(w util.BufWriter, src []byte, n ast.Node, entering
 	}
 	text := strings.TrimSpace(body.String())
 	esc := html.EscapeString(text)
+	if _, ok := blocks.Get(lang); ok {
+		// Registered blocks (ADR-0085): the web draws them from the source.
+		_, _ = w.WriteString(`<phx-block data-kind="` + html.EscapeString(lang) + `"><pre>` + esc + `</pre></phx-block>`)
+		return ast.WalkSkipChildren, nil
+	}
 	switch lang {
 	case "math":
 		_, _ = w.WriteString(`<phx-math data-tex="` + esc + `" data-display="1"><pre>` + esc + `</pre></phx-math>`)
@@ -249,8 +256,6 @@ func (r fenceRenderer) render(w util.BufWriter, src []byte, n ast.Node, entering
 		_, _ = w.WriteString(`<phx-embed data-url="` + esc + `" data-kind="` + lang + `"><a href="` + esc + `" rel="noopener external">` + esc + `</a></phx-embed>`)
 	case "mermaid":
 		_, _ = w.WriteString(`<phx-mermaid><pre>` + esc + `</pre></phx-mermaid>`)
-	case "chart":
-		_, _ = w.WriteString(`<phx-chart><pre>` + esc + `</pre></phx-chart>`)
 	case "compare":
 		_, _ = w.WriteString(`<phx-compare><pre>` + esc + `</pre></phx-compare>`)
 	case "board":
@@ -286,11 +291,12 @@ var policy = func() *bluemonday.Policy {
 	p := bluemonday.UGCPolicy()
 	p.AllowAttrs("class").OnElements("span", "div", "code", "pre", "ul", "li", "input", "table", "td", "th", "section", "small", "h3", "h4", "details")
 	p.AllowAttrs("data-kind", "data-icon").OnElements("div", "span")
-	p.AllowElements("u", "phx-math", "phx-embed", "phx-mermaid", "phx-chart", "phx-compare", "phx-tabs", "time", "section", "article", "h2", "h3", "h4", "details", "summary")
+	p.AllowElements("u", "phx-math", "phx-embed", "phx-mermaid", "phx-chart", "phx-block", "phx-compare", "phx-tabs", "time", "section", "article", "h2", "h3", "h4", "details", "summary")
 	p.AllowNoAttrs().OnElements("phx-mermaid", "phx-chart", "phx-compare", "phx-tabs") // the source is the <pre> inside
 	p.AllowAttrs("data-kind", "open").OnElements("details")
 	p.AllowAttrs("data-title").OnElements("section")
 	p.AllowAttrs("data-key").OnElements("phx-steps")
+	p.AllowAttrs("data-kind").OnElements("phx-block")
 	p.AllowAttrs("data-tex", "data-display").OnElements("phx-math")
 	p.AllowAttrs("data-url", "data-kind").OnElements("phx-embed")
 	p.AllowAttrs("datetime", "data-kind").OnElements("time")
