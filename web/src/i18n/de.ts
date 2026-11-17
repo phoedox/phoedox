@@ -5014,4 +5014,13 @@ export const de = {
   "validation.app_asset_name": "Asset-Namen haben 1–100 Buchstaben, Ziffern, Leerzeichen und _.-",
   "validation.app_preview": "Eine Vorschau ist ein PNG bis 2 MB.",
   "validation.app_no_preview": "Von dieser App gibt es noch kein Bild. Es entsteht, wenn jemand mit Bearbeitungsrecht sie im Browser öffnet.",
+  "create.appkind.slides": "Folien",
+  "create.appkind.slides_desc": "Präsentation aus Markdown: vorführen, als PDF drucken, direkt bearbeiten.",
+  "create.appkind.dashboard": "Dashboard-App",
+  "create.appkind.dashboard_desc": "Kacheln, Diagramm und Tabelle aus Projektdaten wie Checks, Boards oder Abfragen.",
+  "create.appkind.sheet": "Tabelle",
+  "create.appkind.sheet_desc": "Gemeinsam ausfüllen mit Formeln, live für alle, als CSV laden.",
+  "create.appkind.design": "Design-System",
+  "create.appkind.design_desc": "Farben, Schrift, Bausteine und Kontraste des Projekt-Themes.",
+  "validation.app_starter": "Unbekannte App-Art „{starter}“.",
 } as const;

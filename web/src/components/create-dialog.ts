@@ -153,6 +153,14 @@ export class PhxCreateDialog extends LitElement {
           html`<span class="pv plan"><svg viewBox="0 0 60 40" aria-hidden="true"><rect x="4" y="6" width="18" height="12" rx="2"/><ellipse cx="46" cy="12" rx="10" ry="7"/><path d="M22 12h13M41 30l-6-8"/><rect x="28" y="26" width="16" height="10" rx="1"/></svg></span>`, () => this.create("whiteboard"))}
         ${this.choice("AppWindow", t("doc.type.app"), t("create.app_desc"),
           html`<span class="pv app"><span class="win"><i class="h"></i><b></b><b class="ok"></b></span></span>`, () => this.create("app"))}
+        ${this.choice("GalleryHorizontal", t("create.appkind.slides"), t("create.appkind.slides_desc"),
+          html`<span class="pv app"><span class="win"><i class="h"></i><b></b></span></span>`, () => this.create("app", "slides"))}
+        ${this.choice("LayoutDashboard", t("create.appkind.dashboard"), t("create.appkind.dashboard_desc"),
+          html`<span class="pv tiles"><b class="ok"></b><b class="ok"></b><b class="bad"></b><b class="ok"></b></span>`, () => this.create("app", "dashboard"))}
+        ${this.choice("Sheet", t("create.appkind.sheet"), t("create.appkind.sheet_desc"),
+          html`<span class="pv board"><span><b></b><b></b><b></b></span><span><b></b><b></b><b></b></span><span><b></b><b></b><b class="ok"></b></span></span>`, () => this.create("app", "sheet"))}
+        ${this.choice("Palette", t("create.appkind.design"), t("create.appkind.design_desc"),
+          html`<span class="pv tiles"><b class="ok"></b><b></b><b class="bad"></b><b></b></span>`, () => this.create("app", "design"))}
         ${this.choice("Store", t("create.app_store"), t("create.app_store_desc"),
           html`<span class="pv app"><span class="win"><i class="h"></i><b></b><b class="ok"></b></span></span>`, () => (this.step = "store"))}
         ${this.choice("Link", t("doc.type.link"), t("create.link_desc"),

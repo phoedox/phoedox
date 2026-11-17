@@ -84,9 +84,24 @@ themselves (a form builder, a settings page that rewrites its config).
 Ask for the **lowest level** that does the job and explain to the user what
 the app will be allowed to do.
 
+## Built-in kinds
+
+`create_app` with `starter` starts from a ready-made app (people pick the
+same under New):
+
+| starter | What it is | Change it by |
+|---|---|---|
+| `slides` | A deck from Markdown in `slides.md` (`---` between slides): arrow keys, Present (full screen), Print / PDF; editors change it in place | writing `slides.md` (pass it in `files`, or `edit_app` later) |
+| `dashboard` | A card per source with count, status chart and table; starts with the project's checks | adding `sources` (queries, boards, entries of a kind, readings) |
+| `sheet` | A spreadsheet people fill in together, live, with formulas (`=SUM(A1:A5)`, AVERAGE, MIN, MAX, COUNT, ROUND, IF, `&`), CSV download | – (data lives in its `cells` collection) |
+| `design` | The project's theme as a design system page: colours, contrast check, type, components, tokens.css download | – (follows the theme) |
+
+Files you pass with `starter` replace the kind's files of the same name, so
+a talk is `create_app {starter: "slides", files: {"slides.md": "# …"}}`.
+
 ## Working on apps
 
-1. `create_app` with `files`, `level`, `sources`.
+1. `create_app` with `files`, `level`, `sources` (or a `starter`).
 2. `get_app`: compile errors (`app.build.errors`) and the last console errors
    of people using it (`console`). Fix them with `edit_app`.
 3. `edit_app` with exact `edits` `{file, old, new}` (old exactly once), whole

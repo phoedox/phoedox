@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design system</title>
+<style>
+  :root { --bg: var(--phx-bg, #fff); --fg: var(--phx-fg, #1f1a17); --muted: var(--phx-muted, #6b625c); --accent: var(--phx-accent, #b84a0c); --accent-soft: var(--phx-accent-soft, #f6e3d6); --line: var(--phx-line, #e4ddd7); --surface: var(--phx-surface, #faf8f6); --surface2: var(--phx-surface2, #f1ece8); --good: var(--phx-good, #2f7d4f); --bad: var(--phx-bad, #b3261e); --signal: var(--phx-signal, #b7791f); --body: var(--phx-font-body, system-ui, sans-serif); --mono: var(--phx-font-mono, ui-monospace, monospace); }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+  main { max-width: 960px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  header button { margin-left: auto; }
+  h1 { font-size: 28px; margin: 0; } h2 { font-size: 18px; margin: 32px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+  .muted { color: var(--muted); font-size: 13px; }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .sw { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .sw .c { height: 64px; display: grid; place-items: center; font-size: 12px; font-weight: 600; }
+  .sw .t { padding: 6px 8px; font-size: 12px; } .sw code { font-family: var(--mono); color: var(--muted); display: block; }
+  .type > * { margin: 0 0 8px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; }
+  button, .btn { font: inherit; font-size: 14px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+  .primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .ghost { background: transparent; }
+  .danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[type=text] { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); min-width: 220px; }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--fg); }
+  .badge.good { background: color-mix(in srgb, var(--good) 18%, var(--bg)); } .badge.bad { background: color-mix(in srgb, var(--bad) 18%, var(--bg)); } .badge.signal { background: color-mix(in srgb, var(--signal) 22%, var(--bg)); }
+  .card { border: 1px solid var(--line); border-radius: 12px; padding: 16px; background: var(--surface); max-width: 360px; }
+  .alert { border-left: 4px solid var(--signal); background: var(--surface2); padding: 10px 12px; border-radius: 6px; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); } th { color: var(--muted); font-weight: 500; }
+  .ok { color: var(--good); font-weight: 600; } .no { color: var(--bad); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <header><h1>Design system</h1><span class="muted" id="mode"></span><button id="dl">Download tokens.css</button></header>
+  <p class="muted">The project's theme as it is now. It follows Phoedox: change the theme under Appearance and this page changes with it.</p>
+
+  <h2>Colours</h2>
+  <div class="swatches" id="sw"></div>
+
+  <h2>Contrast</h2>
+  <table><thead><tr><th>Text</th><th>On</th><th>Ratio</th><th>WCAG AA</th></tr></thead><tbody id="contrast"></tbody></table>
+
+  <h2>Type</h2>
+  <div class="type">
+    <h1>Heading 1 – the quick brown fox</h1>
+    <h2 style="border:0;margin:0 0 8px;padding:0">Heading 2 – jumps over the lazy dog</h2>
+    <h3>Heading 3</h3>
+    <p>Body text in <span id="bodyfont"></span>. Pack my box with five dozen liquor jugs.</p>
+    <p class="muted">Muted text for hints and dates.</p>
+    <p><code style="font-family:var(--mono)">Monospace: <span id="monofont"></span> 0O 1lI</code></p>
+  </div>
+
+  <h2>Components</h2>
+  <div class="row"><button class="primary">Primary</button><button>Secondary</button><button class="ghost">Ghost</button><button class="danger">Danger</button><button disabled>Disabled</button></div>
+  <div class="row"><input type="text" placeholder="Text field" aria-label="Example text field"><label><input type="checkbox" checked> Checkbox</label></div>
+  <div class="row"><span class="badge">Badge</span><span class="badge good">Done</span><span class="badge signal">Waiting</span><span class="badge bad">Failed</span></div>
+  <div class="row"><div class="card"><strong>Card</strong><p class="muted" style="margin:4px 0 0">Surfaces group content; lines separate it.</p></div><div class="alert">An alert draws attention without alarm.</div></div>
+</main>
+<script>
+  const TOKENS = ["bg", "surface", "surface2", "line", "fg", "muted", "accent", "accent-soft", "good", "bad", "signal"];
+  const $ = (id) => document.getElementById(id);
+  const val = (k) => getComputedStyle(document.documentElement).getPropertyValue("--" + k).trim();
+  // Any CSS colour to [r, g, b] through a canvas.
+  const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  const rgb = (c) => { ctx.clearRect(0, 0, 1, 1); ctx.fillStyle = "#000"; ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1); return [...ctx.getImageData(0, 0, 1, 1).data.slice(0, 3)]; };
+  const lum = (c) => { const [r, g, b] = rgb(c).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const textOn = (c) => (ratio("#fff", c) >= ratio("#000", c) ? "#fff" : "#000");
+
+  function render() {
+    $("mode").textContent = document.documentElement.dataset.theme === "dark" ? "Dark mode" : "Light mode";
+    $("sw").innerHTML = TOKENS.map((k) => { const v = val(k); return `<div class="sw"><div class="c" style="background:var(--${k});color:${textOn(v)}">Aa</div><div class="t">--${k}<code>${v}</code></div></div>`; }).join("");
+    const pairs = [["fg", "bg"], ["muted", "bg"], ["fg", "surface"], ["muted", "surface2"], ["accent", "bg"], ["#fff", "accent"], ["#fff", "bad"], ["good", "bg"], ["bad", "bg"]];
+    $("contrast").innerHTML = pairs.map(([t, b]) => {
+      const tc = t.startsWith("#") ? t : val(t), bc = val(b), r = ratio(tc, bc);
+      return `<tr><td>${t.startsWith("#") ? "white" : "--" + t}</td><td>--${b}</td><td>${r.toFixed(2)} : 1</td><td class="${r >= 4.5 ? "ok" : r >= 3 ? "" : "no"}">${r >= 4.5 ? "passes" : r >= 3 ? "large text only" : "fails"}</td></tr>`;
+    }).join("");
+    $("bodyfont").textContent = val("body").split(",")[0].replace(/["']/g, "");
+    $("monofont").textContent = val("mono").split(",")[0].replace(/["']/g, "");
+  }
+  $("dl").onclick = () => {
+    const css = `:root {\n${TOKENS.map((k) => `  --${k}: ${val(k)};`).join("\n")}\n  --font-body: ${val("body")};\n  --font-mono: ${val("mono")};\n}\n`;
+    phoedox.download("tokens.css", css, "text/css").catch(() => undefined);
+  };
+  phoedox.onTheme(render);
+  render();
+</script>
+</body>
+</html>

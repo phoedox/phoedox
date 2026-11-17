@@ -52,6 +52,39 @@ type App struct {
 	// SelfEdit lets the app save its own files (people who may edit it,
 	// after they confirm), e.g. a document edited in place.
 	SelfEdit bool `json:"selfEdit,omitempty"`
+	// Starter makes a new app from a built-in kind (resources/apps): slides,
+	// dashboard, sheet or design. Only read on create, never stored.
+	Starter string `json:"starter,omitempty"`
+}
+
+// fromStarter fills a new app from a built-in kind; files given with it
+// replace the kind's files of the same name.
+func fromStarter(in *App) error {
+	if in == nil || in.Starter == "" {
+		return nil
+	}
+	files, manifest, ok := resources.AppStarter(in.Starter)
+	if !ok {
+		return invalid("validation.app_starter", map[string]any{"starter": in.Starter}, "unknown app kind %q (%s)", in.Starter, strings.Join(resources.AppStarters(), ", "))
+	}
+	var m App
+	if err := json.Unmarshal(manifest, &m); err != nil {
+		return err
+	}
+	for k, v := range in.Files {
+		files[k] = v
+	}
+	in.Files, in.Starter = files, ""
+	in.Level = max(in.Level, m.Level)
+	if len(in.Sources) == 0 {
+		in.Sources = m.Sources
+	}
+	if in.StorageMB == 0 {
+		in.StorageMB = m.StorageMB
+	}
+	in.SelfEdit = in.SelfEdit || m.SelfEdit
+	in.Devices = append(in.Devices, m.Devices...)
+	return nil
 }
 
 // AppSource is something an app may read.

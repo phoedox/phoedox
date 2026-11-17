@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sheet</title>
+<style>
+  :root { --bg: var(--phx-bg, #fff); --fg: var(--phx-fg, #1f1a17); --muted: var(--phx-muted, #6b625c); --accent: var(--phx-accent, #b84a0c); --line: var(--phx-line, #e4ddd7); --surface: var(--phx-surface, #faf8f6); --surface2: var(--phx-surface2, #f1ece8); --bad: var(--phx-bad, #b3261e); }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--phx-font-body, system-ui, sans-serif); font-size: 13px; display: flex; flex-direction: column; height: 100vh; }
+  .bar { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  .bar .ref { width: 48px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .bar input { flex: 1; font: 13px var(--phx-font-mono, ui-monospace, monospace); padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--fg); }
+  button { font: inherit; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+  .wrap { flex: 1; overflow: auto; }
+  table { border-collapse: collapse; table-layout: fixed; }
+  th { position: sticky; top: 0; background: var(--surface2); color: var(--muted); font-weight: 500; border: 1px solid var(--line); padding: 3px; z-index: 1; }
+  th.row { position: sticky; left: 0; width: 40px; z-index: 2; }
+  td { border: 1px solid var(--line); padding: 0; width: 110px; height: 26px; }
+  td input { width: 100%; height: 100%; border: 0; padding: 3px 6px; font: inherit; background: transparent; color: var(--fg); }
+  td input:focus { outline: 2px solid var(--accent); outline-offset: -2px; background: var(--bg); }
+  td.num input { text-align: right; font-variant-numeric: tabular-nums; }
+  td.err input { color: var(--bad); }
+  .note { color: var(--muted); padding: 24px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="bar"><span class="ref" id="ref">A1</span><input id="fx" aria-label="Content of the selected cell" placeholder="Value or formula, e.g. =SUM(A1:A5)"><button id="csv">CSV</button></div>
+<div class="wrap" id="wrap"><p class="note">Loading…</p></div>
+<script type="module">
+  import { evaluate, colName, parseRef } from "./formula.js";
+  const COLS = 12, ROWS = 60;
+  const cells = new Map(); // ref → {id, v, updatedAt}
+  const db = phoedox.db.collection("cells");
+  const $ = (id) => document.getElementById(id);
+  let current = "A1";
+
+  function value(ref, seen = new Set()) {
+    const raw = cells.get(ref)?.v ?? "";
+    if (!String(raw).startsWith("=")) return raw === "" ? "" : isNaN(Number(raw)) ? raw : Number(raw);
+    if (seen.has(ref)) throw Object.assign(new Error("#CYCLE!"), { cell: "#CYCLE!" });
+    const next = new Set(seen).add(ref);
+    return evaluate(String(raw).slice(1), (r) => value(r, next));
+  }
+  function shown(ref) {
+    try { const v = value(ref); return { text: typeof v === "number" ? String(Math.round(v * 1e10) / 1e10) : typeof v === "boolean" ? String(v).toUpperCase() : String(v), num: typeof v === "number" }; }
+    catch (e) { return { text: e.cell || "#ERROR!", err: true }; }
+  }
+  function paint() {
+    for (const input of document.querySelectorAll("td input")) {
+      if (input === document.activeElement) continue;
+      const s = shown(input.dataset.ref);
+      input.value = s.text;
+      input.parentElement.className = s.err ? "err" : s.num ? "num" : "";
+    }
+  }
+  function build() {
+    let h = `<table><thead><tr><th class="row"></th>${Array.from({ length: COLS }, (_, i) => `<th scope="col">${colName(i)}</th>`).join("")}</tr></thead><tbody>`;
+    for (let y = 0; y < ROWS; y++) h += `<tr><th class="row" scope="row">${y + 1}</th>${Array.from({ length: COLS }, (_, x) => `<td><input data-ref="${colName(x)}${y + 1}" aria-label="${colName(x)}${y + 1}"></td>`).join("")}</tr>`;
+    $("wrap").innerHTML = h + "</tbody></table>";
+    paint();
+  }
+  async function save(ref, v) {
+    const c = cells.get(ref);
+    if ((c?.v ?? "") === v) return;
+    if (c) {
+      cells.set(ref, { ...c, v });
+      if (v === "") await db.delete(c.id); else await db.put(c.id, { ref, v });
+    } else if (v !== "") {
+      const r = await db.add({ ref, v });
+      cells.set(ref, { id: r.id, v, updatedAt: r.updatedAt });
+    }
+    paint();
+  }
+  const select = (ref) => { current = ref; $("ref").textContent = ref; $("fx").value = cells.get(ref)?.v ?? ""; };
+
+  document.addEventListener("focusin", (e) => {
+    const r = e.target.dataset?.ref; if (!r) return;
+    select(r); e.target.value = cells.get(r)?.v ?? "";
+  });
+  document.addEventListener("focusout", (e) => {
+    const r = e.target.dataset?.ref; if (!r) return;
+    save(r, e.target.value.trim()).catch((err) => alert(err.message));
+    const s = shown(r); e.target.value = s.text;
+  });
+  document.addEventListener("keydown", (e) => {
+    const r = e.target.dataset?.ref; if (!r) return;
+    const [x, y] = parseRef(r);
+    const move = { Enter: [0, 1], ArrowDown: [0, 1], ArrowUp: [0, -1], Tab: [e.shiftKey ? -1 : 1, 0] }[e.key];
+    if (e.key === "Escape") { e.target.value = cells.get(r)?.v ?? ""; e.target.blur(); return; }
+    if (!move) return;
+    const nx = x + move[0], ny = y + move[1];
+    if (nx < 0 || ny < 0 || nx >= COLS || ny >= ROWS) return;
+    e.preventDefault();
+    document.querySelector(`input[data-ref="${colName(nx)}${ny + 1}"]`)?.focus();
+  });
+  $("fx").addEventListener("change", () => save(current, $("fx").value.trim()).catch((err) => alert(err.message)));
+  $("csv").onclick = () => {
+    let maxX = 0, maxY = 0;
+    for (const r of cells.keys()) { const p = parseRef(r); if (p) { maxX = Math.max(maxX, p[0]); maxY = Math.max(maxY, p[1]); } }
+    const q = (s) => (/[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+    const lines = [];
+    for (let y = 0; y <= maxY; y++) lines.push(Array.from({ length: maxX + 1 }, (_, x) => q(shown(colName(x) + (y + 1)).text)).join(","));
+    phoedox.download("sheet.csv", lines.join("\n") + "\n", "text/csv").catch(() => undefined);
+  };
+
+  async function start() {
+    const info = await phoedox.info();
+    if (info.granted < 2) {
+      $("wrap").innerHTML = `<p class="note">The sheet keeps its cells in this app's storage, shared with everyone who uses it.<br><br><button id="allow">Allow</button></p>`;
+      $("allow").onclick = () => phoedox.requestAccess().then(start);
+      return;
+    }
+    await loadAll();
+    build();
+    select("A1");
+    // Changes say which record changed; read the cells again (a sheet is small).
+    let timer;
+    db.subscribe((c) => {
+      if (c.kind === "delete") { for (const [r, v] of cells) if (v.id === c.id) cells.delete(r); paint(); return; }
+      clearTimeout(timer);
+      timer = setTimeout(async () => {
+        await loadAll();
+        paint();
+        if (document.activeElement !== $("fx")) $("fx").value = cells.get(current)?.v ?? "";
+      }, 150);
+    });
+  }
+  async function loadAll() {
+    const fresh = new Map();
+    for (let offset = 0; ; offset += 1000) {
+      const page = await db.query({ limit: 1000, offset });
+      for (const rec of page) {
+        const ref = rec.data?.ref;
+        if (!parseRef(ref || "")) continue;
+        const had = fresh.get(ref);
+        if (had && had.updatedAt > rec.updatedAt) continue; // two people made the same cell: the newer wins
+        fresh.set(ref, { id: rec.id, v: String(rec.data.v ?? ""), updatedAt: rec.updatedAt });
+      }
+      if (page.length < 1000) break;
+    }
+    cells.clear();
+    for (const [k, v] of fresh) cells.set(k, v);
+  }
+  start().catch((e) => ($("wrap").innerHTML = `<p class="note">${e.message}</p>`));
+</script>
+</body>
+</html>

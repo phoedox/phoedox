@@ -459,6 +459,13 @@ func (s *Service) CreateDocument(ctx context.Context, a Actor, ref string, in Do
 	if err := graph.ValidateSlug(in.Slug); err != nil {
 		return DocResult{}, invalid("validation.slug", nil, "slug: %v", err)
 	}
+	if in.Type == store.DocApp && in.App != nil && in.App.Starter != "" {
+		app := *in.App
+		if err := fromStarter(&app); err != nil {
+			return DocResult{}, err
+		}
+		in.App = &app
+	}
 	if _, _, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board, in.Floorplan, in.Whiteboard, in.App); err != nil {
 		return DocResult{}, err
 	}

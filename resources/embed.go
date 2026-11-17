@@ -152,6 +152,46 @@ func TemplateIDs() []string {
 	return ids
 }
 
+//go:embed apps
+var appStarters embed.FS
+
+// AppStarter returns the files of a built-in app kind (resources/apps/<name>)
+// and its manifest.json; ok is false for an unknown kind.
+func AppStarter(name string) (files map[string]string, manifest []byte, ok bool) {
+	if name == "" || strings.ContainsAny(name, "/.\\") {
+		return nil, nil, false
+	}
+	entries, err := appStarters.ReadDir("apps/" + name)
+	if err != nil {
+		return nil, nil, false
+	}
+	files = map[string]string{}
+	for _, e := range entries {
+		b, err := appStarters.ReadFile("apps/" + name + "/" + e.Name())
+		if err != nil {
+			return nil, nil, false
+		}
+		if e.Name() == "manifest.json" {
+			manifest = b
+			continue
+		}
+		files[e.Name()] = string(b)
+	}
+	return files, manifest, true
+}
+
+// AppStarters lists the built-in app kinds.
+func AppStarters() []string {
+	entries, _ := appStarters.ReadDir("apps")
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() {
+			out = append(out, e.Name())
+		}
+	}
+	return out
+}
+
 //go:embed kinds/core.json
 var coreKinds []byte
 

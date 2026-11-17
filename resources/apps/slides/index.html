@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slides</title>
+<style>
+  :root { --bg: var(--phx-bg, #fff); --fg: var(--phx-fg, #1f1a17); --muted: var(--phx-muted, #6b625c); --accent: var(--phx-accent, #b84a0c); --line: var(--phx-line, #e4ddd7); --surface: var(--phx-surface, #faf8f6); }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font-family: var(--phx-font-body, system-ui, sans-serif); }
+  body { display: flex; flex-direction: column; }
+  .bar { display: flex; gap: 6px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .bar .n { margin-right: auto; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+  button { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .stage { flex: 1; display: grid; place-items: center; padding: 16px; min-height: 0; }
+  .slide { aspect-ratio: 16 / 9; width: min(100%, calc((100vh - 90px) * 16 / 9)); border: 1px solid var(--line); border-radius: 10px; padding: 5% 7%; overflow: hidden; display: flex; flex-direction: column; justify-content: center; font-size: clamp(14px, 2.4vw, 30px); background: var(--bg); }
+  .slide h1 { font-size: 2.2em; margin: 0 0 .4em; } .slide h2 { font-size: 1.6em; margin: 0 0 .5em; color: var(--accent); } .slide h3 { margin: 0 0 .4em; }
+  .slide p, .slide li { line-height: 1.45; } .slide ul, .slide ol { margin: 0 0 .5em; padding-left: 1.2em; }
+  .slide pre { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .6em .8em; font-size: .75em; overflow: auto; }
+  .slide code { font-family: var(--phx-font-mono, ui-monospace, monospace); }
+  .slide blockquote { margin: 0; padding-left: .8em; border-left: 4px solid var(--accent); color: var(--muted); }
+  .slide img { max-width: 100%; max-height: 50vh; }
+  .edit { flex: 1; display: none; flex-direction: column; gap: 8px; padding: 12px; }
+  .edit textarea { flex: 1; font: 14px/1.5 var(--phx-font-mono, ui-monospace, monospace); padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--fg); resize: none; }
+  .edit .row { display: flex; gap: 6px; justify-content: flex-end; }
+  body.editing .stage { display: none; } body.editing .edit { display: flex; }
+  :fullscreen .bar { display: none; } :fullscreen .slide { border: 0; width: min(100vw, 100vh * 16 / 9); }
+  .print { display: none; }
+  @media print {
+    @page { size: landscape; margin: 0; }
+    .bar, .stage, .edit { display: none !important; }
+    .print { display: block; }
+    .print .slide { width: 100%; height: 100vh; border: 0; border-radius: 0; break-after: page; font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <span class="n" id="n"></span>
+  <button id="prev" aria-label="Previous slide">←</button>
+  <button id="next" aria-label="Next slide">→</button>
+  <button id="full">Present</button>
+  <button id="print">Print / PDF</button>
+  <button id="edit" hidden>Edit</button>
+</div>
+<div class="stage"><section class="slide" id="slide" aria-live="polite"></section></div>
+<div class="edit"><textarea id="src" spellcheck="false" aria-label="Slides in Markdown"></textarea>
+  <div class="row"><button id="cancel">Cancel</button><button class="primary" id="save">Save</button></div></div>
+<div class="print" id="all"></div>
+<script>
+  // A small Markdown renderer: headings, lists, quotes, code, images, links, emphasis.
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const safeUrl = (u) => (/^(https?:|assets\/|data:image\/|[\w.-]+\.(png|jpe?g|gif|svg|webp)$)/i.test(u) ? u : "#");
+  const inline = (s) => esc(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_, a, u) => `<img alt="${a}" src="${safeUrl(u)}">`)
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, t, u) => `<a href="${safeUrl(u)}" target="_blank" rel="noopener">${t}</a>`)
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+  function markdown(md) {
+    const out = []; const lines = md.split("\n"); let list = null, para = [];
+    const flush = () => { if (para.length) out.push(`<p>${inline(para.join(" "))}</p>`); para = []; if (list) { out.push(`</${list}>`); list = null; } };
+    for (let i = 0; i < lines.length; i++) {
+      const l = lines[i];
+      if (/^```/.test(l)) { flush(); const code = []; while (++i < lines.length && !/^```/.test(lines[i])) code.push(lines[i]); out.push(`<pre><code>${esc(code.join("\n"))}</code></pre>`); continue; }
+      let m;
+      if ((m = /^(#{1,3})\s+(.*)/.exec(l))) { flush(); out.push(`<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`); continue; }
+      if ((m = /^\s*([-*]|\d+\.)\s+(.*)/.exec(l))) { if (para.length) flush(); const kind = /\d/.test(m[1]) ? "ol" : "ul"; if (list !== kind) { if (list) out.push(`</${list}>`); out.push(`<${kind}>`); list = kind; } out.push(`<li>${inline(m[2])}</li>`); continue; }
+      if ((m = /^>\s?(.*)/.exec(l))) { flush(); out.push(`<blockquote>${inline(m[1])}</blockquote>`); continue; }
+      if (!l.trim()) { flush(); continue; }
+      if (list) flush();
+      para.push(l.trim());
+    }
+    flush();
+    return out.join("");
+  }
+
+  let source = "", slides = [], at = 0;
+  const $ = (id) => document.getElementById(id);
+  function show() {
+    at = Math.max(0, Math.min(at, slides.length - 1));
+    $("slide").innerHTML = markdown(slides[at] || "");
+    $("n").textContent = `${at + 1} / ${slides.length}`;
+    $("prev").disabled = at === 0; $("next").disabled = at >= slides.length - 1;
+  }
+  function load(md) {
+    source = md;
+    slides = md.split(/^---\s*$/m).map((s) => s.trim()).filter(Boolean);
+    if (!slides.length) slides = [""];
+    $("all").innerHTML = slides.map((s) => `<section class="slide">${markdown(s)}</section>`).join("");
+    show();
+  }
+  const go = (d) => { at += d; show(); };
+  $("prev").onclick = () => go(-1);
+  $("next").onclick = () => go(1);
+  $("print").onclick = () => print();
+  $("full").onclick = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.().catch(() => undefined));
+  addEventListener("keydown", (e) => {
+    if (document.body.classList.contains("editing")) return;
+    if (["ArrowRight", "PageDown", " "].includes(e.key)) { e.preventDefault(); go(1); }
+    else if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); go(-1); }
+    else if (e.key === "Home") { at = 0; show(); } else if (e.key === "End") { at = slides.length - 1; show(); }
+    else if (e.key === "f" || e.key === "F") $("full").click();
+  });
+  $("slide").addEventListener("click", (e) => { if (!e.target.closest("a")) go(1); });
+
+  // Editing in place: people who may edit the app save a new version.
+  $("edit").onclick = () => { $("src").value = source; document.body.classList.add("editing"); $("src").focus(); };
+  $("cancel").onclick = () => document.body.classList.remove("editing");
+  $("save").onclick = async () => {
+    const md = $("src").value;
+    try { await phoedox.self.save({ "slides.md": md }); load(md); document.body.classList.remove("editing"); }
+    catch (err) { if (err.code !== "cancelled") alert(err.message); }
+  };
+
+  fetch("slides.md").then((r) => r.text()).then(load).catch(() => load("# Slides\n\n`slides.md` is missing."));
+  phoedox.info().then((i) => ($("edit").hidden = !i.selfEdit)).catch(() => undefined);
+</script>
+</body>
+</html>

@@ -119,13 +119,14 @@ type createAppIn struct {
 	Project   string            `json:"project" jsonschema:"project slug"`
 	Title     string            `json:"title"`
 	Category  string            `json:"category,omitempty"`
-	Files     map[string]string `json:"files" jsonschema:"file name → source: index.html, or app.tsx/app.jsx (React, compiled on save) with an index.html made around it; plus .css, .js, .ts, .json, .svg. At most 40 files, 1 MB"`
+	Files     map[string]string `json:"files,omitempty" jsonschema:"file name → source: index.html, or app.tsx/app.jsx (React, compiled on save) with an index.html made around it; plus .css, .js, .ts, .json, .svg. At most 40 files, 1 MB"`
 	Level     int               `json:"level,omitempty" jsonschema:"bridge level the app asks for: 0 none, 1 read its sources, 2 own storage, 3 propose changes the person confirms"`
 	Sources   []core.AppSource  `json:"sources,omitempty" jsonschema:"what the app may read at level 1: {id, kind query|board|checks|entities|request|readings, ref (saved query, board, kind, page#n for the n-th request block of a page (GET only), or entry[:metric] for readings), label}"`
 	StorageMB int               `json:"storageMb,omitempty" jsonschema:"limit of the app's own storage in MB (default 10)"`
 	AI        bool              `json:"ai,omitempty" jsonschema:"the app may call phoedox.ai(prompt, {json}) on the viewer's AI budget"`
 	Devices   []string          `json:"devices,omitempty" jsonschema:"device features the app may ask for: camera, microphone, screen, location, motion; each person allows each one separately"`
 	SelfEdit  bool              `json:"self_edit,omitempty" jsonschema:"the app may save its own files with phoedox.self.save (people who may edit it confirm each save)"`
+	Starter   string            `json:"starter,omitempty" jsonschema:"start from a built-in kind: slides (Markdown deck in slides.md, present, print to PDF), dashboard (cards for each source), sheet (shared spreadsheet with formulas), design (the project's theme as a design system); files given replace the kind's files"`
 }
 
 type editAppIn struct {
@@ -1008,7 +1009,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocWhiteboard, Title: in.Title, Category: in.Category, Whiteboard: &in.Whiteboard})
 	})
 	tool(s, "create_app", "Create an app: a small web program in the project (HTML/CSS/JS or React JSX/TypeScript, compiled on save) that runs in an isolated frame. Libraries by import name: react, react-dom/client, lit, chart.js, d3; no other network (pictures, fonts, data files: upload_app_asset, used as assets/<name>). Data only through window.phoedox: info(), requestAccess(), me() and read(sourceId) (level 1); storage.get/set/delete/list(key, value, {personal}), db.collection(name, {personal}) with add/put/update/delete/query({where, order, desc, limit})/subscribe(f) for records and live changes, files.upload/list/get/delete for files people add (level 2); propose({kind: task|comment|entity, ...}) (level 3, the person confirms); download(name, data, type) (the person confirms); device.request(camera|microphone|screen|location|motion) for features listed in devices (each person allows each one); self.files()/save(files) with self_edit; open(ref); ai(prompt, {json}) (with ai: true, on the viewer's budget). Ask for the lowest level and the fewest devices that do the job. Check get_app afterwards for compile and console errors, app_screenshot for how it looks.", func(ctx context.Context, a core.Actor, in createAppIn) (any, error) {
-		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocApp, Title: in.Title, Category: in.Category, App: &core.App{Files: in.Files, Level: in.Level, Sources: in.Sources, StorageMB: in.StorageMB, AI: in.AI, Devices: in.Devices, SelfEdit: in.SelfEdit}})
+		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocApp, Title: in.Title, Category: in.Category, App: &core.App{Files: in.Files, Level: in.Level, Sources: in.Sources, StorageMB: in.StorageMB, AI: in.AI, Devices: in.Devices, SelfEdit: in.SelfEdit, Starter: in.Starter}})
 	})
 	tool(s, "get_app", "Read an app: its files, manifest (level, sources, storage, devices, selfEdit), assets, compile errors and the last console errors and warnings from people using it. Use it before edit_app and after changes to fix errors.", func(ctx context.Context, a core.Actor, in wbDocIn) (any, error) {
 		return svc.GetApp(ctx, a, in.Project, in.Document)

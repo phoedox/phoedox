@@ -85,7 +85,7 @@
     });
   };
   window.phoedox = Object.freeze({
-    /** What the app may do here: { level, granted, sources, ai, project, devices }. */
+    /** What the app may do here: { level, granted, sources, project, selfEdit (this person may save the app's files) }. */
     info: () => call("info", {}),
     /** Asks the person for the level the app needs (shows Phoedox's dialog). */
     requestAccess: () => call("grant", {}),

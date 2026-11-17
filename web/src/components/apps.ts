@@ -176,7 +176,7 @@ export class PhxAppFrame extends LitElement {
           this.log({ level: String(a.level ?? "error"), text: String(a.text ?? ""), line: a.line, col: a.col, file: a.file });
           return;
         case "info":
-          return this.reply(m.id, { level: this.info?.level ?? 0, granted: this.granted(), project: this.shared ? "" : this.project, ...(this.shared ? { public: true, snapshotAt: this.info?.snapshotAt ?? null } : {}), sources: (this.info?.sources ?? []).map((s) => ({ id: s.id, kind: s.kind, label: s.label ?? "" })) });
+          return this.reply(m.id, { level: this.info?.level ?? 0, granted: this.granted(), project: this.shared ? "" : this.project, ...(this.shared ? { public: true, snapshotAt: this.info?.snapshotAt ?? null } : {}), sources: (this.info?.sources ?? []).map((s) => ({ id: s.id, kind: s.kind, label: s.label ?? "" })), selfEdit: !this.shared && !!this.info?.selfEdit && !!this.info?.canEdit });
         case "grant":
           return this.reply(m.id, this.shared ? this.granted() : await this.ask());
         case "read":
@@ -383,7 +383,8 @@ export class PhxAppFrame extends LitElement {
 
   private allowAttr() {
     const g = this.info?.deviceGrants ?? {};
-    return (Object.keys(FRAME_DEVICES) as AppDevice[]).filter((d) => g[d] && this.info?.devices?.includes(d)).map((d) => FRAME_DEVICES[d]).join("; ");
+    // Full screen is always allowed (slides, dashboards); it needs a click in the app.
+    return ["fullscreen", ...(Object.keys(FRAME_DEVICES) as AppDevice[]).filter((d) => g[d] && this.info?.devices?.includes(d)).map((d) => FRAME_DEVICES[d])].join("; ");
   }
 
   /** The app gives the person a file; they confirm before it is saved. */

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard</title>
+<style>
+  :root { --bg: var(--phx-bg, #fff); --fg: var(--phx-fg, #1f1a17); --muted: var(--phx-muted, #6b625c); --accent: var(--phx-accent, #b84a0c); --line: var(--phx-line, #e4ddd7); --surface: var(--phx-surface, #faf8f6); --good: var(--phx-good, #2f7d4f); --bad: var(--phx-bad, #b3261e); --signal: var(--phx-signal, #b7791f); }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font-family: var(--phx-font-body, system-ui, sans-serif); font-size: 14px; }
+  header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 14px; }
+  h1 { font-size: 20px; margin: 0; } .muted { color: var(--muted); font-size: 12px; }
+  header button { margin-left: auto; }
+  button { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: var(--bg); min-width: 0; }
+  .card h2 { font-size: 15px; margin: 0 0 10px; display: flex; gap: 8px; align-items: baseline; }
+  .card h2 .count { margin-left: auto; font-size: 24px; font-variant-numeric: tabular-nums; }
+  .tiles { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .tile { padding: 4px 9px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: 12px; }
+  .chart { height: 160px; margin-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+  th { color: var(--muted); font-weight: 500; }
+  .empty, .error { color: var(--muted); padding: 24px; text-align: center; }
+  .error { color: var(--bad); }
+</style>
+</head>
+<body>
+<header><h1>Dashboard</h1><span class="muted" id="at"></span><button id="reload">Refresh</button></header>
+<main id="main"><p class="empty">Loading…</p></main>
+<script type="module">
+  import { Chart } from "chart.js";
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const charts = [];
+
+  // Rows of any source: a list, or an object holding one.
+  const rowsOf = (v) => Array.isArray(v) ? v : v && typeof v === "object" ? (v.rows || v.items || v.entities || v.tasks || v.values || v.readings || Object.values(v).find(Array.isArray) || [v]) : [];
+  // The field that tells a row's state, if there is one.
+  const STATE = ["lastStatus", "status", "column", "state", "kind"];
+  const stateOf = (rows) => STATE.find((f) => rows.some((r) => r && typeof r[f] === "string" && r[f]));
+  const NAME = ["name", "title", "slug", "id"];
+  const colour = (s) => /^(ok|up|done|passed|good|online|accepted)$/i.test(s) ? css("--good") : /^(fail|down|error|bad|offline|rejected|failed)$/i.test(s) ? css("--bad") : /^(warn|pending|doing|unknown)$/i.test(s) ? css("--signal") : css("--accent");
+
+  function card(src, value) {
+    const rows = rowsOf(value);
+    const state = stateOf(rows);
+    const counts = {};
+    if (state) for (const r of rows) { const k = r[state] || "–"; counts[k] = (counts[k] || 0) + 1; }
+    const nameField = NAME.find((f) => rows.some((r) => r && r[f] != null)) || "";
+    const cols = [nameField, state, ...Object.keys(rows[0] || {}).filter((k) => typeof rows[0][k] !== "object" && ![nameField, state, "id", "projectId", "tenantId", "documentId"].includes(k))].filter(Boolean).slice(0, 4);
+    const el = document.createElement("section");
+    el.className = "card";
+    el.innerHTML = `<h2>${esc(src.label || src.id)} <span class="muted">${esc(src.kind)}</span><span class="count">${rows.length}</span></h2>
+      ${state ? `<div class="tiles">${Object.entries(counts).map(([k, n]) => `<span class="tile" style="border-color:${colour(k)}">${esc(k)}: <b>${n}</b></span>`).join("")}</div><div class="chart"><canvas aria-label="${esc(state)} of ${esc(src.label || src.id)}"></canvas></div>` : ""}
+      ${rows.length ? `<table><thead><tr>${cols.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${rows.slice(0, 15).map((r) => `<tr>${cols.map((c) => `<td title="${esc(r[c])}">${esc(r[c])}</td>`).join("")}</tr>`).join("")}</tbody></table>${rows.length > 15 ? `<p class="muted">${rows.length - 15} more</p>` : ""}` : `<p class="empty">Nothing here yet.</p>`}`;
+    if (state) {
+      const labels = Object.keys(counts);
+      charts.push(new Chart(el.querySelector("canvas"), {
+        type: "doughnut",
+        data: { labels, datasets: [{ data: labels.map((k) => counts[k]), backgroundColor: labels.map(colour), borderColor: css("--bg") || "#fff" }] },
+        options: { maintainAspectRatio: false, animation: false, plugins: { legend: { position: "right", labels: { color: css("--fg") } } } },
+      }));
+    }
+    return el;
+  }
+
+  let gen = 0;
+  async function load() {
+    const mine = ++gen;
+    const main = $("main");
+    const info = await phoedox.info();
+    if (!info.sources.length) { main.innerHTML = `<p class="empty">Add sources to the app's manifest (saved queries, boards, checks, entries of a kind, live values) – each becomes a card here.</p>`; return; }
+    if (info.granted < 1) {
+      main.innerHTML = `<p class="empty">The dashboard reads ${info.sources.map((s) => esc(s.label || s.id)).join(", ")} with your rights. <br><br><button class="primary" id="allow">Allow reading</button></p>`;
+      $("allow").onclick = () => phoedox.requestAccess().then(load);
+      return;
+    }
+    const grid = document.createElement("div");
+    grid.className = "grid";
+    for (const src of info.sources) {
+      try { grid.append(card(src, await phoedox.read(src.id))); }
+      catch (e) { const el = document.createElement("section"); el.className = "card"; el.innerHTML = `<h2>${esc(src.label || src.id)}</h2><p class="error">${esc(e.message)}</p>`; grid.append(el); }
+    }
+    if (mine !== gen) return; // a newer load is under way
+    charts.splice(0).forEach((c) => { if (!grid.contains(c.canvas)) c.destroy(); else charts.push(c); });
+    main.replaceChildren(grid);
+    $("at").textContent = (info.snapshotAt ? new Date(info.snapshotAt) : new Date()).toLocaleString();
+  }
+  $("reload").onclick = load;
+  let themeTimer;
+  phoedox.onTheme(() => { clearTimeout(themeTimer); themeTimer = setTimeout(load, 100); });
+  load().catch((e) => ($("main").innerHTML = `<p class="error">${esc(e.message)}</p>`));
+  setInterval(() => { if (!document.hidden) load(); }, 5 * 60 * 1000);
+</script>
+</body>
+</html>

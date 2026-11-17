@@ -5016,4 +5016,13 @@ export const en: Record<keyof typeof de, string> = {
   "validation.app_asset_name": "Asset names are 1–100 letters, digits, spaces and _.-",
   "validation.app_preview": "A preview is a PNG up to 2 MB.",
   "validation.app_no_preview": "There is no picture of this app yet. It is made when someone who may edit it opens it in the browser.",
+  "create.appkind.slides": "Slides",
+  "create.appkind.slides_desc": "A deck from Markdown: present it, print it as PDF, edit it in place.",
+  "create.appkind.dashboard": "Dashboard app",
+  "create.appkind.dashboard_desc": "Tiles, a chart and a table from project data such as checks, boards or queries.",
+  "create.appkind.sheet": "Spreadsheet",
+  "create.appkind.sheet_desc": "Fill it in together with formulas, live for everyone, download as CSV.",
+  "create.appkind.design": "Design system",
+  "create.appkind.design_desc": "Colours, type, components and contrast of the project's theme.",
+  "validation.app_starter": "Unknown app kind “{starter}”.",
 };

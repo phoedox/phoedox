@@ -9,6 +9,9 @@ import { toast } from "./toasts";
 type DocResult = { applied: boolean; document?: Doc };
 
 /** Create (type set) or edit (docSlug set) a markdown page, decision or link. */
+
+/** Built-in app kinds (resources/apps on the server). */
+const APP_KINDS = ["slides", "dashboard", "sheet", "design"];
 export class PhxDocForm extends LitElement {
   static properties = { project: {}, docSlug: {}, type: {}, doc: { state: true }, decisions: { state: true }, options: { state: true }, error: { state: true }, busy: { state: true }, live: { state: true } };
   static styles = [base, css`
@@ -83,7 +86,11 @@ export class PhxDocForm extends LitElement {
       body.floorplan = { ...base, description: s("description") };
     }
     if (this.type === "whiteboard" && !this.doc) body.whiteboard = { elements: [] };
-    if (this.type === "app" && !this.doc) body.app = (await import("./apps")).starterApp();
+    if (this.type === "app" && !this.doc) {
+      // Built-in kinds (slides, dashboard, sheet, design) are made by the server.
+      const kind = new URLSearchParams(location.search).get("kind") ?? "";
+      body.app = APP_KINDS.includes(kind) ? { files: {}, level: 0, starter: kind } : (await import("./apps")).starterApp();
+    }
     if (this.type === "board") {
       body.board = this.doc
         ? { ...(this.doc.content ?? {}), description: s("description") }
