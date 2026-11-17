@@ -15,7 +15,8 @@ interface Settings {
   attachments: AttachRules; anonymous: boolean; accounts: boolean; askEmail: boolean; states: string[]; defaultState: string; finishedState: string;
   storageFull: string; theme: { accent?: string; accentDark?: string; logo?: string }; publicKeyOn: boolean; serverKeyOn: boolean; retentionMonths: number;
 }
-interface Portal { id: string; handle: string; name: string; enabled: boolean; settings: Settings; publicKey?: string; hasServerKey: boolean; serverKey?: string; hasPlayerKey?: boolean; playerKey?: string; moderators: { email: string; name: string }[] }
+interface Portal { id: string; handle: string; name: string; enabled: boolean; settings: Settings; publicKey?: string; hasServerKey: boolean; serverKey?: string; hasPlayerKey?: boolean; playerKey?: string; moderators: { email: string; name: string }[];
+  domainInfo?: { domain: string; verified: boolean; recordName: string; recordText: string; target?: string } }
 
 const TYPES = ["bug", "idea", "question", "praise"];
 const KINDS = ["images", "videos", "logs", "other"] as const;
@@ -30,6 +31,8 @@ export class PhxFeedbackSettings extends LitElement {
     .card { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 16px; display: grid; gap: 12px; margin-bottom: 14px; }
     .card h3 { margin: 0; font-size: 15px; display: flex; gap: 8px; align-items: center; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+    table.dns { border-collapse: collapse; font-size: 13px; width: 100%; }
+    table.dns th, table.dns td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); word-break: break-all; }
     label.check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
     label.check input { width: auto; }
     .checks { display: flex; gap: 14px; flex-wrap: wrap; }
@@ -104,6 +107,44 @@ export class PhxFeedbackSettings extends LitElement {
     }
   }
 
+  private async setDomain(domain: string) {
+    if (!domain && !confirm(t("orgdomain.remove_confirm", { name: this.edit!.domainInfo?.domain ?? "" }))) return;
+    try {
+      const d = await api<Portal["domainInfo"] | null>("PUT", `/projects/${this.project}/feedback/portals/${this.edit!.id}/domain`, { domain });
+      this.edit = { ...this.edit!, domainInfo: d ?? undefined };
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+    }
+  }
+
+  private async verifyDomain() {
+    try {
+      const d = await api<Portal["domainInfo"]>("POST", `/projects/${this.project}/feedback/portals/${this.edit!.id}/domain/verify`, {});
+      this.edit = { ...this.edit!, domainInfo: d };
+      toast(t("orgdomain.verified"));
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+    }
+  }
+
+  private domainCard(p: Portal) {
+    const d = p.domainInfo;
+    return html`<div class="card"><h3>${icon("Globe", 15)} ${t("orgdomain.title")}</h3>
+      <p class="muted" style="margin:0">${t("fbd.intro")}</p>
+      ${d ? html`<div><strong>${d.domain}</strong> · ${d.verified ? html`${icon("CircleCheck", 13)} ${t("orgdomain.verified")}` : t("orgdomain.unverified")}</div>
+        ${d.verified ? nothing : html`<p class="muted" style="margin:0">${t("orgdomain.dns_intro")}</p>
+          <table class="dns"><tr><th>${t("orgdomain.type")}</th><th>${t("orgdomain.name")}</th><th>${t("orgdomain.value")}</th></tr>
+            ${d.target ? html`<tr><td>CNAME</td><td><code>${d.domain}</code></td><td><code>${d.target}</code></td></tr>` : nothing}
+            <tr><td>TXT</td><td><code>${d.recordName}</code></td><td><code>${d.recordText}</code></td></tr></table>`}
+        <div class="row">${d.verified ? nothing : html`<button class="ghost" @click=${this.verifyDomain}>${icon("RefreshCw", 14)} ${t("orgdomain.check")}</button>`}
+          <button class="ghost" @click=${() => void this.setDomain("")}>${icon("Trash2", 14)} ${t("orgdomain.remove")}</button></div>
+        <p class="muted" style="margin:0">${t("orgdomain.admin_hint")}</p>`
+      : html`<form class="row" @submit=${(e: SubmitEvent) => { e.preventDefault(); void this.setDomain(String(new FormData(e.target as HTMLFormElement).get("domain") ?? "")); }}>
+          <input name="domain" aria-label=${t("orgdomain.domain")} placeholder="feedback.example.com" style="flex:1;min-width:200px" required>
+          <button>${t("doc.save")}</button></form>`}
+    </div>`;
+  }
+
   private async removePortal() {
     if (!confirm(t("fb.delete_portal_confirm", { name: this.edit!.name }))) return;
     try {
@@ -171,6 +212,7 @@ export class PhxFeedbackSettings extends LitElement {
       </div>
       ${this.widgetCard(p, s)}
       ${this.loginCard(s)}
+      ${this.domainCard(p)}
       <div class="card"><h3>${icon("ListChecks", 15)} ${t("fb.form")}</h3>
         <div class="checks">${TYPES.map((ty) => html`<label class="check"><input type="checkbox" .checked=${s.types.includes(ty)} @change=${(e: Event) => { s.types = (e.target as HTMLInputElement).checked ? [...s.types, ty] : s.types.filter((x) => x !== ty); }}> ${t(`fb.type.${ty}` as any)}</label>`)}</div>
         <label class="field">${t("fb.categories")}<input .value=${s.categories.join(", ")} placeholder="UI, Server, Audio" @change=${(e: Event) => (s.categories = csv((e.target as HTMLInputElement).value))}></label>

@@ -70,6 +70,7 @@ func (d *DB) DomainTaken(ctx context.Context, domain, exceptOrg string) (bool, e
 	err := d.QueryRow(System(ctx), `SELECT
 		(SELECT COUNT(*) FROM publications WHERE domain = ?) +
 		(SELECT COUNT(*) FROM tenant_domains WHERE domain = ?) +
-		(SELECT COUNT(*) FROM org_domains WHERE domain = ? AND org_id <> ?)`, domain, domain, domain, exceptOrg).Scan(&n)
+		(SELECT COUNT(*) FROM org_domains WHERE domain = ? AND org_id <> ?) +
+		(SELECT COUNT(*) FROM feedback_portals WHERE domain = ?)`, domain, domain, domain, exceptOrg, domain).Scan(&n)
 	return n > 0, err
 }

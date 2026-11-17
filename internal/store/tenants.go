@@ -44,6 +44,10 @@ func (d *DB) TenantByDomain(ctx context.Context, domain string) (string, error) 
 		if od, oerr := d.OrgByDomain(ctx, domain); oerr == nil {
 			return od.TenantID, nil
 		}
+		// So do verified domains of feedback portals.
+		if _, tenant, perr := d.FeedbackPortalByDomain(ctx, domain); perr == nil {
+			return tenant, nil
+		}
 		return "", ErrNotFound
 	}
 	return id, err

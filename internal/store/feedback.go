@@ -26,17 +26,27 @@ type FeedbackPortal struct {
 	// PlayerKey is the sealed key products sign reporter tokens with.
 	PlayerKeySealed string `json:"-"`
 	HasPlayerKey    bool   `json:"hasPlayerKey"`
-	CreatedBy       string `json:"createdBy"`
+	// Domain is the portal's own domain; it serves the portal once the DNS
+	// record (DomainToken) was verified.
+	Domain           string `json:"domain,omitempty"`
+	DomainToken      string `json:"domainToken,omitempty"`
+	DomainVerifiedAt *Time  `json:"domainVerifiedAt,omitempty"`
+	CreatedBy        string `json:"createdBy"`
 	CreatedAt       Time   `json:"createdAt"`
 	UpdatedAt       Time   `json:"updatedAt"`
 }
 
-const portalCols = `id, project_id, handle, name, enabled, settings, public_key, server_key_hash, created_by, created_at, updated_at, player_key_sealed`
+const portalCols = `id, project_id, handle, name, enabled, settings, public_key, server_key_hash, created_by, created_at, updated_at, player_key_sealed, domain, domain_token, domain_verified_at`
 
 func scanPortal(r interface{ Scan(...any) error }) (FeedbackPortal, error) {
 	var p FeedbackPortal
 	var settings string
-	err := r.Scan(&p.ID, &p.ProjectID, &p.Handle, &p.Name, &p.Enabled, &settings, &p.PublicKey, &p.ServerKeyHash, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt, &p.PlayerKeySealed)
+	var verified Time
+	err := r.Scan(&p.ID, &p.ProjectID, &p.Handle, &p.Name, &p.Enabled, &settings, &p.PublicKey, &p.ServerKeyHash, &p.CreatedBy, &p.CreatedAt, &p.UpdatedAt, &p.PlayerKeySealed,
+		&p.Domain, &p.DomainToken, &verified)
+	if !verified.IsZero() {
+		p.DomainVerifiedAt = &verified
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		return p, ErrNotFound
 	}

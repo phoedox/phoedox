@@ -4771,4 +4771,5 @@ export const en: Record<keyof typeof de, string> = {
   "fbs.admin_none": "No packs yet.",
   "validation.storage_offer": "This pack does not exist.",
   "validation.storage_offer_invalid": "Pack {n}: give an id (a–z, 0–9, -), name, price, MB and 0–120 months.",
+  "fbd.intro": "The portal at your own address, e.g. feedback.example.com – the domain's start page opens the portal.",
 };

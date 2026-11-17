@@ -545,6 +545,8 @@ func (a *api) routes(r chi.Router) {
 			r.Put("/feedback/portals/{id}", a.saveFeedbackPortal)
 			r.Delete("/feedback/portals/{id}", a.deleteFeedbackPortal)
 			r.Post("/feedback/portals/{id}/keys", a.rotateFeedbackKey)
+			r.Put("/feedback/portals/{id}/domain", a.setPortalDomain)
+			r.Post("/feedback/portals/{id}/domain/verify", a.verifyPortalDomain)
 			r.Put("/feedback/portals/{id}/moderators", a.setFeedbackModerators)
 			r.Get("/feedback/topics", a.feedbackTopics)
 			r.Get("/feedback/topics/{id}", a.feedbackTopic)

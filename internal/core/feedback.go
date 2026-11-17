@@ -251,6 +251,8 @@ type PortalView struct {
 	ServerKey string `json:"serverKey,omitempty"`
 	// PlayerKey (signing key for reporter tokens) is shown once, too.
 	PlayerKey string `json:"playerKey,omitempty"`
+	// DomainInfo is the own domain with the DNS records to create.
+	DomainInfo *PortalDomain `json:"domainInfo,omitempty"`
 }
 
 // PortalInput creates or changes a portal.
@@ -320,7 +322,7 @@ func (s *Service) portalView(ctx context.Context, p store.FeedbackPortal) Portal
 		rl.ClientSecretSealed = ""
 		ps.ReporterLogin = &rl
 	}
-	return PortalView{FeedbackPortal: p, Settings: ps, Moderators: mods}
+	return PortalView{FeedbackPortal: p, Settings: ps, Moderators: mods, DomainInfo: s.portalDomain(p)}
 }
 
 // FeedbackPortals lists a project's portals (editors and owners).

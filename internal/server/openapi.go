@@ -360,7 +360,11 @@ var apiDocs = map[string]op{
 		Tracker string `json:"tracker"`
 	}{}, Out: core.TopicDetail{}},
 	"POST /projects/{p}/feedback/topics/{id}/forwards/refresh": {Tag: "feedback", Summary: "Check the topic's issues in external trackers now (new reports, closed issues).", Out: core.TopicDetail{}},
-	"GET /projects/{p}/feedback/storage":                       {Tag: "feedback", Summary: "The project's feedback storage: used, limit, bought packs and offers to buy (owners).", Out: core.FeedbackStorage{}},
+	"PUT /projects/{p}/feedback/portals/{id}/domain": {Tag: "feedback", Summary: "Choose the portal's own domain (owners; custom-domains feature); \"\" removes it. Answers with the DNS records to create.", In: struct {
+		Domain string `json:"domain"`
+	}{}, Out: core.PortalDomain{}},
+	"POST /projects/{p}/feedback/portals/{id}/domain/verify": {Tag: "feedback", Summary: "Check the TXT record and switch the portal's own domain on.", Out: core.PortalDomain{}},
+	"GET /projects/{p}/feedback/storage":                     {Tag: "feedback", Summary: "The project's feedback storage: used, limit, bought packs and offers to buy (owners).", Out: core.FeedbackStorage{}},
 	"POST /projects/{p}/feedback/storage/buy": {Tag: "feedback", Summary: "Start the checkout of a feedback storage pack for the project (owners).", In: struct {
 		Offer string `json:"offer"`
 	}{}, Out: core.PurchaseCheckout{}},

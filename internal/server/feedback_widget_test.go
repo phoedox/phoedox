@@ -9,6 +9,7 @@ import (
 	"testing/fstest"
 
 	"github.com/phoedox/phoedox/internal/auth"
+	"github.com/phoedox/phoedox/internal/config"
 	"github.com/phoedox/phoedox/internal/core"
 	"github.com/phoedox/phoedox/internal/store"
 )
@@ -74,5 +75,51 @@ func TestFeedbackWidgetEmbed(t *testing.T) {
 	c.do("PUT", "/api/v1/projects/starfall/feedback/portals/"+id, map[string]any{"handle": "starfall", "name": "Starfall", "settings": settings}, true)
 	if csp := get("/feedback/starfall/embed").Header().Get("Content-Security-Policy"); csp != "frame-ancestors *" {
 		t.Fatalf("any site: %q", csp)
+	}
+}
+
+func TestFeedbackPortalOwnDomain(t *testing.T) {
+	ctx := context.Background()
+	db, err := store.Open(ctx, store.SQLite, filepath.Join(t.TempDir(), "d.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	au := &auth.Auth{DB: db}
+	if _, err := au.CreateUser(ctx, "admin@coph.dev", "Admin", "sehr-geheimes-passwort", true); err != nil {
+		t.Fatal(err)
+	}
+	svc := core.New(db)
+	txt := map[string][]string{}
+	svc.LookupTXT = func(_ context.Context, name string) ([]string, error) { return txt[name], nil }
+	h := New(Deps{Core: svc, Auth: au, Web: fstest.MapFS{"index.html": {Data: []byte("app")}}, Config: config.Config{Domain: "app.example"}})
+	c := &client{t: t, h: h}
+	c.do("POST", "/api/v1/auth/login", map[string]string{"email": "admin@coph.dev", "password": "sehr-geheimes-passwort"}, false)
+	c.do("POST", "/api/v1/projects", map[string]string{"name": "Starfall"}, true)
+	settings := core.DefaultPortalSettings()
+	settings.Anonymous = true
+	_, body := c.do("POST", "/api/v1/projects/starfall/feedback/portals", map[string]any{"handle": "starfall", "name": "Starfall", "settings": settings}, true)
+	id := body["id"].(string)
+	code, body := c.do("PUT", "/api/v1/projects/starfall/feedback/portals/"+id+"/domain", map[string]string{"domain": "feedback.example.org"}, true)
+	if code != 200 || body["recordName"] != "_phoedox.feedback.example.org" {
+		t.Fatalf("set: %d %v", code, body)
+	}
+	txt["_phoedox.feedback.example.org"] = []string{body["recordText"].(string)}
+	if code, body := c.do("POST", "/api/v1/projects/starfall/feedback/portals/"+id+"/domain/verify", nil, true); code != 200 || body["verified"] != true {
+		t.Fatalf("verify: %d %v", code, body)
+	}
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Host = "feedback.example.org"
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/feedback/starfall" {
+		t.Fatalf("own domain: %d %v", rec.Code, rec.Header())
+	}
+	req = httptest.NewRequest("GET", "/", nil)
+	req.Host = "app.example"
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != 200 || rec.Body.String() != "app" {
+		t.Fatalf("app domain: %d %q", rec.Code, rec.Body.String())
 	}
 }

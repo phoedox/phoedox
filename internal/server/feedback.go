@@ -431,3 +431,22 @@ func (a *api) setFeedbackStorageOffers(w http.ResponseWriter, r *http.Request) {
 	v, err := a.core.SetFeedbackStorageOffers(r.Context(), actorOf(r), in)
 	respond(w, v, err)
 }
+
+// --- own domains of portals -----------------------------------------------------
+
+func (a *api) setPortalDomain(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Domain string `json:"domain"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.SetFeedbackPortalDomain(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), in.Domain)
+	respond(w, v, err)
+}
+
+func (a *api) verifyPortalDomain(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.VerifyFeedbackPortalDomain(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"))
+	respond(w, v, err)
+}

@@ -155,6 +155,8 @@ func New(d Deps) http.Handler {
 		r.Handle("/applib/*", appLibs(d.Web))
 		if d.Core != nil {
 			r.Get("/feedback/{handle}/embed", feedbackEmbed(d.Web, d.Core))
+			// A feedback portal's own domain opens the portal.
+			r.Get("/", portalRoot(d.Core, spa(d.Web), d.Config.Domain))
 		}
 		r.Handle("/*", spa(d.Web))
 	}
@@ -177,6 +179,23 @@ func spa(web fs.FS) http.Handler {
 		}
 		files.ServeHTTP(w, r)
 	})
+}
+
+// portalRoot sends the start page of a portal's own domain to the portal.
+func portalRoot(svc *core.Service, next http.Handler, appDomain string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		host := strings.ToLower(r.Host)
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
+		if host != "" && host != strings.ToLower(appDomain) && host != "localhost" && net.ParseIP(host) == nil {
+			if handle := svc.FeedbackPortalForHost(r.Context(), host); handle != "" {
+				http.Redirect(w, r, "/feedback/"+handle, http.StatusFound)
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
+	}
 }
 
 // feedbackEmbed serves the app for a portal's widget frame: the only page

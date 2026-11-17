@@ -4769,4 +4769,5 @@ export const de = {
   "fbs.admin_none": "Noch keine Pakete.",
   "validation.storage_offer": "Dieses Paket gibt es nicht.",
   "validation.storage_offer_invalid": "Paket {n}: ID (a–z, 0–9, -), Name, Preis, MB und 0–120 Monate angeben.",
+  "fbd.intro": "Das Portal unter eurer eigenen Adresse, z. B. feedback.example.com – die Startseite der Domain öffnet das Portal.",
 } as const;
