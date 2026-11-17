@@ -125,6 +125,10 @@ Each is a fenced code block with this info string:
 | ```mermaid | a Mermaid diagram | the diagram |
 | ```compare | two versions: `--- old title` … `+++ new title` … | the versions side by side, differences marked |
 | ```chart | chart JSON (see below) | a line, area, bar or scatter chart; annotated timelines with numbered points, phases and a list |
+| ```poll | `question:` line, `- option` lines; `multiple`, `closed: yes`, `results: always`, `id:` | a poll: each signed-in reader votes (or changes their vote); results as bars after voting; counts only, never who voted |
+| ```matrix | `criteria: Price*3, Noise*2`, `scale: 1-5`, `- Option: 4, 3` | a decision matrix with weighted totals; readers try other weights; one click makes it an open decision with the options |
+| ```calc | `Label (unit) = 25` (input), `Label (unit) = formula`, `Label = @entry.attr` | a calculator: readers change inputs and see results at once |
+| ```quiz | `? question`, `+ right` / `- wrong` answers or `= answer` (flashcard), `> explanation` | a quiz or flashcards; each reader's answers are their own |
 | ```math | LaTeX | a formula (inline: `$…$`) |
 | ```dbmodel | SQL `CREATE TABLE` statements | an entity-relationship diagram |
 | ```embed | a URL | an embedded video or page (e.g. YouTube) |
@@ -132,7 +136,7 @@ Each is a fenced code block with this info string:
 Mermaid ids must not be Mermaid keywords: in a `sequenceDiagram`, a participant called
 `Off`, `End`, `Loop`, `Alt` or `Note` breaks the diagram (`participant Remote as Off-site`
 works). Pages show such an error in the block. `validate_blocks` checks mermaid,
-dbmodel and chart blocks before or after saving (common mistakes, not the full Mermaid parser);
+dbmodel, chart, poll, matrix, calc and quiz blocks before or after saving (common mistakes, not the full Mermaid parser);
 `create_document` and `update_document` return the same findings as `blockProblems`.
 
 **One database schema per project.** All `dbmodel` blocks of a project together form its
@@ -193,6 +197,38 @@ Colours are the board palette: gray, red, orange, yellow, green, blue, purple, p
    {"x": "1849-07", "y": 1, "label": "4", "title": "July 1849 – the revolution ends"}]},
    {"dashed": true, "points": [{"x": "1849-07", "y": 1}, {"x": "1849-10", "y": 2.5}]}],
  "notes": [{"x": "1849-09", "y": 3, "text": "ideas live on"}]}
+```
+
+### Interactive blocks
+
+**Polls** (```poll): the first plain line or `question:` is the question, `- …` lines
+are the options (2–20, no duplicates). `multiple` allows several answers (percentages
+are then of the people who voted), `closed: yes` ends voting, `results: always` shows
+results before voting. Give `id: …` when the poll may be moved or its text edited, so
+votes stay attached. Votes are stored per person; nobody sees who voted what.
+
+**Decision matrices** (```matrix): `criteria:` lists criteria with an optional weight
+(`Price*3`), `scale: 1-5` the best score, `- Option: score, score, …` one score per
+criterion, higher is better (score cost so that cheaper is higher). The total is the
+weighted sum as a share of the best possible. Use it to prepare a decision; readers can
+turn it into an open decision (ADR with the options) themselves.
+
+**Calculators** (```calc): one line per value, `Label (unit) = …`. A number is an input
+readers can change, `@entry.attr` takes an entry's attribute as input, anything else is a
+formula. Formulas use other values by their label with spaces as `_` and without the unit
+(`Hours per day (h)` → `Hours_per_day`), `+ - * / ^ %`, comparisons, `&` (joins text) and
+SUM, AVG, MIN, MAX, ROUND(x; digits), CEIL, FLOOR, ABS, SQRT, IF(cond; a; b). Decimal
+comma or point both work. Nothing is saved.
+
+**Quizzes** (```quiz): `? question`, then `+ right` and `- wrong` answers (several `+`
+allowed) or `= answer` for a flashcard, optionally `> explanation`. Good for onboarding
+("Do you know our network?"). `validate_blocks` checks all four.
+
+```calc
+title: Power cost of the NAS
+Power (W) = 25
+Price (€/kWh) = 0.32
+Cost per year (€) = Power * 24 * 365 / 1000 * Price
 ```
 
 ## Images and files

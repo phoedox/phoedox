@@ -938,7 +938,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		return svc.Glossary(ctx, a, in.Project)
 	})
-	tool(s, "validate_blocks", "Check the mermaid, dbmodel and chart blocks of a page (its open draft if any) or of Markdown you are about to save: unknown diagram types, Mermaid keywords used as names, unclosed blocks, unbalanced brackets or quotes, dbmodel tables that are not defined anywhere in the project, chart JSON that does not parse or does not fit (y not a number, unknown colour, dates the axis cannot read). The Mermaid check catches common mistakes, not everything the renderer rejects. create_document and update_document return the same findings as blockProblems.", func(ctx context.Context, a core.Actor, in validateBlocksIn) (any, error) {
+	tool(s, "validate_blocks", "Check the mermaid, dbmodel, chart, poll, matrix, calc and quiz blocks of a page (its open draft if any) or of Markdown you are about to save: unknown diagram types, Mermaid keywords used as names, unclosed blocks, unbalanced brackets or quotes, dbmodel tables that are not defined anywhere in the project, chart JSON that does not parse or does not fit (y not a number, unknown colour, dates the axis cannot read), polls without options, matrix rows with the wrong number of scores, calculator formulas with unknown names or cycles, quiz questions without a right answer. The Mermaid check catches common mistakes, not everything the renderer rejects. create_document and update_document return the same findings as blockProblems.", func(ctx context.Context, a core.Actor, in validateBlocksIn) (any, error) {
 		if in.Document == "" && in.Markdown == nil {
 			return nil, errors.New("give document or markdown")
 		}
