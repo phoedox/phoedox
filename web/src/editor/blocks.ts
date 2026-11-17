@@ -14,7 +14,7 @@ import {
 
 // ---------- Callout ----------
 
-type SerializedCallout = Spread<{ kind: string; icon: string; color: Color; iconColor?: Color }, SerializedElementNode>;
+type SerializedCallout = Spread<{ kind: string; icon: string; color: Color; iconColor?: Color; fold?: "" | "+" | "-"; title?: string; id?: string }, SerializedElementNode>;
 
 const iconMask = (name: string) => `url("data:image/svg+xml;utf8,${encodeURIComponent(iconSVG(name, 24).replace('stroke="currentColor"', 'stroke="black"'))}")`;
 
@@ -24,10 +24,13 @@ export class CalloutNode extends ElementNode {
   __icon: string;
   __color: Color;
   __iconColor?: Color;
+  __fold: "" | "+" | "-";
+  __title: string;
+  __id: string;
 
   static getType() { return "callout"; }
-  static clone(n: CalloutNode) { return new CalloutNode({ kind: n.__kind, icon: n.__icon, color: n.__color, iconColor: n.__iconColor }, n.__key); }
-  static importJSON(j: SerializedCallout) { return $createCalloutNode({ kind: j.kind, icon: j.icon, color: j.color, iconColor: j.iconColor }); }
+  static clone(n: CalloutNode) { return new CalloutNode(n.attrsOf(), n.__key); }
+  static importJSON(j: SerializedCallout) { return $createCalloutNode({ kind: j.kind, icon: j.icon, color: j.color, iconColor: j.iconColor, fold: j.fold, title: j.title, id: j.id }); }
 
   constructor(a: CalloutAttrs = { kind: "note", icon: "Info", color: "blue" }, key?: NodeKey) {
     super(key);
@@ -35,10 +38,17 @@ export class CalloutNode extends ElementNode {
     this.__icon = a.icon;
     this.__color = a.color;
     this.__iconColor = a.iconColor;
+    this.__fold = a.fold ?? "";
+    this.__title = a.title ?? "";
+    this.__id = a.id ?? "";
+  }
+
+  private attrsOf(): CalloutAttrs {
+    return { kind: this.__kind, icon: this.__icon, color: this.__color, iconColor: this.__iconColor, fold: this.__fold, title: this.__title || undefined, id: this.__id || undefined };
   }
 
   exportJSON(): SerializedCallout {
-    return { ...super.exportJSON(), type: "callout", version: 1, kind: this.__kind, icon: this.__icon, color: this.__color, iconColor: this.__iconColor };
+    return { ...super.exportJSON(), type: "callout", version: 1, kind: this.__kind, icon: this.__icon, color: this.__color, iconColor: this.__iconColor, fold: this.__fold, title: this.__title, id: this.__id };
   }
 
   createDOM(): HTMLElement {
@@ -51,16 +61,20 @@ export class CalloutNode extends ElementNode {
     div.className = `callout ed-callout cb-${this.__color}${this.__iconColor ? ` icx-${this.__iconColor}` : ""}`;
     div.dataset.kind = this.__kind;
     div.style.setProperty("--ci", iconMask(this.__icon));
+    // The title and whether it folds show above the content (edited in the callout settings).
+    const head = this.__title || (this.__fold ? this.__kind : "");
+    if (head) div.dataset.title = (this.__fold === "-" ? "▸ " : this.__fold === "+" ? "▾ " : "") + head;
+    else delete div.dataset.title;
   }
 
   updateDOM(prev: CalloutNode, dom: HTMLElement): boolean {
-    if (prev.__icon !== this.__icon || prev.__color !== this.__color || prev.__kind !== this.__kind || prev.__iconColor !== this.__iconColor) this.paint(dom);
+    if (prev.__icon !== this.__icon || prev.__color !== this.__color || prev.__kind !== this.__kind || prev.__iconColor !== this.__iconColor
+      || prev.__fold !== this.__fold || prev.__title !== this.__title) this.paint(dom);
     return false;
   }
 
   attrs(): CalloutAttrs {
-    const n = this.getLatest();
-    return { kind: n.__kind, icon: n.__icon, color: n.__color, iconColor: n.__iconColor };
+    return this.getLatest().attrsOf();
   }
 
   setAttrs(a: Partial<CalloutAttrs>) {
@@ -69,6 +83,9 @@ export class CalloutNode extends ElementNode {
     if (a.icon) w.__icon = a.icon;
     if (a.color) w.__color = a.color;
     w.__iconColor = "iconColor" in a ? a.iconColor : w.__iconColor;
+    if ("fold" in a) w.__fold = a.fold ?? "";
+    if ("title" in a) w.__title = (a.title ?? "").replace(/\s+/g, " ").trimStart();
+    if (a.id) w.__id = a.id;
     return w;
   }
 
@@ -92,7 +109,7 @@ export const CALLOUT: MultilineElementTransformer = {
   type: "multiline-element",
   regExpStart: CALLOUT_START,
   handleImportAfterStartMatch({ lines, rootNode, startLineIndex, startMatch }) {
-    const attrs = parseCallout(startMatch[1], startMatch[2] ?? "");
+    const attrs = parseCallout(startMatch[1], startMatch[2] ?? "", startMatch[3] ?? "", startMatch[4] ?? "");
     if (!attrs) return null;
     let end = startLineIndex + 1;
     while (end < lines.length && /^>( |$)/.test(lines[end])) end++;
@@ -152,6 +169,9 @@ export class FenceNode extends DecoratorNode<null> {
       el.dataset.display = "1";
     } else if (this.__kind === "mermaid") {
       el = document.createElement("phx-mermaid");
+      el.dataset.src = src;
+    } else if (this.__kind === "compare") {
+      el = document.createElement("phx-compare");
       el.dataset.src = src;
     } else if (this.__kind === "chart") {
       el = document.createElement("phx-chart");

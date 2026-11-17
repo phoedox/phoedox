@@ -36,6 +36,13 @@ const startAt = (src: string, re: RegExp) => {
   return i < 0 ? undefined : i;
 };
 
+/** A short stable hash (for keys of blocks without an id). */
+function hashText(s: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return (h >>> 0).toString(36);
+}
+
 const marked = new Marked({
   // Mentions as an inline token: code spans and blocks keep "@x" as text.
   extensions: [{
@@ -45,19 +52,52 @@ const marked = new Marked({
     start: (src: string) => startAt(src, /^> \[!/m),
     tokenizer(src: string) {
       const lines = src.split("\n");
-      const m = CALLOUT_START.exec(lines[0]);
-      const attrs = m && parseCallout(m[1], m[2]);
-      if (!attrs) return undefined;
-      let n = 1;
-      while (n < lines.length && /^>( |$)/.test(lines[n])) n++;
-      const inner = lines.slice(1, n).map((l) => l.replace(/^> ?/, "")).join("\n");
-      const raw = lines.slice(0, n).join("\n") + (n < lines.length ? "\n" : "");
-      return { type: "callout", raw, attrs, tokens: this.lexer.blockTokens(inner, []) };
+      // One callout from line i: its attributes, inner text and the next line.
+      const one = (i: number) => {
+        const m = CALLOUT_START.exec(lines[i] ?? "");
+        const attrs = m && parseCallout(m[1], m[2], m[3] ?? "", m[4] ?? "");
+        if (!attrs) return undefined;
+        let n = i + 1;
+        while (n < lines.length && /^>( |$)/.test(lines[n])) n++;
+        return { attrs, inner: lines.slice(i + 1, n).map((l) => l.replace(/^> ?/, "")).join("\n"), end: n };
+      };
+      const first = one(0);
+      if (!first) return undefined;
+      if (first.attrs.kind === "tab") {
+        // Tabs that follow each other (blank lines between are fine) form one group.
+        const tabs = [first];
+        let end = first.end;
+        for (;;) {
+          let j = end;
+          while (j < lines.length && lines[j].trim() === "") j++;
+          const next = one(j);
+          if (!next || next.attrs.kind !== "tab") break;
+          tabs.push(next);
+          end = next.end;
+        }
+        const raw = lines.slice(0, end).join("\n") + (end < lines.length ? "\n" : "");
+        return { type: "callout", raw, attrs: first.attrs, tabs: tabs.map((t) => ({ title: t.attrs.title ?? "", tokens: this.lexer.blockTokens(t.inner, []) })) };
+      }
+      const raw = lines.slice(0, first.end).join("\n") + (first.end < lines.length ? "\n" : "");
+      return { type: "callout", raw, attrs: first.attrs, tokens: this.lexer.blockTokens(first.inner, []) };
     },
     renderer(tok: any) {
       const a = tok.attrs;
+      if (tok.tabs) {
+        // Without JavaScript (print, feeds) the tabs show one after another with their title.
+        return `<phx-tabs>${tok.tabs.map((tb: any) => `<section class="tab" data-title="${escape(tb.title)}"><h4 class="tab-h">${escape(tb.title)}</h4>${this.parser.parse(tb.tokens)}</section>`).join("")}</phx-tabs>`;
+      }
       const ic = a.iconColor ? ` ic-${a.iconColor}` : "";
-      return `<div class="callout cb-${a.color}" data-kind="${escape(a.kind)}"><span class="ci${ic}">${iconSVG(a.icon, 18)}</span><div class="cc">${this.parser.parse(tok.tokens)}</div></div>`;
+      const head = `<span class="ci${ic}">${iconSVG(a.icon, 18)}</span>`;
+      const body = this.parser.parse(tok.tokens);
+      if (a.kind === "steps") {
+        const key = a.id || `t${hashText(a.title ?? body)}`;
+        return `<phx-steps data-project="${escape(context.project)}" data-doc="${escape(context.doc)}" data-key="${escape(key)}"><div class="callout cb-${a.color}" data-kind="steps">${head}<div class="cc">${a.title ? `<div class="ct">${escape(a.title)}</div>` : ""}${body}</div></div></phx-steps>`;
+      }
+      if (a.fold) {
+        return `<details class="callout fold cb-${a.color}" data-kind="${escape(a.kind)}"${a.fold === "+" ? " open" : ""}><summary>${head}<span class="ct">${escape(a.title || a.kind)}</span></summary><div class="cc">${body}</div></details>`;
+      }
+      return `<div class="callout cb-${a.color}" data-kind="${escape(a.kind)}">${head}<div class="cc">${a.title ? `<div class="ct">${escape(a.title)}</div>` : ""}${body}</div></div>`;
     },
   }, {
     name: "colorspan",
@@ -143,6 +183,7 @@ const marked = new Marked({
       const value = text.trim();
       if (kind === "math") return `<phx-math data-tex="${escape(value)}" data-display="1"><pre>${escape(value)}</pre></phx-math>`;
       if (kind === "embed" || kind === "iframe") return `<phx-embed data-url="${escape(value)}" data-kind="${kind}"><a href="${escape(value)}">${escape(value)}</a></phx-embed>`;
+      if (kind === "compare") return `<phx-compare><pre>${escape(value)}</pre></phx-compare>`;
       if (kind === "chart") return `<phx-chart><pre>${escape(value)}</pre></phx-chart>`;
       if (kind === "mermaid") return `<phx-mermaid><pre>${escape(value)}</pre></phx-mermaid>`;
       if (kind === "dbmodel") return `<phx-dbmodel data-project="${escape(context.project)}"><pre>${escape(value)}</pre></phx-dbmodel>`;
@@ -171,7 +212,7 @@ export function markdownHTML(md: string, project: string, doc = ""): string {
 /** Renders Markdown to sanitised HTML. */
 export function renderMarkdown(md: string, project: string, doc = ""): string {
   const html = markdownHTML(md, project, doc);
-  return DOMPurify.sanitize(html, { ADD_ATTR: ["target"], ADD_TAGS: ["phx-request-block", "phx-math", "phx-embed", "phx-time", "phx-board-embed", "phx-whiteboard-embed", "phx-app-embed", "phx-mermaid", "phx-chart", "phx-dbmodel", "phx-status", "phx-entity-card", "phx-include", "phx-query-block", "phx-map-block"] });
+  return DOMPurify.sanitize(html, { ADD_ATTR: ["target"], ADD_TAGS: ["phx-request-block", "phx-math", "phx-embed", "phx-time", "phx-board-embed", "phx-whiteboard-embed", "phx-app-embed", "phx-mermaid", "phx-chart", "phx-tabs", "phx-steps", "phx-compare", "details", "summary", "phx-dbmodel", "phx-status", "phx-entity-card", "phx-include", "phx-query-block", "phx-map-block"] });
 }
 
 /** Drops a leading "# Heading" that only repeats the page title. */

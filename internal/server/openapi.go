@@ -239,6 +239,8 @@ var apiDocs = map[string]op{
 	"DELETE /projects/{p}/apps/{doc}/share":                           {Tag: "apps", Summary: "Withdraw the public release of an app (owners)."},
 	"GET /shared-apps/{token}/preview.png":                            {Tag: "apps", Summary: "The preview picture of a public app (for link previews).", Public: true},
 	"POST /app-shares/{token}/copy":                                   {Tag: "apps", Summary: "Make an own app from a public app: files, manifest and assets, not its data or sources: {project, title}.", In: sharedAppCopyIn{}, Out: core.DocResult{}},
+	"GET /projects/{p}/documents/{d}/blocks/{key}":                    {Tag: "documents", Summary: "The caller's state of a block that keeps one per reader (steps ticked off, a vote, quiz answers) and, for polls, the votes of all: {mine, votes, voters}.", Out: core.BlockStateView{}},
+	"PUT /projects/{p}/documents/{d}/blocks/{key}":                    {Tag: "documents", Summary: "Store the caller's state of a block: {data} – a JSON object up to 16 KB (polls: {choices: [...]}), null removes it.", In: blockStateIn{}, Out: core.BlockStateView{}},
 	"GET /projects/{p}/app-gallery":                                   {Tag: "apps", Summary: "The project's apps with preview pictures (gallery).", Out: []core.AppCard{}},
 	"GET /projects/{p}/apps/{doc}/me":                                 {Tag: "apps", Summary: "Who is using the app, as the app sees them (level 1): an id for this person in this app, name, whether they may edit it.", Out: core.AppViewer{}},
 	"GET /projects/{p}/apps/{doc}/events":                             {Tag: "apps", Summary: "Server-sent events when records of the app change (level 2): {collection, id, kind add|update|delete, by}.", Out: core.AppChange{}},

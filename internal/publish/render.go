@@ -57,7 +57,7 @@ func wikiLinks(s string, links Links) string {
 }
 
 var (
-	calloutStart = regexp.MustCompile(`^> \[!([A-Za-z]+)((?: [A-Za-z]+=[A-Za-z0-9-]+)*)\]\s*$`)
+	calloutStart = regexp.MustCompile(`^> \[!([A-Za-z]+)((?: [A-Za-z]+=[A-Za-z0-9-]+)*)\]([+-])?(?:[ \t]+(\S.*?))?\s*$`)
 	colorSpan    = regexp.MustCompile(`\[((?:\\.|[^\]\\\n])+)\]\{((?:color|bg)=[a-z]+(?: (?:color|bg)=[a-z]+)?)\}`)
 	underline    = regexp.MustCompile(`\+\+(\S(?:[^+\n]*?\S)?)\+\+`)
 	inlineMath   = regexp.MustCompile(`(^|[^\\$])\$([^\s$](?:[^$\n]*?[^\s\\])?)\$([^\d]|$)`)
@@ -65,7 +65,8 @@ var (
 	fenceLine    = regexp.MustCompile("^\\s{0,3}(```+|~~~+)")
 	colors       = map[string]bool{"gray": true, "red": true, "orange": true, "yellow": true, "green": true, "blue": true, "purple": true, "pink": true}
 	presets      = map[string][2]string{"note": {"Info", "blue"}, "tip": {"Lightbulb", "green"}, "important": {"MessageSquareWarning", "purple"},
-		"warning": {"TriangleAlert", "orange"}, "caution": {"OctagonAlert", "red"}, "callout": {"Info", "gray"}}
+		"warning": {"TriangleAlert", "orange"}, "caution": {"OctagonAlert", "red"}, "callout": {"Info", "gray"},
+		"faq": {"CircleHelp", "gray"}, "tab": {"PanelTop", "gray"}, "steps": {"ListOrdered", "blue"}}
 	iconName = regexp.MustCompile(`^[A-Z][A-Za-z0-9]{1,40}$`)
 )
 
@@ -110,6 +111,7 @@ func preprocess(md string, links Links) string {
 	lines := strings.Split(strings.ReplaceAll(md, "\r\n", "\n"), "\n")
 	var out []string
 	fence := ""
+	inTabs := false
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
 		if m := fenceLine.FindStringSubmatch(l); m != nil {
@@ -126,13 +128,14 @@ func preprocess(md string, links Links) string {
 			continue
 		}
 		if m := calloutStart.FindStringSubmatch(l); m != nil {
-			preset, ok := presets[strings.ToLower(m[1])]
+			kind := strings.ToLower(m[1])
+			preset, ok := presets[kind]
 			if ok {
-				icon, color, iconColor := preset[0], preset[1], ""
+				icon, color, iconColor, id := preset[0], preset[1], "", ""
 				for _, kv := range strings.Fields(m[2]) {
 					k, v, _ := strings.Cut(kv, "=")
 					k = strings.ToLower(k)
-					if k != "icon" {
+					if k != "icon" && k != "id" {
 						v = strings.ToLower(v)
 					}
 					switch {
@@ -142,22 +145,81 @@ func preprocess(md string, links Links) string {
 						color = v
 					case k == "iconcolor" && colors[v]:
 						iconColor = " ic-" + v
+					case k == "id" && blockID.MatchString(v):
+						id = v
 					}
 				}
+				fold, title := m[3], html.EscapeString(strings.TrimSpace(m[4]))
 				var body []string
 				for i+1 < len(lines) && (lines[i+1] == ">" || strings.HasPrefix(lines[i+1], "> ")) {
 					i++
 					body = append(body, strings.TrimPrefix(strings.TrimPrefix(lines[i], ">"), " "))
 				}
-				out = append(out, `<div class="callout cb-`+color+`" data-kind="`+strings.ToLower(m[1])+`"><span class="ci`+iconColor+`" data-icon="`+icon+`"></span><div class="cc">`, "")
-				out = append(out, strings.Split(preprocess(strings.Join(body, "\n"), links), "\n")...)
-				out = append(out, "", `</div></div>`, "")
+				inner := strings.Split(preprocess(strings.Join(body, "\n"), links), "\n")
+				head := `<span class="ci` + iconColor + `" data-icon="` + icon + `"></span>`
+				switch {
+				case kind == "tab":
+					// Tabs that follow each other form one group.
+					if !inTabs {
+						out = append(out, `<phx-tabs>`)
+						inTabs = true
+					}
+					out = append(out, `<section class="tab" data-title="`+title+`"><h4 class="tab-h">`+title+`</h4>`, "")
+					out = append(out, inner...)
+					out = append(out, "", `</section>`)
+					j := i + 1
+					for j < len(lines) && strings.TrimSpace(lines[j]) == "" {
+						j++
+					}
+					if nm := calloutStart.FindStringSubmatch(lineAt(lines, j)); nm == nil || strings.ToLower(nm[1]) != "tab" {
+						out = append(out, `</phx-tabs>`, "")
+						inTabs = false
+					}
+				case fold != "":
+					open := ""
+					if fold == "+" {
+						open = " open"
+					}
+					if title == "" {
+						title = kind
+					}
+					out = append(out, `<details class="callout fold cb-`+color+`" data-kind="`+kind+`"`+open+`><summary>`+head+`<span class="ct">`+title+`</span></summary><div class="cc">`, "")
+					out = append(out, inner...)
+					out = append(out, "", `</div></details>`, "")
+				default:
+					wrapOpen, wrapClose := "", ""
+					if kind == "steps" {
+						wrapOpen, wrapClose = `<phx-steps data-key="`+id+`">`, `</phx-steps>`
+					}
+					t := ""
+					if title != "" {
+						t = `<div class="ct">` + title + `</div>`
+					}
+					if wrapOpen != "" {
+						out = append(out, wrapOpen, "") // alone on its line, or goldmark wraps it in a paragraph
+					}
+					out = append(out, `<div class="callout cb-`+color+`" data-kind="`+kind+`">`+head+`<div class="cc">`+t, "")
+					out = append(out, inner...)
+					out = append(out, "", `</div></div>`, "")
+					if wrapClose != "" {
+						out = append(out, wrapClose, "")
+					}
+				}
 				continue
 			}
 		}
 		out = append(out, inline(l, links))
 	}
 	return strings.Join(out, "\n")
+}
+
+var blockID = regexp.MustCompile(`^[A-Za-z0-9-]{1,40}$`)
+
+func lineAt(lines []string, i int) string {
+	if i < len(lines) {
+		return lines[i]
+	}
+	return ""
 }
 
 // fenceRenderer renders our fenced blocks; other code blocks stay code.
@@ -189,6 +251,8 @@ func (r fenceRenderer) render(w util.BufWriter, src []byte, n ast.Node, entering
 		_, _ = w.WriteString(`<phx-mermaid><pre>` + esc + `</pre></phx-mermaid>`)
 	case "chart":
 		_, _ = w.WriteString(`<phx-chart><pre>` + esc + `</pre></phx-chart>`)
+	case "compare":
+		_, _ = w.WriteString(`<phx-compare><pre>` + esc + `</pre></phx-compare>`)
 	case "board":
 		if r.links.Board != nil {
 			_, _ = w.WriteString(r.links.Board(text))
@@ -220,10 +284,13 @@ func (r fenceRenderer) render(w util.BufWriter, src []byte, n ast.Node, entering
 
 var policy = func() *bluemonday.Policy {
 	p := bluemonday.UGCPolicy()
-	p.AllowAttrs("class").OnElements("span", "div", "code", "pre", "ul", "li", "input", "table", "td", "th", "section", "small", "h3")
+	p.AllowAttrs("class").OnElements("span", "div", "code", "pre", "ul", "li", "input", "table", "td", "th", "section", "small", "h3", "h4", "details")
 	p.AllowAttrs("data-kind", "data-icon").OnElements("div", "span")
-	p.AllowElements("u", "phx-math", "phx-embed", "phx-mermaid", "phx-chart", "time", "section", "article", "h2", "h3")
-	p.AllowNoAttrs().OnElements("phx-mermaid", "phx-chart") // the source is the <pre> inside
+	p.AllowElements("u", "phx-math", "phx-embed", "phx-mermaid", "phx-chart", "phx-compare", "phx-tabs", "time", "section", "article", "h2", "h3", "h4", "details", "summary")
+	p.AllowNoAttrs().OnElements("phx-mermaid", "phx-chart", "phx-compare", "phx-tabs") // the source is the <pre> inside
+	p.AllowAttrs("data-kind", "open").OnElements("details")
+	p.AllowAttrs("data-title").OnElements("section")
+	p.AllowAttrs("data-key").OnElements("phx-steps")
 	p.AllowAttrs("data-tex", "data-display").OnElements("phx-math")
 	p.AllowAttrs("data-url", "data-kind").OnElements("phx-embed")
 	p.AllowAttrs("datetime", "data-kind").OnElements("time")

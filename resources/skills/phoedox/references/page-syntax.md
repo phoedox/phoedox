@@ -28,8 +28,55 @@ for links with another label or to other projects.
 > Text of the callout.
 ```
 
-Kinds: `note`, `tip`, `important`, `warning`, `caution`. Case does not matter (`[!NOTE]` as on
+Kinds: `note`, `tip`, `important`, `warning`, `caution`, `faq`. Case does not matter (`[!NOTE]` as on
 GitHub works too); Phoedox saves them lower case.
+
+- **Title:** text after the marker is the callout's title: `> [!tip] Before you start`.
+- **Foldable** (as in Obsidian): `-` after the bracket folds the callout closed, `+` shows it
+  open; readers click the title. Use it for FAQs, long logs and background that most readers
+  skip. Print and PDF show the content.
+
+```markdown
+> [!faq]- Why does the NAS go to sleep at night?
+> Its disks spin down after 20 minutes without access.
+```
+
+- **Tabs:** `> [!tab] Title` callouts that follow each other (blank lines between are fine)
+  become one group of tabs – for variants of the same thing (Windows / macOS / Linux,
+  tenants / owners). A reader's choice also selects the tab with the same title in other
+  groups of the page.
+
+```markdown
+> [!tab] Windows
+> Press **Win + R** and type `cmd`.
+
+> [!tab] macOS
+> Open **Terminal** from Launchpad.
+```
+
+- **Steps:** `> [!steps id=<short id>] Title` with a numbered list inside: each reader ticks
+  the steps off for themselves and sees their progress. Give it an `id` (letters, digits,
+  `-`) so ticks survive edits of the text.
+
+```markdown
+> [!steps id=router-setup] Set up the new router
+> 1. Connect the fibre modem to port WAN.
+> 2. Open `http://192.168.1.1` and sign in.
+> 3. Set the Wi-Fi name and password from the label.
+```
+
+**Comparing two versions** of a file or setting: a ```compare block; `--- title` starts the
+old version, `+++ title` the new one. Differences are shown side by side.
+
+````markdown
+```compare
+--- router.conf (before)
+address 192.168.1.1/24
++++ router.conf (after)
+address 192.168.10.1/24
+mtu 9000
+```
+````
 
 ## Request blocks
 
@@ -76,6 +123,7 @@ Each is a fenced code block with this info string:
 | ```app | an app slug | the app running inside the page, as tall as its content (each reader allows its access once) |
 | ```map | lines: `marker 52.52, 13.40 Label`, `marker @entry` (uses its lat/lng), `track Name: lat,lng lat,lng …`, `gpx <file id> Name`, `view lat,lng zoom 12` | an OpenStreetMap map (tiles after consent) |
 | ```mermaid | a Mermaid diagram | the diagram |
+| ```compare | two versions: `--- old title` … `+++ new title` … | the versions side by side, differences marked |
 | ```chart | chart JSON (see below) | a line, area, bar or scatter chart; annotated timelines with numbered points, phases and a list |
 | ```math | LaTeX | a formula (inline: `$…$`) |
 | ```dbmodel | SQL `CREATE TABLE` statements | an entity-relationship diagram |

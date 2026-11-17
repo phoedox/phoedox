@@ -10,10 +10,10 @@ import { $insertNodeToNearestRoot } from "@lexical/utils";
 import { $createParagraphNode, $getRoot, $getNodeByKey, $getSelection, $isRangeSelection, $setSelection, COMMAND_PRIORITY_CRITICAL, FORMAT_TEXT_COMMAND, KEY_DOWN_COMMAND, REDO_COMMAND, UNDO_COMMAND, type BaseSelection } from "lexical";
 import { $isFenceNode, $isRawNode, InlineMathNode, TimeNode } from "../editor/blocks";
 import {
-  $applyColors, $currentColors, $insertCallout, $insertDivider, $insertFence, $insertInlineMath, $insertRequest, $insertTime, $removeSlash, $selectedCallout, $setBlock,
+  $applyColors, $currentColors, $insertCallout, $insertSteps, $insertDivider, $insertFence, $insertInlineMath, $insertRequest, $insertTime, $removeSlash, $selectedCallout, $setBlock,
   runFormat, runList, runTable, SLASH_ITEMS, type SlashItem,
 } from "../editor/commands";
-import { CALLOUT_PRESETS, COLORS, type CalloutAttrs, type Color, type FenceKind, type TimeKind } from "../syntax";
+import { CALLOUT_PRESETS, COLORS, blockId, type CalloutAttrs, type Color, type FenceKind, type TimeKind } from "../syntax";
 import { calloutIcons } from "../icon";
 import { LitElement, css, html, unsafeCSS } from "lit";
 import { ApiError, api, type Doc, type DraftInfo } from "../api";
@@ -94,6 +94,9 @@ export class PhxLiveEditor extends LitElement {
       -webkit-mask: var(--ci) center / contain no-repeat; mask: var(--ci) center / contain no-repeat; }
     ${unsafeCSS(COLORS.map((c) => `.ed-callout.cb-${c}::before { background: var(--tc-${c}); } .ed-callout.icx-${c}::before { background: var(--tc-${c}) !important; }`).join("\n"))}
     .ed-callout > .ed-p:last-child { margin-bottom: 0; }
+    .ed-callout[data-title] { padding-top: 34px; }
+    .ed-callout[data-title]::after { content: attr(data-title); position: absolute; left: 40px; top: 10px; right: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+    .ed-callout[data-kind="tab"] { border-top: 3px solid var(--accent); border-radius: 0 0 10px 10px; }
     .ed-fence { position: relative; margin: .6em 0; border-radius: 10px; outline: 1px dashed transparent; }
     @media (hover: hover) and (pointer: fine) { .ed-fence:hover { outline-color: var(--line); } .ed-fence:hover .ed-fence-edit { opacity: 1; } }
     .ed-fence-edit { position: absolute; top: 6px; right: 6px; opacity: 0; font: 600 11px var(--font-mono); padding: 3px 7px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; color: var(--fg); }
@@ -440,7 +443,18 @@ export class PhxLiveEditor extends LitElement {
     else if (kind === "format") runFormat(ed, arg as any);
     else if (kind === "table") runTable(ed);
     else if (kind === "divider") ed.update(() => $insertDivider());
-    else if (kind === "callout") ed.update(() => $insertCallout({ kind: "note", ...CALLOUT_PRESETS.note }));
+    else if (kind === "callout") {
+      const which = arg || "note";
+      if (which === "tabs") {
+        ed.update(() => {
+          $insertCallout({ kind: "tab", ...CALLOUT_PRESETS.tab, title: "Windows" });
+          $insertCallout({ kind: "tab", ...CALLOUT_PRESETS.tab, title: "macOS" });
+        });
+      } else if (which === "fold") ed.update(() => $insertCallout({ kind: "faq", ...CALLOUT_PRESETS.faq, fold: "-", title: t("callout.fold_title") }));
+      else if (which === "steps") ed.update(() => $insertSteps({ kind: "steps", ...CALLOUT_PRESETS.steps, title: t("steps.default_title"), id: blockId() }));
+      else ed.update(() => $insertCallout({ kind: "note", ...CALLOUT_PRESETS.note }));
+      this.pop = "callout";
+    }
     else if (kind === "request") ed.update(() => $insertRequest());
     else if (kind === "color") this.pop = "color";
     else if (kind === "file") this.renderRoot.querySelector<HTMLInputElement>("input.pick")!.click();
@@ -539,6 +553,16 @@ export class PhxLiveEditor extends LitElement {
       const v = await this.askForm({ title: t("slash.mermaid"), hint: t("block.mermaid_hint"),
         fields: [{ name: "v", label: t("block.mermaid_source"), type: "textarea", value: current || "flowchart LR\n  Internet --> Router --> Switch\n  Switch --> NAS" }] });
       return v?.v.trim() || undefined;
+    }
+    if (kind === "compare") {
+      const v = await this.askForm({ title: t("slash.compare"), hint: t("block.compare_hint"),
+        fields: [{ name: "v", label: t("block.compare_source"), type: "textarea", value: current || "--- router.conf (before)\ninterface eth0\n  address 192.168.1.1/24\n+++ router.conf (after)\ninterface eth0\n  address 192.168.10.1/24\n  mtu 9000" }] });
+      const src = v?.v.trim();
+      if (src && !/^\+\+\+/m.test(src)) {
+        toast(t("compare.error"), "error");
+        return undefined;
+      }
+      return src || undefined;
     }
     if (kind === "chart") {
       const v = await this.askForm({ title: t("slash.chart"), hint: t("block.chart_hint"),
@@ -718,6 +742,11 @@ export class PhxLiveEditor extends LitElement {
       <div class="lbl">${t("callout.kind")}</div>
       <div class="sws">${Object.keys(CALLOUT_PRESETS).map((k) => html`<button type="button" class=${a.kind === k ? "chipb on" : "chipb"}
         @click=${() => set({ kind: k, ...(k === "callout" ? {} : CALLOUT_PRESETS[k]) })}>${t(`callout.${k}` as any)}</button>`)}</div>
+      <div class="lbl">${t("callout.heading")}</div>
+      <input class="ttl" type="text" maxlength="120" .value=${a.title ?? ""} placeholder=${t("callout.heading_ph")} aria-label=${t("callout.heading")}
+        @keydown=${(e: KeyboardEvent) => e.stopPropagation()} @change=${(e: Event) => set({ title: (e.target as HTMLInputElement).value })}>
+      ${a.kind === "tab" ? "" : html`<div class="lbl">${t("callout.fold")}</div>
+      <div class="sws">${([["", "callout.fold_none"], ["-", "callout.fold_closed"], ["+", "callout.fold_open"]] as const).map(([f, k]) => html`<button type="button" class=${(a.fold ?? "") === f ? "chipb on" : "chipb"} @click=${() => set({ fold: f })}>${t(k)}</button>`)}</div>`}
       <div class="lbl">${t("callout.icon")}</div>
       <div class="sws icons">${calloutIcons.map((n) => html`<button type="button" class=${a.icon === n ? "ib on" : "ib"} title=${n} aria-label=${n} @click=${() => set({ icon: n })}>${icon(n, 15)}</button>`)}</div>
       <div class="lbl">${t("callout.color")}</div>

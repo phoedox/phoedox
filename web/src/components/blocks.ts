@@ -8,6 +8,7 @@ import { icon, iconSVG } from "../icon";
 import { attrLabel } from "../model";
 import { base } from "./shared";
 import "./chart-block";
+import "./page-blocks";
 
 /** Formula: KaTeX as MathML (no fonts or styles needed). */
 export class PhxMath extends HTMLElement {
@@ -370,6 +371,36 @@ export const blockStyles = `
   .callout { display: flex; gap: 10px; padding: 10px 14px; border-radius: 10px; margin: .8em 0; background: var(--tb-gray); }
   .callout .ci { flex: none; padding-top: 2px; color: var(--tc-gray); }
   .callout .cc { min-width: 0; flex: 1; } .callout .cc > :first-child { margin-top: 0; } .callout .cc > :last-child { margin-bottom: 0; }
+  .callout .ct { font-weight: 600; margin-bottom: .3em; }
+  details.callout.fold { display: block; padding: 0; }
+  details.callout.fold > summary { display: flex; gap: 10px; align-items: center; padding: 10px 14px; cursor: pointer; list-style: none; border-radius: 10px; }
+  details.callout.fold > summary::-webkit-details-marker { display: none; }
+  details.callout.fold > summary::after { content: ""; margin-left: auto; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform var(--dur-fast, 150ms) var(--ease-out, ease-out); opacity: .6; }
+  details.callout.fold[open] > summary::after { transform: rotate(45deg); }
+  details.callout.fold > summary .ct { margin: 0; }
+  details.callout.fold > summary .ci { padding-top: 0; }
+  details.callout.fold > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  details.callout.fold > .cc { padding: 0 14px 12px 42px; }
+  @media (prefers-reduced-motion: reduce) { details.callout.fold > summary::after { transition: none; } }
+  phx-tabs { display: block; }
+  phx-tabs > section.tab { padding: 2px 0; }
+  phx-tabs:defined > section.tab > .tab-h { display: none; }
+  phx-tabs > section.tab > .tab-h { margin: .8em 0 .3em; font-size: 1em; }
+  phx-tabs > section.tab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  @media print { phx-tabs > section.tab { display: block !important; } phx-tabs > section.tab > .tab-h { display: block !important; } }
+  phx-steps { display: block; }
+  phx-steps .step-progress { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); margin-bottom: .4em; }
+  phx-steps .step-progress .bar { flex: 1; max-width: 220px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 10%, transparent); overflow: hidden; }
+  phx-steps .step-progress .bar > span { display: block; height: 100%; background: var(--good); transition: width var(--dur, 200ms) var(--ease-out, ease-out); }
+  phx-steps ol.steps { list-style: none; padding-left: 0; counter-reset: step; }
+  phx-steps ol.steps > li { position: relative; padding-left: 36px; margin: .5em 0; counter-increment: step; }
+  phx-steps ol.steps > li > .step-check { position: absolute; left: 0; top: 0; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--tc-blue); background: var(--surface); cursor: pointer; padding: 0; display: grid; place-items: center; font: 600 11px var(--font-body); color: var(--tc-blue); }
+  phx-steps ol.steps > li > .step-check::before { content: counter(step); }
+  phx-steps ol.steps > li.done > .step-check { background: var(--good); border-color: var(--good); color: var(--on-color, #fff); }
+  phx-steps ol.steps > li.done > .step-check::before { content: "✓"; }
+  phx-steps ol.steps > li.done { color: var(--muted); }
+  phx-steps ol.steps > li > .step-check:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) { phx-steps .step-progress .bar > span { transition: none; } }
   ${["gray", "red", "orange", "yellow", "green", "blue", "purple", "pink"].map((c) => `
   .callout.cb-${c} { background: var(--tb-${c}); } .callout.cb-${c} .ci { color: var(--tc-${c}); }
   .ci.ic-${c} { color: var(--tc-${c}) !important; }

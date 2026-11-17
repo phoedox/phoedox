@@ -401,6 +401,8 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/documents", a.listDocuments)
 			r.Post("/documents", a.createDocument)
 			r.Get("/documents/{d}", a.getDocument)
+			r.Get("/documents/{d}/blocks/{key}", a.blockState)
+			r.Put("/documents/{d}/blocks/{key}", a.setBlockState)
 			r.Patch("/documents/{d}", a.updateDocument)
 			r.Delete("/documents/{d}", a.deleteDocument)
 			r.Post("/documents/{d}/decide", a.decideDocument)

@@ -2,7 +2,7 @@
 
 import { $createCodeNode } from "@lexical/code";
 import { $createHorizontalRuleNode } from "@lexical/extension";
-import { INSERT_CHECK_LIST_COMMAND, INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND } from "@lexical/list";
+import { $createListItemNode, $createListNode, INSERT_CHECK_LIST_COMMAND, INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND } from "@lexical/list";
 import { $createHeadingNode, $createQuoteNode } from "@lexical/rich-text";
 import { $patchStyleText, $setBlocksType } from "@lexical/selection";
 import { INSERT_TABLE_COMMAND } from "@lexical/table";
@@ -34,6 +34,10 @@ export const SLASH_ITEMS: SlashItem[] = [
   { id: "todo", group: "text", icon: "ListTodo", words: "todo checkbox aufgabe task check", run: "list:check" },
   { id: "quote", group: "text", icon: "TextQuote", words: "quote zitat", run: "block:quote" },
   { id: "callout", group: "blocks", icon: "MessageSquareWarning", words: "callout hinweis box notiz note warnung info", run: "callout" },
+  { id: "fold", group: "blocks", icon: "ChevronsDownUp", words: "aufklappen zuklappen details faq akkordeon accordion collapse fold toggle", run: "callout:fold" },
+  { id: "tabs", group: "blocks", icon: "PanelTop", words: "tabs reiter register varianten windows mac linux", run: "callout:tabs" },
+  { id: "steps", group: "blocks", icon: "ListChecks", words: "schritte steps anleitung howto how-to checkliste fortschritt progress", run: "callout:steps" },
+  { id: "compare", group: "blocks", icon: "GitCompare", words: "vergleich compare diff vorher nachher before after konfig config datei", run: "fence:compare" },
   { id: "code", group: "blocks", icon: "SquareCode", words: "code codeblock", run: "block:code" },
   { id: "request", group: "blocks", icon: "Send", words: "api request http test anfrage", run: "request" },
   { id: "table", group: "blocks", icon: "Table", words: "table tabelle", run: "table" },
@@ -114,6 +118,17 @@ export function $insertCallout(a: CalloutAttrs) {
   c.append(p);
   $insertBlock(c);
   p.select();
+}
+
+/** Steps: a callout with a numbered list to tick off. */
+export function $insertSteps(a: CalloutAttrs) {
+  const c = $createCalloutNode(a);
+  const list = $createListNode("number");
+  const item = $createListItemNode();
+  list.append(item);
+  c.append(list);
+  $insertBlock(c);
+  item.select();
 }
 
 export function $insertRequest() {

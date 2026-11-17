@@ -92,3 +92,28 @@ func TestMatchDoc(t *testing.T) {
 		t.Error("prefix of an identifier must not match")
 	}
 }
+
+func TestStructureBlocks(t *testing.T) {
+	md := strings.Join([]string{
+		"> [!faq]- Why does the NAS sleep?", "> Because of **power saving**.", "",
+		"> [!tab] Windows", "> Press Win.", "", "> [!tab] macOS", "> Press Cmd.", "",
+		"After the tabs.", "",
+		"> [!steps id=s1] Setup", "> 1. Plug in", "> 2. Switch on", "",
+		"> [!note] With a title", "> Body.", "",
+		"```compare", "--- old", "a", "+++ new", "b", "```",
+	}, "\n")
+	out := Markdown(md, Links{})
+	for _, want := range []string{
+		`<details class="callout fold cb-gray" data-kind="faq"><summary>`, `<span class="ct">Why does the NAS sleep?</span>`, `<strong>power saving</strong>`,
+		"<phx-tabs>\n<section class=\"tab\" data-title=\"Windows\"><h4 class=\"tab-h\">Windows</h4>", `data-title="macOS"`, "</section>\n</phx-tabs>",
+		"<phx-steps data-key=\"s1\">\n<div class=\"callout cb-blue\" data-kind=\"steps\">", `<div class="ct">Setup</div>`, `<ol>`,
+		`<div class="ct">With a title</div>`, `<phx-compare><pre>--- old`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %s in\n%s", want, out)
+		}
+	}
+	if strings.Count(out, "<phx-tabs>") != 1 || !strings.Contains(out, "<p>After the tabs.</p>") || strings.Contains(out, "<p><phx-steps") {
+		t.Errorf("tab group:\n%s", out)
+	}
+}
