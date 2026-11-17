@@ -87,7 +87,7 @@ export function loginURL(): string {
 
 /** Pages that work without a session. */
 export function isPublicPath(path: string) {
-  return path === "/login" || path === "/forgot" || path === "/signup" || /^\/(invite|reset)\/[^/]+$/.test(path) || /^\/s\/phxs_[^/]+(\/[^/]+)?$/.test(path) || /^\/secret\/[a-z0-9]+$/.test(path) || /^\/feedback\/((status|unfollow)\/)?[^/]+$/.test(path) || /^\/shared\/app\/[a-z0-9]+$/.test(path) || path === "/pay";
+  return path === "/login" || path === "/forgot" || path === "/signup" || /^\/(invite|reset)\/[^/]+$/.test(path) || /^\/s\/phxs_[^/]+(\/[^/]+)?$/.test(path) || /^\/secret\/[a-z0-9]+$/.test(path) || /^\/feedback\/((status|unfollow)\/)?[^/]+(\/embed)?$/.test(path) || /^\/shared\/app\/[a-z0-9]+$/.test(path) || path === "/pay";
 }
 
 /** Focus mode: no top bar and no sidebar, for reading and writing (per device). */

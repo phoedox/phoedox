@@ -76,6 +76,18 @@ Comments from visitors wait for a moderator's approval; team comments are shown 
 Topics are released one by one by moderators (`update_feedback_topic` `public: true`);
 reports themselves and reporters stay private.
 
+## Widget for websites and games
+
+Owners switch on the portal's **widget** (portal settings) and paste one line into their
+site or game: `<script src="https://<instance>/feedback-widget.js" data-portal="<handle>" async></script>`.
+A button opens the report form in a frame served by Phoedox (only on the websites the
+portal lists). People can take a **screenshot** – of the browser tab, or of the game's
+canvas (`data-canvas="#game"` or `PhoedoxFeedback.setScreenshot(() => canvas)`) – and
+**paint over** it before sending: black boxes are burned into the picture, red boxes and
+lines mark the problem. Reports carry the page, viewport and browser, plus what the
+product adds with `PhoedoxFeedback.setContext({ level: 3 })`; `setPlayerToken(token)` signs
+who reports. Such reports have `via: widget`.
+
 ## Routing and follow-up
 
 - Automation rules with the trigger `feedback.topic` (project settings → Automation) turn

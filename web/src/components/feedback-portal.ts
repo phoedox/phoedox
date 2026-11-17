@@ -1,14 +1,25 @@
 import { LitElement, css, html, nothing } from "lit";
 import { ApiError, api } from "../api";
-import { locale, t } from "../i18n";
+import { locale, setLocale, t } from "../i18n";
 import { icon } from "../icon";
 import { currentUser } from "../state";
 import "./botcheck";
+import "./shot-editor";
 import type { PhxBotcheck } from "./botcheck";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
 export interface PortalField { id: string; label: Record<string, string>; type: string; options?: string[]; required: boolean; reportTypes?: string[] }
+/** Messages between the widget frame and the loader on the host page
+ * (src/widget/feedback-widget.ts). */
+interface HostMsg { phx?: string; t?: string; context?: Record<string, string>; playerToken?: string; hostShot?: boolean; type?: string; title?: string; screenshot?: Blob | null; blob?: Blob | null }
+
+function toHost(msg: Record<string, unknown>) {
+  window.parent.postMessage({ phx: "fb", ...msg }, "*");
+}
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export interface AttachRules { images: boolean; videos: boolean; logs: boolean; other: boolean; endings: Record<string, string[]>; maxMb: Record<string, number>; textOnly: boolean; maxFiles: number }
 interface Portal {
   handle: string; name: string; project: string; intro: string; privacy: string; types: string[]; fields: PortalField[]; attachments: AttachRules;
@@ -47,7 +58,8 @@ function themeStyle(th: Portal["theme"]) {
 /** Public page of a feedback portal: /feedback/<handle>. */
 export class PhxFeedbackPortal extends LitElement {
   static properties = { handle: {}, portal: { state: true }, type: { state: true }, files: { state: true }, busy: { state: true }, error: { state: true }, done: { state: true }, missing: { state: true },
-    tab: { state: true }, topics: { state: true }, topic: { state: true }, sort: { state: true }, query: { state: true } };
+    tab: { state: true }, topics: { state: true }, topic: { state: true }, sort: { state: true }, query: { state: true },
+    embed: { type: Boolean, reflect: true }, editing: { state: true }, shotBusy: { state: true }, hostShot: { state: true } };
   static styles = [base, css`
     :host { display: block; min-height: 100vh; background: var(--bg); }
     .wrap { max-width: 680px; margin: 0 auto; padding: 32px 16px 64px; }
@@ -60,7 +72,9 @@ export class PhxFeedbackPortal extends LitElement {
     .types button { border-radius: 99px; }
     .types button[aria-pressed=true] { background: var(--accent); color: var(--on-color); border-color: var(--accent); }
     .intro { white-space: pre-wrap; color: var(--fg); }
-    .files { display: grid; gap: 6px; }
+    .files { display: grid; gap: 6px; grid-template-columns: minmax(0, 1fr); }
+    .card > * { min-width: 0; }
+    .file > button { flex: none; }
     .file { display: flex; gap: 8px; align-items: center; font-size: 14px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
     .file span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .privacy { font-size: 12.5px; color: var(--muted); white-space: pre-wrap; }
@@ -91,6 +105,14 @@ export class PhxFeedbackPortal extends LitElement {
     .comment .who { font-weight: 600; font-size: 13.5px; }
     .comment .who .team { color: var(--accent); }
     .comment p { margin: 4px 0 0; white-space: pre-wrap; }
+    :host([embed]) { min-height: 100vh; }
+    .wrap.embed { max-width: none; padding: 14px 14px 20px; }
+    .wrap.embed header { margin-bottom: 12px; }
+    .wrap.embed header img { width: 32px; height: 32px; }
+    .wrap.embed h1 { font-size: 18px; }
+    .wrap.embed header > div { flex: 1; min-width: 0; }
+    .wrap.embed .card { padding: 14px; border-radius: 12px; }
+    .file img { width: 40px; height: 28px; object-fit: cover; border-radius: 4px; }
   `];
 
   handle = "";
@@ -107,13 +129,131 @@ export class PhxFeedbackPortal extends LitElement {
   sort: "votes" | "new" = "votes";
   query = "";
   private voter = voterKey();
+  /** Shown inside a website or game (the feedback widget). */
+  embed = false;
+  editing?: { file: Blob; index: number };
+  shotBusy = false;
+  hostShot = false;
+  private hostCtx: Record<string, string> = {};
+  private playerToken = "";
+  private prefillTitle = "";
+  private waiters: Partial<Record<"hidden" | "shot", (m: HostMsg) => void>> = {};
+  private thumbs = new Map<File, string>();
+
+  private onHost = (e: MessageEvent) => {
+    if (!this.embed || e.source !== window.parent) return;
+    const m = e.data as HostMsg;
+    if (m?.phx !== "fb") return;
+    if (m.t === "init" || m.t === "context") {
+      if (m.context) this.hostCtx = m.context;
+      if (typeof m.playerToken === "string") this.playerToken = m.playerToken;
+      if (typeof m.hostShot === "boolean") this.hostShot = m.hostShot;
+      if (m.t === "init") {
+        if (m.type && this.portal?.types.includes(m.type)) this.type = m.type;
+        if (m.title) {
+          this.prefillTitle = String(m.title).slice(0, 200);
+          this.requestUpdate();
+        }
+        if (m.screenshot instanceof Blob) this.openEditor(m.screenshot, -1);
+      }
+    } else if (m.t === "hidden" || m.t === "shot") {
+      this.waiters[m.t]?.(m);
+      delete this.waiters[m.t];
+    }
+  };
+
+  private waitFor(kind: "hidden" | "shot", ms: number) {
+    return Promise.race([new Promise<HostMsg>((r) => (this.waiters[kind] = r)), wait(ms).then(() => ({}) as HostMsg)]);
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    removeEventListener("message", this.onHost);
+    for (const u of this.thumbs.values()) URL.revokeObjectURL(u);
+  }
+
+  private openEditor(file: Blob, index: number) {
+    this.editing = { file, index };
+    if (this.embed) toHost({ t: "size", big: true });
+  }
+
+  private closeEditor(file?: File) {
+    const ed = this.editing;
+    this.editing = undefined;
+    if (this.embed) toHost({ t: "size", big: false });
+    if (!ed || !file) return;
+    const max = this.portal!.attachments.maxFiles;
+    if (ed.index >= 0) this.files = this.files.map((f, i) => (i === ed.index ? file : f));
+    else if (this.files.length < max) this.files = [...this.files, file];
+  }
+
+  /** Takes a screenshot of the host page: the game's canvas when the host
+   * offers one, otherwise the browser's tab capture (the frame hides while
+   * the picture is taken). */
+  private async takeShot() {
+    this.shotBusy = true;
+    try {
+      let blob: Blob | null | undefined;
+      if (this.hostShot) {
+        const p = this.waitFor("shot", 5000);
+        toHost({ t: "shot" });
+        blob = (await p).blob;
+      } else {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: { displaySurface: "browser" }, audio: false, preferCurrentTab: true, selfBrowserSurface: "include", surfaceSwitching: "exclude", monitorTypeSurfaces: "exclude" } as DisplayMediaStreamOptions);
+        try {
+          const hidden = this.waitFor("hidden", 800);
+          toHost({ t: "hide" });
+          await hidden;
+          const video = document.createElement("video");
+          video.muted = true;
+          video.srcObject = stream;
+          await video.play();
+          await wait(250);
+          const c = document.createElement("canvas");
+          c.width = video.videoWidth;
+          c.height = video.videoHeight;
+          c.getContext("2d")!.drawImage(video, 0, 0);
+          blob = await new Promise<Blob | null>((r) => c.toBlob(r, "image/png"));
+        } finally {
+          stream.getTracks().forEach((tr) => tr.stop());
+          toHost({ t: "show" });
+        }
+      }
+      if (!blob) throw new Error("no picture");
+      this.openEditor(blob, -1);
+    } catch (err) {
+      if (!(err instanceof DOMException && err.name === "NotAllowedError")) toast(t("fbw.shot_failed"), "error");
+    } finally {
+      this.shotBusy = false;
+    }
+  }
+
+  private thumb(f: File) {
+    let u = this.thumbs.get(f);
+    if (!u) {
+      u = URL.createObjectURL(f);
+      this.thumbs.set(f, u);
+    }
+    return u;
+  }
+
+  private get canShot() {
+    return this.embed && (this.hostShot || !!navigator.mediaDevices?.getDisplayMedia);
+  }
 
   async connectedCallback() {
     super.connectedCallback();
     try {
+      if (this.embed) {
+        // The host page's language (the widget passes it on).
+        const lang = new URLSearchParams(location.search).get("lang");
+        if (lang === "de" || lang === "en") setLocale(lang);
+        addEventListener("message", this.onHost);
+      }
       this.portal = await api<Portal>("GET", `/feedback/${this.handle}?lang=${locale()}`);
       this.type = this.portal.types[0] ?? "bug";
       document.title = this.portal.name;
+      if (this.embed) toHost({ t: "ready" });
       const open = new URLSearchParams(location.search).get("topic");
       if (this.portal.publicView && (open || new URLSearchParams(location.search).get("tab") === "topics")) {
         this.tab = "topics";
@@ -291,15 +431,17 @@ export class PhxFeedbackPortal extends LitElement {
       const report = {
         type: this.type, title: String(fd.get("title") ?? ""), body: String(fd.get("body") ?? ""), fields, lang: locale(),
         email: String(fd.get("email") ?? "") || undefined, botToken,
-        context: { page: document.referrer || "", userAgent: navigator.userAgent.slice(0, 200), screen: `${screen.width}×${screen.height}` },
+        context: this.embed ? this.hostCtx : { page: document.referrer || "", userAgent: navigator.userAgent.slice(0, 200), screen: `${screen.width}×${screen.height}` },
+        playerToken: this.playerToken || undefined,
       };
       const body = new FormData();
       body.append("report", new Blob([JSON.stringify(report)], { type: "application/json" }));
       for (const f of this.files) body.append("file", f, f.name);
-      const res = await fetch(`/api/v1/feedback/${p.handle}/reports`, { method: "POST", body, headers: { "X-Phoedox": "1" }, credentials: "same-origin" });
+      const res = await fetch(`/api/v1/feedback/${p.handle}/reports${this.embed ? "?via=widget" : ""}`, { method: "POST", body, headers: { "X-Phoedox": "1" }, credentials: "same-origin" });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new ApiError(res.status, json.code ?? "error", json.key ?? "error.unknown", json.params ?? {});
       this.done = json;
+      if (this.embed) toHost({ t: "sent" });
     } catch (err) {
       this.error = err instanceof ApiError ? err.text : err instanceof Error && err.message ? err.message : t("error.unknown");
     } finally {
@@ -314,8 +456,11 @@ export class PhxFeedbackPortal extends LitElement {
     const user = currentUser.get();
     const canReport = p.accepting && (user ? p.accounts || p.anonymous : p.anonymous);
     const status = this.done ? `${location.origin}/feedback/status/${this.done.statusToken}` : "";
-    return html`<div class=${p.theme.accent ? "wrap themed" : "wrap"} style=${themeStyle(p.theme)}>
-      <header>${p.theme.logo ? html`<img src=${p.theme.logo} alt="">` : nothing}<div><h1>${p.name}</h1><div class="sub">${t("fb.portal_sub", { project: p.project })}</div></div></header>
+    const target = this.embed ? "_blank" : nothing;
+    return html`<div class=${`wrap${p.theme.accent ? " themed" : ""}${this.embed ? " embed" : ""}`} style=${themeStyle(p.theme)}>
+      <header>${p.theme.logo ? html`<img src=${p.theme.logo} alt="">` : nothing}<div><h1>${p.name}</h1><div class="sub">${t("fb.portal_sub", { project: p.project })}</div></div>
+        ${this.embed ? html`<button class="ghost" aria-label=${t("fbw.close")} @click=${() => toHost({ t: "close" })}>${icon("X", 16)}</button>` : nothing}</header>
+      ${this.editing ? html`<phx-shot-editor .file=${this.editing.file} @done=${(e: CustomEvent<File>) => this.closeEditor(e.detail)} @cancel=${() => this.closeEditor()}></phx-shot-editor>` : nothing}
       ${p.publicView ? html`<div class="tabs" role="tablist">
         <button class="ghost" role="tab" aria-pressed=${this.tab === "report"} @click=${() => { this.tab = "report"; this.topic = undefined; history.replaceState(null, "", location.pathname); }}>${icon("Send", 14)} ${t("fbpub.tab_report")}</button>
         <button class="ghost" role="tab" aria-pressed=${this.tab === "topics"} @click=${() => { this.tab = "topics"; history.replaceState(null, "", location.pathname + "?tab=topics"); void this.loadTopics(); }}>${icon("ListChecks", 14)} ${t("fbpub.tab_topics")}</button>
@@ -325,15 +470,15 @@ export class PhxFeedbackPortal extends LitElement {
           <p style="margin:0">${t("fb.status_hint")}</p>
           <code>${status}</code>
           <div class="row"><button class="ghost" @click=${() => { void navigator.clipboard.writeText(status); toast(t("fb.copied")); }}>${icon("Copy", 14)} ${t("fb.copy_link")}</button>
-            <a class="btn ghost" href=${status}>${t("fb.open_status")}</a>
-            <button class="ghost" @click=${() => { this.done = undefined; this.files = []; }}>${t("fb.another")}</button></div>
+            <a class="btn ghost" href=${status} target=${target} rel="noopener">${t("fb.open_status")}</a>
+            <button class="ghost" @click=${() => { this.done = undefined; this.files = []; this.prefillTitle = ""; }}>${t("fb.another")}</button></div>
         </div>`
       : !canReport ? html`<div class="card"><p>${!p.accepting ? t("fb.closed") : t("fb.signin_needed")}</p>
-          ${p.accepting && !user ? html`<a class="btn" href=${`/login?next=${encodeURIComponent(location.pathname)}`}>${t("login.submit")}</a>` : nothing}</div>`
+          ${p.accepting && !user ? html`<a class="btn" href=${`/login?next=${encodeURIComponent(this.embed ? `/feedback/${p.handle}` : location.pathname)}`} target=${target}>${t("login.submit")}</a>` : nothing}</div>`
       : html`<form class="card" @submit=${this.submit}>
           ${p.intro ? html`<div class="intro">${p.intro}</div>` : nothing}
           ${p.types.length > 1 ? html`<div class="types" role="group" aria-label=${t("fb.type")}>${p.types.map((ty) => html`<button type="button" class="ghost" aria-pressed=${this.type === ty} @click=${() => (this.type = ty)}>${icon(TYPE_ICON[ty] ?? "MessageSquare", 14)} ${t(`fb.type.${ty}` as any)}</button>`)}</div>` : nothing}
-          <label class="field">${t("fb.title")} *<input name="title" required maxlength="200" placeholder=${t(`fb.title_ph.${this.type}` as any)}></label>
+          <label class="field">${t("fb.title")} *<input name="title" required maxlength="200" .value=${this.prefillTitle} placeholder=${t(`fb.title_ph.${this.type}` as any)}></label>
           <label class="field">${t("fb.body")}<textarea name="body" rows="6" maxlength="20000" placeholder=${t(`fb.body_ph.${this.type}` as any)}></textarea></label>
           ${p.fields.filter((f) => !f.reportTypes?.length || f.reportTypes.includes(this.type)).map((f) => this.field(f))}
           ${p.attachments.maxFiles > 0 && (p.attachments.images || p.attachments.videos || p.attachments.logs || p.attachments.other) ? html`
@@ -341,8 +486,14 @@ export class PhxFeedbackPortal extends LitElement {
               <label class="field">${t("fb.files", { n: p.attachments.maxFiles })}
                 <input type="file" multiple accept=${this.accept()} ?disabled=${p.filesFull || this.files.length >= p.attachments.maxFiles} @change=${(e: Event) => { this.addFiles((e.target as HTMLInputElement).files); (e.target as HTMLInputElement).value = ""; }}></label>
               ${p.filesFull ? html`<p class="sub">${t("fb.files_full")}</p>` : nothing}
-              ${this.files.map((f, i) => html`<div class="file">${icon("Paperclip", 14)}<span>${f.name}</span><small class="sub">${Math.ceil(f.size / 1024)} KB</small>
-                <button type="button" class="ghost" aria-label=${t("fb.remove_file")} @click=${() => (this.files = this.files.filter((_, j) => j !== i))}>${icon("X", 13)}</button></div>`)}
+              ${this.canShot && p.attachments.images && !p.filesFull ? html`<div class="row"><button type="button" class="ghost" ?disabled=${this.shotBusy || this.files.length >= p.attachments.maxFiles} @click=${this.takeShot}>${icon("Camera", 14)} ${t("fbw.screenshot")}</button>
+                ${this.hostShot ? nothing : html`<small class="sub">${t("fbw.shot_hint")}</small>`}</div>` : nothing}
+              ${this.files.map((f, i) => {
+                const img = /^image\/(png|jpeg|webp|gif)$/.test(f.type);
+                return html`<div class="file">${img ? html`<img src=${this.thumb(f)} alt="">` : icon("Paperclip", 14)}<span>${f.name}</span><small class="sub">${Math.ceil(f.size / 1024)} KB</small>
+                ${img ? html`<button type="button" class="ghost" @click=${() => this.openEditor(f, i)}>${icon("Paintbrush", 13)} ${t("fbw.paint")}</button>` : nothing}
+                <button type="button" class="ghost" aria-label=${t("fb.remove_file")} @click=${() => (this.files = this.files.filter((_, j) => j !== i))}>${icon("X", 13)}</button></div>`;
+              })}
             </div>` : nothing}
           ${!user && p.askEmail ? html`<label class="field">${t("fb.email")}<input name="email" type="email" autocomplete="email" placeholder=${t("fb.email_ph")}></label>` : nothing}
           ${user ? html`<p class="sub">${t("fb.as_user", { name: user.name })}</p>` : html`<phx-botcheck place="feedback"></phx-botcheck>`}

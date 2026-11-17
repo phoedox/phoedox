@@ -153,6 +153,9 @@ func New(d Deps) http.Handler {
 	r.Get("/app-frame/{tok}/*", appFrame(d.Core, d.Config))
 	if d.Web != nil {
 		r.Handle("/applib/*", appLibs(d.Web))
+		if d.Core != nil {
+			r.Get("/feedback/{handle}/embed", feedbackEmbed(d.Web, d.Core))
+		}
 		r.Handle("/*", spa(d.Web))
 	}
 	return r
@@ -174,6 +177,32 @@ func spa(web fs.FS) http.Handler {
 		}
 		files.ServeHTTP(w, r)
 	})
+}
+
+// feedbackEmbed serves the app for a portal's widget frame: the only page
+// other sites may frame, and only the sites the portal lists.
+func feedbackEmbed(web fs.FS, svc *core.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		origins, err := svc.FeedbackWidgetOrigins(r.Context(), chi.URLParam(r, "handle"))
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		index, err := fs.ReadFile(web, "index.html")
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		ancestors := "*"
+		if len(origins) > 0 {
+			ancestors = strings.Join(origins, " ")
+		}
+		h := w.Header()
+		h.Set("Content-Type", "text/html; charset=utf-8")
+		h.Set("Content-Security-Policy", "frame-ancestors "+ancestors)
+		h.Set("Cache-Control", "no-cache")
+		_, _ = w.Write(index)
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {

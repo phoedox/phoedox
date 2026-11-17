@@ -99,6 +99,11 @@ type PortalSettings struct {
 	// following; PublicComments lets visitors comment (moderated).
 	PublicView     bool `json:"publicView,omitempty"`
 	PublicComments bool `json:"publicComments,omitempty"`
+	// Widget lets websites and games embed the report form
+	// (/feedback-widget.js); WidgetOrigins limits which sites may embed it
+	// (empty = any site).
+	Widget        bool     `json:"widget,omitempty"`
+	WidgetOrigins []string `json:"widgetOrigins,omitempty"`
 }
 
 var reportTypes = []string{"bug", "idea", "question", "praise"}
@@ -123,11 +128,38 @@ func DefaultPortalSettings() PortalSettings {
 func portalSettings(p store.FeedbackPortal) PortalSettings {
 	s := DefaultPortalSettings()
 	_ = json.Unmarshal(p.Settings, &s)
+	s.normalize()
 	return s
+}
+
+// normalize replaces missing lists and maps (null in JSON) with empty ones.
+func (ps *PortalSettings) normalize() {
+	if ps.Intro == nil {
+		ps.Intro = map[string]string{}
+	}
+	if ps.Privacy == nil {
+		ps.Privacy = map[string]string{}
+	}
+	if ps.Fields == nil {
+		ps.Fields = []PortalField{}
+	}
+	if ps.Categories == nil {
+		ps.Categories = []string{}
+	}
+	if ps.Languages == nil {
+		ps.Languages = []string{"en", "de"}
+	}
+	if ps.Attachments.Endings == nil {
+		ps.Attachments.Endings = map[string][]string{}
+	}
+	if ps.Attachments.MaxMB == nil {
+		ps.Attachments.MaxMB = map[string]int{}
+	}
 }
 
 func (ps *PortalSettings) validate() error {
 	ps.Tags = cleanLabels(append(ps.Tags[:0:0], ps.Tags...))
+	ps.normalize()
 	if len(ps.Types) == 0 {
 		ps.Types = []string{"bug"}
 	}
@@ -167,6 +199,18 @@ func (ps *PortalSettings) validate() error {
 		}
 		a.Endings[k] = slices.DeleteFunc(list, func(e string) bool { return e == "" })
 	}
+	origins := []string{}
+	for _, o := range ps.WidgetOrigins {
+		o = strings.TrimRight(strings.ToLower(strings.TrimSpace(o)), "/")
+		if o == "" || slices.Contains(origins, o) {
+			continue
+		}
+		if !widgetOriginRe.MatchString(o) || len(origins) >= 20 {
+			return invalid("validation.feedback_widget_origin", map[string]any{"origin": o}, "invalid website address %q (https://example.com)", o)
+		}
+		origins = append(origins, o)
+	}
+	ps.WidgetOrigins = origins
 	if ps.RetentionMonths <= 0 || ps.RetentionMonths > 120 {
 		ps.RetentionMonths = 12
 	}
@@ -182,6 +226,11 @@ func (ps *PortalSettings) validate() error {
 }
 
 var hexColor = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+// widgetOriginRe is a website that may embed a portal's widget: https (or
+// http on localhost for development), host and optional port; "*." allows
+// subdomains.
+var widgetOriginRe = regexp.MustCompile(`^(?:https://(?:\*\.)?[a-z0-9-]+(?:\.[a-z0-9-]+)+|http://(?:localhost|127\.0\.0\.1))(?::[0-9]{1,5})?$`)
 
 // PortalView is a portal as moderators see it.
 type PortalView struct {
@@ -444,6 +493,8 @@ type PublicPortal struct {
 	// PublicComments: visitors may comment.
 	PublicView     bool `json:"publicView"`
 	PublicComments bool `json:"publicComments"`
+	// Widget: the portal can be embedded with /feedback-widget.js.
+	Widget bool `json:"widget"`
 }
 
 func localized(m map[string]string, lang string) string {
@@ -476,11 +527,25 @@ func (s *Service) PublicFeedbackPortal(ctx context.Context, handle, lang string)
 	out := PublicPortal{Handle: portal.Handle, Name: portal.Name, Project: proj.Name, Intro: localized(ps.Intro, lang), Privacy: localized(ps.Privacy, lang),
 		Types: ps.Types, Fields: ps.Fields, Attachments: ps.Attachments, Anonymous: ps.Anonymous, Accounts: ps.Accounts, AskEmail: ps.AskEmail && ps.Anonymous,
 		Theme: ps.Theme, Languages: ps.Languages, Accepting: portal.Enabled && !(full && ps.StorageFull == "pause"), FilesFull: full && ps.StorageFull == "no_files",
-		PublicView: ps.PublicView, PublicComments: ps.PublicView && ps.PublicComments}
+		PublicView: ps.PublicView, PublicComments: ps.PublicView && ps.PublicComments, Widget: ps.Widget}
 	if out.Privacy == "" {
 		out.Privacy = defaultPrivacy(lang, portal.Name)
 	}
 	return out, nil
+}
+
+// FeedbackWidgetOrigins returns the websites that may embed a portal's
+// widget (empty = any); not found when the portal has no widget.
+func (s *Service) FeedbackWidgetOrigins(ctx context.Context, handle string) ([]string, error) {
+	portal, err := s.DB.FeedbackPortalByHandle(ctx, handle)
+	if err != nil {
+		return nil, err
+	}
+	ps := portalSettings(portal)
+	if !portal.Enabled || !ps.Widget {
+		return nil, store.ErrNotFound
+	}
+	return ps.WidgetOrigins, nil
 }
 
 func defaultPrivacy(lang, name string) string {

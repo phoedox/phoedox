@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && touch dist/.gitkeep",
+    "build": "tsc --noEmit && vite build && bun build src/widget/feedback-widget.ts --outfile dist/feedback-widget.js --minify --format iife --target browser && touch dist/.gitkeep",
     "preview": "vite preview",
     "test": "bun test",
     "typecheck": "tsc --noEmit"

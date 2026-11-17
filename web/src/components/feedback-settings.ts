@@ -9,7 +9,7 @@ import { base } from "./shared";
 import { toast } from "./toasts";
 
 interface Settings {
-  intro: Record<string, string>; privacy: Record<string, string>; languages: string[]; types: string[]; categories: string[]; tags?: string[]; aiTriage?: boolean; autoAnswers?: boolean; publicView?: boolean; publicComments?: boolean; fields: PortalField[];
+  intro: Record<string, string>; privacy: Record<string, string>; languages: string[]; types: string[]; categories: string[]; tags?: string[]; aiTriage?: boolean; autoAnswers?: boolean; publicView?: boolean; publicComments?: boolean; widget?: boolean; widgetOrigins?: string[]; fields: PortalField[];
   attachments: AttachRules; anonymous: boolean; accounts: boolean; askEmail: boolean; states: string[]; defaultState: string; finishedState: string;
   storageFull: string; theme: { accent?: string; accentDark?: string; logo?: string }; publicKeyOn: boolean; serverKeyOn: boolean; retentionMonths: number;
 }
@@ -167,6 +167,7 @@ export class PhxFeedbackSettings extends LitElement {
         <div class="muted"><strong>${t("fb.player_key")}</strong> – ${t("fb.player_key_help")}
           <button class="ghost" @click=${() => void this.rotate("player")}>${t(p.hasPlayerKey ? "fb.rotate" : "fb.player_key_create")}</button></div>
       </div>
+      ${this.widgetCard(p, s)}
       <div class="card"><h3>${icon("ListChecks", 15)} ${t("fb.form")}</h3>
         <div class="checks">${TYPES.map((ty) => html`<label class="check"><input type="checkbox" .checked=${s.types.includes(ty)} @change=${(e: Event) => { s.types = (e.target as HTMLInputElement).checked ? [...s.types, ty] : s.types.filter((x) => x !== ty); }}> ${t(`fb.type.${ty}` as any)}</label>`)}</div>
         <label class="field">${t("fb.categories")}<input .value=${s.categories.join(", ")} placeholder="UI, Server, Audio" @change=${(e: Event) => (s.categories = csv((e.target as HTMLInputElement).value))}></label>
@@ -174,11 +175,11 @@ export class PhxFeedbackSettings extends LitElement {
         <label class="check"><input type="checkbox" .checked=${!!s.aiTriage} @change=${(e: Event) => (s.aiTriage = (e.target as HTMLInputElement).checked)}> ${t("fb.ai_triage")}</label>
         <p class="muted" style="margin:0">${t("fb.ai_triage_help")}</p>
         <label class="check"><input type="checkbox" .checked=${!!s.autoAnswers} @change=${(e: Event) => (s.autoAnswers = (e.target as HTMLInputElement).checked)}> ${t("fb.auto_answers")}</label>
+        <p class="muted" style="margin:0">${t("fb.auto_answers_help")}</p>
         <label class="check"><input type="checkbox" .checked=${!!s.publicView} @change=${(e: Event) => { s.publicView = (e.target as HTMLInputElement).checked; this.requestUpdate(); }}> ${t("fbpub.settings_public")}</label>
         <p class="muted" style="margin:0 0 0 24px;font-size:13px">${t("fbpub.settings_public_help")}</p>
         ${s.publicView ? html`<label class="check"><input type="checkbox" .checked=${!!s.publicComments} @change=${(e: Event) => (s.publicComments = (e.target as HTMLInputElement).checked)}> ${t("fbpub.settings_comments")}</label>
           <p class="muted" style="margin:0 0 0 24px;font-size:13px">${t("fbpub.settings_comments_help")}</p>` : nothing}
-        <p class="muted" style="margin:0">${t("fb.auto_answers_help")}</p>
         <strong style="font-size:14px">${t("fb.fields")}</strong>
         ${this.fieldEditor(s)}
       </div>
@@ -222,6 +223,23 @@ export class PhxFeedbackSettings extends LitElement {
       </div>
       <div class="actions"><button ?disabled=${this.busy} @click=${this.save}>${t("doc.save")}</button>
         <button class="ghost danger" @click=${this.removePortal}>${icon("Trash2", 14)} ${t("fb.delete_portal")}</button></div>`;
+  }
+
+  private widgetCard(p: Portal, s: Settings) {
+    const snippet = `<script src="${location.origin}/feedback-widget.js" data-portal="${p.handle}" async></script>`;
+    return html`<div class="card"><h3>${icon("MessageSquare", 15)} ${t("fbw.settings_title")}</h3>
+      <label class="check"><input type="checkbox" .checked=${!!s.widget} @change=${(e: Event) => { s.widget = (e.target as HTMLInputElement).checked; this.up(); }}> ${t("fbw.settings_on")}</label>
+      <p class="muted" style="margin:0">${t("fbw.settings_hint")}</p>
+      ${s.widget ? html`
+        ${s.anonymous ? nothing : html`<p class="muted" role="note" style="margin:0">${icon("Info", 13)} ${t("fbw.settings_needs_anon")}</p>`}
+        <label class="field">${t("fbw.settings_origins")}<textarea rows="3" placeholder="https://example.com" .value=${(s.widgetOrigins ?? []).join("\n")}
+          @change=${(e: Event) => (s.widgetOrigins = (e.target as HTMLTextAreaElement).value.split(/\s+/).map((x) => x.trim()).filter(Boolean))}></textarea></label>
+        <p class="muted" style="margin:0">${t("fbw.settings_origins_hint")}</p>
+        <div class="muted">${t("fbw.settings_snippet")}</div>
+        <code class="key" style="display:block;white-space:pre-wrap;word-break:break-all">${snippet}</code>
+        <div><button class="ghost" @click=${() => { void navigator.clipboard.writeText(snippet); toast(t("fb.copied")); }}>${icon("Copy", 14)} ${t("fbw.settings_copy")}</button></div>
+        <p class="muted" style="margin:0">${t("fbw.settings_api")}</p>` : nothing}
+    </div>`;
   }
 
   render() {
