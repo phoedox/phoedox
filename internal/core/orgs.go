@@ -16,6 +16,8 @@ type OrgInput struct {
 	UsageType string `json:"usageType,omitempty"` // system admins only
 	AIEnabled *bool  `json:"aiEnabled,omitempty"` // org admins
 	QuotaMB   *int   `json:"quotaMb,omitempty"`   // org admins, below the instance limit
+	// AppDomainAllowed allows the app on an own domain (system admins).
+	AppDomainAllowed *bool `json:"appDomainAllowed,omitempty"`
 	// DiscoveryOff forbids network discovery in all projects (org admins).
 	DiscoveryOff *bool  `json:"discoveryOff,omitempty"`
 	AdminEmail   string `json:"adminEmail,omitempty"` // first admin when creating (default: creator)
@@ -170,6 +172,12 @@ func (s *Service) UpdateOrg(ctx context.Context, a Actor, ref string, in OrgInpu
 			return o, invalid("validation.usage_type", nil, "usage type must be commercial or noncommercial")
 		}
 		o.UsageType = in.UsageType
+	}
+	if in.AppDomainAllowed != nil && *in.AppDomainAllowed != o.AppDomainAllowed {
+		if !a.User.IsAdmin {
+			return o, ErrForbidden
+		}
+		o.AppDomainAllowed = *in.AppDomainAllowed
 	}
 	if in.AIEnabled != nil {
 		o.AIEnabled = *in.AIEnabled

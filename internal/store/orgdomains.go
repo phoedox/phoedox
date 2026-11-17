@@ -59,7 +59,8 @@ func (d *DB) DeleteOrgDomain(ctx context.Context, orgID string) error {
 
 // OrgByDomain finds the organization of a verified domain (all tenants).
 func (d *DB) OrgByDomain(ctx context.Context, host string) (OrgDomain, error) {
-	return scanOrgDomain(d.QueryRow(System(ctx), `SELECT `+orgDomainCols+` FROM org_domains WHERE domain = ? AND verified_at IS NOT NULL`, strings.ToLower(host)))
+	return scanOrgDomain(d.QueryRow(System(ctx), `SELECT `+orgDomainCols+` FROM org_domains WHERE domain = ? AND verified_at IS NOT NULL
+		AND org_id IN (SELECT id FROM organizations WHERE app_domain_allowed = ?)`, strings.ToLower(host), true))
 }
 
 // DomainTaken tells whether a domain is used by a publication, a tenant or

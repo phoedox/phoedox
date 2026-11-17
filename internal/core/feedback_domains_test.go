@@ -45,7 +45,12 @@ func TestFeedbackPortalDomain(t *testing.T) {
 	}
 	// Another portal cannot take the domain.
 	v2, _ := s.SaveFeedbackPortal(ctx, owner, p.Slug, "", PortalInput{Handle: "game-two", Name: "Two", Settings: &settings})
-	if _, err := s.SetFeedbackPortalDomain(ctx, owner, p.Slug, v2.ID, "feedback.example.org"); invalidKey(err) != "validation.domain_taken" {
+	if _, err := s.SetFeedbackPortalDomain(ctx, owner, p.Slug, v2.ID, "other.example.org"); invalidKey(err) != "validation.domain_limit" {
+		t.Fatalf("one domain per personal project: %v", err)
+	}
+	p2, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Other"})
+	v3, _ := s.SaveFeedbackPortal(ctx, owner, p2.Slug, "", PortalInput{Handle: "other-game", Name: "Other", Settings: &settings})
+	if _, err := s.SetFeedbackPortalDomain(ctx, owner, p2.Slug, v3.ID, "feedback.example.org"); invalidKey(err) != "validation.domain_taken" {
 		t.Fatalf("taken: %v", err)
 	}
 	views, _ := s.FeedbackPortals(ctx, owner, p.Slug)

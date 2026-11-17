@@ -83,7 +83,7 @@ export interface Project {
   adminAccess?: boolean;
   orgId?: string; orgName?: string;
 }
-export interface Org { id: string; slug: string; name: string; usageType: "commercial" | "noncommercial"; aiEnabled: boolean; quotaMb: number; createdAt: string; role?: "admin" | "member"; discoveryOff?: boolean }
+export interface Org { id: string; slug: string; name: string; usageType: "commercial" | "noncommercial"; aiEnabled: boolean; quotaMb: number; createdAt: string; role?: "admin" | "member"; discoveryOff?: boolean; appDomainAllowed?: boolean }
 export interface OrgMember { userId: string; email: string; name: string; role: string }
 export interface Group { id: string; orgId: string; name: string; oidcGroup: string; members: OrgMember[] }
 export interface OrgDetail extends Org { members: OrgMember[]; groups: Group[] }

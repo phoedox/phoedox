@@ -30,6 +30,19 @@ func TestOrgDomains(t *testing.T) {
 			t.Fatalf("accepted %q", bad)
 		}
 	}
+	// Only after a system admin switched own app domains on.
+	if _, err := s.SetOrgDomain(ctx, owner, o.Slug, "docs.acme.test"); invalidKey(err) != "validation.org_domain_admin" {
+		t.Fatalf("without the admin switch: %v", err)
+	}
+	orgAdmin := owner
+	orgAdmin.User.IsAdmin = false
+	on := true
+	if _, err := s.UpdateOrg(ctx, orgAdmin, o.Slug, OrgInput{AppDomainAllowed: &on}); err != ErrForbidden {
+		t.Fatalf("org admins cannot switch it on: %v", err)
+	}
+	if _, err := s.UpdateOrg(ctx, owner, o.Slug, OrgInput{AppDomainAllowed: &on}); err != nil {
+		t.Fatal(err)
+	}
 	v, err := s.SetOrgDomain(ctx, owner, o.Slug, "Docs.Acme.test.")
 	if err != nil || v.Domain != "docs.acme.test" || v.Verified || v.RecordName != "_phoedox.docs.acme.test" || v.Target != "app.example.org" {
 		t.Fatalf("set: %v %+v", err, v)
@@ -53,6 +66,7 @@ func TestOrgDomains(t *testing.T) {
 	}
 	// another organization cannot take it
 	o2, _ := s.CreateOrg(ctx, owner, OrgInput{Name: "Other"})
+	_, _ = s.UpdateOrg(ctx, owner, o2.Slug, OrgInput{AppDomainAllowed: &on})
 	if _, err := s.SetOrgDomain(ctx, owner, o2.Slug, "docs.acme.test"); invalidKey(err) != "validation.domain_taken" {
 		t.Fatalf("taken: %v", err)
 	}

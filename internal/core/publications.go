@@ -213,6 +213,11 @@ func (s *Service) normalizePublication(ctx context.Context, a Actor, in *Publica
 	if in.Access == "password" && p.PasswordHash == "" {
 		return invalid("validation.pub_password", nil, "set a password for a protected publication")
 	}
+	if in.Domain != "" && in.Domain != p.Domain {
+		if err := s.cnameDomainAllowed(ctx, ids, p.ID, ""); err != nil {
+			return err
+		}
+	}
 	p.Slug, p.Title, p.Description, p.Projects, p.Access = in.Slug, in.Title, strings.TrimSpace(in.Description), ids, in.Access
 	p.Domain, p.Color, p.CSS, p.NoIndex = in.Domain, in.Color, in.CSS, in.NoIndex
 	return nil

@@ -195,8 +195,8 @@ func (a *api) orgDomain(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, err)
 		return
 	}
-	access, err := a.core.OrgDomainAccess(r.Context(), actorOf(r), chi.URLParam(r, "o"))
-	respond(w, map[string]any{"domain": d, "access": access}, err)
+	allowed, err := a.core.OrgAppDomainAllowed(r.Context(), actorOf(r), chi.URLParam(r, "o"))
+	respond(w, map[string]any{"domain": d, "allowed": allowed}, err)
 }
 
 func (a *api) orgFeatures(w http.ResponseWriter, r *http.Request) {

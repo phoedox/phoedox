@@ -4780,4 +4780,9 @@ export const de = {
   "fb.via.email": "E-Mail",
   "fbm.address_once": "Eingangsadresse – nur jetzt sichtbar, gut aufbewahren:",
   "plugins.rating": "Bewertung im Store: {avg} von 5 ({n} Bewertungen)",
+  "orgs.app_domain": "Eigene App-Domain erlauben",
+  "orgs.app_domain_hint": "Nur System-Admins: Die Organisation darf Phoedox unter einer eigenen Adresse betreiben (z. B. docs.firma.de).",
+  "orgdomain.need_admin": "Eine eigene App-Domain schaltet ein System-Admin für die Organisation frei.",
+  "validation.org_domain_admin": "Eine eigene App-Domain muss ein System-Admin für diese Organisation freischalten.",
+  "validation.domain_limit": "„{project}“ hat schon eine eigene Domain – pro Projekt ist eine möglich.",
 } as const;

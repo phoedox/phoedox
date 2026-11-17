@@ -59,11 +59,7 @@ func (s *Service) SetFeedbackPortalDomain(ctx context.Context, a Actor, ref, id,
 		s.event(ctx, a, "feedback.domain", portal.ID, map[string]any{"domain": ""})
 		return nil, nil
 	}
-	sub, err := s.projectSubject(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.requireFeature(ctx, FeatureCustomDomains, sub); err != nil {
+	if err := s.cnameDomainAllowed(ctx, []string{p.ID}, "", portal.ID); err != nil {
 		return nil, err
 	}
 	if !domainRe.MatchString(domain) || len(domain) > 253 {

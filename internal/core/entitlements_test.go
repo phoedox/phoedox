@@ -45,10 +45,14 @@ func TestEntitlements(t *testing.T) {
 	if fa, _ := s.Entitled(ctx, FeatureCustomDomains, OrgSubject(late)); fa.Allowed || fa.Source != EntNone || fa.PaidFrom == nil {
 		t.Fatalf("late: %+v", fa)
 	}
-	if _, err := s.SetOrgDomain(ctx, owner, late.Slug, "docs.late.test"); invalidKey(err) != "validation.feature_paid" {
+	// Own domains of commercial organizations' publications are the paid feature.
+	lateSlug, earlySlug := late.Slug, early.Slug
+	lp, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Late docs", Org: &lateSlug})
+	ep, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Early docs", Org: &earlySlug})
+	if _, err := s.CreatePublication(ctx, owner, PublicationInput{Title: "Late", Projects: []string{lp.Slug}, Domain: "docs.late.test"}); invalidKey(err) != "validation.feature_paid" {
 		t.Fatalf("late org set a domain: %v", err)
 	}
-	if _, err := s.SetOrgDomain(ctx, owner, early.Slug, "docs.early.test"); err != nil {
+	if _, err := s.CreatePublication(ctx, owner, PublicationInput{Title: "Early", Projects: []string{ep.Slug}, Domain: "docs.early.test"}); err != nil {
 		t.Fatalf("early org: %v", err)
 	}
 

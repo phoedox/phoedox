@@ -140,7 +140,10 @@ export class PhxOrg extends SignalWatcher(LitElement) {
     e.preventDefault();
     const f = new FormData(e.target as HTMLFormElement);
     const body: Record<string, unknown> = { name: f.get("name"), aiEnabled: f.get("ai") === "on", discoveryOff: f.get("discovery") !== "on", quotaMb: Number(f.get("quota") || 0) };
-    if (currentUser.get()?.isAdmin) body.usageType = f.get("usage");
+    if (currentUser.get()?.isAdmin) {
+      body.usageType = f.get("usage");
+      body.appDomainAllowed = f.get("appdomain") === "on";
+    }
     this.run(() => api("PATCH", `/orgs/${this.slug}`, body), t("settings.saved"));
   }
 
@@ -200,7 +203,9 @@ export class PhxOrg extends SignalWatcher(LitElement) {
           <label class="field">${t("orgs.name")}<input name="name" .value=${o.name} required maxlength="100"></label>
           ${sys ? html`<label class="field">${t("orgs.usage")}<select name="usage">
             <option value="commercial" ?selected=${o.usageType === "commercial"}>${t("orgs.usage.commercial")}</option>
-            <option value="noncommercial" ?selected=${o.usageType === "noncommercial"}>${t("orgs.usage.noncommercial")}</option></select></label>` : ""}
+            <option value="noncommercial" ?selected=${o.usageType === "noncommercial"}>${t("orgs.usage.noncommercial")}</option></select></label>
+          <label class="switch"><input type="checkbox" name="appdomain" .checked=${!!o.appDomainAllowed}> ${t("orgs.app_domain")}</label>
+          <p class="muted" style="margin:0;font-size:13px">${t("orgs.app_domain_hint")}</p>` : ""}
           <label class="switch"><input type="checkbox" name="ai" .checked=${o.aiEnabled}> ${t("orgs.ai")}</label>
           <p class="muted" style="margin:0;font-size:13px">${t("orgs.ai_hint")}</p>
           <label class="switch"><input type="checkbox" name="discovery" .checked=${!o.discoveryOff}> ${t("orgs.discovery")}</label>

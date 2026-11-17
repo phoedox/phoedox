@@ -39,8 +39,12 @@ func TestPublications(t *testing.T) {
 	if err != nil || pub.Domain != "docs.example.org" || pub.Slug != "doku" {
 		t.Fatalf("create: %v %+v", err, pub)
 	}
-	if _, err := s.CreatePublication(ctx, owner, PublicationInput{Title: "Zwei", Projects: []string{p.Slug}, Domain: "docs.example.org"}); invalidKey(err) != "validation.pub_taken" {
-		t.Fatalf("domain taken: %v", err)
+	// Personal projects: one own domain per project.
+	if _, err := s.CreatePublication(ctx, owner, PublicationInput{Title: "Zwei", Projects: []string{p.Slug}, Domain: "other.example.org"}); invalidKey(err) != "validation.domain_limit" {
+		t.Fatalf("second domain: %v", err)
+	}
+	if _, err := s.CreatePublication(ctx, owner, PublicationInput{Title: "Drei", Projects: []string{p.Slug}}); err != nil {
+		t.Fatalf("without a domain: %v", err)
 	}
 	if got, err := s.DB.PublicationByDomain(ctx, "docs.example.org"); err != nil || got.ID != pub.ID {
 		t.Fatalf("by domain: %v", err)

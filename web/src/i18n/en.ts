@@ -4782,4 +4782,9 @@ export const en: Record<keyof typeof de, string> = {
   "fb.via.email": "e-mail",
   "fbm.address_once": "Inbound address – shown only now, keep it safe:",
   "plugins.rating": "Store rating: {avg} of 5 ({n} ratings)",
+  "orgs.app_domain": "Allow an own app domain",
+  "orgs.app_domain_hint": "System admins only: the organization may run Phoedox at its own address (e.g. docs.company.com).",
+  "orgdomain.need_admin": "A system admin switches an own app domain on for the organization.",
+  "validation.org_domain_admin": "A system admin has to switch an own app domain on for this organization.",
+  "validation.domain_limit": "“{project}” already has its own domain – one per project is possible.",
 };

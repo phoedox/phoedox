@@ -75,7 +75,7 @@ func (s *Service) SetOrgDomain(ctx context.Context, a Actor, ref, domain string)
 		return nil, nil
 	}
 	if cur, err := s.DB.GetOrgDomain(ctx, o.ID); err != nil || cur.Domain != domain {
-		if err := s.requireFeature(ctx, FeatureCustomDomains, orgSubject(o)); err != nil {
+		if err := orgAppDomainAllowed(o); err != nil {
 			return nil, err
 		}
 	}
@@ -181,4 +181,14 @@ func (s *Service) OrgDomainAccess(ctx context.Context, a Actor, ref string) (*Fe
 		return nil, err
 	}
 	return &fa, nil
+}
+
+// OrgAppDomainAllowed tells org admins whether a system admin allowed the
+// app on an own domain for their organization.
+func (s *Service) OrgAppDomainAllowed(ctx context.Context, a Actor, ref string) (bool, error) {
+	o, err := s.org(ctx, a, ref, store.OrgAdmin)
+	if err != nil {
+		return false, err
+	}
+	return o.AppDomainAllowed, nil
 }
