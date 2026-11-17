@@ -9,7 +9,8 @@ and nothing else:
   "priority": 1,
   "reason": "one short sentence why this priority and category",
   "duplicate_of": "id of an open topic about the same issue, or \"\"",
-  "spam": false
+  "spam": false,
+  "entities": ["slugs of listed entries the report is clearly about, at most three"]
 }
 
 Priority: 1 = urgent (data loss, security, many people blocked, crash at
@@ -18,6 +19,9 @@ praise, nice to have).
 
 Spam is advertising, nonsense, insults or text unrelated to the product. A
 short or angry report about a real problem is not spam.
+
+Name entities only when entries are listed and the report clearly concerns
+them (a device, service or product part by name); otherwise send [].
 
 Pick duplicate_of only when the open topic clearly describes the same issue,
 not just the same area.

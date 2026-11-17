@@ -257,3 +257,26 @@ func (a *api) setFeedbackQuota(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, nil, a.core.SetFeedbackQuota(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.MB))
 }
+
+type answerDraftIn struct {
+	Lang string `json:"lang"`
+}
+
+func (a *api) feedbackAnswerDraft(w http.ResponseWriter, r *http.Request) {
+	var in answerDraftIn
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.DraftFeedbackAnswer(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), in.Lang)
+	respond(w, v, err)
+}
+
+func (a *api) entityFeedback(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.EntityFeedbackTopics(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "e"))
+	respond(w, v, err)
+}
+
+func (a *api) taskFeedbackSeen(w http.ResponseWriter, r *http.Request) {
+	respond(w, nil, a.core.SeenTaskFeedback(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id")))
+}

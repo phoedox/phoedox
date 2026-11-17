@@ -14,7 +14,7 @@ interface Portal {
   handle: string; name: string; project: string; intro: string; privacy: string; types: string[]; fields: PortalField[]; attachments: AttachRules;
   anonymous: boolean; accounts: boolean; askEmail: boolean; theme: { accent?: string; accentDark?: string; logo?: string }; accepting: boolean; filesFull: boolean;
 }
-interface Status { portal: string; handle: string; type: string; title: string; body: string; createdAt: string; state: string; finished: boolean; answer?: string; reports: number; deleted: boolean; files: number }
+interface Status { portal: string; handle: string; type: string; title: string; body: string; createdAt: string; state: string; finished: boolean; answer?: string; fixedIn?: string; reports: number; deleted: boolean; files: number }
 
 export const label = (m: Record<string, string> | undefined) => (m ? m[locale()] || m.en || m.de || Object.values(m)[0] || "" : "");
 
@@ -236,6 +236,7 @@ export class PhxFeedbackStatus extends LitElement {
       <h1 style="margin:0;font-size:22px">${s.title}</h1>
       <span class=${s.finished ? "state done" : "state"}>${icon(s.finished ? "CircleCheck" : "Clock", 14)} ${stateLabel(s.state)}</span>
       ${s.reports > 1 ? html`<p class="muted">${t("fb.others", { n: s.reports - 1 })}</p>` : nothing}
+      ${s.fixedIn ? html`<p><strong>${t("fb.fixed_in_status", { version: s.fixedIn })}</strong></p>` : nothing}
       ${s.answer ? html`<div><div class="muted">${t("fb.team_answer")}</div><div class="answer">${s.answer}</div></div>` : nothing}
       ${s.body ? html`<details><summary class="muted">${t("fb.your_text")}</summary><p class="body">${s.body}</p></details>` : nothing}
       <div class="row">

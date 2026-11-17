@@ -32,6 +32,9 @@ const (
 	TriggerCheckRecover = "check.recover"
 	TriggerEntityCreate = "entity.create"
 	TriggerDate         = "date"
+	// TriggerFeedbackTopic: a feedback portal got a new topic (again after
+	// the AI triage sorted it, so category rules see the category).
+	TriggerFeedbackTopic = "feedback.topic"
 )
 
 // Action types.
@@ -58,6 +61,10 @@ type RuleTrigger struct {
 	Field string `json:"field,omitempty"`
 	// DaysBefore: date triggers fire this many days before the date (0–365).
 	DaysBefore int `json:"daysBefore,omitempty"`
+	// Feedback triggers: limit to a portal (id), a category and a report type.
+	Portal     string `json:"portal,omitempty"`
+	Category   string `json:"category,omitempty"`
+	ReportType string `json:"reportType,omitempty"`
 }
 
 // RuleAction says what a rule does. Texts may contain {{variables}}:
@@ -100,6 +107,12 @@ func (s *Service) validRule(ctx context.Context, p store.Project, in *RuleInput)
 			}
 		}
 	case TriggerEntityCreate:
+	case TriggerFeedbackTopic:
+		if t.Portal != "" {
+			if _, err := s.DB.FeedbackPortal(ctx, p.ID, t.Portal); err != nil {
+				return invalid("validation.rule_portal", nil, "unknown feedback portal")
+			}
+		}
 	case TriggerDate:
 		if t.Field == "" {
 			return invalid("validation.rule_field", nil, "a date rule needs a date field")
@@ -407,7 +420,11 @@ func (s *Service) ruleAction(ctx context.Context, r store.Rule, vars map[string]
 		if strings.TrimSpace(title) == "" {
 			title = r.Name
 		}
-		_, err := s.CreateTask(ctx, a, p.Slug, x.Board, TaskInput{Title: title, Description: fillRule(x.Text, vars, false), Column: x.Column, Labels: x.Labels, Assignee: x.Assignee})
+		task, err := s.CreateTask(ctx, a, p.Slug, x.Board, TaskInput{Title: title, Description: fillRule(x.Text, vars, false), Column: x.Column, Labels: x.Labels, Assignee: x.Assignee})
+		if err == nil && vars["feedback_topic"] != "" {
+			// A routed feedback topic: the card becomes its ticket.
+			err = s.DB.LinkTopicTaskAt(ctx, vars["feedback_topic"], task.ID, a.String(), vars["feedback_reports"])
+		}
 		return err
 	case ActionNotify:
 		members, err := s.DB.ListMembers(ctx, p.ID)
@@ -456,7 +473,7 @@ func (s *Service) ruleAction(ctx context.Context, r store.Rule, vars map[string]
 // upper-case names are environment variables, filled later).
 var ruleVar = regexp.MustCompile(`\{\{\s*([a-z][a-z_]*)\s*(\|\s*json\s*)?\}\}`)
 
-var ruleVarNames = []string{"rule", "project", "link", "entry", "kind", "check", "status", "message", "date", "days"}
+var ruleVarNames = []string{"rule", "project", "link", "entry", "kind", "check", "status", "message", "date", "days", "topic", "category", "type", "portal"}
 
 // fillRule replaces rule variables; in requests, values never add new
 // {{…}} that the environment step would fill (no secret injection).

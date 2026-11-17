@@ -9,6 +9,7 @@ import { allowedRels, attrLabel, findKind, formatValue, groupColor, groupName, k
 import { currentProject, docsVersion, navigate } from "../state";
 import { pluginViews } from "../plugin-host";
 import { unsafeStatic, html as shtml } from "lit/static-html.js";
+import "./entity-feedback";
 import "./entity-timeline";
 import { base } from "./shared";
 import "./attachments";
@@ -327,6 +328,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
           </dl>` : html`<p class="muted">${t("entity.none")}</p>`}
           <h2 style="margin-top:12px">${t("entity.mentioned_in")}</h2>
           ${documents.length ? html`<ul>${documents.map((d) => html`<li><a href="/p/${this.project}/d/${d.id}">${icon("FileText", 14)} ${d.title}</a></li>`)}</ul>` : html`<p class="muted">${t("entity.none")}</p>`}
+          <phx-entity-feedback .project=${this.project} .entity=${e.slug}></phx-entity-feedback>
           ${this.vulns(e.attrs ?? {})}
           ${["server", "vm", "lxc", "stack"].includes(e.kind) ? html`<phx-software-tree style="margin-top:12px" .project=${this.project} .entity=${e.slug}></phx-software-tree>` : ""}
           <phx-attachments style="margin-top:12px" .project=${this.project} .entity=${e.id} .editable=${edit}></phx-attachments>

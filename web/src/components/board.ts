@@ -82,6 +82,7 @@ export class PhxBoard extends LitElement {
     .meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
     .meta .late { color: var(--bad); }
     .meta .code { display: inline-flex; gap: 3px; align-items: center; }
+    .meta .fbnew { display: inline-flex; gap: 3px; align-items: center; padding: 0 6px; border-radius: 999px; background: color-mix(in srgb, var(--signal) 18%, var(--surface)); color: var(--fg); font-weight: 600; }
     .meta .rel { display: inline-flex; gap: 3px; align-items: center; color: var(--good); font-family: var(--font-mono); }
     .label { background: var(--accent-soft); color: var(--fg); border-radius: 999px; padding: 0 7px; font-size: 11.5px; }
     .prio { display: inline-flex; align-items: center; gap: 2px; }
@@ -429,6 +430,12 @@ export class PhxBoard extends LitElement {
   descEdit = false;
 
   private show(task: Task) {
+    if (task.feedback?.new && this.canEdit) {
+      // Opening the card counts as having seen the new reports.
+      void api("POST", `/projects/${this.project}/tasks/${task.id}/feedback-seen`).then(() => {
+        this.tasks = this.tasks?.map((x) => (x.id === task.id && x.feedback ? { ...x, feedback: { ...x.feedback, new: 0 } } : x));
+      }).catch(() => undefined);
+    }
     this.subs = (task.subtasks ?? []).map((s) => ({ ...s }));
     this.open = task;
     this.desc = undefined;
@@ -569,7 +576,8 @@ export class PhxBoard extends LitElement {
       ${coverImage(task.description) ? html`<img class="cover" src=${coverImage(task.description)!} alt="" loading="lazy" draggable="false">` : ""}
       <span class="title">${task.title}</span>
       ${this.subtaskList(task)}
-      ${task.labels.length || task.due || task.priority || task.assigneeName || task.assigneeText || task.codeLinks?.length || task.documents?.length || task.subtasks?.length ? html`<span class="meta">
+      ${task.labels.length || task.due || task.priority || task.assigneeName || task.assigneeText || task.codeLinks?.length || task.documents?.length || task.subtasks?.length || task.feedback?.new ? html`<span class="meta">
+        ${task.feedback?.new ? html`<span class="fbnew" title=${t("board.feedback_new", { n: task.feedback.new, topic: task.feedback.title })}>${icon("MessageSquareWarning", 12)} +${task.feedback.new}</span>` : ""}
         ${task.labels.map((l) => html`<span class="label">${l}</span>`)}
         ${task.minutes ? html`<span class="progress" title=${t("time.title")}>${icon("Timer", 12)} ${hm(task.minutes)}</span>` : ""}
         ${task.subtasks?.length ? html`<span class=${task.subtasks.every((s) => s.done) ? "progress all" : "progress"} title=${t("board.subtasks")}>${icon("ListChecks", 12)} ${task.subtasks.filter((s) => s.done).length}/${task.subtasks.length}</span>` : ""}

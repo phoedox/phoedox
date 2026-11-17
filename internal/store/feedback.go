@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -167,16 +168,18 @@ type FeedbackTopic struct {
 	AINote      string `json:"aiNote,omitempty"`
 	DuplicateOf string `json:"duplicateOf,omitempty"`
 	Spam        bool   `json:"spam,omitempty"`
+	// FixedIn is the product version that fixed the topic (told reporters).
+	FixedIn string `json:"fixedIn,omitempty"`
 }
 
 const topicCols = `t.id, t.project_id, t.portal_id, t.title, t.summary, t.type, t.category, t.tags, t.priority, t.state, t.answer, t.report_count, t.created_at, t.updated_at, t.closed_at,
-	(SELECT COUNT(*) FROM feedback_topic_links l WHERE l.topic_id = t.id), t.ai_note, t.duplicate_of, t.spam`
+	(SELECT COUNT(*) FROM feedback_topic_links l WHERE l.topic_id = t.id), t.ai_note, t.duplicate_of, t.spam, t.fixed_in`
 
 func scanTopic(r interface{ Scan(...any) error }) (FeedbackTopic, error) {
 	var t FeedbackTopic
 	var tags string
 	var closed sql.Null[Time]
-	err := r.Scan(&t.ID, &t.ProjectID, &t.PortalID, &t.Title, &t.Summary, &t.Type, &t.Category, &tags, &t.Priority, &t.State, &t.Answer, &t.ReportCount, &t.CreatedAt, &t.UpdatedAt, &closed, &t.Tickets, &t.AINote, &t.DuplicateOf, &t.Spam)
+	err := r.Scan(&t.ID, &t.ProjectID, &t.PortalID, &t.Title, &t.Summary, &t.Type, &t.Category, &tags, &t.Priority, &t.State, &t.Answer, &t.ReportCount, &t.CreatedAt, &t.UpdatedAt, &closed, &t.Tickets, &t.AINote, &t.DuplicateOf, &t.Spam, &t.FixedIn)
 	if errors.Is(err, sql.ErrNoRows) {
 		return t, ErrNotFound
 	}
@@ -198,13 +201,13 @@ func (d *DB) SaveFeedbackTopic(ctx context.Context, t FeedbackTopic) error {
 	if t.ClosedAt != nil {
 		closed = *t.ClosedAt
 	}
-	_, err := d.Exec(ctx, `INSERT INTO feedback_topics (id, tenant_id, project_id, portal_id, title, summary, type, category, tags, priority, state, answer, report_count, created_at, updated_at, closed_at, ai_note, duplicate_of, spam)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := d.Exec(ctx, `INSERT INTO feedback_topics (id, tenant_id, project_id, portal_id, title, summary, type, category, tags, priority, state, answer, report_count, created_at, updated_at, closed_at, ai_note, duplicate_of, spam, fixed_in)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET portal_id = excluded.portal_id, title = excluded.title, summary = excluded.summary, type = excluded.type, category = excluded.category,
-		ai_note = excluded.ai_note, duplicate_of = excluded.duplicate_of, spam = excluded.spam,
+		ai_note = excluded.ai_note, duplicate_of = excluded.duplicate_of, spam = excluded.spam, fixed_in = excluded.fixed_in,
 		tags = excluded.tags, priority = excluded.priority, state = excluded.state, answer = excluded.answer, report_count = excluded.report_count,
 		updated_at = excluded.updated_at, closed_at = excluded.closed_at`,
-		t.ID, TenantOf(ctx), t.ProjectID, t.PortalID, t.Title, t.Summary, t.Type, t.Category, string(tags), t.Priority, t.State, t.Answer, t.ReportCount, t.CreatedAt, t.UpdatedAt, closed, t.AINote, t.DuplicateOf, t.Spam)
+		t.ID, TenantOf(ctx), t.ProjectID, t.PortalID, t.Title, t.Summary, t.Type, t.Category, string(tags), t.Priority, t.State, t.Answer, t.ReportCount, t.CreatedAt, t.UpdatedAt, closed, t.AINote, t.DuplicateOf, t.Spam, t.FixedIn)
 	return err
 }
 
@@ -534,8 +537,18 @@ type TopicTicket struct {
 
 // LinkTopicTask links a card to a topic.
 func (d *DB) LinkTopicTask(ctx context.Context, topicID, taskID, by string) error {
-	_, err := d.Exec(ctx, `INSERT INTO feedback_topic_links (topic_id, task_id, tenant_id, created_by, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
-		topicID, taskID, TenantOf(ctx), by, Now())
+	_, err := d.Exec(ctx, `INSERT INTO feedback_topic_links (topic_id, task_id, tenant_id, created_by, created_at, reports_at_link)
+		VALUES (?, ?, ?, ?, ?, (SELECT report_count FROM feedback_topics WHERE id = ?)) ON CONFLICT DO NOTHING`,
+		topicID, taskID, TenantOf(ctx), by, Now(), topicID)
+	return err
+}
+
+// LinkTopicTaskAt links a card made when the topic had reports reports
+// (later ones count as new on the card).
+func (d *DB) LinkTopicTaskAt(ctx context.Context, topicID, taskID, by, reports string) error {
+	n, _ := strconv.Atoi(reports)
+	_, err := d.Exec(ctx, `INSERT INTO feedback_topic_links (topic_id, task_id, tenant_id, created_by, created_at, reports_at_link) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+		topicID, taskID, TenantOf(ctx), by, Now(), n)
 	return err
 }
 
@@ -622,6 +635,116 @@ func (d *DB) AllFeedbackProjects(ctx context.Context) ([]string, error) {
 			return nil, err
 		}
 		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
+// TaskFeedback is the feedback behind a card: its topic and how many
+// reports came in since the card was linked.
+type TaskFeedback struct {
+	TopicID string `json:"topicId"`
+	Title   string `json:"title"`
+	Reports int    `json:"reports"`
+	New     int    `json:"new"`
+}
+
+// TaskFeedbackOf maps the cards of a project to their feedback topics.
+func (d *DB) TaskFeedbackOf(ctx context.Context, projectID string) (map[string]TaskFeedback, error) {
+	rows, err := d.Query(ctx, `SELECT l.task_id, t.id, t.title, t.report_count, l.reports_at_link
+		FROM feedback_topic_links l JOIN feedback_topics t ON t.id = l.topic_id WHERE t.project_id = ?`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]TaskFeedback{}
+	for rows.Next() {
+		var task string
+		var f TaskFeedback
+		var at int
+		if err := rows.Scan(&task, &f.TopicID, &f.Title, &f.Reports, &at); err != nil {
+			return nil, err
+		}
+		f.New = max(0, f.Reports-at)
+		// A card linked to several topics shows the one with most new reports.
+		if cur, ok := out[task]; !ok || f.New > cur.New {
+			out[task] = f
+		}
+	}
+	return out, rows.Err()
+}
+
+// SeenTaskFeedback resets the "+n new reports" of a card.
+func (d *DB) SeenTaskFeedback(ctx context.Context, taskID string) error {
+	_, err := d.Exec(ctx, `UPDATE feedback_topic_links SET reports_at_link = (SELECT report_count FROM feedback_topics t WHERE t.id = feedback_topic_links.topic_id) WHERE task_id = ?`, taskID)
+	return err
+}
+
+// TopicEntity is an entry linked to a feedback topic.
+type TopicEntity struct {
+	ID     string `json:"id"`
+	Slug   string `json:"slug"`
+	Name   string `json:"name"`
+	Kind   string `json:"kind"`
+	Source string `json:"source"` // person | ai
+}
+
+// TopicEntities lists the entries of a topic.
+func (d *DB) TopicEntities(ctx context.Context, topicID string) ([]TopicEntity, error) {
+	rows, err := d.Query(ctx, `SELECT e.id, e.slug, e.name, e.kind, l.source FROM feedback_topic_entities l JOIN entities e ON e.id = l.entity_id
+		WHERE l.topic_id = ? AND e.deleted_at IS NULL ORDER BY e.name`, topicID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []TopicEntity{}
+	for rows.Next() {
+		var e TopicEntity
+		if err := rows.Scan(&e.ID, &e.Slug, &e.Name, &e.Kind, &e.Source); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// SetTopicEntities replaces the entries of a topic (ids with their source).
+func (d *DB) SetTopicEntities(ctx context.Context, projectID, topicID string, ids map[string]string) error {
+	return d.InTx(ctx, func(tx *Tx) error {
+		if _, err := tx.Exec(ctx, `DELETE FROM feedback_topic_entities WHERE topic_id = ?`, topicID); err != nil {
+			return err
+		}
+		for id, src := range ids {
+			if _, err := tx.Exec(ctx, `INSERT INTO feedback_topic_entities (topic_id, entity_id, tenant_id, project_id, source, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+				topicID, id, TenantOf(ctx), projectID, src, Now()); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// AddTopicEntity links one entry (keeps an existing link and its source).
+func (d *DB) AddTopicEntity(ctx context.Context, projectID, topicID, entityID, source string) error {
+	_, err := d.Exec(ctx, `INSERT INTO feedback_topic_entities (topic_id, entity_id, tenant_id, project_id, source, created_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
+		topicID, entityID, TenantOf(ctx), projectID, source, Now())
+	return err
+}
+
+// EntityTopics lists the topics linked to an entry (open ones first).
+func (d *DB) EntityTopics(ctx context.Context, entityID string) ([]FeedbackTopic, error) {
+	rows, err := d.Query(ctx, `SELECT `+topicCols+` FROM feedback_topics t JOIN feedback_topic_entities l ON l.topic_id = t.id
+		WHERE l.entity_id = ? ORDER BY (t.closed_at IS NULL) DESC, t.updated_at DESC LIMIT 100`, entityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []FeedbackTopic{}
+	for rows.Next() {
+		t, err := scanTopic(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, t)
 	}
 	return out, rows.Err()
 }

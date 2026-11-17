@@ -42,6 +42,8 @@ type Task struct {
 	Subtasks []Subtask `json:"subtasks"`
 	// Minutes is the time logged on the card (filled by the core).
 	Minutes int `json:"minutes,omitempty"`
+	// Feedback is the feedback topic behind the card (filled by the core).
+	Feedback *TaskFeedback `json:"feedback,omitempty"`
 }
 
 // Subtask is one item of a card's checklist.

@@ -63,6 +63,8 @@ type TopicDetail struct {
 	Portal  PortalView             `json:"portal"`
 	Reports []store.FeedbackReport `json:"reports"`
 	Tickets []store.TopicTicket    `json:"tickets"`
+	// Entities are the entries of the knowledge graph the topic is about.
+	Entities []store.TopicEntity `json:"entities"`
 }
 
 func (s *Service) moderatedTopic(ctx context.Context, a Actor, ref, id string) (store.Project, store.FeedbackPortal, store.FeedbackTopic, error) {
@@ -106,7 +108,11 @@ func (s *Service) FeedbackTopic(ctx context.Context, a Actor, ref, id string) (T
 	if tickets == nil {
 		tickets = []store.TopicTicket{}
 	}
-	return TopicDetail{FeedbackTopic: t, Portal: s.portalView(ctx, portal), Reports: reports, Tickets: tickets}, nil
+	ents, _ := s.DB.TopicEntities(ctx, t.ID)
+	if ents == nil {
+		ents = []store.TopicEntity{}
+	}
+	return TopicDetail{FeedbackTopic: t, Portal: s.portalView(ctx, portal), Reports: reports, Tickets: tickets, Entities: ents}, nil
 }
 
 // TopicPatch changes a topic; nil fields stay.
@@ -123,6 +129,10 @@ type TopicPatch struct {
 	// duplicate suggestion.
 	Spam             *bool `json:"spam,omitempty"`
 	DismissDuplicate bool  `json:"dismissDuplicate,omitempty"`
+	// FixedIn is the version that fixed it (told reporters).
+	FixedIn *string `json:"fixedIn,omitempty"`
+	// Entities replaces the linked entries (slugs or ids).
+	Entities *[]string `json:"entities,omitempty"`
 }
 
 // UpdateFeedbackTopic changes a topic (moderators). A new state or answer
@@ -169,13 +179,39 @@ func (s *Service) UpdateFeedbackTopic(ctx context.Context, a Actor, ref, id stri
 	if patch.Answer != nil {
 		t.Answer = excerpt(strings.TrimSpace(*patch.Answer), 4000)
 	}
+	if patch.FixedIn != nil {
+		t.FixedIn = excerpt(strings.TrimSpace(*patch.FixedIn), 60)
+	}
+	if patch.Entities != nil {
+		if len(*patch.Entities) > 50 {
+			return TopicDetail{}, invalid("validation.feedback_entities", nil, "at most 50 entries per topic")
+		}
+		cur, _ := s.DB.TopicEntities(ctx, t.ID)
+		ids := map[string]string{}
+		for _, ref := range *patch.Entities {
+			e, err := s.DB.GetEntity(ctx, p.ID, ref)
+			if err != nil {
+				return TopicDetail{}, invalid("validation.feedback_entity", map[string]any{"entry": ref}, "unknown entry %q", ref)
+			}
+			src := "person"
+			for _, c := range cur {
+				if c.ID == e.ID {
+					src = c.Source
+				}
+			}
+			ids[e.ID] = src
+		}
+		if err := s.DB.SetTopicEntities(ctx, p.ID, t.ID, ids); err != nil {
+			return TopicDetail{}, err
+		}
+	}
 	s.setClosed(&t, ps)
 	t.UpdatedAt = store.Now()
 	if err := s.DB.SaveFeedbackTopic(ctx, t); err != nil {
 		return TopicDetail{}, err
 	}
 	s.event(ctx, a, "feedback.topic", t.ID, patch)
-	if t.State != before.State || t.Answer != before.Answer {
+	if t.State != before.State || t.Answer != before.Answer || t.FixedIn != before.FixedIn {
 		s.tellReporters(ctx, p, portal, t)
 	}
 	return s.FeedbackTopic(ctx, a, ref, id)
@@ -213,7 +249,7 @@ func (s *Service) tellReporters(ctx context.Context, p store.Project, portal sto
 			if lang != "de" {
 				lang = "en"
 			}
-			subject, body, err := renderMail("feedback_update", lang, map[string]any{"Portal": portal.Name, "Title": t.Title, "State": t.State, "Answer": t.Answer})
+			subject, body, err := renderMail("feedback_update", lang, map[string]any{"Portal": portal.Name, "Title": t.Title, "State": t.State, "Answer": t.Answer, "FixedIn": t.FixedIn})
 			if err == nil {
 				_ = s.Mail.Send(ctx, mail.Message{To: r.Email, Subject: subject, Body: body})
 			}

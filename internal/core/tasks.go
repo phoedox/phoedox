@@ -336,6 +336,7 @@ func (s *Service) Tasks(ctx context.Context, a Actor, ref string, boardRef, colu
 	s.attachCodeLinks(ctx, p.ID, out)
 	s.attachTaskDocs(ctx, a, p, out)
 	s.attachMinutes(ctx, p.ID, out)
+	s.attachFeedback(ctx, p.ID, out)
 	return out, nil
 }
 

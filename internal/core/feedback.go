@@ -864,9 +864,13 @@ func (s *Service) SubmitFeedback(ctx context.Context, a *Actor, handle string, i
 			go s.triageReport(tctx, proj, portal, ps, topic.ID, isNew, r)
 		}
 	}
+	if fresh, err := s.DB.FeedbackTopic(ctx, proj.ID, topic.ID); err == nil {
+		topic = fresh // with the recounted reports
+	}
 	if isNew {
 		s.notifyModerators(ctx, portal, Note{Kind: "feedback.topic", ProjectID: proj.ID, Project: proj.Name, Subject: topic.ID, Title: topic.Title,
 			Body: excerpt(body, 300), Link: "/p/" + proj.Slug + "/feedback?topic=" + topic.ID})
+		s.ruleFeedbackTopic(ctx, proj, portal, topic)
 	}
 	receipt.ID, receipt.StatusToken, receipt.TopicID = r.ID, token, topic.ID
 	if email != "" {
@@ -1022,6 +1026,7 @@ type ReportStatus struct {
 	State     string     `json:"state"`
 	Finished  bool       `json:"finished"`
 	Answer    string     `json:"answer,omitempty"`
+	FixedIn   string     `json:"fixedIn,omitempty"`
 	Reports   int        `json:"reports"`
 	Deleted   bool       `json:"deleted"`
 	Files     int        `json:"files"`
@@ -1046,7 +1051,7 @@ func (s *Service) FeedbackStatus(ctx context.Context, token string) (ReportStatu
 	out := ReportStatus{Portal: portal.Name, Handle: portal.Handle, Type: r.Type, Title: r.Title, Body: r.Body, CreatedAt: r.CreatedAt, Deleted: r.Deleted}
 	if r.TopicID != "" {
 		if t, err := s.DB.FeedbackTopic(ctx, "", r.TopicID); err == nil {
-			out.State, out.Answer, out.Reports, out.Finished = t.State, t.Answer, t.ReportCount, t.State == ps.FinishedState
+			out.State, out.Answer, out.Reports, out.Finished, out.FixedIn = t.State, t.Answer, t.ReportCount, t.State == ps.FinishedState, t.FixedIn
 		}
 	}
 	files, _ := s.DB.FeedbackFiles(ctx, []string{r.ID})

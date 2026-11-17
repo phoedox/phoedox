@@ -27,6 +27,9 @@ builds – a game, a website, a system. Reports that describe the same thing are
    - **state** from the portal's states.
    - `answer` is shown to the reporters and sent to them – set it only when a person asked
      for that answer.
+   - `fixed_in`: the product version that fixed it (reporters are told);
+   - `entities`: the knowledge-graph entries the topic is about (slugs); entry pages then
+     list the topic for moderators. The AI triage may already have suggested some.
 4. Duplicates: `merge_feedback_topics` (into = the topic that stays, from = the duplicate).
 5. Into work: `feedback_to_board` creates a card on a board linked to the topic. Make one
    ticket per team or part (e.g. "Frontend" and "Backend"). When all tickets of a topic are
@@ -57,3 +60,14 @@ a reason (`aiNote`), a suspected duplicate (`duplicateOf`) and a spam flag. The
 AI never merges or deletes. When you check a topic, merge real duplicates with
 `merge_feedback_topics`, or clear a wrong suggestion with `update_feedback_topic`
 `dismiss_duplicate: true`; `spam: false` clears a wrong spam flag.
+
+## Routing and follow-up
+
+- Automation rules with the trigger `feedback.topic` (project settings → Automation) turn
+  new topics into cards on a board, optionally only for a portal, a category or a report
+  type; the card becomes the topic's ticket. Category rules run after the AI triage.
+- Cards that are tickets show "+n new reports" when more reports arrive later.
+- Moderators get an urgent notification when a topic becomes priority 1; the daily
+  digest is the person's notification setting.
+- In the moderation view the AI can draft an answer to the reporters; nothing is sent
+  until a moderator saves it.

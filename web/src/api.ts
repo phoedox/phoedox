@@ -121,6 +121,8 @@ export interface Task {
   codeLinks?: CodeLink[];
   /** Pages, decisions and other documents linked to the card (ADR-0064). */
   documents?: TaskDoc[];
+  /** The feedback topic behind the card and its new reports since it was linked. */
+  feedback?: { topicId: string; title: string; reports: number; new: number };
   /** The card's checklist. */
   subtasks?: Subtask[];
 }

@@ -26,6 +26,7 @@ type triageAnswer struct {
 	Reason      string   `json:"reason"`
 	DuplicateOf string   `json:"duplicate_of"`
 	Spam        bool     `json:"spam"`
+	Entities    []string `json:"entities"`
 }
 
 // parseTriage reads the model's JSON (also when wrapped in a code fence).
@@ -71,6 +72,9 @@ func (s *Service) triageReport(ctx context.Context, p store.Project, portal stor
 	for _, c := range cands[:min(len(cands), 20)] {
 		fmt.Fprintf(&b, "- %s: %s\n", c.id, c.title)
 	}
+	if isNew {
+		b.WriteString(s.entityList(ctx, p))
+	}
 	fields, _ := json.Marshal(r.Fields)
 	fmt.Fprintf(&b, "\nNew report (type %s):\n<report>\nTitle: %s\n%s\nFields: %s\n</report>\n", r.Type, r.Title, excerpt(r.Body, 4000), fields)
 	text, err := s.BackgroundAsk(ctx, p, "feedback-triage", []string{resources.Prompt("feedback-triage")}, b.String(), 800)
@@ -89,6 +93,7 @@ func (s *Service) triageReport(ctx context.Context, p store.Project, portal stor
 	if err != nil {
 		return
 	}
+	wasUrgent := t.Priority == 1
 	if isNew && strings.TrimSpace(ans.Summary) != "" {
 		t.Summary = excerpt(strings.TrimSpace(ans.Summary), 600)
 	}
@@ -115,4 +120,11 @@ func (s *Service) triageReport(ctx context.Context, p store.Project, portal stor
 		return
 	}
 	s.event(ctx, Actor{Via: "system"}, "feedback.triage", t.ID, map[string]any{"priority": t.Priority, "category": t.Category, "spam": t.Spam, "duplicate": t.DuplicateOf != ""})
+	if isNew {
+		s.suggestEntities(ctx, p, t.ID, ans.Entities)
+		s.ruleFeedbackTopic(ctx, p, portal, t)
+	}
+	if t.Priority == 1 && !wasUrgent && !t.Spam {
+		s.notifyUrgent(ctx, p, portal, t)
+	}
 }

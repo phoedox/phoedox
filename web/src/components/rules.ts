@@ -7,9 +7,10 @@ import { attrLabel, kindName, loadModel, type Model } from "../model";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
-type TriggerType = "check.fail" | "check.recover" | "entity.create" | "date";
+type TriggerType = "check.fail" | "check.recover" | "entity.create" | "date" | "feedback.topic";
 type ActionType = "task" | "notify" | "http";
-interface Trigger { type: TriggerType; check?: string; kind?: string; field?: string; daysBefore?: number }
+interface Trigger { type: TriggerType; check?: string; kind?: string; field?: string; daysBefore?: number; portal?: string; category?: string; reportType?: string }
+interface FeedbackPortal { id: string; name: string; settings: { categories: string[]; types: string[] } }
 interface Action { type: ActionType; board?: string; column?: string; title?: string; text?: string; labels?: string[]; to?: string; request?: string }
 interface Rule {
   id: string; name: string; enabled: boolean; trigger: Trigger; action: Action;
@@ -74,6 +75,7 @@ export class PhxRules extends LitElement {
   model?: Model;
   checks: MonitorCheck[] = [];
   boards: Doc[] = [];
+  portals: FeedbackPortal[] = [];
   busy = false;
   error = "";
 
@@ -83,6 +85,7 @@ export class PhxRules extends LitElement {
   }
 
   private async load() {
+    void api<FeedbackPortal[]>("GET", `/projects/${this.project}/feedback/portals`).then((l) => (this.portals = l ?? [])).catch(() => undefined);
     [this.rules, this.model, this.checks, this.boards] = await Promise.all([
       api<Rule[]>("GET", `/projects/${this.project}/rules`).catch(() => []),
       loadModel(this.project).catch(() => undefined),
@@ -116,6 +119,11 @@ export class PhxRules extends LitElement {
     const trigger: Trigger = { type: d.trigger.type };
     if (d.trigger.type.startsWith("check.")) trigger.check = String(f.get("check") ?? "");
     if (d.trigger.type === "entity.create" || d.trigger.type === "date") trigger.kind = String(f.get("kind") ?? "");
+    if (d.trigger.type === "feedback.topic") {
+      trigger.portal = String(f.get("portal") ?? "");
+      trigger.category = String(f.get("category") ?? "");
+      trigger.reportType = String(f.get("reportType") ?? "");
+    }
     if (d.trigger.type === "date") {
       trigger.field = String(f.get("field") ?? "");
       trigger.daysBefore = Number(f.get("days") ?? 0);
@@ -181,6 +189,7 @@ export class PhxRules extends LitElement {
       case "check.fail": case "check.recover":
         return t(`auto.when.${x.type === "check.fail" ? "fail" : "recover"}`, { check: this.checks.find((c) => c.id === x.check)?.name ?? t("auto.any_check") });
       case "entity.create": return t("auto.when.create", { kind });
+      case "feedback.topic": return t("auto.when.feedback", { portal: this.portals.find((p) => p.id === x.portal)?.name ?? t("auto.any_portal"), category: x.category || t("auto.any_category") });
       default: {
         const a = this.model?.kinds.flatMap((k) => k.attrs).find((at) => at.name === x.field);
         return t("auto.when.date", { kind, field: a ? attrLabel(a) : x.field ?? "", days: x.daysBefore ?? 0 });
@@ -207,7 +216,7 @@ export class PhxRules extends LitElement {
       <label class="field">${t("auto.name")}<input name="name" required maxlength="120" .value=${r?.name ?? ""} placeholder=${t("auto.name_ph")}></label>
       <fieldset><legend>${icon("Zap", 15)} ${t("auto.when")}</legend>
         <select aria-label=${t("auto.when")} @change=${(e: Event) => set({ type: (e.target as HTMLSelectElement).value as TriggerType }, "trigger")}>
-          ${(["check.fail", "check.recover", "entity.create", "date"] as TriggerType[]).map((x) => html`<option value=${x} ?selected=${d.trigger.type === x}>${t(`auto.trigger.${x.replace(".", "_")}` as any)}</option>`)}
+          ${(["check.fail", "check.recover", "entity.create", "date", ...(this.portals.length ? ["feedback.topic"] : [])] as TriggerType[]).map((x) => html`<option value=${x} ?selected=${d.trigger.type === x}>${t(`auto.trigger.${x.replace(".", "_")}` as any)}</option>`)}
         </select>
         ${d.trigger.type.startsWith("check.") ? html`<label class="field">${t("auto.check")}<select name="check">
           <option value="">${t("auto.any_check")}</option>
@@ -216,6 +225,14 @@ export class PhxRules extends LitElement {
             @change=${(e: Event) => set({ kind: (e.target as HTMLSelectElement).value }, "trigger")}>
           <option value="">${t("auto.any_kind")}</option>
           ${kinds.map((k) => html`<option value=${k.id} ?selected=${d.trigger.kind === k.id}>${kindName(k)}</option>`)}</select></label>` : ""}
+        ${d.trigger.type === "feedback.topic" ? html`<div class="two">
+          <label class="field">${t("auto.portal")}<select name="portal" @change=${(e: Event) => set({ portal: (e.target as HTMLSelectElement).value }, "trigger")}>
+            <option value="">${t("auto.any_portal")}</option>${this.portals.map((p) => html`<option value=${p.id} ?selected=${d.trigger.portal === p.id}>${p.name}</option>`)}</select></label>
+          <label class="field">${t("auto.category")}<select name="category">
+            <option value="">${t("auto.any_category")}</option>${[...new Set(this.portals.filter((p) => !d.trigger.portal || p.id === d.trigger.portal).flatMap((p) => p.settings.categories))].map((c) => html`<option value=${c} ?selected=${d.trigger.category === c}>${c}</option>`)}</select></label>
+          <label class="field">${t("auto.report_type")}<select name="reportType">
+            <option value="">${t("auto.any_type")}</option>${["bug", "idea", "question", "praise"].map((x) => html`<option value=${x} ?selected=${d.trigger.reportType === x}>${t(`fb.type.${x}` as any)}</option>`)}</select></label>
+        </div>` : ""}
         ${d.trigger.type === "date" ? html`<div class="two">
           <label class="field">${t("auto.field")}<select name="field" required>
             ${this.dateFields().map(([n, l], _, all) => html`<option value=${n} ?selected=${n === (d.trigger.field ?? ["cancel_by", "warranty_until", "end"].find((f) => all.some(([x]) => x === f)))}>${l}</option>`)}</select></label>
@@ -242,7 +259,7 @@ export class PhxRules extends LitElement {
             ${Object.keys(presets).map((k) => html`<button type="button" class="ghost" @click=${() => set({ request: presets[k] }, "action")}>${t(`auto.preset.${k}` as any)}</button>`)}</div>
           <label class="field">${t("auto.request")}<textarea class="req" name="request" required spellcheck="false" .value=${d.action.request ?? ""}></textarea></label>
           <p class="vars">${t("auto.request_hint")}</p>`}
-        <p class="vars">${t("auto.vars")} <code>{{rule}}</code> <code>{{entry}}</code> <code>{{kind}}</code> <code>{{check}}</code> <code>{{status}}</code> <code>{{message}}</code> <code>{{date}}</code> <code>{{days}}</code> <code>{{link}}</code> <code>{{project}}</code></p>
+        <p class="vars">${t("auto.vars")} <code>{{rule}}</code> <code>{{entry}}</code> <code>{{kind}}</code> <code>{{check}}</code> <code>{{status}}</code> <code>{{message}}</code> <code>{{date}}</code> <code>{{days}}</code> <code>{{link}}</code> <code>{{project}}</code>${d.trigger.type === "feedback.topic" ? html` <code>{{topic}}</code> <code>{{category}}</code> <code>{{type}}</code> <code>{{portal}}</code>` : ""}</p>
       </fieldset>
       <label class="check"><input type="checkbox" name="enabled" ?checked=${r?.enabled ?? true}> ${t("auto.enabled")}</label>
       ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : ""}

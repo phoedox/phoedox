@@ -12,7 +12,8 @@ interface Topic { id: string; portalId: string; title: string; summary: string; 
 interface FileMeta { id: string; name: string; mime: string; size: number }
 interface Report { id: string; type: string; title: string; body: string; fields: Record<string, unknown>; context: Record<string, string>; userName?: string; userId?: string; email?: string; via: string; check?: string; deleted: boolean; createdAt: string; attachments?: FileMeta[] }
 interface Ticket { taskId: string; title: string; boardSlug: string; board: string; column: string; done: boolean }
-interface Detail extends Omit<Topic, "tickets"> { portal: Portal; reports: Report[]; tickets: Ticket[] }
+interface TopicEntity { id: string; slug: string; name: string; kind: string; source: "person" | "ai" }
+interface Detail extends Omit<Topic, "tickets"> { portal: Portal; reports: Report[]; tickets: Ticket[]; entities: TopicEntity[]; fixedIn?: string }
 interface List { portals: Portal[]; topics: Topic[]; owner: boolean }
 interface Doc { id: string; slug: string; title: string; type: string; content?: Board }
 
@@ -20,7 +21,7 @@ const PRIO = ["", "P1", "P2", "P3", "P4"];
 
 /** Feedback tab of a project: topics from its portals for moderators. */
 export class PhxFeedback extends LitElement {
-  static properties = { project: {}, list: { state: true }, detail: { state: true }, filter: { state: true }, boards: { state: true }, boardCols: { state: true }, busy: { state: true } };
+  static properties = { project: {}, list: { state: true }, detail: { state: true }, filter: { state: true }, boards: { state: true }, boardCols: { state: true }, busy: { state: true }, ents: { state: true } };
   static styles = [base, css`
     :host { display: block; }
     .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin-bottom: 14px; }
@@ -59,6 +60,11 @@ export class PhxFeedback extends LitElement {
     .ai > div { display: grid; gap: 6px; }
     .chip.spam { background: var(--tb-red); color: var(--tc-red); }
     .report select, .actions select { width: auto; max-width: 100%; }
+    .ents { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+    .ent { display: inline-flex; gap: 4px; align-items: center; padding: 2px 4px 2px 8px; border-radius: 999px; background: var(--surface2); font-size: 13px; }
+    .ent.ai { background: var(--accent-soft); }
+    .ent button.icon { padding: 2px; min-height: 0; height: auto; border: 0; }
+    input.entadd { width: 180px; }
   `];
 
   project = "";
@@ -119,6 +125,28 @@ export class PhxFeedback extends LitElement {
     }
   }
 
+  /** Entries of the project for linking (loaded on first use). */
+  ents: { slug: string; name: string }[] = [];
+
+  private async loadEnts() {
+    if (this.ents.length) return;
+    this.ents = ((await api<{ slug: string; name: string }[]>("GET", `/projects/${this.project}/entities`).catch(() => [])) ?? []).slice(0, 500);
+  }
+
+  private async draftAnswer(d: Detail) {
+    this.busy = true;
+    try {
+      const r = await api<{ text: string }>("POST", `/projects/${this.project}/feedback/topics/${d.id}/answer-draft`, { lang: "" });
+      const ta = this.renderRoot.querySelector<HTMLTextAreaElement>("#answer");
+      if (ta) { ta.value = r.text; ta.focus(); }
+      toast(t("fb.answer_drafted"));
+    } catch (e) {
+      toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
+    } finally {
+      this.busy = false;
+    }
+  }
+
   private async pickBoard(slug: string) {
     this.boardCols = [];
     if (!slug) return;
@@ -164,7 +192,17 @@ export class PhxFeedback extends LitElement {
       </div>
       <label class="field">${t("fb.answer")}<textarea rows="3" .value=${d.answer} placeholder=${t("fb.answer_ph")} id="answer"></textarea></label>
       <div class="actions"><button @click=${() => void this.patch({ answer: (this.renderRoot.querySelector("#answer") as HTMLTextAreaElement).value }, t("fb.answer_sent"))}>${icon("Send", 14)} ${t("fb.answer_send")}</button>
+        <button class="ghost" ?disabled=${this.busy} @click=${() => void this.draftAnswer(d)}>${icon("Sparkles", 14)} ${t("fb.answer_draft")}</button>
         <span class="muted">${t("fb.answer_hint")}</span></div>
+      <label class="field" style="max-width:260px">${t("fb.fixed_in")}<input .value=${d.fixedIn ?? ""} placeholder="1.5.0" @change=${(e: Event) => void this.patch({ fixedIn: (e.target as HTMLInputElement).value }, t("fb.fixed_in_saved"))}></label>
+      <div><strong>${t("fb.entities")}</strong>
+        <div class="ents">${d.entities.map((x) => html`<span class="ent ${x.source}">${x.source === "ai" ? icon("Sparkles", 12) : nothing}<a href="/p/${this.project}/e/${x.slug}">${x.name}</a>
+          <button class="ghost icon" aria-label=${t("fb.entity_remove", { name: x.name })} title=${t("fb.entity_remove", { name: x.name })} @click=${() => void this.patch({ entities: d.entities.filter((y) => y.id !== x.id).map((y) => y.slug) })}>${icon("X", 12)}</button></span>`)}
+          <input class="entadd" list="fb-ents" aria-label=${t("fb.entity_add")} placeholder=${t("fb.entity_add")} @focus=${() => void this.loadEnts()}
+            @change=${(e: Event) => { const v = (e.target as HTMLInputElement).value.trim().replace(/^@/, ""); if (!v) return; (e.target as HTMLInputElement).value = ""; void this.patch({ entities: [...d.entities.map((y) => y.slug), v] }); }}>
+          <datalist id="fb-ents">${this.ents.map((x) => html`<option value=${x.slug}>${x.name}</option>`)}</datalist></div>
+        ${d.entities.some((x) => x.source === "ai") ? html`<p class="muted" style="margin:4px 0 0">${t("fb.entities_ai")}</p>` : nothing}
+      </div>
 
       <div><strong>${t("fb.tickets")}</strong>
         <div class="tickets">${d.tickets.length ? d.tickets.map((k) => html`<div class="ticket">${icon(k.done ? "CircleCheck" : "SquareKanban", 15)}

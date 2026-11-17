@@ -2,7 +2,7 @@ Subject: Update on your report to {{.Portal}}: {{.Title}}
 
 Hello,
 
-there is news on "{{.Title}}" at {{.Portal}}. The state is now: {{.State}}.
+there is news on "{{.Title}}" at {{.Portal}}. The state is now: {{.State}}.{{if .FixedIn}} Fixed in version {{.FixedIn}}.{{end}}
 {{if .Answer}}
 The team writes:
 
