@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { backKey, bindingAt, bindTarget, codeLabel, diffBoards, edgePoint, embedKind, frontKey, hitTest, inFrame, linePts, playerURL, removeElement, sorted, wrapText, type WBElement, inBox, groupOf, TEMPLATES, templateEls, slides, toExcalidraw, fromExcalidraw, alignEls, distributeEls, cloneEls, snapBox } from "./whiteboard";
+import { backKey, bindingAt, bindTarget, codeLabel, diffBoards, edgePoint, embedKind, frontKey, hitTest, inFrame, linePts, playerURL, removeElement, sorted, wrapText, type WBElement, inBox, groupOf, TEMPLATES, templateEls, slides, toExcalidraw, fromExcalidraw, alignEls, distributeEls, cloneEls, snapBox, normalizeBoard, type Whiteboard } from "./whiteboard";
 
 const box: WBElement = { id: "a", type: "rect", x: 0, y: 0, w: 100, h: 50 };
 const oval: WBElement = { id: "b", type: "ellipse", x: 300, y: 0, w: 100, h: 50 };
@@ -152,4 +152,19 @@ describe("whiteboard templates and Excalidraw", () => {
     expect(back.find((e) => e.type === "pen")?.points?.length).toBe(3);
     expect(() => fromExcalidraw("{}")).toThrow();
   });
+});
+
+test("prototypes: diff, normalize and screens hit by their label", () => {
+  const a: Whiteboard = { elements: [], prototypes: [{ id: "p", name: "Shop" }] };
+  const b: Whiteboard = { elements: [], prototypes: [{ id: "p", name: "Shop 2" }, { id: "q", name: "New" }] };
+  const d = diffBoards(a, b);
+  expect(d.protos.map((p) => p.id)).toEqual(["p", "q"]);
+  expect(diffBoards(b, a).delProtos).toEqual(["q"]);
+  expect(normalizeBoard({ elements: [], prototypes: [{ id: "p", name: "x" }] }).prototypes).toEqual([{ id: "p", name: "x" }]);
+  const screen = { id: "s", type: "frame" as const, x: 0, y: 0, w: 390, h: 844, screen: { proto: "p" } };
+  const frame = { id: "f", type: "frame" as const, x: 500, y: 0, w: 200, h: 200 };
+  const byId = (id: string) => [screen, frame].find((e) => e.id === id);
+  expect(hitTest([screen, frame], 100, -12, 4, byId)?.id).toBe("s"); // the label above a screen
+  expect(hitTest([screen, frame], 100, 12, 4, byId)).toBeUndefined(); // inside: what is on it, not the screen
+  expect(hitTest([screen, frame], 600, 12, 4, byId)?.id).toBe("f"); // plain frames by their title strip
 });

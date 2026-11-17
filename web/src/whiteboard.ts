@@ -3,7 +3,7 @@
 // the order of elements. Pure, so it can be tested without a browser.
 
 export type Pt = [number, number];
-export type ElementType = "rect" | "ellipse" | "diamond" | "line" | "arrow" | "pen" | "text" | "sticky" | "frame" | "image" | "embed" | "entity";
+export type ElementType = "rect" | "ellipse" | "diamond" | "line" | "arrow" | "pen" | "text" | "sticky" | "frame" | "image" | "embed" | "entity" | "ui";
 export type Color = "gray" | "red" | "orange" | "yellow" | "green" | "blue" | "purple" | "pink";
 export const PALETTE: Color[] = ["gray", "red", "orange", "yellow", "green", "blue", "purple", "pink"];
 
@@ -22,7 +22,25 @@ export interface WBElement {
   frame?: string; groups?: string[]; locked?: boolean; seed?: number;
   entity?: string; doc?: string; file?: string;
   url?: string; kind?: "video" | "code" | "link" | "web" | "app"; preview?: Preview;
+  /** Prototypes: a frame as a screen, a component, interactions. */
+  screen?: WBScreen; ui?: WBUI; actions?: WBAction[];
 }
+
+// ---- prototypes ---------------------------------------------------------------
+
+export type Device = "phone" | "tablet" | "desktop" | "custom";
+export interface WBScreen { proto: string; device?: Device; overlay?: "" | "modal" | "sheet" }
+export type Comp = "button" | "link" | "input" | "textarea" | "checkbox" | "switch" | "radio" | "select" | "slider" | "tabs" | "navbar" | "list" | "card" | "table" | "toast" | "icon" | "chart" | "avatar" | "badge" | "progress";
+export interface WBUI {
+  comp: Comp; variant?: string; placeholder?: string; value?: string; options?: string[]; icon?: string;
+  bind?: string; data?: string; fields?: string[]; min?: number; max?: number; show?: string;
+}
+export type Trigger = "click" | "change" | "hover" | "open" | "delay";
+export type Act = "goto" | "back" | "overlay" | "close" | "set" | "toggle" | "inc" | "add" | "link" | "toast";
+export interface WBAction { on: Trigger; do: Act; target?: string; value?: string; delay?: number; anim?: "" | "slide" | "fade"; item?: string }
+export interface WBVar { name: string; type: "bool" | "text" | "number" | "list"; value?: unknown }
+export interface WBData { name: string; source: "sample" | "query" | "tasks" | "checks"; ref?: string; rows?: Record<string, string | number | boolean | null>[] }
+export interface WBPrototype { id: string; name: string; start?: string; look?: "" | "sketch"; vars?: WBVar[]; data?: WBData[] }
 
 export interface WBReply { id: string; author?: string; name?: string; text: string; at?: string }
 export interface WBComment {
@@ -30,15 +48,16 @@ export interface WBComment {
   text?: string; ink?: Pt[][]; at?: string; resolved?: boolean; replies?: WBReply[];
 }
 export type Background = "" | "plain" | "grid" | "dots";
-export interface Whiteboard { version?: number; background?: Background; elements: WBElement[]; comments?: WBComment[] }
+export interface Whiteboard { version?: number; background?: Background; elements: WBElement[]; comments?: WBComment[]; prototypes?: WBPrototype[] }
 
 export const LINEAR = new Set<ElementType>(["line", "arrow"]);
-export const BOXY = new Set<ElementType>(["rect", "ellipse", "diamond", "sticky", "entity", "image", "embed", "frame", "text"]);
+export const BOXY = new Set<ElementType>(["rect", "ellipse", "diamond", "sticky", "entity", "image", "embed", "frame", "text", "ui"]);
 /** Elements that hold a text a double-click edits. */
-export const TEXTUAL = new Set<ElementType>(["rect", "ellipse", "diamond", "sticky", "text", "arrow", "line"]);
+export const TEXTUAL = new Set<ElementType>(["rect", "ellipse", "diamond", "sticky", "text", "arrow", "line", "ui"]);
 
 export function normalizeBoard(c: Partial<Whiteboard> | undefined): Whiteboard {
-  return { version: 1, background: c?.background ?? "", elements: (c?.elements ?? []).map((e) => ({ ...e })), comments: (c?.comments ?? []).map((n) => ({ ...n })) };
+  return { version: 1, background: c?.background ?? "", elements: (c?.elements ?? []).map((e) => ({ ...e })), comments: (c?.comments ?? []).map((n) => ({ ...n })),
+    prototypes: (c?.prototypes ?? []).map((p) => ({ ...p })) };
 }
 
 // ---- order ------------------------------------------------------------------
@@ -143,7 +162,9 @@ export function hitTest(els: WBElement[], x: number, y: number, tol: number, byI
   }
   for (let i = list.length - 1; i >= 0; i--) {
     const e = list[i];
-    if (e.type === "frame" && y >= (e.y ?? 0) - 4 && y <= (e.y ?? 0) + 26 && x >= (e.x ?? 0) && x <= (e.x ?? 0) + (e.w ?? 0)) return e;
+    // Frames by their title strip; screens by their label above them.
+    const top = e.screen ? (e.y ?? 0) - 30 : (e.y ?? 0) - 4, bottom = e.screen ? (e.y ?? 0) : (e.y ?? 0) + 26;
+    if (e.type === "frame" && y >= top && y <= bottom && x >= (e.x ?? 0) && x <= (e.x ?? 0) + (e.w ?? 0)) return e;
   }
   return undefined;
 }
@@ -279,7 +300,7 @@ export function wrapText(text: string, maxW: number, size: number): string[] {
 // ---- live diff ----------------------------------------------------------------
 
 /** What changed between two boards, element by element (for the live map). */
-export function diffBoards(a: Whiteboard, b: Whiteboard): { set: WBElement[]; del: string[]; notes: WBComment[]; delNotes: string[]; bg: boolean } {
+export function diffBoards(a: Whiteboard, b: Whiteboard): { set: WBElement[]; del: string[]; notes: WBComment[]; delNotes: string[]; bg: boolean; protos: WBPrototype[]; delProtos: string[] } {
   const before = new Map(a.elements.map((e) => [e.id, JSON.stringify(e)]));
   const after = new Set(b.elements.map((e) => e.id));
   const set = b.elements.filter((e) => before.get(e.id) !== JSON.stringify(e));
@@ -288,7 +309,11 @@ export function diffBoards(a: Whiteboard, b: Whiteboard): { set: WBElement[]; de
   const na = new Set((b.comments ?? []).map((c) => c.id));
   const notes = (b.comments ?? []).filter((c) => nb.get(c.id) !== JSON.stringify(c));
   const delNotes = (a.comments ?? []).filter((c) => !na.has(c.id)).map((c) => c.id);
-  return { set, del, notes, delNotes, bg: (a.background ?? "") !== (b.background ?? "") };
+  const pb = new Map((a.prototypes ?? []).map((p) => [p.id, JSON.stringify(p)]));
+  const pa = new Set((b.prototypes ?? []).map((p) => p.id));
+  const protos = (b.prototypes ?? []).filter((p) => pb.get(p.id) !== JSON.stringify(p));
+  const delProtos = (a.prototypes ?? []).filter((p) => !pa.has(p.id)).map((p) => p.id);
+  return { set, del, notes, delNotes, bg: (a.background ?? "") !== (b.background ?? ""), protos, delProtos };
 }
 
 // ---- several elements at once ------------------------------------------------

@@ -941,13 +941,17 @@ textarea.field { padding: 10px 12px; resize: none; }
     restartBtn.addEventListener("click", restart);
     commentBtn.addEventListener("click", () => setCommenting(!commenting));
     closeBtn.addEventListener("click", () => hooks.onClose && hooks.onClose());
+    // Escape steps back: the comment form, comment mode, an overlay, then play mode.
+    function escape() {
+      if (form) closeForm();
+      else if (commenting) setCommenting(false);
+      else if (overlays.length) closeOverlay();
+      else if (hooks.onClose) hooks.onClose();
+      else return false;
+      return true;
+    }
     const onKey = (ev) => {
-      if (ev.key === "Escape") {
-        if (form) closeForm();
-        else if (commenting) setCommenting(false);
-        else if (overlays.length) closeOverlay();
-        else if (hooks.onClose) hooks.onClose();
-      }
+      if (ev.key === "Escape" && escape()) ev.preventDefault();
     };
     shadow.addEventListener("keydown", onKey);
     const ro = typeof ResizeObserver === "function" ? new ResizeObserver(fit) : null;
@@ -981,6 +985,7 @@ textarea.field { padding: 10px 12px; resize: none; }
       },
       restart,
       go,
+      escape,
       screen: () => base && base.id,
       destroy() {
         ro?.disconnect();

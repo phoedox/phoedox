@@ -130,8 +130,12 @@ func checkPrototypeElement(wb *Whiteboard, e *WBElement, ids map[string]bool) er
 	if (e.Type == "ui") != (e.UI != nil) {
 		return bad("component")
 	}
+	if e.Screen != nil && !slices.ContainsFunc(wb.Prototypes, func(p WBPrototype) bool { return p.ID == e.Screen.Proto }) {
+		// Its prototype was deleted (perhaps by someone else at the same time).
+		e.Screen = nil
+	}
 	if e.Screen != nil {
-		if e.Type != "frame" || !slices.ContainsFunc(wb.Prototypes, func(p WBPrototype) bool { return p.ID == e.Screen.Proto }) || !protoDevices[e.Screen.Device] {
+		if e.Type != "frame" || !protoDevices[e.Screen.Device] {
 			return bad("screen")
 		}
 		switch e.Screen.Overlay {
@@ -162,6 +166,13 @@ func checkPrototypeElement(wb *Whiteboard, e *WBElement, ids map[string]bool) er
 	if len(e.Actions) > maxProtoAction {
 		return bad("actions")
 	}
+	// Interactions with a screen that is gone are dropped.
+	e.Actions = slices.DeleteFunc(e.Actions, func(ac WBAction) bool {
+		return (ac.Do == "goto" || ac.Do == "overlay") && !slices.ContainsFunc(wb.Elements, func(x WBElement) bool { return x.ID == ac.Target && x.Screen != nil })
+	})
+	if len(e.Actions) == 0 {
+		e.Actions = nil
+	}
 	for _, ac := range e.Actions {
 		if !protoOn[ac.On] || !protoDo[ac.Do] || ac.Delay < 0 || ac.Delay > 600_000 || len(ac.Value) > 2000 || len(ac.Item) > 200 {
 			return bad("action")
@@ -172,10 +183,6 @@ func checkPrototypeElement(wb *Whiteboard, e *WBElement, ids map[string]bool) er
 			return bad("action")
 		}
 		switch ac.Do {
-		case "goto", "overlay":
-			if !ids[ac.Target] || !slices.ContainsFunc(wb.Elements, func(x WBElement) bool { return x.ID == ac.Target && x.Screen != nil }) {
-				return bad("action target")
-			}
 		case "set", "toggle", "inc", "add":
 			if !protoVarRe.MatchString(ac.Target) {
 				return bad("action target")

@@ -5,7 +5,9 @@ import { applyProjectColor } from "../color";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
 import { renderMarkdown } from "../md";
+import type { Whiteboard } from "../whiteboard";
 import { prose } from "./doc-view";
+import "./wb-proto";
 import { base } from "./shared";
 
 type View = { project: { name: string; primaryColor: string }; single: boolean; documents: Doc[] };
@@ -28,7 +30,7 @@ export function sharedHTML(md: string, token: string): string {
 
 /** Read-only view of a share link: one page, or the pages of a project. */
 export class PhxSharedView extends LitElement {
-  static properties = { token: {}, doc: {}, view: { state: true }, current: { state: true }, error: { state: true } };
+  static properties = { token: {}, doc: {}, view: { state: true }, current: { state: true }, error: { state: true }, playing: { state: true } };
   static styles = [base, unsafeCSS(prose), css`
     .prose { max-width: 72ch; }
     :host { display: block; min-height: 100vh; }
@@ -50,6 +52,8 @@ export class PhxSharedView extends LitElement {
   view?: View;
   current?: Doc;
   error = "";
+  /** The prototype of a shared whiteboard that plays (sample data, no comments). */
+  playing = "";
   private loaded = "";
 
   async willUpdate() {
@@ -64,13 +68,25 @@ export class PhxSharedView extends LitElement {
       }
       const slug = this.doc || this.view.documents[0]?.slug;
       this.current = slug ? await api<Doc>("GET", `/shared/${this.token}/documents/${slug}`) : undefined;
+      const play = new URLSearchParams(location.search).get("play") ?? "";
+      if (play && this.protos().some((p) => p.id === play)) this.playing = play;
     } catch (e) {
       this.error = e instanceof ApiError && e.status === 404 ? t("share.invalid") : t("error.unknown");
     }
   }
 
+  private protos() {
+    return this.current?.type === "whiteboard" ? ((this.current.content as Whiteboard | undefined)?.prototypes ?? []) : [];
+  }
+
   private body(d: Doc) {
     const c = d.content ?? {};
+    if (d.type === "whiteboard") {
+      const list = this.protos();
+      return list.length
+        ? html`<p class="muted">${t("proto.shared_hint")}</p><div style="display:flex;gap:8px;flex-wrap:wrap">${list.map((p) => html`<button @click=${() => (this.playing = p.id)}>${icon("Play", 15)} ${p.name}</button>`)}</div>`
+        : html`<p class="muted">${t("proto.shared_none")}</p>`;
+    }
     const md = (s: string) => html`<div class="prose">${unsafeHTML(sharedHTML(s ?? "", this.token))}</div>`;
     if (d.type === "markdown") return md(c.markdown);
     if (d.type === "link") return html`<p><a class="btn" href=${c.url} target="_blank" rel="noopener external">${icon("ExternalLink", 15)} ${t("doc.open_link")}</a></p>${c.description ? md(c.description) : ""}`;
@@ -85,9 +101,10 @@ export class PhxSharedView extends LitElement {
     const d = this.current;
     return html`<header><span class="pi"></span><b>${v.project.name}</b><span class="chip ro">${icon("Globe", 12)} ${t("share.read_only")}</span></header>
       <div class=${v.single ? "wrap single" : "wrap"}>
-        ${v.single ? "" : html`<nav aria-label=${t("nav.menu")}>${v.documents.map((x) => html`<a href="/s/${this.token}/${x.slug}" class=${x.id === d?.id ? "on" : ""}>${icon(x.type === "adr" ? "Scale" : x.type === "link" ? "Link" : "FileText", 14)} ${x.title}</a>`)}</nav>`}
+        ${v.single ? "" : html`<nav aria-label=${t("nav.menu")}>${v.documents.map((x) => html`<a href="/s/${this.token}/${x.slug}" class=${x.id === d?.id ? "on" : ""}>${icon(x.type === "adr" ? "Scale" : x.type === "link" ? "Link" : x.type === "whiteboard" ? "Presentation" : "FileText", 14)} ${x.title}</a>`)}</nav>`}
         <main>${d ? html`<article class="enter"><h1>${d.title}</h1><p class="muted" style="font-size:13px">${t("doc.updated", { date: formatDate(d.updatedAt) })}</p>${this.body(d)}</article>` : html`<p class="muted">${t("share.empty")}</p>`}</main>
-      </div>`;
+      </div>
+      ${this.playing && d ? html`<phx-proto-play .token=${this.token} .board=${d.content as Whiteboard} .proto=${this.playing} @close=${() => (this.playing = "")}></phx-proto-play>` : ""}`;
   }
 }
 customElements.define("phx-shared-view", PhxSharedView);

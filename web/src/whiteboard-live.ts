@@ -10,7 +10,7 @@ import { WebsocketProvider } from "y-websocket";
 import * as Y from "yjs";
 import { api } from "./api";
 import { MSG_CONTROL, MSG_SNAPSHOT, type Control } from "./collab";
-import { diffBoards, normalizeBoard, type Background, type Pt, type WBComment, type WBElement, type Whiteboard } from "./whiteboard";
+import { diffBoards, normalizeBoard, type Background, type Pt, type WBComment, type WBElement, type WBPrototype, type Whiteboard } from "./whiteboard";
 
 export type Status = "connecting" | "connected" | "disconnected";
 export interface Peer { id: number; name: string; color: string; cursor?: Pt; laser?: Pt[]; laserAt?: number; selection?: string }
@@ -51,13 +51,15 @@ export function connectBoard(o: LiveOptions): Live {
   const els = doc.getMap<WBElement>("els");
   const notes = doc.getMap<WBComment>("notes");
   const meta = doc.getMap<string>("meta");
+  const protos = doc.getMap<WBPrototype>("protos");
   const LOCAL = { local: true };
-  const undo = new Y.UndoManager([els, notes, meta], { trackedOrigins: new Set([LOCAL]), captureTimeout: 500 });
+  const undo = new Y.UndoManager([els, notes, meta, protos], { trackedOrigins: new Set([LOCAL]), captureTimeout: 500 });
   const provider = new WebsocketProvider(o.url, o.doc, doc, { connect: false, disableBc: true });
   const current = (): Whiteboard => ({
     version: 1, background: (meta.get("bg") ?? "") as Background,
     elements: [...els.values()].map((e) => ({ ...e })),
     comments: [...notes.values()].map((c) => ({ ...c })),
+    prototypes: [...protos.values()].map((p) => ({ ...p })),
   });
 
   const write = (before: Whiteboard, after: Whiteboard) => {
@@ -67,11 +69,14 @@ export function connectBoard(o: LiveOptions): Live {
     for (const id of d.delNotes) notes.delete(id);
     for (const c of d.notes) notes.set(c.id, c);
     if (d.bg) meta.set("bg", after.background ?? "");
+    for (const id of d.delProtos) protos.delete(id);
+    for (const p of d.protos) protos.set(p.id, p);
   };
   const fill = (b: Whiteboard) => {
     els.clear();
     notes.clear();
     meta.clear();
+    protos.clear();
     write({ elements: [], comments: [] }, b);
   };
 
@@ -139,7 +144,7 @@ export function connectBoard(o: LiveOptions): Live {
   provider.on("sync", (synced: boolean) => {
     if (!synced || !shouldBootstrap) return;
     shouldBootstrap = false;
-    if (els.size || notes.size || meta.size) return;
+    if (els.size || notes.size || meta.size || protos.size) return;
     // The first editor fills the shared state from the published board.
     doc.transact(() => fill(o.initial), "bootstrap");
   });

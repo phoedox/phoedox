@@ -20,14 +20,17 @@ import {
   alignEls, cloneEls, fromExcalidraw, slides, templateEls, toExcalidraw, TEMPLATES, type Template, type Box, distributeEls, groupOf, inBox, shiftEl, snapBox, CLIP_PREFIX, type AlignHow,
 } from "../whiteboard";
 import { connectBoard, type Live, type Peer, type Status } from "../whiteboard-live";
+import type { Comp, Device, WBPrototype } from "../whiteboard";
+import { COMPS, DEVICES, PreviewCache, actionsView, drawFlow, drawScreen, inspector, newProtoId, protoById, screenOf, screensOf, settingsDialog, type InspectorCtx } from "./wb-proto";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
-type Tool = "select" | "hand" | "rect" | "ellipse" | "diamond" | "arrow" | "line" | "pen" | "text" | "sticky" | "frame" | "image" | "embed" | "entity" | "comment" | "laser" | "eraser";
+type Tool = "select" | "hand" | "rect" | "ellipse" | "diamond" | "arrow" | "line" | "pen" | "text" | "sticky" | "frame" | "image" | "embed" | "entity" | "comment" | "laser" | "eraser" | "screen" | "ui";
 const TOOLS: (readonly [Tool, string, string] | "|")[] = [
   ["select", "MousePointer2", "V"], ["hand", "Hand", "H"], "|",
   ["rect", "Square", "R"], ["ellipse", "Circle", "O"], ["diamond", "Diamond", "D"], ["arrow", "MoveUpRight", "A"], ["line", "Minus", "L"], ["pen", "Pencil", "P"], "|",
   ["text", "Type", "T"], ["sticky", "StickyNote", "N"], ["frame", "Frame", "F"], ["image", "Image", "I"], ["embed", "Globe", "W"], ["entity", "Waypoints", "E"], "|",
+  ["screen", "Smartphone", "S"], ["ui", "Component", "U"], "|",
   ["comment", "MessageSquarePlus", "C"], ["laser", "Wand", "K"], ["eraser", "Eraser", "X"],
 ];
 const VIEW_TOOLS = new Set<Tool>(["select", "hand", "laser"]);
@@ -78,6 +81,7 @@ export class PhxWhiteboard extends LitElement {
     tool: { state: true }, selId: { state: true }, sel: { state: true }, snap: { state: true }, embedWeb: { state: true }, apps: { state: true }, cards: { state: true }, mermaid: { state: true }, present: { state: true }, status: { state: true }, saved: { state: true }, peers: { state: true }, zoom: { state: true },
     pop: { state: true }, menu: { state: true }, panel: { state: true }, arrowMode: { state: true }, roundDefault: { state: true }, trail: { state: true }, laserSize: { state: true },
     entities: { state: true }, query: { state: true }, busy: { state: true }, boardVersion: { state: true },
+    uiComp: { state: true }, screenDevice: { state: true }, screenProto: { state: true }, protoDlg: { state: true }, playing: { state: true },
   };
 
   static styles = [base, css`
@@ -194,6 +198,26 @@ export class PhxWhiteboard extends LitElement {
     .menu .icons button:focus-visible { outline: none; background: var(--surface2); }
     .menu .note { padding: 2px 8px 4px; font-size: 11px; color: var(--muted); }
     :host([presenting]) .bar:not(.present), :host([presenting]) .stylebar, :host([presenting]) .panel, :host([presenting]) .pop { display: none !important; }
+    .stylebar.proto { width: 252px; }
+    .stylebar label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+    .stylebar label.check { display: flex; align-items: center; gap: 6px; color: var(--fg); }
+    .stylebar label.check input { width: auto; }
+    .stylebar input, .stylebar select, .stylebar textarea { width: 100%; box-sizing: border-box; font-size: 12.5px; }
+    .stylebar .two { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .stylebar .act { display: grid; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; position: relative; }
+    .stylebar .act > button.danger { justify-self: end; height: 24px; }
+    .opts.comps { max-width: calc(100% - 20px); overflow-x: auto; }
+    .opts.comps button { width: 30px; height: 30px; }
+    .opts select { height: 28px; font-size: 12px; }
+    dialog.proto { width: min(640px, 94vw); max-height: 88vh; overflow: auto; }
+    dialog.proto h3 { font-size: 14px; margin: 18px 0 2px; }
+    dialog.proto p.muted { margin: 0 0 8px; font-size: 12.5px; }
+    dialog.proto .plist { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+    dialog.proto .plist li { display: grid; grid-template-columns: 1fr 110px 1fr auto; gap: 6px; align-items: center; }
+    dialog.proto fieldset.pdata { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin: 0 0 8px; display: grid; gap: 8px; }
+    dialog.proto fieldset.pdata textarea { min-height: 70px; margin: 0; }
+    dialog.proto .acts { flex-wrap: wrap; margin-top: 16px; }
+    dialog.proto .acts .btn { height: 34px; display: inline-flex; align-items: center; gap: 6px; }
     .bar.present { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; font-size: 13px; }
     .bar.present span { padding: 0 6px; color: var(--muted); max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   `];
@@ -241,6 +265,14 @@ export class PhxWhiteboard extends LitElement {
   query = "";
   busy = false;
   boardVersion = 0;
+  /** Prototypes: the component the "ui" tool places, the device and
+   * prototype of new screens, the open settings, the prototype playing. */
+  uiComp: Comp = "button";
+  screenDevice: Exclude<Device, "custom"> = "phone";
+  screenProto = "";
+  protoDlg = "";
+  playing: { proto: string; start?: string } | null = null;
+  private previews = new PreviewCache();
 
   private board: Whiteboard = { elements: [], comments: [] };
   private synced: Whiteboard = { elements: [], comments: [] };
@@ -350,6 +382,9 @@ export class PhxWhiteboard extends LitElement {
     requestAnimationFrame(() => {
       this.fit();
       this.findFromURL();
+      // A play link (?play=<prototype>) starts the prototype.
+      const play = new URLSearchParams(location.search).get("play");
+      if (play && protoById(this.board, play)) this.playing = { proto: play };
     });
   }
 
@@ -566,7 +601,11 @@ export class PhxWhiteboard extends LitElement {
     world.setAttribute("transform", `translate(${this.view.x},${this.view.y}) scale(${this.view.z})`);
     const grid = svg.querySelector("pattern#wbgrid");
     grid?.setAttribute("patternTransform", `translate(${this.view.x % (24 * this.view.z)},${this.view.y % (24 * this.view.z)}) scale(${this.view.z})`);
-    layer.replaceChildren(...sorted(this.els()).map((e) => this.drawEl(svg, e)));
+    // Screens are opaque: always behind what is on them.
+    const all = sorted(this.els());
+    layer.replaceChildren(...[...all.filter((e) => e.screen), ...all.filter((e) => !e.screen)].map((e) => this.drawEl(svg, e)));
+    if (!this.still && this.els().some((e) => e.actions?.length)) layer.append(drawFlow(this.board, this.view.z));
+    this.previews.prune(new Set(this.els().filter((e) => e.ui).map((e) => e.id)));
     this.syncApps();
     if (this.sel.length > 1) layer.append(this.drawMulti());
     const d = this.drag;
@@ -623,7 +662,14 @@ export class PhxWhiteboard extends LitElement {
     if (e.opacity && e.opacity < 1) g.style.opacity = String(e.opacity);
     const x = e.x ?? 0, y = e.y ?? 0, w = e.w ?? 0, h = e.h ?? 0, size = e.fontSize || 20;
     switch (e.type) {
+      case "ui":
+        g.append(this.previews.draw(e, this.board));
+        break;
       case "frame": {
+        if (e.screen) {
+          drawScreen(e, this.board, g);
+          break;
+        }
         const r = mk("rect", { x, y, width: w, height: h, rx: 14 }, g);
         r.style.cssText = "fill:none;stroke:var(--line);stroke-width:1.5;stroke-dasharray:6 6";
         const tx = mk("text", { x: x + 12, y: y + 18 }, g);
@@ -1289,6 +1335,14 @@ export class PhxWhiteboard extends LitElement {
       if (!h.locked) this.drag = { mode: "move", id: h.id, lx: x, ly: y, moved: false };
       return;
     }
+    if (this.tool === "screen") {
+      this.placeScreen(x, y);
+      return;
+    }
+    if (this.tool === "ui") {
+      this.placeComp(x, y);
+      return;
+    }
     const base: WBElement = { id: newId(), type: this.tool as ElementType, stroke: this.pen.stroke, smooth: this.pen.smooth };
     if (this.tool === "text" || this.tool === "sticky") {
       const e: WBElement = this.tool === "text" ? { ...base, x, y: y - 14, w: 240, h: 34, text: "" } : { ...base, stroke: undefined, x: x - 80, y: y - 60, w: 160, h: 120, text: "", fill: "yellow" };
@@ -1588,7 +1642,7 @@ export class PhxWhiteboard extends LitElement {
   }
 
   private onKey = (ev: KeyboardEvent) => {
-    if (!this.isConnected || this.still || this.typing(ev) || !this.svgEl) return;
+    if (!this.isConnected || this.still || this.playing || this.typing(ev) || !this.svgEl) return;
     const k = ev.key.toLowerCase(), mod = ev.ctrlKey || ev.metaKey;
     if (this.present >= 0) {
       if (["arrowright", "arrowdown", " ", "pagedown", "enter"].includes(k)) { ev.preventDefault(); this.presentAt(this.present + 1); }
@@ -2052,7 +2106,7 @@ export class PhxWhiteboard extends LitElement {
       const r = mk("rect", { x: x!, y: y!, width: w!, height: h!, rx: 10, fill: resolve("var(--surface)"), stroke: resolve("var(--line)") }, g);
       r.setAttribute("stroke-width", "1.5");
       const tx = mk("text", { x: Number(x) + 14, y: Number(y) + 26, fill: resolve("var(--fg)"), "font-size": 14, "font-family": "sans-serif" }, g);
-      tx.textContent = (fo.textContent ?? "").trim().slice(0, 60);
+      tx.textContent = (fo.getAttribute("data-label") ?? fo.textContent ?? "").trim().slice(0, 60);
       fo.replaceWith(g);
     }
     for (const n of [layer, ...layer.querySelectorAll("*")]) {
@@ -2126,6 +2180,8 @@ export class PhxWhiteboard extends LitElement {
     if (this.sel.length > 1 && !this.readOnly && !this.editing) return this.multiBar();
     const e = this.selId ? this.byId(this.selId) : undefined;
     if (!e || this.readOnly || this.editing) return nothing;
+    if (e.ui || e.screen) return inspector(this.inspCtx(e));
+    const onScreen = e.type !== "frame" && !!screenOf(this.board, e);
     const set = (patch: Partial<WBElement>) => {
       const cur = this.byId(e.id);
       if (!cur) return;
@@ -2159,7 +2215,113 @@ export class PhxWhiteboard extends LitElement {
         <button class="ghost danger" title=${t("wb.delete")} aria-label=${t("wb.delete")} @click=${() => this.removeEl(e.id)}>${icon("Trash2", 14)}</button>
         ${e.entity ? html`<a class="btn ghost" style="height:28px;padding:0 8px;font-size:12px" href="/p/${this.project}/e/${e.entity}" @click=${(ev: MouseEvent) => { if (!ev.ctrlKey && !ev.metaKey && ev.button === 0) { ev.preventDefault(); navigate(`/p/${this.project}/e/${e.entity}`); } }}>${icon("ExternalLink", 13)} ${t("wb.open_entry")}</a>` : nothing}
       </div>
+      ${onScreen ? html`<div @keydown=${(ev: Event) => ev.stopPropagation()} style="display:grid;gap:6px">${actionsView(this.inspCtx(e), false)}</div>` : nothing}
     </aside>`;
+  }
+
+  // ---- prototypes --------------------------------------------------------------
+
+  private inspCtx(e: WBElement): InspectorCtx {
+    return {
+      e, board: this.board,
+      set: (patch) => {
+        const cur = this.byId(e.id);
+        if (!cur) return;
+        for (const [k, v] of Object.entries(patch)) {
+          if (v === undefined) delete (cur as unknown as Record<string, unknown>)[k];
+          else (cur as unknown as Record<string, unknown>)[k] = v;
+        }
+        this.changed();
+        this.requestUpdate();
+      },
+      setProto: (id, patch) => this.setProto(id, patch),
+      play: (proto, screen) => (this.playing = { proto, start: screen }),
+      settings: (proto) => void this.openProto(proto),
+    };
+  }
+
+  /** Changes a prototype (null deletes it; its screens become frames). */
+  private setProto(id: string, patch: Partial<WBPrototype> | null) {
+    const list = this.board.prototypes ?? [];
+    if (patch === null) {
+      this.board.prototypes = list.filter((p) => p.id !== id);
+      for (const e of this.els()) if (e.screen?.proto === id) delete e.screen;
+    } else {
+      this.board.prototypes = list.map((p) => {
+        if (p.id !== id) return p;
+        const n = { ...p, ...patch } as Record<string, unknown>;
+        for (const [k, v] of Object.entries(n)) if (v === undefined) delete n[k];
+        return n as unknown as WBPrototype;
+      });
+    }
+    this.changed();
+    this.requestUpdate();
+  }
+
+  private async openProto(id: string) {
+    this.protoDlg = id;
+    await this.updateComplete;
+    const d = this.renderRoot.querySelector<HTMLDialogElement>("dialog.proto");
+    if (d && !d.open) d.showModal();
+  }
+
+  private closeProto = () => {
+    this.renderRoot.querySelector<HTMLDialogElement>("dialog.proto")?.close();
+    this.protoDlg = "";
+  };
+
+  /** A new screen of the device chosen, in the chosen (or a new) prototype. */
+  private placeScreen(x: number, y: number) {
+    let proto = this.screenProto === "+new" ? undefined : protoById(this.board, this.screenProto) ?? (this.board.prototypes ?? [])[0];
+    if (!proto) {
+      proto = { id: newProtoId(this.board), name: t("proto.default_name", { n: (this.board.prototypes ?? []).length + 1 }) };
+      this.board.prototypes = [...(this.board.prototypes ?? []), proto];
+      this.screenProto = proto.id;
+    }
+    const [w, h] = DEVICES[this.screenDevice];
+    const n = screensOf(this.board, proto.id).length + 1;
+    const e: WBElement = { id: newId(), type: "frame", x, y, w, h, text: t("proto.screen_n", { n }), screen: { proto: proto.id, device: this.screenDevice } };
+    this.add(e, true);
+    this.tool = "select";
+    this.select(e.id);
+    this.changed();
+  }
+
+  /** A component at a point; on a screen it fits the screen's width. */
+  private placeComp(x: number, y: number) {
+    const def = COMPS.find((c) => c.comp === this.uiComp) ?? COMPS[0];
+    const probe: WBElement = { id: "", type: "ui", x, y, w: 1, h: 1 };
+    const scr = screenOf(this.board, probe);
+    let w = def.w, h = def.h;
+    if (scr) w = Math.min(w, (scr.w ?? w) - 32);
+    if (scr && def.comp === "navbar") {
+      x = scr.x ?? x;
+      y = (scr.y ?? y) + (scr.h ?? 0) - h;
+      w = scr.w ?? w;
+    }
+    const opts = [1, 2, 3].map((n) => t("proto.option_n", { n }));
+    const ui: WBElement["ui"] = { comp: def.comp };
+    if (["radio", "select", "tabs", "navbar", "list"].includes(def.comp)) ui.options = opts;
+    if (def.comp === "navbar") ui.fields = ["house", "search", "user"];
+    if (def.comp === "icon") ui.icon = "star";
+    const labelled = ["button", "link", "checkbox", "switch", "card", "toast", "badge", "slider", "avatar"].includes(def.comp);
+    const e: WBElement = { id: newId(), type: "ui", x, y, w, h, ui, frame: scr?.id, text: labelled ? t(`proto.c.${def.comp}` as any) : undefined };
+    this.add(e);
+    this.tool = "select";
+    this.select(e.id);
+    this.changed();
+  }
+
+  private protoView() {
+    const protos = this.board.prototypes ?? [];
+    return html`
+      ${this.protoDlg && protoById(this.board, this.protoDlg) ? settingsDialog({
+        board: this.board, id: this.protoDlg, project: this.project, doc: this.doc!.id, canEdit: !this.readOnly,
+        setProto: (id, patch) => this.setProto(id, patch), pick: (id) => (this.protoDlg = id),
+        play: (proto) => (this.playing = { proto }), close: this.closeProto,
+      }) : nothing}
+      ${this.playing && protoById(this.board, this.playing.proto) ? html`<phx-proto-play .project=${this.project} .doc=${this.doc!.id} .board=${this.board} .version=${this.boardVersion}
+        .proto=${this.playing.proto} .start=${this.playing.start ?? ""} ?canComment=${!this.still && protos.length > 0} @close=${() => (this.playing = null)}></phx-proto-play>` : nothing}`;
   }
 
   private popPos(x: number, y: number) {
@@ -2695,6 +2857,15 @@ export class PhxWhiteboard extends LitElement {
         <span class="seg"><button aria-pressed=${this.arrowMode === "drag" ? "true" : "false"} @click=${() => this.setArrowMode("drag")}>${t("wb.mode_drag")}</button><button aria-pressed=${this.arrowMode === "click" ? "true" : "false"} @click=${() => this.setArrowMode("click")}>${t("wb.mode_click")}</button></span>
         <span class="seg"><button aria-pressed=${this.roundDefault ? "true" : "false"} @click=${() => { this.roundDefault = true; try { localStorage.setItem("wb.round", "1"); } catch { /* ignore */ } }}>${t("wb.round")}</button><button aria-pressed=${!this.roundDefault ? "true" : "false"} @click=${() => { this.roundDefault = false; try { localStorage.setItem("wb.round", "0"); } catch { /* ignore */ } }}>${t("wb.sharp")}</button></span>
         <span>${this.arrowMode === "drag" ? t("wb.hint_drag") : t("wb.hint_click")}</span></div>` : nothing}
+      ${this.tool === "screen" ? html`<div class="bar opts">
+        <span class="seg" role="group" aria-label=${t("proto.device")}>${(["phone", "tablet", "desktop"] as const).map((d) => html`<button aria-pressed=${this.screenDevice === d ? "true" : "false"} @click=${() => (this.screenDevice = d)}>${t(`proto.device_${d}` as any)}</button>`)}</span>
+        <select aria-label=${t("proto.prototype")} @change=${(e: Event) => (this.screenProto = (e.target as HTMLSelectElement).value)} @keydown=${(e: Event) => e.stopPropagation()}>
+          ${(this.board.prototypes ?? []).map((p, i) => html`<option value=${p.id} ?selected=${this.screenProto === p.id || (i === 0 && !this.screenProto)}>${p.name}</option>`)}
+          <option value="+new" ?selected=${this.screenProto === "+new" || !(this.board.prototypes ?? []).length}>${t("proto.new_prototype")}</option></select>
+        <span>${t("proto.hint_screen")}</span></div>` : nothing}
+      ${this.tool === "ui" ? html`<div class="bar opts comps" role="group" aria-label=${t("proto.component")}>
+        ${COMPS.map((c) => html`<button aria-pressed=${this.uiComp === c.comp ? "true" : "false"} title=${t(`proto.c.${c.comp}` as any)} aria-label=${t(`proto.c.${c.comp}` as any)} @click=${() => (this.uiComp = c.comp)}>${icon(c.icon, 16)}</button>`)}
+        <span>${t("proto.hint_ui")}</span></div>` : nothing}
       ${this.tool === "laser" ? html`<div class="bar opts">
         <span class="seg"><button aria-pressed=${this.trail ? "true" : "false"} @click=${() => { this.trail = true; try { localStorage.setItem("wb.trail", "trail"); } catch { /* ignore */ } }}>${t("wb.trail")}</button><button aria-pressed=${!this.trail ? "true" : "false"} @click=${() => { this.trail = false; try { localStorage.setItem("wb.trail", "dot"); } catch { /* ignore */ } }}>${t("wb.dot")}</button></span>
         <span class="seg" role="group" aria-label=${t("wb.thickness")}>${[3, 4.5, 7].map((s, i) => html`<button aria-pressed=${this.laserSize === s ? "true" : "false"} aria-label=${[t("wb.thin"), t("wb.medium"), t("wb.bold")][i]} title=${[t("wb.thin"), t("wb.medium"), t("wb.bold")][i]}
@@ -2720,6 +2891,11 @@ export class PhxWhiteboard extends LitElement {
         ${this.readOnly ? nothing : html`<button aria-label=${t("wb.import_excalidraw")} title=${t("wb.import_excalidraw")} @click=${() => this.pickExcalidraw()}>${icon("Upload", 16)}</button>
           <button aria-label=${t("wb.mermaid_title")} title=${t("wb.mermaid_title")} @click=${() => void this.openMermaid()}>${icon("Workflow", 16)}</button>`}
         <button aria-label=${t("wb.present")} title=${t("wb.present")} @click=${() => this.presentAt(0)}>${icon("Presentation", 16)}</button>
+        ${(this.board.prototypes ?? []).length ? html`<button aria-label=${t("proto.prototypes")} title=${t("proto.prototypes")} @click=${() => {
+          const list = this.board.prototypes ?? [];
+          if (list.length === 1 && this.readOnly) this.playing = { proto: list[0].id };
+          else void this.openProto(list[0].id);
+        }}>${icon("Play", 16)}</button>` : nothing}
         <button aria-label=${t("wb.comments")} title=${t("wb.comments")} aria-pressed=${this.panel ? "true" : "false"} @click=${() => (this.panel = !this.panel)}>${icon("MessageSquare", 16)}${open ? html`<span class="count">${open}</span>` : nothing}</button>
       </div>
       ${this.panel ? this.commentPanel() : this.styleBar()}
@@ -2727,6 +2903,7 @@ export class PhxWhiteboard extends LitElement {
       ${this.menuView()}
       ${this.cardsDialog()}
       ${this.mermaidDialog()}
+      ${this.protoView()}
       ${this.present >= 0 ? html`<div class="bar present" role="toolbar" aria-label=${t("wb.present")}>
         <button aria-label=${t("wb.prev")} @click=${() => this.presentAt(Math.max(0, this.present - 1))}>${icon("ChevronLeft", 16)}</button>
         <span>${this.present + 1} / ${slides(this.els()).length} · ${slides(this.els())[this.present]?.text ?? ""}</span>

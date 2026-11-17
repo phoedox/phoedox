@@ -28,12 +28,10 @@ func TestPrototypeValidation(t *testing.T) {
 	cases := map[string]func(wb *Whiteboard){
 		"unknown component":    func(wb *Whiteboard) { wb.Elements[2].UI.Comp = "spaceship" },
 		"ui without component": func(wb *Whiteboard) { wb.Elements[2].UI = nil },
-		"goto a non-screen":    func(wb *Whiteboard) { wb.Elements[2].Actions[0].Target = "b1" },
 		"bad trigger":          func(wb *Whiteboard) { wb.Elements[2].Actions[0].On = "explode" },
 		"script link": func(wb *Whiteboard) {
 			wb.Elements[2].Actions[0] = WBAction{On: "click", Do: "link", Value: "javascript:alert(1)"}
 		},
-		"screen of nothing": func(wb *Whiteboard) { wb.Elements[0].Screen.Proto = "nope" },
 		"screen on a shape": func(wb *Whiteboard) { wb.Elements[2].Screen = &WBScreen{Proto: "p1"} },
 		"variable type":     func(wb *Whiteboard) { wb.Prototypes[0].Vars[0].Value = json.RawMessage(`"one"`) },
 		"nested data":       func(wb *Whiteboard) { wb.Prototypes[0].Data[0].Rows[0]["x"] = map[string]any{"y": 1} },
@@ -48,8 +46,16 @@ func TestPrototypeValidation(t *testing.T) {
 			t.Errorf("%s: accepted", name)
 		}
 	}
-	// A start screen that is gone is forgotten, not an error.
+	// References to what is gone are cleaned up, not errors: a screen of a
+	// deleted prototype, an interaction with a screen that is gone.
 	wb := base()
+	wb.Elements[0].Screen.Proto = "nope"
+	wb.Elements[2].Actions[0].Target = "b1"
+	if _, _, err := whiteboardContent(wb); err != nil || wb.Elements[0].Screen != nil || len(wb.Elements[2].Actions) != 1 {
+		t.Fatalf("cleanup: %v %+v %+v", err, wb.Elements[0].Screen, wb.Elements[2].Actions)
+	}
+	// A start screen that is gone is forgotten, not an error.
+	wb = base()
 	wb.Prototypes[0].Start = "gone"
 	if _, _, err := whiteboardContent(wb); err != nil || wb.Prototypes[0].Start != "" {
 		t.Fatalf("start: %v %q", err, wb.Prototypes[0].Start)
