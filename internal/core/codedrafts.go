@@ -337,13 +337,21 @@ func (s *Service) codeDraftsDone(ctx context.Context, r store.CodeRepo, pr int, 
 		return 0, err
 	}
 	a := codeActor(r, pr)
+	// In projects with the approval workflow, a merge does not publish:
+	// the draft waits for the owners' approval (ADR-0042).
+	approval, _ := s.DB.ProjectApproval(ctx, p.ID)
 	n := 0
 	for _, d := range list {
 		doc, err := s.DB.GetDocument(ctx, p.ID, d.DocumentID)
 		if err != nil {
 			continue
 		}
-		if merged {
+		if merged && approval {
+			if err := s.readyForApproval(ctx, a, p, r, pr, doc, d.Draft); err != nil {
+				slog.Warn("mark draft of a merged pull request for approval", "doc", doc.ID, "err", err)
+				continue
+			}
+		} else if merged {
 			if _, err := s.publishDraft(ctx, a, p, doc, d.Draft); err != nil {
 				slog.Warn("publish draft of a merged pull request", "doc", doc.ID, "err", err)
 				continue
@@ -359,6 +367,24 @@ func (s *Service) codeDraftsDone(ctx context.Context, r store.CodeRepo, pr int, 
 		n++
 	}
 	return n, nil
+}
+
+// readyForApproval marks the draft of a merged pull request as ready for
+// approval: it leaves the pull request (so later events change nothing) and
+// the owners are asked to publish it.
+func (s *Service) readyForApproval(ctx context.Context, a Actor, p store.Project, r store.CodeRepo, pr int, doc store.Document, d store.Draft) error {
+	d.ReviewBy, d.ReviewAt = a.String(), store.Now()
+	d.ReviewNote = "Merged: " + prURL(r, pr)
+	if pr <= 0 {
+		d.ReviewNote = "Merged: branch " + d.CodeBranch
+	}
+	d.CodeRepo, d.CodePR, d.CodeBranch = "", 0, ""
+	if err := s.DB.SaveDraft(ctx, d); err != nil {
+		return err
+	}
+	s.event(ctx, a, "document.review_request", doc.ID, map[string]any{"note": d.ReviewNote, "pr": pr, "merged": true})
+	s.notifyOwners(ctx, a, p, doc, d.ReviewNote)
+	return nil
 }
 
 // --- webhook ---------------------------------------------------------------
@@ -546,7 +572,11 @@ func (s *Service) prComment(ctx context.Context, p store.Project, r store.CodeRe
 			}
 			fmt.Fprintf(&b, "- [%s](%s/p/%s/d/%s) (draft)\n", label, s.PublicURL, p.Slug, doc.Slug)
 		}
-		b.WriteString("\nThey are published when this pull request is merged and discarded when it is closed without merging.\n")
+		if on, _ := s.DB.ProjectApproval(ctx, p.ID); on {
+			b.WriteString("\nWhen this pull request is merged they wait for approval in Phoedox; they are discarded when it is closed without merging.\n")
+		} else {
+			b.WriteString("\nThey are published when this pull request is merged and discarded when it is closed without merging.\n")
+		}
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()

@@ -204,4 +204,31 @@ func TestPullRequestDrafts(t *testing.T) {
 	if d, _ := s.Document(ctx, owner, p.Slug, page.Document.Slug); markdownOf(d) != md {
 		t.Fatalf("discarded draft changed the page: %q", markdownOf(d))
 	}
+
+	// With the approval workflow a merge does not publish: the draft waits
+	// for the owners and leaves the pull request.
+	if err := s.SetApproval(ctx, owner, p.Slug, true); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.LinkDraftCode(ctx, owner, p.Slug, page.Document.Slug, DraftCodeInput{PR: 13}); err != nil {
+		t.Fatal(err)
+	}
+	third := "Third version.\n"
+	if _, err := s.UpdateDocument(ctx, owner, p.Slug, page.Document.Slug, DocumentPatch{Markdown: &third}); err != nil {
+		t.Fatal(err)
+	}
+	merged13 := []byte(`{"action":"closed","number":13,"pull_request":{"number":13,"merged":true,"head":{"ref":"x"}}}`)
+	if err := s.HandleCodeWebhook(ctx, repo.ID, "pull_request", sign(merged13), merged13); err != nil {
+		t.Fatal(err)
+	}
+	dr, err := s.DB.GetDraft(ctx, page.Document.ID)
+	if err != nil || dr.ReviewBy == "" || dr.CodePR != 0 || !strings.Contains(dr.ReviewNote, "/pulls/13") || dr.Markdown != third {
+		t.Fatalf("ready for approval: %v %+v", err, dr)
+	}
+	if d, _ := s.Document(ctx, owner, p.Slug, page.Document.Slug); markdownOf(d) != md {
+		t.Fatalf("merge published in an approval project: %q", markdownOf(d))
+	}
+	if info, err := s.Draft(ctx, owner, p.Slug, page.Document.Slug); err != nil || info.ReviewBy == nil || info.ReviewBy.Name != "acme/app#13" {
+		t.Fatalf("review by the pull request: %v %+v", err, info.ReviewBy)
+	}
 }

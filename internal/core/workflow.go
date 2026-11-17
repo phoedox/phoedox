@@ -78,17 +78,22 @@ func (s *Service) RequestReview(ctx context.Context, a Actor, ref, docRef, note 
 		return DraftInfo{}, err
 	}
 	s.event(ctx, a, "document.review_request", doc.ID, map[string]string{"note": d.ReviewNote})
+	s.notifyOwners(ctx, a, p, doc, d.ReviewNote)
+	return s.draftInfo(ctx, a, p, doc, d), nil
+}
+
+// notifyOwners asks the project's owners to approve a draft.
+func (s *Service) notifyOwners(ctx context.Context, a Actor, p store.Project, doc store.Document, note string) {
 	members, _ := s.DB.ListMembers(ctx, p.ID)
 	for _, m := range members {
-		if m.Role != store.RoleOwner || m.UserID == a.User.ID {
+		if m.Role != store.RoleOwner || (a.User.ID != "" && m.UserID == a.User.ID) {
 			continue
 		}
 		if u, err := s.DB.UserByID(ctx, m.UserID); err == nil {
-			s.notify(ctx, u, Note{Kind: "draft.review", ProjectID: p.ID, Project: p.Name, Subject: doc.ID, Title: doc.Title, Body: d.ReviewNote,
+			s.notify(ctx, u, Note{Kind: "draft.review", ProjectID: p.ID, Project: p.Name, Subject: doc.ID, Title: doc.Title, Body: note,
 				Link: "/p/" + p.Slug + "/d/" + doc.Slug, Actor: a.User.Name})
 		}
 	}
-	return s.draftInfo(ctx, a, p, doc, d), nil
 }
 
 // RejectReview sends a draft back to its participants with a note (owners).

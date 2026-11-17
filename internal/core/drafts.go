@@ -101,6 +101,13 @@ func (s *Service) participants(ctx context.Context, actors []string) []Participa
 	out := make([]Participant, 0, len(actors))
 	for _, a := range actors {
 		p := Participant{Actor: a, Name: names[store.ActorUserID(a)], AI: strings.HasPrefix(a, "mcp:")}
+		if ref, ok := strings.CutPrefix(a, "code:"); ok && p.Name == "" {
+			// A pull request of a code connection: owner/name#12.
+			id, pr, _ := strings.Cut(ref, "#")
+			if r, err := s.DB.CodeRepoByID(ctx, id); err == nil {
+				p.Name = r.Owner + "/" + r.Name + "#" + pr
+			}
+		}
 		if p.Name == "" {
 			p.Name = a
 		}
