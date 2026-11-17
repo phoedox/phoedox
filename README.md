@@ -50,8 +50,11 @@ CloudNativePG and cert-manager in [`docs/kubernetes.md`](docs/kubernetes.md).
 
 ### Home Assistant add-on
 
-Add-on in [`deploy/homeassistant`](deploy/homeassistant): data in the add-on (part of Home Assistant
-backups), sign-in with Home Assistant users. Setup in [`DOCS.md`](deploy/homeassistant/phoedox/DOCS.md).
+Add the repository `https://github.com/phoedox/home-assistant-addon` under **Settings → Add-ons →
+Add-on store → ⋮ → Repositories** and install **Phoedox**. Data stays in the add-on (part of Home
+Assistant backups), people sign in with their Home Assistant users. The add-on files live in
+[`deploy/homeassistant`](deploy/homeassistant); the add-on repository follows each Phoedox release
+automatically. Setup in [`DOCS.md`](deploy/homeassistant/phoedox/DOCS.md).
 Ask your documentation by voice with Assist: [`docs/home-assistant-assist.md`](docs/home-assistant-assist.md).
 
 ### Without Docker
