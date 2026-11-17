@@ -395,9 +395,15 @@ export class PhxAIChat extends LitElement {
       ${part(t("ai_chat.budget_you"), s.userUsed, s.userLimit, s.userPercent)}
       ${s.orgLimit || s.orgUsed ? part(t("ai_chat.budget_org"), s.orgUsed, s.orgLimit, s.orgPercent) : nothing}
       ${s.orgBudget ? part(t("ai_chat.budget_org_all"), s.orgSpent, s.orgBudget, s.orgBudgetPercent) : nothing}
+      ${s.onCredits ? html`<span title=${t("credits.chat_hint")}>${icon("Coins", 12)} ${s.pricesHidden ? t("credits.chat_on") : t("credits.chat_left", { left: dollars(s.credits ?? 0, loc) })}</span>` : nothing}
       ${s.canRequest ? (s.requestPending ? html`<span>${t("budget_req.pending_mine")}</span>`
         : html`<button class="ghost" style="padding:1px 8px;font-size:12px" @click=${this.askMore}>${t("budget_req.ask")}</button>`) : nothing}
     </div>`;
+  }
+
+  /** Beyond the budget without credits: where to buy some. */
+  private buyLink() {
+    return this.status?.canBuyCredits ? html`<a href="/settings/billing#credits">${icon("Coins", 13)} ${t("credits.buy_link")}</a>` : nothing;
   }
 
   private askMore = () => {
@@ -421,7 +427,7 @@ export class PhxAIChat extends LitElement {
     const close = html`<button class="ghost" title=${t("ai_chat.close")} aria-label=${t("ai_chat.close")} @click=${() => this.dispatchEvent(new CustomEvent("close"))}>${icon("X", 15)}</button>`;
     if (this.status && !this.status.available && !this.view && !this.chats.length) {
       return html`<header><h2>${icon("BotMessageSquare", 16)} ${t("ai_chat.title")}</h2><span style="flex:1"></span>${close}</header>
-        <div class="off">${icon("CircleAlert", 18)}<p>${tr(this.status.reason ?? "")}</p></div>`;
+        <div class="off">${icon("CircleAlert", 18)}<p>${tr(this.status.reason ?? "")}</p>${this.buyLink()}</div>`;
     }
     const results = toolResults(this.view?.messages ?? []);
     const live = this.live;
@@ -449,7 +455,7 @@ export class PhxAIChat extends LitElement {
           ${this.busy && !live.text ? html`<span class="typing" aria-label=${t("ai_chat.thinking")}><i></i><i></i><i></i></span>` : nothing}
           ${live.notice ? html`<p class="notice">${tr(live.notice)}</p>` : nothing}` : nothing}
         ${this.error ? html`<p class="error" role="alert">${this.error}</p>` : nothing}
-        ${this.status && !this.status.available ? html`<p class="notice">${tr(this.status.reason ?? "")}</p>` : nothing}
+        ${this.status && !this.status.available ? html`<p class="notice">${tr(this.status.reason ?? "")} ${this.buyLink()}</p>` : nothing}
       </div>
       <form @submit=${this.send}>
         <textarea .value=${this.draft} placeholder=${t(this.doc ? "ai_chat.placeholder_page" : "ai_chat.placeholder")} aria-label=${t("ai_chat.message")}

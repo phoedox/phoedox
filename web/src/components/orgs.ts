@@ -210,6 +210,7 @@ export class PhxOrg extends SignalWatcher(LitElement) {
         </form>
         <h2>${icon("BotMessageSquare", 16)} ${t("orgs.ai_chat_title")}</h2>
         <phx-org-ai-chat .org=${this.slug} .cap=${(o as { aiChatCap?: number | null }).aiChatCap ?? null}></phx-org-ai-chat>
+        <phx-ai-credits id="credits" .org=${this.slug}></phx-ai-credits>
         <h2 id="background-ai">${icon("Bot", 16)} ${t("bgai.title")}</h2>
         <phx-org-background-ai .org=${this.slug}></phx-org-background-ai>
         <h2>${icon("Globe", 16)} ${t("orgdomain.title")}</h2>

@@ -23,6 +23,10 @@ export interface ChatStatus {
   orgName?: string;
   canRequest?: boolean;
   requestPending?: boolean;
+  /** Beyond the monthly budget the chat draws from AI credits (cents left). */
+  onCredits?: boolean;
+  credits?: number;
+  canBuyCredits?: boolean;
 }
 
 /** What one conversation used (cents only when prices are visible). */

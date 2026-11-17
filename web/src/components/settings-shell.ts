@@ -50,6 +50,7 @@ export function areaGroups(area: Area, orgs: OrgLite[] = [], ctx?: ProjectCtx): 
         { id: "security", href: "/admin/security", icon: "ShieldCheck", label: t("sx.admin.security") },
         { id: "bot", href: "/admin/bot-protection", icon: "Bot", label: t("botadmin.nav") },
         { id: "payments", href: "/admin/payments", icon: "CreditCard", label: t("pay.title") },
+        { id: "credits", href: "/admin/ai-credits", icon: "Coins", label: t("credits.title") },
         { id: "dpa", href: "/admin/dpa", icon: "FileSignature", label: t("dpa.title") },
         { id: "appearance", href: "/admin/appearance", icon: "Palette", label: t("theme.appearance") },
         { id: "usercontent", href: "/admin/user-content", icon: "AppWindow", label: t("uc.nav") },

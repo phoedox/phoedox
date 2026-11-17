@@ -278,6 +278,12 @@ type ChatStatus struct {
 	OrgName        string `json:"orgName,omitempty"`
 	CanRequest     bool   `json:"canRequest,omitempty"`
 	RequestPending bool   `json:"requestPending,omitempty"`
+	// OnCredits: the monthly budget is used up and the chat draws from AI
+	// credits (the person's, then the organization's); Credits is what is
+	// left in cents. CanBuyCredits: credits can be bought.
+	OnCredits     bool  `json:"onCredits,omitempty"`
+	Credits       int64 `json:"credits,omitempty"`
+	CanBuyCredits bool  `json:"canBuyCredits,omitempty"`
 	// WriteMode is the project's AI write mode (read: the AI only reads).
 	WriteMode string `json:"writeMode"`
 	OrgID     string `json:"-"`
@@ -293,7 +299,7 @@ func (cs ChatStatus) View() ChatStatus {
 	cs.UserPercent = percentOf(cs.UserUsed, int64(cs.UserLimit))
 	cs.OrgPercent = percentOf(cs.OrgUsed, int64(cs.OrgLimit))
 	cs.OrgBudgetPercent = percentOf(cs.OrgSpent, int64(cs.OrgBudget))
-	cs.UserUsed, cs.OrgUsed, cs.OrgSpent = 0, 0, 0
+	cs.UserUsed, cs.OrgUsed, cs.OrgSpent, cs.Credits = 0, 0, 0, 0
 	cs.UserLimit = min(cs.UserLimit, 1)
 	cs.OrgLimit = min(cs.OrgLimit, 1)
 	cs.OrgBudget = min(cs.OrgBudget, 1)
@@ -366,6 +372,15 @@ func (s *Service) ChatStatus(ctx context.Context, a Actor, ref string) (ChatStat
 			}
 		}
 	}
+	// Beyond the monthly budget the chat goes on with AI credits (not
+	// beyond the instance cap, which protects the operator).
+	if cs.Reason == "ai_chat.unavailable.user_budget" || cs.Reason == "ai_chat.unavailable.org_budget" {
+		if left := s.creditsAvailable(ctx, a.User.ID, p.OrgID); left > 0 {
+			cs.Reason, cs.OnCredits, cs.Credits = "", true, centsOf(left)
+		} else {
+			cs.CanBuyCredits = len(s.creditOffers(ctx)) > 0 && s.PaymentProvider(ctx) != nil
+		}
+	}
 	cs.Available = cs.Reason == ""
 	cs.PricesHidden = s.pricesHidden(ctx, a, p.OrgID)
 	return cs, nil
@@ -378,9 +393,14 @@ func (s *Service) RecordAIUsage(ctx context.Context, a Actor, cs ChatStatus, cha
 	list := ai.CostMicros(u, m.charge)
 	now := store.Now()
 	charge := s.chargeFor(ctx, cs.OrgID, m.Own, u.Model, u, list, now.Time)
+	credit := int64(0)
+	if cs.OnCredits {
+		credit = s.useCredits(ctx, a.User.ID, cs.OrgID, charge)
+	}
 	_ = s.DB.AddAIUsage(ctx, store.AIUsage{ID: newID(), OrgID: cs.OrgID, UserID: a.User.ID, ProjectID: cs.ProjectID, ChatID: chatID,
 		ProviderID: m.ProviderID, OwnKey: m.Own, Model: u.Model,
-		InputTokens: u.Input, OutputTokens: u.Output, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite, CostMicros: cost, ChargeMicros: charge, ListMicros: list, CreatedAt: now})
+		InputTokens: u.Input, OutputTokens: u.Output, CacheRead: u.CacheRead, CacheWrite: u.CacheWrite, CostMicros: cost, ChargeMicros: charge, ListMicros: list,
+		CreditMicros: credit, CreatedAt: now})
 	s.warnBudgets(ctx, a, cs)
 	return charge
 }

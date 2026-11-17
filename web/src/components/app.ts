@@ -22,6 +22,7 @@ import "./kiosk";
 import "./shared-app";
 import "./pay";
 import "./dpa";
+import "./credits";
 import "./payments";
 import "./print";
 import "./login";
@@ -124,7 +125,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/settings/account", render: () => me("account", html`<phx-account></phx-account>`) },
     { path: "/settings/usage", render: () => me("usage", html`<phx-usage level="me"></phx-usage>`) },
     { path: "/settings/feedback", render: () => me("feedback", html`<phx-my-feedback></phx-my-feedback>`) },
-    { path: "/settings/billing", render: () => me("billing", html`<phx-my-purchases></phx-my-purchases>`) },
+    { path: "/settings/billing", render: () => me("billing", html`<phx-my-purchases></phx-my-purchases><phx-ai-credits id="credits"></phx-ai-credits>`) },
     { path: "/settings/appearance", render: () => me("appearance", html`<phx-appearance></phx-appearance>`) },
     { path: "/settings/themes/new", render: () => {
       const q = new URLSearchParams(location.search);
@@ -137,6 +138,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/admin/usage", render: () => adm("usage", html`<phx-usage level="admin"></phx-usage>`) },
     { path: "/admin/bot-protection", render: () => adm("bot", html`<phx-bot-admin></phx-bot-admin>`) },
     { path: "/admin/payments", render: () => adm("payments", html`<phx-payments-admin></phx-payments-admin>`) },
+    { path: "/admin/ai-credits", render: () => adm("credits", html`<phx-credits-admin></phx-credits-admin>`) },
     { path: "/admin/dpa", render: () => adm("dpa", html`<phx-dpa-admin></phx-dpa-admin>`) },
     { path: "/admin/orgs/:slug/usage", render: ({ slug }) => adm("orgs", html`<phx-usage level="org" .ref=${slug!}></phx-usage>`) },
     { path: "/orgs/:slug/usage", render: ({ slug }) => me(`org:${slug}`, html`<phx-usage level="org" .ref=${slug!}></phx-usage>`) },

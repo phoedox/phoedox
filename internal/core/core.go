@@ -181,7 +181,9 @@ type Service struct {
 
 // New returns a service with defaults.
 func New(db *store.DB) *Service {
-	return &Service{DB: db, MaxDepth: 6, Preview: preview.Tools{MaxPixels: 60_000_000, MaxText: 2 << 20, Size: 480, MaxPages: 20, Timeout: 90 * time.Second}}
+	s := &Service{DB: db, MaxDepth: 6, Preview: preview.Tools{MaxPixels: 60_000_000, MaxText: 2 << 20, Size: 480, MaxPages: 20, Timeout: 90 * time.Second}}
+	s.OnPayment("ai_credits", s.creditsPaid)
+	return s
 }
 
 var rank = map[string]int{store.RoleDoc: 0, store.RoleReader: 1, store.RoleEditor: 2, store.RoleOwner: 3}
