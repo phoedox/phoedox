@@ -402,3 +402,12 @@ func (d *DB) AIUsageBy(ctx context.Context, f UsageFilter, by string) ([]UsageGr
 	}
 	return out, rows.Err()
 }
+
+// AIProjectUsageSince sums what a project's calls with a chat id prefix
+// (e.g. "bg:" for background jobs) were charged since a time.
+func (d *DB) AIProjectUsageSince(ctx context.Context, projectID, chatPrefix string, since time.Time) (int64, error) {
+	var n int64
+	err := d.QueryRow(ctx, `SELECT COALESCE(SUM(charge_micros), 0) FROM ai_usage WHERE project_id = ? AND chat_id LIKE ? AND created_at >= ?`,
+		projectID, chatPrefix+"%", Time{since}).Scan(&n)
+	return n, err
+}

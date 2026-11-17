@@ -1,4 +1,5 @@
 import { LitElement, css, html, nothing } from "lit";
+import "./bgai";
 import { ApiError, api } from "../api";
 import { t } from "../i18n";
 import { icon } from "../icon";
@@ -167,7 +168,7 @@ export class PhxUsage extends LitElement {
       const tab = (id: "quotas" | "ai", label: string) => html`<button role="tab" aria-selected=${this.tab === id} @click=${() => (this.tab = id)}>${label}</button>`;
       return html`${head}
         <div class="tabs" role="tablist">${tab("quotas", t("usage.tab.quotas"))}${tab("ai", t("usage.tab.ai"))}</div>
-        ${this.tab === "quotas" ? html`<div class="grid">${this.storageTiles(r)}${r.feedback ? this.feedbackTile(r.feedback) : nothing}${r.budgets.map((b) => this.budgetTile(b, r.pricesHidden))}</div>
+        ${this.tab === "quotas" ? html`<div class="grid">${this.storageTiles(r)}${r.feedback ? this.feedbackTile(r.feedback) : nothing}${r.budgets.map((b) => this.budgetTile(b, r.pricesHidden))}<phx-background-ai .project=${this.ref}></phx-background-ai></div>
             <p class="muted" style="font-size:13px">${t("usage.quotas_more")}</p>`
           : html`<div class="grid">${this.aiTiles(r)}</div>${this.tables(r)}`}
         ${note}`;

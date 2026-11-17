@@ -17,8 +17,10 @@ import (
 
 	"github.com/evanw/esbuild/pkg/api"
 
+	"github.com/phoedox/phoedox/internal/ai"
 	"github.com/phoedox/phoedox/internal/store"
 	"github.com/phoedox/phoedox/internal/usercontent"
+	"github.com/phoedox/phoedox/resources"
 )
 
 // Apps (apps-definition): a small web program that lives in a project as a
@@ -758,4 +760,61 @@ func (s *Service) EditApp(ctx context.Context, a Actor, ref, docRef string, file
 		app.Level, app.Sources, app.StorageMB, app.AI = manifest.Level, manifest.Sources, manifest.StorageMB, manifest.AI
 	}
 	return s.UpdateDocument(ctx, a, ref, doc.ID, DocumentPatch{App: &app})
+}
+
+// AppAIAnswer is the AI's answer to an app.
+type AppAIAnswer struct {
+	Text string          `json:"text"`
+	JSON json.RawMessage `json:"json,omitempty"`
+}
+
+// AskAppAI answers an app's AI call on the viewer's chat budget (apps that
+// enable AI, where the organization and project allow the AI chat).
+func (s *Service) AskAppAI(ctx context.Context, a Actor, ref, docRef, prompt string, wantJSON bool) (AppAIAnswer, error) {
+	_, doc, app, _, err := s.appFor(ctx, a, ref, docRef)
+	if err != nil {
+		return AppAIAnswer{}, err
+	}
+	if !app.AI {
+		return AppAIAnswer{}, invalid("validation.app_ai_off", nil, "this app does not use the AI")
+	}
+	prompt = strings.TrimSpace(prompt)
+	if prompt == "" || len(prompt) > 20_000 {
+		return AppAIAnswer{}, invalid("validation.app_ai_prompt", nil, "the prompt is empty or longer than 20,000 characters")
+	}
+	cs, err := s.ChatStatus(ctx, a, ref)
+	if err != nil {
+		return AppAIAnswer{}, err
+	}
+	if !cs.Available {
+		return AppAIAnswer{}, invalid(cs.Reason, nil, "the AI is not available: %s", cs.Reason)
+	}
+	m, client, err := s.ResolveChatModel(ctx, a, ref, "")
+	if err != nil {
+		return AppAIAnswer{}, err
+	}
+	system := []string{resources.Prompt("app-ai")}
+	if wantJSON {
+		prompt += "\n\nAnswer with JSON only."
+	}
+	turn, err := client.Stream(ctx, ai.Request{Model: m.Model, System: system, MaxTokens: 2000, History: []ai.Message{{Raw: ai.UserMessage(prompt, nil)}}}, func(ai.Event) {})
+	if err != nil {
+		return AppAIAnswer{}, invalid("validation.app_ai_failed", nil, "the AI did not answer")
+	}
+	s.RecordAIUsage(ctx, a, cs, "app:"+doc.ID, m, turn.Usage)
+	var b strings.Builder
+	for _, p := range ai.Parts(turn.Message) {
+		if p.Type == "text" {
+			b.WriteString(p.Text)
+		}
+	}
+	out := AppAIAnswer{Text: b.String()}
+	if wantJSON {
+		t := strings.TrimSpace(out.Text)
+		t = strings.TrimSuffix(strings.TrimPrefix(strings.TrimPrefix(t, "```json"), "```"), "```")
+		if json.Valid([]byte(strings.TrimSpace(t))) {
+			out.JSON = json.RawMessage(strings.TrimSpace(t))
+		}
+	}
+	return out, nil
 }

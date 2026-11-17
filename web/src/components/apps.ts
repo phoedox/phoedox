@@ -152,8 +152,11 @@ export class PhxAppFrame extends LitElement {
           if (/^[\w@.-]+$/.test(ref)) navigate(ref.startsWith("@") ? `/p/${this.project}/e/${ref.slice(1)}` : `/p/${this.project}/d/${ref}`);
           return this.reply(m.id, true);
         }
-        case "ai":
-          return this.reply(m.id, undefined, t("app.ai_unavailable"), "ai_unavailable");
+        case "ai": {
+          if (!this.info?.ai) return this.reply(m.id, undefined, t("app.ai_unavailable"), "ai_unavailable");
+          const r = await api<{ text: string; json?: unknown }>("POST", `${this.base()}/ai`, { prompt: String(a.prompt ?? ""), json: !!a.json });
+          return this.reply(m.id, a.json && r.json !== undefined ? r.json : r.text);
+        }
         default:
           return this.reply(m.id, undefined, "unknown call", "unknown");
       }
@@ -531,6 +534,9 @@ export class PhxAppEditor extends LitElement {
           <input placeholder=${t("app.source_label")} .value=${s.label ?? ""} aria-label=${t("app.source_label")} @change=${(e: Event) => this.setSource(i, { label: (e.target as HTMLInputElement).value })}>
           <button class="danger" aria-label=${t("doc.delete")} @click=${() => this.setManifest({ sources: (a.sources ?? []).filter((_, j) => j !== i) })}>${icon("Trash2", 13)}</button></div>`)}
         <div><button class="ghost" @click=${() => this.setManifest({ sources: [...(a.sources ?? []), { id: `source${(a.sources?.length ?? 0) + 1}`, kind: "query", ref: "" }] })}>${icon("Plus", 14)} ${t("app.source_add")}</button></div>` : nothing}
+      <h3>${t("app.ai_title")}</h3>
+      <div class="levels"><label><input type="checkbox" .checked=${!!a.ai} @change=${(e: Event) => this.setManifest({ ai: (e.target as HTMLInputElement).checked })}>
+        <b>${t("app.ai_on")}</b><span>${t("app.ai_help")}</span></label></div>
       ${a.level >= 2 ? html`<label class="field">${t("app.storage_mb")}<input type="number" min="1" max="100" .value=${String(a.storageMb ?? 10)} style="max-width:140px"
         @change=${(e: Event) => this.setManifest({ storageMb: Number((e.target as HTMLInputElement).value) || 10 })}></label>` : nothing}
     </div>`;

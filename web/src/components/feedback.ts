@@ -8,7 +8,7 @@ import { toast } from "./toasts";
 
 interface PortalSettings { types: string[]; categories: string[]; states: string[]; defaultState: string; finishedState: string; fields: PortalField[] }
 interface Portal { id: string; handle: string; name: string; settings: PortalSettings }
-interface Topic { id: string; portalId: string; title: string; summary: string; type: string; category: string; tags: string[]; priority: number; state: string; answer: string; reportCount: number; updatedAt: string; tickets: number }
+interface Topic { id: string; portalId: string; title: string; summary: string; type: string; category: string; tags: string[]; priority: number; state: string; answer: string; reportCount: number; updatedAt: string; tickets: number; aiNote?: string; duplicateOf?: string; spam?: boolean }
 interface FileMeta { id: string; name: string; mime: string; size: number }
 interface Report { id: string; type: string; title: string; body: string; fields: Record<string, unknown>; context: Record<string, string>; userName?: string; userId?: string; email?: string; via: string; check?: string; deleted: boolean; createdAt: string; attachments?: FileMeta[] }
 interface Ticket { taskId: string; title: string; boardSlug: string; board: string; column: string; done: boolean }
@@ -55,6 +55,9 @@ export class PhxFeedback extends LitElement {
     .muted { color: var(--muted); font-size: 13px; }
     .empty { color: var(--muted); padding: 24px 0; }
     details summary { cursor: pointer; }
+    .ai { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: 10px; background: var(--surface2); font-size: 13.5px; }
+    .ai > div { display: grid; gap: 6px; }
+    .chip.spam { background: var(--tb-red); color: var(--tc-red); }
     .report select, .actions select { width: auto; max-width: 100%; }
   `];
 
@@ -146,6 +149,13 @@ export class PhxFeedback extends LitElement {
       <div class="muted">${d.portal.name} · ${t(`fb.type.${d.type}` as any)} · ${t("fb.reports_n", { n: d.reportCount })}</div>
       <input aria-label=${t("fb.title")} .value=${d.title} style="font-size:18px;font-weight:600" @change=${(e: Event) => void this.patch({ title: (e.target as HTMLInputElement).value })}>
       <textarea aria-label=${t("fb.summary")} rows="3" .value=${d.summary} placeholder=${t("fb.summary")} @change=${(e: Event) => void this.patch({ summary: (e.target as HTMLTextAreaElement).value })}></textarea>
+      ${d.aiNote || d.duplicateOf || d.spam ? html`<div class="ai">${icon("Sparkles", 14)}<div>
+        ${d.aiNote ? html`<div>${t("fb.ai_note", { note: d.aiNote })}</div>` : nothing}
+        ${d.spam ? html`<div class="row"><span class="chip spam">${t("fb.spam")}</span><button class="ghost" @click=${() => void this.patch({ spam: false })}>${t("fb.not_spam")}</button></div>` : nothing}
+        ${d.duplicateOf ? html`<div class="row">${t("fb.duplicate_of", { title: others.find((o) => o.id === d.duplicateOf)?.title ?? "…" })}
+          <button class="ghost" @click=${() => void this.post(`topics/${d.duplicateOf}/merge`, { from: d.id }, t("fb.merged"))}>${icon("GitMerge", 14)} ${t("fb.merge_into")}</button>
+          <button class="ghost" @click=${() => void this.patch({ dismissDuplicate: true })}>${t("fb.not_duplicate")}</button></div>` : nothing}
+      </div></div>` : nothing}
       <div class="grid">
         <label class="field">${t("fb.state")}<select @change=${(e: Event) => void this.patch({ state: (e.target as HTMLSelectElement).value })}>${s.states.map((x) => html`<option value=${x} ?selected=${x === d.state}>${stateLabel(x)}</option>`)}</select></label>
         <label class="field">${t("fb.priority")}<select @change=${(e: Event) => void this.patch({ priority: Number((e.target as HTMLSelectElement).value) })}>${[1, 2, 3, 4].map((p) => html`<option value=${p} ?selected=${p === d.priority}>${PRIO[p]} – ${t(`fb.prio.${p}` as any)}</option>`)}</select></label>
@@ -209,7 +219,7 @@ export class PhxFeedback extends LitElement {
       <div class="split">
         <div class="list" role="list">${l.topics.length ? l.topics.map((x) => html`<button class="row" role="listitem" aria-current=${this.detail?.id === x.id} @click=${() => void this.open(x.id)}>
             <span class="prio p${x.priority}">${PRIO[x.priority]}</span>
-            <span class="t">${x.title}<br><small>${stateLabel(x.state)}${x.category ? ` · ${x.category}` : ""}</small></span>
+            <span class="t">${x.title}${x.spam ? html` <span class="chip spam">${t("fb.spam")}</span>` : nothing}<br><small>${stateLabel(x.state)}${x.category ? ` · ${x.category}` : ""}</small></span>
             <span class="count" title=${t("fb.reports_n", { n: x.reportCount })}>${icon("Users", 12)} ${x.reportCount}${x.tickets ? html` ${icon("SquareKanban", 12)} ${x.tickets}` : nothing}</span></button>`)
           : html`<p class="empty">${t("fb.no_topics")}</p>`}</div>
         ${this.detail ? this.detailView(this.detail) : html`<div class="pane"><p class="muted">${t("fb.pick_topic")}</p></div>`}

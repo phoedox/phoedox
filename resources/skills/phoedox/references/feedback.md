@@ -11,7 +11,7 @@ builds – a game, a website, a system. Reports that describe the same thing are
 |---|---|
 | Portal | handle, name, report types, categories, own typed form fields, topic states, attachment rules, who may report |
 | Report | one submission: type, title, text, form fields, context, attachments, reporter (account, anonymous, app or server key) |
-| Topic | reports about the same thing: title, summary, category, tags, priority 1–4, state, answer to reporters, number of reports |
+| Topic | reports about the same thing: title, summary, category, tags, priority 1–4, state, answer to reporters, number of reports; with AI triage also `aiNote` (why), `duplicateOf` (a topic the AI takes for the same issue) and `spam` |
 | Ticket | a card on a board made from a topic; a topic can have several |
 
 ## Moderating (editors, owners, or moderators of a portal)
@@ -48,3 +48,12 @@ builds – a game, a website, a system. Reports that describe the same thing are
   bot check) or from their backend with a server key.
 - Owners set portals up under project settings → Feedback portals; people point others to
   `/feedback/<handle>`.
+
+## AI triage
+
+Portals can sort new reports with the project's background AI (portal setting
+`aiTriage`): summary, category and tags from the portal's lists, priority with
+a reason (`aiNote`), a suspected duplicate (`duplicateOf`) and a spam flag. The
+AI never merges or deletes. When you check a topic, merge real duplicates with
+`merge_feedback_topics`, or clear a wrong suggestion with `update_feedback_topic`
+`dismiss_duplicate: true`; `spam: false` clears a wrong spam flag.

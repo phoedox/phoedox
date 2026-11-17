@@ -1,5 +1,6 @@
 import "./org-ai-chat";
 import "./themes";
+import "./bgai";
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
 import { ApiError, api, type Group, type Org, type OrgDetail } from "../api";
@@ -201,6 +202,8 @@ export class PhxOrg extends SignalWatcher(LitElement) {
         </form>
         <h2>${icon("BotMessageSquare", 16)} ${t("orgs.ai_chat_title")}</h2>
         <phx-org-ai-chat .org=${this.slug} .cap=${(o as { aiChatCap?: number | null }).aiChatCap ?? null}></phx-org-ai-chat>
+        <h2 id="background-ai">${icon("Bot", 16)} ${t("bgai.title")}</h2>
+        <phx-org-background-ai .org=${this.slug}></phx-org-background-ai>
         <h2>${icon("Globe", 16)} ${t("orgdomain.title")}</h2>
         <phx-org-domain .org=${this.slug}></phx-org-domain>
         <h2>${icon("Palette", 16)} ${t("theme.appearance")}</h2>

@@ -119,6 +119,10 @@ type TopicPatch struct {
 	State    *string   `json:"state,omitempty"`
 	// Answer is shown to reporters (status link, notification).
 	Answer *string `json:"answer,omitempty"`
+	// Spam false clears the AI's spam flag; DismissDuplicate drops its
+	// duplicate suggestion.
+	Spam             *bool `json:"spam,omitempty"`
+	DismissDuplicate bool  `json:"dismissDuplicate,omitempty"`
 }
 
 // UpdateFeedbackTopic changes a topic (moderators). A new state or answer
@@ -149,6 +153,12 @@ func (s *Service) UpdateFeedbackTopic(ctx context.Context, a Actor, ref, id stri
 	}
 	if patch.Priority != nil {
 		t.Priority = min(max(*patch.Priority, 1), 4)
+	}
+	if patch.Spam != nil {
+		t.Spam = *patch.Spam
+	}
+	if patch.DismissDuplicate {
+		t.DuplicateOf = ""
 	}
 	if patch.State != nil {
 		if !slices.Contains(ps.States, *patch.State) {

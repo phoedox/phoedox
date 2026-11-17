@@ -114,6 +114,7 @@ type createAppIn struct {
 	Level     int               `json:"level,omitempty" jsonschema:"bridge level the app asks for: 0 none, 1 read its sources, 2 own storage, 3 propose changes the person confirms"`
 	Sources   []core.AppSource  `json:"sources,omitempty" jsonschema:"what the app may read at level 1: {id, kind query|board|checks|entities, ref (saved query, board, or kind), label}"`
 	StorageMB int               `json:"storageMb,omitempty" jsonschema:"limit of the app's own storage in MB (default 10)"`
+	AI        bool              `json:"ai,omitempty" jsonschema:"the app may call phoedox.ai(prompt, {json}) on the viewer's AI budget"`
 }
 
 type editAppIn struct {
@@ -432,15 +433,17 @@ type feedbackTopicIn struct {
 }
 
 type feedbackUpdateIn struct {
-	Project  string    `json:"project" jsonschema:"project slug"`
-	Topic    string    `json:"topic" jsonschema:"topic id"`
-	Title    *string   `json:"title,omitempty"`
-	Summary  *string   `json:"summary,omitempty" jsonschema:"what the reports are about, in the project's main language"`
-	Category *string   `json:"category,omitempty" jsonschema:"one of the portal's categories (never invent new ones)"`
-	Tags     *[]string `json:"tags,omitempty"`
-	Priority *int      `json:"priority,omitempty" jsonschema:"1 urgent, 2 high, 3 normal, 4 low"`
-	State    *string   `json:"state,omitempty" jsonschema:"one of the portal's states"`
-	Answer   *string   `json:"answer,omitempty" jsonschema:"answer shown to reporters and sent to them – only when a person asked for it"`
+	Project          string    `json:"project" jsonschema:"project slug"`
+	Topic            string    `json:"topic" jsonschema:"topic id"`
+	Title            *string   `json:"title,omitempty"`
+	Summary          *string   `json:"summary,omitempty" jsonschema:"what the reports are about, in the project's main language"`
+	Category         *string   `json:"category,omitempty" jsonschema:"one of the portal's categories (never invent new ones)"`
+	Tags             *[]string `json:"tags,omitempty"`
+	Priority         *int      `json:"priority,omitempty" jsonschema:"1 urgent, 2 high, 3 normal, 4 low"`
+	State            *string   `json:"state,omitempty" jsonschema:"one of the portal's states"`
+	Answer           *string   `json:"answer,omitempty" jsonschema:"answer shown to reporters and sent to them – only when a person asked for it"`
+	Spam             *bool     `json:"spam,omitempty" jsonschema:"false clears the AI's spam flag (only after reading the reports)"`
+	DismissDuplicate bool      `json:"dismiss_duplicate,omitempty" jsonschema:"drop the AI's duplicate suggestion (duplicateOf) when the topics differ"`
 }
 
 type feedbackMergeIn struct {
@@ -942,8 +945,8 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocWhiteboard, Title: in.Title, Category: in.Category, Whiteboard: &in.Whiteboard})
 	})
-	tool(s, "create_app", "Create an app: a small web program in the project (HTML/CSS/JS or React JSX/TypeScript, compiled on save) that runs in an isolated frame. Libraries by import name: react, react-dom/client, lit, chart.js, d3; no other network. Data only through window.phoedox: info(), requestAccess(), read(sourceId) (level 1), storage.get/set/delete/list(key, value, {personal}) (level 2), propose({kind: task|comment|entity, ...}) (level 3, the person confirms), open(ref). Ask for the lowest level that does the job. Check get_app afterwards for compile and console errors.", func(ctx context.Context, a core.Actor, in createAppIn) (any, error) {
-		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocApp, Title: in.Title, Category: in.Category, App: &core.App{Files: in.Files, Level: in.Level, Sources: in.Sources, StorageMB: in.StorageMB}})
+	tool(s, "create_app", "Create an app: a small web program in the project (HTML/CSS/JS or React JSX/TypeScript, compiled on save) that runs in an isolated frame. Libraries by import name: react, react-dom/client, lit, chart.js, d3; no other network. Data only through window.phoedox: info(), requestAccess(), read(sourceId) (level 1), storage.get/set/delete/list(key, value, {personal}) (level 2), propose({kind: task|comment|entity, ...}) (level 3, the person confirms), open(ref), ai(prompt, {json}) (with ai: true, on the viewer's budget). Ask for the lowest level that does the job. Check get_app afterwards for compile and console errors.", func(ctx context.Context, a core.Actor, in createAppIn) (any, error) {
+		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocApp, Title: in.Title, Category: in.Category, App: &core.App{Files: in.Files, Level: in.Level, Sources: in.Sources, StorageMB: in.StorageMB, AI: in.AI}})
 	})
 	tool(s, "get_app", "Read an app: its files, manifest (level, sources, storage), compile errors and the last console errors and warnings from people using it. Use it before edit_app and after changes to fix errors.", func(ctx context.Context, a core.Actor, in wbDocIn) (any, error) {
 		return svc.GetApp(ctx, a, in.Project, in.Document)
@@ -1239,7 +1242,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		return svc.FeedbackTopic(ctx, a, in.Project, in.Topic)
 	})
 	tool(s, "update_feedback_topic", "Triage a feedback topic: title, summary, category and tags from the portal's lists, priority 1–4, state; an answer is sent to the reporters, so set it only when a person asked for it.", func(ctx context.Context, a core.Actor, in feedbackUpdateIn) (any, error) {
-		return svc.UpdateFeedbackTopic(ctx, a, in.Project, in.Topic, core.TopicPatch{Title: in.Title, Summary: in.Summary, Category: in.Category, Tags: in.Tags, Priority: in.Priority, State: in.State, Answer: in.Answer})
+		return svc.UpdateFeedbackTopic(ctx, a, in.Project, in.Topic, core.TopicPatch{Title: in.Title, Summary: in.Summary, Category: in.Category, Tags: in.Tags, Priority: in.Priority, State: in.State, Answer: in.Answer, Spam: in.Spam, DismissDuplicate: in.DismissDuplicate})
 	})
 	tool(s, "merge_feedback_topics", "Merge a duplicate feedback topic into another: its reports and tickets move over and it is removed.", func(ctx context.Context, a core.Actor, in feedbackMergeIn) (any, error) {
 		return svc.MergeFeedbackTopics(ctx, a, in.Project, in.Into, in.From)

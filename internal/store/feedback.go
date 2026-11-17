@@ -162,16 +162,21 @@ type FeedbackTopic struct {
 	UpdatedAt   Time     `json:"updatedAt"`
 	ClosedAt    *Time    `json:"closedAt,omitempty"`
 	Tickets     int      `json:"tickets"`
+	// AI triage: why it chose category and priority, a topic it takes for
+	// the same issue, and whether the reports look like spam.
+	AINote      string `json:"aiNote,omitempty"`
+	DuplicateOf string `json:"duplicateOf,omitempty"`
+	Spam        bool   `json:"spam,omitempty"`
 }
 
 const topicCols = `t.id, t.project_id, t.portal_id, t.title, t.summary, t.type, t.category, t.tags, t.priority, t.state, t.answer, t.report_count, t.created_at, t.updated_at, t.closed_at,
-	(SELECT COUNT(*) FROM feedback_topic_links l WHERE l.topic_id = t.id)`
+	(SELECT COUNT(*) FROM feedback_topic_links l WHERE l.topic_id = t.id), t.ai_note, t.duplicate_of, t.spam`
 
 func scanTopic(r interface{ Scan(...any) error }) (FeedbackTopic, error) {
 	var t FeedbackTopic
 	var tags string
 	var closed sql.Null[Time]
-	err := r.Scan(&t.ID, &t.ProjectID, &t.PortalID, &t.Title, &t.Summary, &t.Type, &t.Category, &tags, &t.Priority, &t.State, &t.Answer, &t.ReportCount, &t.CreatedAt, &t.UpdatedAt, &closed, &t.Tickets)
+	err := r.Scan(&t.ID, &t.ProjectID, &t.PortalID, &t.Title, &t.Summary, &t.Type, &t.Category, &tags, &t.Priority, &t.State, &t.Answer, &t.ReportCount, &t.CreatedAt, &t.UpdatedAt, &closed, &t.Tickets, &t.AINote, &t.DuplicateOf, &t.Spam)
 	if errors.Is(err, sql.ErrNoRows) {
 		return t, ErrNotFound
 	}
@@ -193,12 +198,13 @@ func (d *DB) SaveFeedbackTopic(ctx context.Context, t FeedbackTopic) error {
 	if t.ClosedAt != nil {
 		closed = *t.ClosedAt
 	}
-	_, err := d.Exec(ctx, `INSERT INTO feedback_topics (id, tenant_id, project_id, portal_id, title, summary, type, category, tags, priority, state, answer, report_count, created_at, updated_at, closed_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := d.Exec(ctx, `INSERT INTO feedback_topics (id, tenant_id, project_id, portal_id, title, summary, type, category, tags, priority, state, answer, report_count, created_at, updated_at, closed_at, ai_note, duplicate_of, spam)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET portal_id = excluded.portal_id, title = excluded.title, summary = excluded.summary, type = excluded.type, category = excluded.category,
+		ai_note = excluded.ai_note, duplicate_of = excluded.duplicate_of, spam = excluded.spam,
 		tags = excluded.tags, priority = excluded.priority, state = excluded.state, answer = excluded.answer, report_count = excluded.report_count,
 		updated_at = excluded.updated_at, closed_at = excluded.closed_at`,
-		t.ID, TenantOf(ctx), t.ProjectID, t.PortalID, t.Title, t.Summary, t.Type, t.Category, string(tags), t.Priority, t.State, t.Answer, t.ReportCount, t.CreatedAt, t.UpdatedAt, closed)
+		t.ID, TenantOf(ctx), t.ProjectID, t.PortalID, t.Title, t.Summary, t.Type, t.Category, string(tags), t.Priority, t.State, t.Answer, t.ReportCount, t.CreatedAt, t.UpdatedAt, closed, t.AINote, t.DuplicateOf, t.Spam)
 	return err
 }
 

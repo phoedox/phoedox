@@ -46,6 +46,10 @@ says the highest **level** the app asks for; each person grants it once.
 | 2 | `storage.get/set/delete/list(key, value, {personal})` – JSON values, shared by default, `personal: true` per person | `storageMb` (default 10, counts against the project storage) |
 | 3 | `propose({kind: "task", board, title, description, column})`, `propose({kind: "comment", document, body})`, `propose({kind: "entity", entityKind, name, attrs})` – the person confirms each change | – |
 
+**AI:** with `ai: true` in the manifest, `phoedox.ai(prompt)` returns the AI's
+text and `phoedox.ai(prompt, {json: true})` parsed JSON. It runs on the budget of
+the person using the app, only where the organization allows the AI chat.
+
 `requestAccess()` asks the person for the level; `info()` returns
 `{level, granted, sources}`. Reads run with the viewer's rights, never more.
 Ask for the **lowest level** that does the job and explain to the user what

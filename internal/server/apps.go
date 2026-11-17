@@ -198,3 +198,16 @@ func (a *api) saveUserContent(w http.ResponseWriter, r *http.Request) {
 	v, err := a.core.SaveUserContent(r.Context(), actorOf(r), in)
 	respond(w, v, err)
 }
+
+func (a *api) appAI(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Prompt string `json:"prompt"`
+		JSON   bool   `json:"json"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.AskAppAI(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "doc"), in.Prompt, in.JSON)
+	respond(w, v, err)
+}

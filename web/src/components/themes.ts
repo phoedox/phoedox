@@ -272,7 +272,7 @@ export class PhxThemeEditor extends LitElement {
   static properties = {
     themeId: {}, scope: {}, owner: {},
     cat: { state: true }, view: { state: true }, name: { state: true }, data: { state: true }, cssText: { state: true },
-    mode: { state: true }, problems: { state: true }, cssError: { state: true }, busy: { state: true }, live: { state: true }, dirty: { state: true },
+    mode: { state: true }, problems: { state: true }, cssError: { state: true }, busy: { state: true }, live: { state: true }, dirty: { state: true }, asking: { state: true },
   };
   static styles = [base, settingsUI, css`
     :host { display: block; max-width: 1240px; margin: 0 auto; padding: 24px 16px 80px; }
@@ -285,6 +285,10 @@ export class PhxThemeEditor extends LitElement {
     .top a.back { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); text-decoration: none; font-size: 13.5px; }
     .top input.name { flex: 1 1 220px; font-size: 20px; font-weight: 600; font-family: var(--font-display); }
     .top .chip { white-space: nowrap; }
+    dialog.ai { border: 1px solid var(--line); border-radius: var(--radius-card, 12px); background: var(--surface); color: var(--fg); padding: 20px; width: min(480px, 92vw); }
+    dialog.ai::backdrop { background: rgb(0 0 0 / .35); }
+    dialog.ai form { display: grid; gap: 12px; }
+    dialog.ai textarea { min-height: 80px; font-family: var(--font-body); }
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: 22px; align-items: start; }
     .side { position: sticky; top: calc(var(--header-h) + 16px); display: grid; gap: 12px; }
     .colors { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 14px; padding: 4px 18px 16px; }
@@ -462,6 +466,25 @@ export class PhxThemeEditor extends LitElement {
     }
   }
 
+  asking = false;
+
+  private async generate(e: SubmitEvent) {
+    e.preventDefault();
+    const f = new FormData(e.target as HTMLFormElement);
+    this.asking = true;
+    try {
+      const p = await api<{ name: string; data: ThemeData }>("POST", "/themes/generate", { description: String(f.get("description") ?? ""), url: String(f.get("url") ?? "").trim() });
+      this.change((d) => Object.assign(d, emptyTheme(), p.data, { light: { ...p.data.light }, dark: { ...p.data.dark } }));
+      if (p.name && (!this.view || this.name === t("theme.new_name"))) this.name = p.name;
+      this.renderRoot.querySelector<HTMLDialogElement>("dialog.ai")?.close();
+      toast(t("theme.ai_done"));
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+    } finally {
+      this.asking = false;
+    }
+  }
+
   private async release() {
     if (!this.view) return;
     try {
@@ -542,8 +565,19 @@ export class PhxThemeEditor extends LitElement {
         <a class="back" href=${this.back()} @click=${(e: Event) => { if (this.dirty && !confirm(t("theme.leave_unsaved"))) e.preventDefault(); }}>${icon("ArrowLeft", 14)} ${t("print.back")}</a>
         <input class="name" .value=${this.name} aria-label=${t("theme.name")} maxlength="80" @input=${(e: Event) => { this.name = (e.target as HTMLInputElement).value; this.dirty = true; }}>
         <span class="chip">${scopeLabel(this.scope)}</span>
+        <button class="ghost" @click=${() => this.renderRoot.querySelector<HTMLDialogElement>("dialog.ai")?.showModal()}>${icon("Sparkles", 14)} ${t("theme.ai")}</button>
         <button ?disabled=${this.busy || !this.name.trim()} @click=${this.save}>${icon("Save", 14)} ${t("doc.save")}</button>
       </div>
+      <dialog class="ai" aria-labelledby="ait">
+        <form method="dialog" @submit=${this.generate}>
+          <h2 id="ait">${t("theme.ai_title")}</h2>
+          <p class="muted">${t("theme.ai_text")}</p>
+          <label class="field">${t("theme.ai_description")}<textarea name="description" rows="3" placeholder=${t("theme.ai_placeholder")}></textarea></label>
+          <label class="field">${t("theme.ai_url")}<input name="url" type="url" placeholder="https://…"></label>
+          <div class="row" style="justify-content:flex-end"><button type="button" class="ghost" @click=${() => this.renderRoot.querySelector<HTMLDialogElement>("dialog.ai")?.close()}>${t("doc.cancel")}</button>
+            <button ?disabled=${this.asking}>${icon("Sparkles", 14)} ${this.asking ? t("theme.ai_busy") : t("theme.ai_go")}</button></div>
+        </form>
+      </dialog>
       <div class="layout">
         <div>
           ${scard(t("theme.colors"), t("theme.colors_text"), html`

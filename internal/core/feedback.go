@@ -88,6 +88,10 @@ type PortalSettings struct {
 	ServerKeyOn bool `json:"serverKeyOn"`
 	// RetentionMonths keeps closed anonymous reports this long (0 = 12).
 	RetentionMonths int `json:"retentionMonths"`
+	// Tags moderators and the AI may give topics.
+	Tags []string `json:"tags,omitempty"`
+	// AITriage sorts new reports with the project's background AI (ADR-0077).
+	AITriage bool `json:"aiTriage,omitempty"`
 }
 
 var reportTypes = []string{"bug", "idea", "question", "praise"}
@@ -116,6 +120,7 @@ func portalSettings(p store.FeedbackPortal) PortalSettings {
 }
 
 func (ps *PortalSettings) validate() error {
+	ps.Tags = cleanLabels(append(ps.Tags[:0:0], ps.Tags...))
 	if len(ps.Types) == 0 {
 		ps.Types = []string{"bug"}
 	}
@@ -850,6 +855,15 @@ func (s *Service) SubmitFeedback(ctx context.Context, a *Actor, handle string, i
 	}
 	_ = s.DB.RecountTopic(ctx, topic.ID)
 	s.event(ctx, actor, "feedback.report", r.ID, map[string]any{"portal": portal.Handle, "topic": topic.ID, "via": intake.Via, "files": len(checked)})
+	// The AI sorts the report on the project's background budget.
+	if ps.AITriage {
+		tctx := context.WithoutCancel(ctx)
+		if s.SyncNotify {
+			s.triageReport(tctx, proj, portal, ps, topic.ID, isNew, r)
+		} else {
+			go s.triageReport(tctx, proj, portal, ps, topic.ID, isNew, r)
+		}
+	}
 	if isNew {
 		s.notifyModerators(ctx, portal, Note{Kind: "feedback.topic", ProjectID: proj.ID, Project: proj.Name, Subject: topic.ID, Title: topic.Title,
 			Body: excerpt(body, 300), Link: "/p/" + proj.Slug + "/feedback?topic=" + topic.ID})

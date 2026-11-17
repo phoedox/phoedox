@@ -122,3 +122,45 @@ func (a *api) setAutoLinks(w http.ResponseWriter, r *http.Request) {
 	v, err := a.core.SetAutoLinkRules(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.Rules)
 	respond(w, map[string]any{"rules": v}, err)
 }
+
+func (a *api) generateTheme(w http.ResponseWriter, r *http.Request) {
+	var in core.ThemeIdea
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.GenerateTheme(r.Context(), actorOf(r), in)
+	respond(w, v, err)
+}
+
+func (a *api) backgroundAI(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.BackgroundAI(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, v, err)
+}
+
+func (a *api) setBackgroundAI(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Owner *int `json:"owner"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.SetOwnerBackgroundAI(r.Context(), actorOf(r), chi.URLParam(r, "p"), in.Owner)
+	respond(w, v, err)
+}
+
+func (a *api) orgBackgroundAI(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.OrgBackgroundAI(r.Context(), actorOf(r), chi.URLParam(r, "o"))
+	respond(w, v, err)
+}
+
+func (a *api) setOrgBackgroundAI(w http.ResponseWriter, r *http.Request) {
+	var in core.OrgBackgroundAIInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.SetOrgBackgroundAI(r.Context(), actorOf(r), chi.URLParam(r, "o"), in)
+	respond(w, v, err)
+}
