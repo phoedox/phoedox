@@ -10,7 +10,9 @@ function iconElement(name: string, size: number): SVGElement {
 }
 import { toast } from "./components/toasts";
 import { loadPluginBlocks } from "./plugin-blocks";
-import { currentProject } from "./state";
+import { locale } from "./i18n";
+import { currentProject, navigate } from "./state";
+import { CLIP_PREFIX } from "./whiteboard";
 
 /**
  * Loads the frontend modules of a project's plugins and gives them the SDK
@@ -71,8 +73,9 @@ function makeSdk(pluginId: string) {
       },
     },
     docs: {
-      create: async (type: string, title?: string) =>
-        (await api<{ document: { id: string } }>("POST", `/projects/${project()}/documents`, { type, title: title ?? "" })).document,
+      // content: further fields of the documents API (markdown, adr …); type and title win.
+      create: async (type: string, title?: string, content?: Record<string, unknown>) =>
+        (await api<{ document: { id: string; slug: string } }>("POST", `/projects/${project()}/documents`, { ...(content ?? {}), type, title: title ?? "" })).document,
     },
     // Read-only helpers with the reader's rights (plugin blocks, ADR-0086).
     tasks: {
@@ -83,7 +86,18 @@ function makeSdk(pluginId: string) {
         api<{ svg: string; problems: { line: number; message: string; severity: string }[] }>("POST", `/projects/${project()}/plugin-blocks/${encodeURIComponent(kind)}/render`, { source, width, locale: document.documentElement.lang || "en" }),
     },
     tool: <T>(name: string, input: unknown) => api<T>("POST", `/projects/${project()}/plugins/${pluginId}/tools/${encodeURIComponent(name)}`, input ?? {}),
-    ui: { toast: (message: string) => toast(String(message)) },
+    ui: {
+      toast: (message: string, kind?: string) => (kind === "error" ? toast(String(message), "error") : toast(String(message))),
+      locale: () => locale(),
+      // Only pages of the current project: "d/<slug>", "e/<entry>", "board" …
+      open(path: string) {
+        const rest = String(path).replace(/^\/+/, "");
+        if (!/^[A-Za-z0-9_\-\/?=&.%]*$/.test(rest) || rest.includes("..")) return;
+        navigate(`/p/${project()}/${rest}`);
+      },
+      // The whiteboard's own clipboard format; pasting checks the elements like any paste.
+      copyToWhiteboard: (elements: unknown[]) => navigator.clipboard.writeText(CLIP_PREFIX + JSON.stringify(Array.isArray(elements) ? elements : [])),
+    },
     commands: {
       add(cmd: Command) {
         const p = project();

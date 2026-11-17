@@ -24,7 +24,9 @@ type MovedBlock struct {
 
 // movedBlocks maps each moved kind to its plugin.
 var movedBlocks = map[string]MovedBlock{
-	"gantt": {Plugin: "com.phoedox.gantt", Label: "Schedule (Gantt)"},
+	"gantt":   {Plugin: "com.phoedox.gantt", Label: "Schedule (Gantt)"},
+	"matrix":  {Plugin: "com.phoedox.matrix", Label: "Decision matrix"},
+	"mindmap": {Plugin: "com.phoedox.mindmap", Label: "Mind map"},
 }
 
 // MissingPlugin tells a client which plugin a block needs.

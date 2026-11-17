@@ -3,7 +3,6 @@ package blocks
 import (
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -13,8 +12,6 @@ import (
 var (
 	keyLine    = regexp.MustCompile(`^([A-Za-z]+)\s*:\s*(.*)$`)
 	listLine   = regexp.MustCompile(`^[-*+]\s+(.+)$`)
-	matrixLine = regexp.MustCompile(`^[-*+]\s+(.+?)\s*:\s*(.+)$`)
-	weightRe   = regexp.MustCompile(`^(.*?)\s*[*×x]\s*(\d+(?:[.,]\d+)?)$`)
 	calcNumRe  = regexp.MustCompile(`^-?\d[\d ]*(?:[.,]\d+)?$`)
 	calcEntRe  = regexp.MustCompile(`^@([a-z0-9-]+)\.([A-Za-z0-9_]+)$`)
 	calcUnitRe = regexp.MustCompile(`^(.*?)\s*\(([^)]*)\)\s*$`)
@@ -89,52 +86,6 @@ func parsePoll(src []byte) (question string, options []string, ps []Problem) {
 			break
 		}
 		seen[o] = true
-	}
-	return
-}
-
-// --- matrix ---------------------------------------------------------------------
-
-func parseMatrix(src []byte) (title string, criteria, options []string, ps []Problem) {
-	for _, l := range lines(src) {
-		if k, v, ok := key(l, "title", "titel", "criteria", "kriterien", "scale", "skala"); ok {
-			switch k {
-			case "title", "titel":
-				title = v
-			case "criteria", "kriterien":
-				criteria = nil
-				for _, c := range strings.Split(v, ",") {
-					if c = strings.TrimSpace(c); c != "" {
-						if m := weightRe.FindStringSubmatch(c); m != nil {
-							c = m[1]
-						}
-						criteria = append(criteria, c)
-					}
-				}
-			}
-			continue
-		}
-		m := matrixLine.FindStringSubmatch(l)
-		if m == nil {
-			continue
-		}
-		options = append(options, m[1])
-		parts := regexp.MustCompile(`[,;]`).Split(m[2], -1)
-		for _, p := range parts {
-			if _, err := strconv.ParseFloat(strings.ReplaceAll(strings.TrimSpace(p), ",", "."), 64); err != nil {
-				ps = append(ps, problem("%q: scores must be numbers", m[1]))
-				break
-			}
-		}
-		if len(criteria) > 0 && len(parts) != len(criteria) {
-			ps = append(ps, problem("%q needs %d scores, one per criterion", m[1], len(criteria)))
-		}
-	}
-	if len(criteria) == 0 {
-		ps = append(ps, problem("the criteria are missing (criteria: price*3, noise*2)"))
-	}
-	if len(options) < 2 {
-		ps = append(ps, problem("a matrix needs at least two options (- Name: 3, 4)"))
 	}
 	return
 }
@@ -312,13 +263,6 @@ func init() {
 		Text: func(src []byte) string {
 			q, o, _ := parsePoll(src)
 			return strings.Join(append([]string{q}, o...), " ")
-		},
-	})
-	Register(Def{Kind: "matrix", Board: true,
-		Check: func(src []byte) []Problem { _, _, _, ps := parseMatrix(src); return ps },
-		Text: func(src []byte) string {
-			t, c, o, _ := parseMatrix(src)
-			return strings.Join(append(append([]string{t}, c...), o...), " ")
 		},
 	})
 	Register(Def{Kind: "calc", Board: true,

@@ -7,7 +7,6 @@ import (
 
 func TestPictureBlocks(t *testing.T) {
 	ok := map[string]string{
-		"mindmap":     "Umzug\n  Wohnung\n    Kündigen\n  - Internet",
 		"beforeafter": "title: Rack\nbefore: /api/v1/files/01M7ND6Y5KRMY1R09EK7Q7NMXS Vorher\nafter: 01M7ND6Y5KRMY1R09EK7Q7NMXT\n![b](https://example.org/b.jpg)",
 		"annotate":    "title: Kasten\nimage: /api/v1/files/AB12 Flur\n- 22, 30: F1 Küche und @herd\n- 74,5% ; 64 blue: FI",
 	}
@@ -26,12 +25,11 @@ func TestPictureBlocks(t *testing.T) {
 		}
 	}
 	bad := map[string][2]string{
-		"mindmap empty": {"mindmap", "  \n"},
-		"ba script":     {"beforeafter", "before: javascript:alert(1)"},
-		"ba line":       {"beforeafter", "irgendwas"},
-		"an pos":        {"annotate", "image: /api/v1/files/AB12\n- 120, 3: x"},
-		"an colour":     {"annotate", "image: /api/v1/files/AB12\n- 1, 3 teal: x"},
-		"an empty":      {"annotate", "title: nur Titel"},
+		"ba script": {"beforeafter", "before: javascript:alert(1)"},
+		"ba line":   {"beforeafter", "irgendwas"},
+		"an pos":    {"annotate", "image: /api/v1/files/AB12\n- 120, 3: x"},
+		"an colour": {"annotate", "image: /api/v1/files/AB12\n- 1, 3 teal: x"},
+		"an empty":  {"annotate", "title: nur Titel"},
 	}
 	for name, c := range bad {
 		if len(Check(c[0], []byte(c[1]))) == 0 {

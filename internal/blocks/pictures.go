@@ -6,8 +6,9 @@ import (
 	"strings"
 )
 
-// Mind maps, before/after images and annotated images (ADR-0085), read like
-// web/src/blocks/{mindmap,beforeafter,annotate}.ts. Schedules (gantt) are a
+// Before/after images and annotated images (ADR-0085), read like
+// web/src/blocks/{beforeafter,annotate}.ts. Mind maps are a plugin
+// (com.phoedox.mindmap, ADR-0087). Schedules (gantt) are a
 // plugin (com.phoedox.gantt, ADR-0086).
 
 var (
@@ -18,31 +19,6 @@ var (
 	markerLine  = regexp.MustCompile(`(?i)^[-*+]?\s*(\d+(?:[.,]\d+)?)\s*%?\s*[,;]\s*(\d+(?:[.,]\d+)?)\s*%?(?:\s+([a-z]+))?\s*:\s*(.*)$`)
 	blockColors = map[string]bool{"gray": true, "red": true, "orange": true, "yellow": true, "green": true, "blue": true, "purple": true, "pink": true}
 )
-
-// --- mind map ---------------------------------------------------------------------
-
-func mindmapItems(src []byte) []string {
-	var out []string
-	for _, l := range strings.Split(strings.ReplaceAll(string(src), "\r\n", "\n"), "\n") {
-		t := strings.TrimSpace(l)
-		if t == "" || strings.HasPrefix(t, "#") {
-			continue
-		}
-		out = append(out, strings.TrimSpace(listLine.ReplaceAllString(t, "$1")))
-	}
-	return out
-}
-
-func checkMindmap(src []byte) []Problem {
-	items := mindmapItems(src)
-	if len(items) == 0 {
-		return []Problem{problem("the mind map is empty")}
-	}
-	if len(items) > 400 {
-		return []Problem{problem("at most 400 items")}
-	}
-	return nil
-}
 
 // --- images ---------------------------------------------------------------------------
 
@@ -112,8 +88,6 @@ func parseAnnotate(src []byte) (title string, texts []string, ps []Problem) {
 }
 
 func init() {
-	Register(Def{Kind: "mindmap", Board: true, Check: checkMindmap,
-		Text: func(src []byte) string { return strings.Join(mindmapItems(src), " ") }})
 	Register(Def{Kind: "beforeafter", Board: true, Check: checkBeforeAfter,
 		Text: func(src []byte) string {
 			var out []string

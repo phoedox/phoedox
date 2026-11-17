@@ -1,5 +1,9 @@
 # ```matrix – decision matrices
 
+This block comes from the official plugin `com.phoedox.matrix` (ADR-0087). `get_project` lists it in
+`pluginBlocks`; with `missing: true` the plugin is not active in the project yet, so the
+block keeps its source until a project owner or administrator enables it (see `blocks/plugins.md`).
+
 `criteria:` lists criteria with an optional weight (`Price*3`), `scale: 1-5` the best
 score, `- Option: score, score, …` one score per criterion, higher is better (score cost
 so that cheaper is higher). The total is the weighted sum as a share of the best

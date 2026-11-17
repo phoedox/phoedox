@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { blockDef } from "./blocks";
 import { calcName, calcValues, formatValue, parseCalc } from "./blocks/calc";
-import { matrixScores, parseMatrix } from "./blocks/matrix";
 import { parsePoll } from "./blocks/poll";
 import { parseQuiz } from "./blocks/quiz";
 import { FormulaError, evaluate, formulaNames } from "./formula";
@@ -29,21 +28,6 @@ describe("poll", () => {
     expect(parsePoll("Wohin?\n- Zoo").problems[0].key).toBe("poll.err_options");
     expect(blockDef("poll")!.board?.live).toBe(true);
     expect(blockDef("poll")!.idOf!(model)).toBe("ausflug");
-  });
-});
-
-describe("decision matrix", () => {
-  test("weighted scores and the best option", () => {
-    const { model } = parseMatrix("title: NAS\ncriteria: Preis*3, Lautstärke*2, Speicher\nscale: 1-5\n- A: 3, 4, 3\n- B: 5, 2, 5");
-    expect(model!.criteria).toEqual([{ name: "Preis", weight: 3 }, { name: "Lautstärke", weight: 2 }, { name: "Speicher", weight: 1 }]);
-    const s = matrixScores(model!);
-    expect(s[0]).toBeCloseTo((9 + 8 + 3) / 30);
-    expect(s[1]).toBeCloseTo((15 + 4 + 5) / 30);
-    // Other weights change the ranking.
-    const t = matrixScores(model!, [0, 5, 0]);
-    expect(t[0]).toBeGreaterThan(t[1]);
-    expect(parseMatrix("criteria: a, b\n- X: 1\n- Y: 1, 2").problems[0]).toEqual({ key: "matrix.err_count", params: { option: "X", n: 2 } });
-    expect(parseMatrix("criteria: a\n- X: gut\n- Y: 1").problems[0].key).toBe("matrix.err_score");
   });
 });
 
@@ -77,7 +61,7 @@ describe("quiz", () => {
   });
 
   test("every block draws a picture", () => {
-    for (const [k, src] of [["poll", "Q\n- a\n- b"], ["matrix", "criteria: a\n- X: 1\n- Y: 2"], ["calc", "A = 1\nB = A + 1"], ["quiz", "? Q\n+ a"]]) {
+    for (const [k, src] of [["poll", "Q\n- a\n- b"], ["calc", "A = 1\nB = A + 1"], ["quiz", "? Q\n+ a"]]) {
       const d = blockDef(k)!;
       const svg = d.svg(d.parse(src).model, { width: 400, locale: "de" });
       expect(svg.startsWith("<svg")).toBe(true);

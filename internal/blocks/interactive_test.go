@@ -7,10 +7,9 @@ import (
 
 func TestInteractiveBlocks(t *testing.T) {
 	ok := map[string]string{
-		"poll":   "multiple\nWohin?\n- Zoo\n- Museum\nclosed",
-		"matrix": "title: NAS\ncriteria: Preis*3, Lautstärke*2, Speicher\n- A: 3, 4, 3\n- B: 5; 2; 5",
-		"calc":   "title: Strom\nLeistung (W) = 25\nPreis (€/kWh) = 0,32\nKosten pro Jahr (€) = ROUND(Leistung * 24 * 365 / 1000 * Preis; 2)\nNAS (W) = @nas.power_w\nSumme = Kosten_pro_Jahr + NAS",
-		"quiz":   "title: Netz\n? Router?\n- 1.1\n+ 10.1\n> Seit März.\n\n? WLAN?\n= Gartenhaus",
+		"poll": "multiple\nWohin?\n- Zoo\n- Museum\nclosed",
+		"calc": "title: Strom\nLeistung (W) = 25\nPreis (€/kWh) = 0,32\nKosten pro Jahr (€) = ROUND(Leistung * 24 * 365 / 1000 * Preis; 2)\nNAS (W) = @nas.power_w\nSumme = Kosten_pro_Jahr + NAS",
+		"quiz": "title: Netz\n? Router?\n- 1.1\n+ 10.1\n> Seit März.\n\n? WLAN?\n= Gartenhaus",
 	}
 	for k, src := range ok {
 		if ps := Check(k, []byte(src)); len(ps) > 0 {
@@ -23,8 +22,6 @@ func TestInteractiveBlocks(t *testing.T) {
 	bad := map[string][2]string{
 		"poll dup":       {"poll", "Q\n- a\n- a"},
 		"poll one":       {"poll", "Q\n- a"},
-		"matrix count":   {"matrix", "criteria: a, b\n- X: 1\n- Y: 1, 2"},
-		"matrix number":  {"matrix", "criteria: a\n- X: gut\n- Y: 1"},
 		"calc unknown":   {"calc", "A = C + 1"},
 		"calc cycle":     {"calc", "A = B + 1\nB = A * 2"},
 		"calc brackets":  {"calc", "A = (1 + 2"},
