@@ -45,6 +45,10 @@ func (d *DB) IndexPut(ctx context.Context, e IndexEntry) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM search_terms WHERE ref_id = ?`, e.RefID); err != nil {
 			return err
 		}
+		// A changed text needs a new embedding (semantic search).
+		if _, err := tx.Exec(ctx, `DELETE FROM search_vectors WHERE ref_id = ?`, e.RefID); err != nil {
+			return err
+		}
 		terms := termsOf(e.Title + " " + e.Body)
 		for len(terms) > 0 {
 			n := min(len(terms), 200)
@@ -122,7 +126,10 @@ func (d *DB) IndexDelete(ctx context.Context, refID string) error {
 	if _, err := d.Exec(ctx, `DELETE FROM search_index WHERE ref_id = ? OR ref_id LIKE ? ESCAPE '\'`, refID, escapeLike(refID)+"~%"); err != nil {
 		return err
 	}
-	_, err := d.Exec(ctx, `DELETE FROM search_terms WHERE ref_id = ? OR ref_id LIKE ? ESCAPE '\'`, refID, escapeLike(refID)+"~%")
+	if _, err := d.Exec(ctx, `DELETE FROM search_terms WHERE ref_id = ? OR ref_id LIKE ? ESCAPE '\'`, refID, escapeLike(refID)+"~%"); err != nil {
+		return err
+	}
+	_, err := d.Exec(ctx, `DELETE FROM search_vectors WHERE ref_id = ? OR ref_id LIKE ? ESCAPE '\'`, refID, escapeLike(refID)+"~%")
 	return err
 }
 

@@ -143,3 +143,18 @@ func TestCallID(t *testing.T) {
 }
 
 func errorsAs(err error, target **ai.APIError) bool { return errors.As(err, target) }
+
+func TestEmbed(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/embeddings" || r.Header.Get("Authorization") != "Bearer k" {
+			w.WriteHeader(400)
+			return
+		}
+		_, _ = io.WriteString(w, `{"data":[{"index":1,"embedding":[0,1]},{"index":0,"embedding":[1,0]}]}`)
+	}))
+	defer srv.Close()
+	v, err := New(srv.URL+"/v1", "k", nil).Embed(context.Background(), "m", []string{"a", "b"})
+	if err != nil || len(v) != 2 || v[0][0] != 1 || v[1][1] != 1 {
+		t.Fatalf("embed: %v %v", err, v)
+	}
+}

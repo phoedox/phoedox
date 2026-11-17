@@ -113,6 +113,7 @@ func main() {
 				return
 			case <-t.C:
 				a.Core.RunChecks(store.System(ctx), time.Now())
+				a.Core.RunEmbeddings(ctx)
 				if time.Since(digests) > 10*time.Minute {
 					digests = time.Now()
 					a.Core.SendDigests(store.System(ctx), time.Now())

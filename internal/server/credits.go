@@ -58,3 +58,20 @@ func (a *api) grantCredits(w http.ResponseWriter, r *http.Request) {
 	v, err := a.core.GrantCredits(r.Context(), actorOf(r), in)
 	respond(w, v, err)
 }
+
+// Semantic search settings (ADR-0081).
+
+func (a *api) adminEmbeddings(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.AdminEmbeddings(r.Context(), actorOf(r))
+	respond(w, v, err)
+}
+
+func (a *api) setAdminEmbeddings(w http.ResponseWriter, r *http.Request) {
+	var in core.EmbeddingSettings
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.SetAdminEmbeddings(r.Context(), actorOf(r), in)
+	respond(w, v, err)
+}

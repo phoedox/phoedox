@@ -93,6 +93,12 @@ type Provider interface {
 	Models(ctx context.Context) ([]string, error)
 }
 
+// Embedder turns texts into vectors (OpenAI-compatible /embeddings); used
+// for semantic search. Anthropic offers no embeddings.
+type Embedder interface {
+	Embed(ctx context.Context, model string, texts []string) ([][]float32, error)
+}
+
 // Kinds of providers.
 const (
 	KindAnthropic = "anthropic"

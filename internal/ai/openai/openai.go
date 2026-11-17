@@ -342,3 +342,33 @@ func (p *Provider) Stream(ctx context.Context, req ai.Request, emit func(ai.Even
 	turn.Message, err = json.Marshal(map[string]any{"role": "assistant", "content": blocks})
 	return turn, err
 }
+
+// Embed returns the embeddings of texts (POST /embeddings), in input order.
+func (p *Provider) Embed(ctx context.Context, model string, texts []string) ([][]float32, error) {
+	res, err := p.do(ctx, http.MethodPost, "/embeddings", map[string]any{"model": model, "input": texts})
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	var out struct {
+		Data []struct {
+			Index     int       `json:"index"`
+			Embedding []float32 `json:"embedding"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(io.LimitReader(res.Body, 64<<20)).Decode(&out); err != nil {
+		return nil, err
+	}
+	vecs := make([][]float32, len(texts))
+	for _, d := range out.Data {
+		if d.Index >= 0 && d.Index < len(vecs) {
+			vecs[d.Index] = d.Embedding
+		}
+	}
+	for i, v := range vecs {
+		if len(v) == 0 {
+			return nil, fmt.Errorf("embeddings: no vector for input %d", i)
+		}
+	}
+	return vecs, nil
+}

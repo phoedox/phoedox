@@ -297,6 +297,13 @@ func (s *Service) Search(ctx context.Context, a Actor, query, ref string, limit 
 	if err != nil {
 		return nil, err
 	}
+	// Semantic search (when switched on) adds hits close in meaning.
+	if sem := s.semanticHits(ctx, ids, query, 20); len(sem) > 0 {
+		if limit <= 0 || limit > 100 {
+			limit = 30
+		}
+		hits = fuseHits(hits, sem, limit)
+	}
 	docRules := map[string]func(string, bool) bool{}
 	fileRules := map[string]func(store.File) bool{}
 	restricted, err := s.DB.RestrictedDocs(ctx, ids)

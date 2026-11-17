@@ -23,6 +23,7 @@ import "./shared-app";
 import "./pay";
 import "./dpa";
 import "./credits";
+import "./embeddings-admin";
 import "./payments";
 import "./print";
 import "./login";
@@ -146,7 +147,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/admin/overview", render: () => adm("overview", html`<phx-admin-overview></phx-admin-overview>`) },
     { path: "/admin/users", render: () => adm("users", html`<phx-users></phx-users>`) },
     { path: "/admin/signup", render: () => adm("signup", html`<phx-admin-settings section="signup"></phx-admin-settings>`) },
-    { path: "/admin/ai", render: () => adm("ai", html`<phx-admin-settings section="ai"></phx-admin-settings>`) },
+    { path: "/admin/ai", render: () => adm("ai", html`<phx-admin-settings section="ai"></phx-admin-settings><phx-embeddings-admin></phx-embeddings-admin>`) },
     { path: "/admin/storage", render: () => adm("storage", html`<phx-admin-settings section="storage"></phx-admin-settings>`) },
     { path: "/admin/security", render: () => adm("security", html`<phx-admin-settings section="security"></phx-admin-settings>`) },
     // Old address of the instance settings.
