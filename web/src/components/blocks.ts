@@ -9,6 +9,7 @@ import { attrLabel } from "../model";
 import { base } from "./shared";
 import "./chart-block";
 import "./block-view";
+import "./plugin-block";
 import "./page-blocks";
 
 /** Formula: KaTeX as MathML (no fonts or styles needed). */

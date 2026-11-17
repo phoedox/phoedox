@@ -571,6 +571,9 @@ func (s *Site) links(r *http.Request, base string, site []core.PubProject, pp co
 			}
 			return ""
 		},
+		PluginBlock: func(kind, source string) string {
+			return s.Core.PubPluginBlock(r.Context(), pp.Project, kind, source, r.URL.Query().Get("lang"))
+		},
 		Floorplan: func(plan, room string) string {
 			for _, d := range pp.Docs {
 				if d.Type == store.DocFloorplan && (d.Slug == plan || d.ID == plan) {

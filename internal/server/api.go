@@ -691,6 +691,8 @@ func (a *api) routes(r chi.Router) {
 			r.Post("/edges/remove", a.unlink)
 			r.Get("/suggestions", a.listSuggestions)
 			r.Get("/plugins", a.projectPlugins)
+			r.Get("/plugin-blocks", a.pluginBlocks)
+			r.Post("/plugin-blocks/{kind}/render", a.renderPluginBlock)
 			r.Put("/plugins/{id}", a.setProjectPlugin)
 			r.Put("/plugins/{id}/secrets", a.setPluginSecrets)
 			r.Post("/plugins/{id}/tools/{tool}", a.pluginTool)

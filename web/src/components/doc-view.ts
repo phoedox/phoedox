@@ -9,6 +9,7 @@ import { languageName } from "../languages";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
 import { renderMarkdown, withoutTitle } from "../md";
+import { pluginBlocks } from "../plugin-blocks";
 import { contentLocale, currentProject, docsVersion, favorites, navigate, setWideReading, wideReading } from "../state";
 import "./request-block";
 import "./board";
@@ -464,7 +465,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       void import("./apps");
       return html`<phx-app-view .project=${this.project} .doc=${d}></phx-app-view>`;
     }
-    if (d.type === "markdown") return html`<div class="prose">${unsafeHTML(renderMarkdown(withoutTitle(c.markdown ?? "", d.title), this.project, d.id))}</div>`;
+    // Reading the plugin blocks re-renders once a project's plugins are known (ADR-0086).
+    if (d.type === "markdown") return html`<div class="prose" data-plugin-blocks=${pluginBlocks.get().size}>${unsafeHTML(renderMarkdown(withoutTitle(c.markdown ?? "", d.title), this.project, d.id))}</div>`;
     if (d.type === "link") return html`<p><a class="btn" href=${c.url} target="_blank" rel="noopener external">${icon("ExternalLink", 15)} ${t("doc.open_link")}</a></p>
       <p class="mono muted">${c.url}</p>
       <p class="row">${c.archive ? html`<a class="btn ghost" href=${fileURL({ id: c.archive.file, name: d.title })} target="_blank">${icon("Archive", 15)} ${t("link.archived_copy", { date: formatDate(c.archive.at) })}</a>` : ""}

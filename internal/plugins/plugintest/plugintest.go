@@ -57,6 +57,7 @@ const Manifest = `{
   "contributes": {
     "kinds": [{ "id": "ups", "schema": "schemas/ups.json", "icon": "battery-charging" }],
     "relations": [{ "id": "powers", "from": ["ups"], "to": ["*"] }],
+    "blocks": [{ "id": "timeline", "label": "Timeline", "icon": "chart-gantt", "element": "phx-timeline", "board": true, "example": "2026-01-01" }, { "id": "chart", "label": "Not mine" }],
     "mcpTools": [{ "name": "ups.runtime", "description": "Runtime of a UPS.", "input": "schemas/runtime.json" },
       { "name": "ups.switch", "description": "Switch the UPS outlet.", "control": true, "timeoutSec": 20, "target": { "arg": "ups" } }],
     "events": ["schedule:every=60s", "entity.*"]

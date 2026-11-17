@@ -93,12 +93,14 @@ whiteboards and published pages) – read the one you are about to write.
 | ```calc | a calculator with inputs and formulas | `blocks/calc.md` |
 | ```quiz | a quiz or flashcards | `blocks/quiz.md` |
 | ```mindmap | a mind map from an outline | `blocks/mindmap.md` |
-| ```gantt | a schedule with dependencies and milestones | `blocks/gantt.md` |
 | ```beforeafter | two photos with a slider | `blocks/beforeafter.md` |
 | ```annotate | a photo with numbered markers | `blocks/annotate.md` |
 | ```tree | a tree of entries along one relation | `blocks/tree.md` |
 | ```rack | a rack by height unit with its devices | `blocks/rack.md` |
 | ```floorplan | a floor plan or one room of it | `blocks/floorplan.md` |
+
+**Blocks from plugins** (e.g. ```gantt schedules from `com.phoedox.gantt`): `get_project`
+lists a project's plugin blocks with an example; see `blocks/plugins.md`.
 
 `validate_blocks` checks blocks before or after saving; `create_document` and
 `update_document` return the same findings as `blockProblems`. The same source goes on

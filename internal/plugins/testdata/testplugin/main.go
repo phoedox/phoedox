@@ -81,6 +81,25 @@ func tool() int32 {
 	return output(map[string]any{"tool": in.Name, "args": in.Args})
 }
 
+// block_render draws a "timeline" block: the source as text. It also
+// sends a script, which the host must remove, and reports "bad" lines.
+//
+//go:wasmexport block_render
+func blockRender() int32 {
+	var in struct {
+		Kind, Source, Project, Locale string
+		Width                         int
+	}
+	_ = json.Unmarshal(pdk.Input(), &in)
+	var problems []map[string]any
+	if in.Source == "bad" {
+		problems = append(problems, map[string]any{"line": 1, "message": "bad is not a date"})
+	}
+	svg := `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40"><script>alert(1)</script>` +
+		`<rect width="200" height="40" style="fill:var(--surface)" onclick="alert(2)"/><text x="4" y="24">` + in.Kind + `:` + in.Locale + `</text></svg>`
+	return output(map[string]any{"svg": svg, "problems": problems})
+}
+
 //go:wasmexport spin
 func spin() int32 {
 	for {

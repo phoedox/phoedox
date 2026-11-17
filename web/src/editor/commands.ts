@@ -21,6 +21,8 @@ export interface SlashItem {
   words: string;
   /** Runs inside the host; the host asks for values where needed. */
   run: string;
+  /** A label of its own (plugin blocks); otherwise i18n "slash.<id>". */
+  label?: string;
 }
 
 /** Items of the "/" menu; labels come from i18n ("slash.<id>"). */
@@ -54,7 +56,6 @@ export const SLASH_ITEMS: SlashItem[] = [
   { id: "calc", group: "blocks", icon: "Calculator", words: "rechner calculator formel formula kosten berechnung", run: "fence:calc" },
   { id: "quiz", group: "blocks", icon: "BookOpenCheck", words: "quiz lernkarten flashcards test fragen lernen", run: "fence:quiz" },
   { id: "mindmap", group: "blocks", icon: "Network", words: "mindmap mind map gliederung outline ideen brainstorming baum", run: "fence:mindmap" },
-  { id: "gantt", group: "blocks", icon: "ChartGantt", words: "gantt zeitplan schedule projektplan timeline termine meilenstein milestone", run: "fence:gantt" },
   { id: "beforeafter", group: "blocks", icon: "SquareSplitHorizontal", words: "vorher nachher before after vergleich foto bild slider renovierung", run: "fence:beforeafter" },
   { id: "annotate", group: "blocks", icon: "MapPinned", words: "bild markierungen annotate annotation foto nummern punkte sicherungskasten beschriften", run: "fence:annotate" },
   { id: "tree", group: "blocks", icon: "ListTree", words: "baum tree stammbaum organigramm org chart hierarchie netz topologie family", run: "fence:tree" },
@@ -145,6 +146,14 @@ export function $insertSteps(a: CalloutAttrs) {
 export function $insertRequest() {
   const code = $createCodeNode("request");
   code.append($createTextNode("GET {{base}}/"));
+  $insertBlock(code);
+  code.selectEnd();
+}
+
+/** A plugin's block (ADR-0086) as a code block of its kind with an example. */
+export function $insertCodeBlock(lang: string, text: string) {
+  const code = $createCodeNode(lang);
+  code.append($createTextNode(text));
   $insertBlock(code);
   code.selectEnd();
 }

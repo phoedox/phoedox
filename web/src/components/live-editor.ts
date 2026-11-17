@@ -1,3 +1,4 @@
+import { pluginBlocks } from "../plugin-blocks";
 import { $createCodeNode } from "@lexical/code";
 import { blockDef } from "../blocks";
 import { TOGGLE_LINK_COMMAND } from "@lexical/link";
@@ -11,7 +12,7 @@ import { $createParagraphNode, $getRoot, $getNodeByKey, $getSelection, $isRangeS
 import { $isFenceNode, $isRawNode, InlineMathNode, TimeNode } from "../editor/blocks";
 import {
   $applyColors, $currentColors, $insertCallout, $insertSteps, $insertDivider, $insertFence, $insertInlineMath, $insertRequest, $insertTime, $removeSlash, $selectedCallout, $setBlock,
-  runFormat, runList, runTable, SLASH_ITEMS, type SlashItem,
+  runFormat, runList, runTable, SLASH_ITEMS, type SlashItem, $insertCodeBlock,
 } from "../editor/commands";
 import { CALLOUT_PRESETS, COLORS, blockId, type CalloutAttrs, type Color, type FenceKind, type TimeKind } from "../syntax";
 import { calloutIcons } from "../icon";
@@ -414,10 +415,16 @@ export class PhxLiveEditor extends LitElement {
   }
 
   private slashItems(query = this.slash?.query ?? ""): SlashItem[] {
+    // Blocks of the project's plugins (ADR-0086) join the core ones.
+    const plugin: SlashItem[] = [...pluginBlocks.get().values()].map((b) => ({
+      id: `plugin-${b.kind}`, group: "blocks", label: b.label, words: `${b.kind} ${b.label} plugin`,
+      icon: (b.icon ?? "puzzle").split("-").map((p) => p[0].toUpperCase() + p.slice(1)).join(""), run: `plugin:${b.kind}`,
+    }));
+    const all = [...SLASH_ITEMS, ...plugin];
     const q = query.toLowerCase().trim();
-    if (!q) return SLASH_ITEMS;
+    if (!q) return all;
     const words = q.split(/\s+/);
-    return SLASH_ITEMS.filter((i) => { const hay = `${i.id} ${i.words} ${t(`slash.${i.id}` as any)}`.toLowerCase(); return words.every((w) => hay.includes(w)); });
+    return all.filter((i) => { const hay = `${i.id} ${i.words} ${i.label ?? t(`slash.${i.id}` as any)}`.toLowerCase(); return words.every((w) => hay.includes(w)); });
   }
 
   /** Remembers the selection so dialogs can insert where the cursor was. */
@@ -467,6 +474,10 @@ export class PhxLiveEditor extends LitElement {
       this.pop = "callout";
     }
     else if (kind === "request") ed.update(() => $insertRequest());
+    else if (kind === "plugin") {
+      const b = pluginBlocks.get().get(arg);
+      if (b) ed.update(() => $insertCodeBlock(b.kind, b.example ?? ""));
+    }
     else if (kind === "color") this.pop = "color";
     else if (kind === "file") this.renderRoot.querySelector<HTMLInputElement>("input.pick")!.click();
     else if (kind === "fence") {
@@ -730,7 +741,7 @@ export class PhxLiveEditor extends LitElement {
       ${items.length ? items.map((it, i) => {
         const head = it.group !== group ? ((group = it.group), html`<div class="grp">${t(`slash.group.${it.group}` as any)}</div>`) : "";
         return html`${head}<div role="option" aria-selected=${i === s.active ? "true" : "false"} class=${i === s.active ? "it act" : "it"}
-          @pointerenter=${() => (this.slash = { ...s, active: i })} @click=${() => this.runSlash(it)}>${icon(it.icon, 15)} ${t(`slash.${it.id}` as any)}</div>`;
+          @pointerenter=${() => (this.slash = { ...s, active: i })} @click=${() => this.runSlash(it)}>${icon(it.icon, 15)} ${it.label ?? t(`slash.${it.id}` as any)}</div>`;
       }) : html`<div class="grp">${t("slash.none")}</div>`}
     </div>`;
   }

@@ -9,6 +9,7 @@ function iconElement(name: string, size: number): SVGElement {
   return t.content.firstElementChild as SVGElement;
 }
 import { toast } from "./components/toasts";
+import { loadPluginBlocks } from "./plugin-blocks";
 import { currentProject } from "./state";
 
 /**
@@ -73,6 +74,14 @@ function makeSdk(pluginId: string) {
       create: async (type: string, title?: string) =>
         (await api<{ document: { id: string } }>("POST", `/projects/${project()}/documents`, { type, title: title ?? "" })).document,
     },
+    // Read-only helpers with the reader's rights (plugin blocks, ADR-0086).
+    tasks: {
+      list: (board: string) => api<unknown[]>("GET", `/projects/${project()}/tasks?board=${encodeURIComponent(board)}`),
+    },
+    blocks: {
+      render: (kind: string, source: string, width = 720) =>
+        api<{ svg: string; problems: { line: number; message: string; severity: string }[] }>("POST", `/projects/${project()}/plugin-blocks/${encodeURIComponent(kind)}/render`, { source, width, locale: document.documentElement.lang || "en" }),
+    },
     tool: <T>(name: string, input: unknown) => api<T>("POST", `/projects/${project()}/plugins/${pluginId}/tools/${encodeURIComponent(name)}`, input ?? {}),
     ui: { toast: (message: string) => toast(String(message)) },
     commands: {
@@ -125,6 +134,7 @@ export async function loadProjectPlugins(slug: string) {
   current = slug;
   pluginCommands.set([]);
   pluginViews.set({});
+  void loadPluginBlocks(slug, true);
   const list = await api<ProjectPlugin[]>("GET", `/projects/${slug}/plugins`).catch(() => [] as ProjectPlugin[]);
   const views: Record<string, string[]> = {};
   for (const p of (list ?? []).filter((x) => x.enabled && x.frontend)) {

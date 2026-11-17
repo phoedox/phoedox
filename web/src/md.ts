@@ -1,3 +1,4 @@
+import { pluginBlock } from "./plugin-blocks";
 import DOMPurify from "dompurify";
 import { blockDef } from "./blocks";
 import { Marked, type Tokens } from "marked";
@@ -196,6 +197,7 @@ const marked = new Marked({
       if (kind === "board") return `<phx-board-embed data-board="${escape(value)}" data-project="${escape(context.project)}"></phx-board-embed>`;
       if (kind === "app") return `<phx-app-embed data-app="${escape(value)}" data-project="${escape(context.project)}"></phx-app-embed>`;
       if (kind === "whiteboard") return `<phx-whiteboard-embed data-board="${escape(value)}" data-project="${escape(context.project)}"></phx-whiteboard-embed>`;
+      if (kind && pluginBlock(kind)) return `<phx-plugin-block data-kind="${escape(kind)}" data-project="${escape(context.project)}"><pre>${escape(value)}</pre></phx-plugin-block>`;
       if (kind !== "request" && kind !== "http") return false;
       const i = requestIndex++;
       return `<phx-request-block data-index="${i}" data-project="${escape(context.project)}" data-doc="${escape(context.doc)}"><pre>${escape(text)}</pre></phx-request-block>`;
@@ -213,7 +215,7 @@ export function markdownHTML(md: string, project: string, doc = ""): string {
 /** Renders Markdown to sanitised HTML. */
 export function renderMarkdown(md: string, project: string, doc = ""): string {
   const html = markdownHTML(md, project, doc);
-  return DOMPurify.sanitize(html, { ADD_ATTR: ["target"], ADD_TAGS: ["phx-request-block", "phx-math", "phx-embed", "phx-time", "phx-board-embed", "phx-whiteboard-embed", "phx-app-embed", "phx-mermaid", "phx-chart", "phx-block", "phx-tabs", "phx-steps", "phx-compare", "details", "summary", "phx-dbmodel", "phx-status", "phx-entity-card", "phx-include", "phx-query-block", "phx-map-block"] });
+  return DOMPurify.sanitize(html, { ADD_ATTR: ["target"], ADD_TAGS: ["phx-request-block", "phx-math", "phx-embed", "phx-time", "phx-board-embed", "phx-whiteboard-embed", "phx-app-embed", "phx-mermaid", "phx-chart", "phx-block", "phx-plugin-block", "phx-tabs", "phx-steps", "phx-compare", "details", "summary", "phx-dbmodel", "phx-status", "phx-entity-card", "phx-include", "phx-query-block", "phx-map-block"] });
 }
 
 /** Drops a leading "# Heading" that only repeats the page title. */

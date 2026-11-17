@@ -28,7 +28,7 @@ pixels at 100 %), y grows downwards.
   board; `source` is the same text as the fenced block of that kind in a page
   (`blocks/<kind>.md`), e.g. `kind: chart` with the chart JSON. Blocks look the same as in
   pages; polls and calculators can be used right on the board, decision matrices show
-  their bars; trees, racks and floor plan excerpts are live; mind maps, schedules, before/after and annotated images are pictures
+  their bars; trees, racks and floor plan excerpts are live; mind maps, before/after and annotated images and plugin blocks are pictures
   (quizzes are for pages only). A mind map in a page can be copied onto a board as
   shapes; for editable diagrams use `draw_diagram`. About 560×360 fits a
   chart. Older boards may have `type: chart` with a `chart` object – read it as a chart

@@ -4,26 +4,18 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 )
 
-// Mind maps, schedules (Gantt), before/after images and annotated images
-// (ADR-0085), read like web/src/blocks/{mindmap,gantt,beforeafter,annotate}.ts.
+// Mind maps, before/after images and annotated images (ADR-0085), read like
+// web/src/blocks/{mindmap,beforeafter,annotate}.ts. Schedules (gantt) are a
+// plugin (com.phoedox.gantt, ADR-0086).
 
 var (
-	ganttLine   = regexp.MustCompile(`^(.+?)(?:\s*\[([A-Za-z0-9-]+)\])?\s*:\s*(.+)$`)
-	ganttRange  = regexp.MustCompile(`\s+(?:–|—|-|\.\.|bis|to)\s+(\d{4}-)`)
-	ganttDur    = regexp.MustCompile(`(?i)^\d+(?:[.,]\d+)?\s*[dtwm]$`)
-	ganttPct    = regexp.MustCompile(`^\d{1,3}\s*%$`)
-	ganttDone   = regexp.MustCompile(`(?i)^(done|fertig|erledigt)$`)
-	ganttAfter  = regexp.MustCompile(`(?i)^(?:after|nach)\s+(.+)$`)
-	ganttSec    = regexp.MustCompile(`(?i)^(?:section|abschnitt)\s+(.+)$`)
 	imageFile   = regexp.MustCompile(`^/api/v1/files/[A-Za-z0-9]+(/[^\s"'<>]*)?$`)
 	imageID     = regexp.MustCompile(`^[0-9A-HJKMNP-TV-Z]{26}$`)
 	imageHTTPS  = regexp.MustCompile(`^https://[^\s"'<>]+$`)
 	mdImage     = regexp.MustCompile(`^!\[([^\]]*)\]\(([^)\s]+)\)$`)
 	markerLine  = regexp.MustCompile(`(?i)^[-*+]?\s*(\d+(?:[.,]\d+)?)\s*%?\s*[,;]\s*(\d+(?:[.,]\d+)?)\s*%?(?:\s+([a-z]+))?\s*:\s*(.*)$`)
-	ganttHead   = regexp.MustCompile(`(?m)^\s*##\s+`)
 	blockColors = map[string]bool{"gray": true, "red": true, "orange": true, "yellow": true, "green": true, "blue": true, "purple": true, "pink": true}
 )
 
@@ -50,82 +42,6 @@ func checkMindmap(src []byte) []Problem {
 		return []Problem{problem("at most 400 items")}
 	}
 	return nil
-}
-
-// --- schedule ----------------------------------------------------------------------
-
-// ganttLines reads "## Section" as "section Section" (lines() drops # comments).
-func ganttLines(src []byte) []string {
-	return lines(ganttHead.ReplaceAll(src, []byte("section ")))
-}
-
-func ganttDay(s string) bool {
-	_, err := time.Parse("2006-01-02", s)
-	return err == nil
-}
-
-func checkGantt(src []byte) []Problem {
-	var ps []Problem
-	type item struct {
-		name  string
-		after []string
-	}
-	var items []item
-	ids := map[string]bool{}
-	board := false
-	for _, l := range ganttLines(src) {
-		if k, _, ok := key(l, "title", "titel", "board"); ok {
-			board = board || k == "board"
-			continue
-		}
-		if strings.EqualFold(l, "today") || strings.EqualFold(l, "heute") || ganttSec.MatchString(l) {
-			continue
-		}
-		m := ganttLine.FindStringSubmatch(l)
-		if m == nil {
-			ps = append(ps, problem("unknown line %q (expected \"Name: start, duration\")", l))
-			continue
-		}
-		it := item{name: strings.TrimSpace(m[1])}
-		if m[2] != "" {
-			ids[m[2]] = true
-		}
-		parts := strings.Split(ganttRange.ReplaceAllString(m[3], ", $1"), ",")
-		first := strings.TrimSpace(parts[0])
-		if a := ganttAfter.FindStringSubmatch(first); a != nil {
-			it.after = strings.Fields(a[1])
-		} else if !ganttDay(first) {
-			ps = append(ps, problem("%q: %q is neither a date (YYYY-MM-DD) nor \"after id\"", it.name, first))
-			continue
-		}
-		end := ""
-		for _, p := range parts[1:] {
-			p = strings.TrimSpace(p)
-			switch {
-			case p == "":
-			case ganttDay(p):
-				end = p
-			case ganttDur.MatchString(p), ganttPct.MatchString(p), ganttDone.MatchString(p), blockColors[strings.ToLower(p)]:
-			default:
-				ps = append(ps, problem("%q: %q is not a date, a duration (3d, 2w), done, a percentage or a colour", it.name, p))
-			}
-		}
-		if end != "" && it.after == nil && end < first {
-			ps = append(ps, problem("%q ends before it starts", it.name))
-		}
-		items = append(items, it)
-	}
-	for _, it := range items {
-		for _, a := range it.after {
-			if !ids[a] {
-				ps = append(ps, problem("%q follows %q, but there is no such id", it.name, a))
-			}
-		}
-	}
-	if len(items) == 0 && !board && len(ps) == 0 {
-		ps = append(ps, problem("the schedule has no items"))
-	}
-	return ps
 }
 
 // --- images ---------------------------------------------------------------------------
@@ -198,22 +114,6 @@ func parseAnnotate(src []byte) (title string, texts []string, ps []Problem) {
 func init() {
 	Register(Def{Kind: "mindmap", Board: true, Check: checkMindmap,
 		Text: func(src []byte) string { return strings.Join(mindmapItems(src), " ") }})
-	Register(Def{Kind: "gantt", Board: true, Check: checkGantt,
-		Text: func(src []byte) string {
-			var out []string
-			for _, l := range ganttLines(src) {
-				if k, v, ok := key(l, "title", "titel", "board"); ok {
-					if k != "board" {
-						out = append(out, v)
-					}
-				} else if s := ganttSec.FindStringSubmatch(l); s != nil {
-					out = append(out, s[1])
-				} else if m := ganttLine.FindStringSubmatch(l); m != nil {
-					out = append(out, strings.TrimSpace(m[1]))
-				}
-			}
-			return strings.Join(out, " ")
-		}})
 	Register(Def{Kind: "beforeafter", Board: true, Check: checkBeforeAfter,
 		Text: func(src []byte) string {
 			var out []string

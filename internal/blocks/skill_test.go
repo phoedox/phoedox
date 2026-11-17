@@ -14,7 +14,7 @@ func TestEveryBlockHasASkillReference(t *testing.T) {
 		files[f.Path] = true
 	}
 	// Registered kinds plus the blocks the core renders itself.
-	kinds := append(Kinds(), "request", "compare", "status", "entity", "include", "query", "board", "whiteboard", "app", "map", "mermaid", "math", "dbmodel", "embed")
+	kinds := append(Kinds(), "request", "compare", "status", "entity", "include", "query", "board", "whiteboard", "app", "map", "mermaid", "math", "dbmodel", "embed", "plugins")
 	for _, k := range kinds {
 		if !files["phoedox/references/blocks/"+k+".md"] {
 			t.Errorf("block %q has no references/blocks/%s.md in the skill", k, k)

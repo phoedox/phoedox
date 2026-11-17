@@ -23,7 +23,7 @@ examples:
 |---|---|
 | Pages: reading, writing, sections, `edits`, batches, find and replace, order, files, comments | `references/pages.md` |
 | What pages can contain: links, callouts, tabs, steps, images, and the list of blocks | `references/page-syntax.md` |
-| One block kind (request, chart, poll, calc, mindmap, gantt, tree, rack, floorplan, …): source, example, checks | `references/blocks/<kind>.md` |
+| One block kind (request, chart, poll, calc, mindmap, tree, rack, floorplan, …): source, example, checks; blocks from plugins | `references/blocks/<kind>.md`, `references/blocks/plugins.md` |
 | Decisions (ADRs): record, prepare with options, import many, own numbers, supersede | `references/decisions.md` |
 | Entries, relations, data model, queries, locations, network, discovery, troubleshooting | `references/knowledge-graph.md` |
 | Boards and tasks: cards, subtasks, linked pages, time, code links | `references/tasks.md` |

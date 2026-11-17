@@ -5,7 +5,6 @@ import "./matrix";
 import "./calc";
 import "./quiz";
 import "./mindmap";
-import "./gantt";
 import "./beforeafter";
 import "./annotate";
 import "./tree";

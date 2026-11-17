@@ -234,6 +234,11 @@ func whiteboardContent(wb *Whiteboard) (store.JSON, string, error) {
 				kind, src = "chart", e.Chart
 			}
 			d, ok := blocks.Get(kind)
+			if !ok && pluginBlockKind.MatchString(kind) && !fixedFences[kind] && len(src) <= blocks.MaxSource {
+				// A plugin's block (ADR-0086): the plugin draws it where it is enabled.
+				text = append(text, string(src))
+				break
+			}
 			if !ok || !d.Board {
 				return nil, "", invalid("validation.whiteboard_block_kind", map[string]any{"id": e.ID, "kind": kind}, "whiteboard: %s cannot be a block on a whiteboard", kind)
 			}

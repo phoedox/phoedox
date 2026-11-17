@@ -659,7 +659,17 @@ type projectOverview struct {
 	Documents          int                     `json:"documents"`
 	EntityKinds        map[string]int          `json:"entityKinds"`
 	PendingSuggestions int                     `json:"pendingSuggestions"`
-	Hint               string                  `json:"hint,omitempty"`
+	// PluginBlocks are block kinds the project's plugins add (ADR-0086):
+	// write them as fenced blocks like core blocks; the example shows the form.
+	PluginBlocks []pluginBlockSummary `json:"pluginBlocks,omitempty"`
+	Hint         string               `json:"hint,omitempty"`
+}
+
+type pluginBlockSummary struct {
+	Kind    string `json:"kind"`
+	Label   string `json:"label"`
+	Plugin  string `json:"plugin"`
+	Example string `json:"example,omitempty"`
 }
 
 type docSummary struct {
@@ -781,6 +791,11 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		if sugs, err := svc.Suggestions(ctx, a, p.Slug, "pending"); err == nil {
 			ov.PendingSuggestions = len(sugs)
+		}
+		if pbs, err := svc.PluginBlocks(ctx, a, p.Slug); err == nil {
+			for _, b := range pbs {
+				ov.PluginBlocks = append(ov.PluginBlocks, pluginBlockSummary{Kind: b.Kind, Label: b.Label, Plugin: b.Plugin, Example: b.Example})
+			}
 		}
 		if p.AIWriteMode == "suggest" {
 			ov.Hint = "Writes in this project become suggestions that a human must accept."
@@ -938,7 +953,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		return svc.Glossary(ctx, a, in.Project)
 	})
-	tool(s, "validate_blocks", "Check the mermaid, dbmodel, chart, poll, matrix, calc, quiz, mindmap, gantt, beforeafter, annotate, tree, rack and floorplan blocks of a page (its open draft if any) or of Markdown you are about to save: unknown diagram types, Mermaid keywords used as names, unclosed blocks, unbalanced brackets or quotes, dbmodel tables that are not defined anywhere in the project, chart JSON that does not parse or does not fit (y not a number, unknown colour, dates the axis cannot read), polls without options, matrix rows with the wrong number of scores, calculator formulas with unknown names or cycles, quiz questions without a right answer, schedule items with bad dates or unknown after-ids, images that are not project files or https addresses, markers outside 0–100, trees, racks and floor plan excerpts naming entries, floor plans or rooms the project does not have. The Mermaid check catches common mistakes, not everything the renderer rejects. create_document and update_document return the same findings as blockProblems.", func(ctx context.Context, a core.Actor, in validateBlocksIn) (any, error) {
+	tool(s, "validate_blocks", "Check the mermaid, dbmodel, chart, poll, matrix, calc, quiz, mindmap, beforeafter, annotate, tree, rack and floorplan blocks and the blocks of the project's plugins of a page (its open draft if any) or of Markdown you are about to save: unknown diagram types, Mermaid keywords used as names, unclosed blocks, unbalanced brackets or quotes, dbmodel tables that are not defined anywhere in the project, chart JSON that does not parse or does not fit (y not a number, unknown colour, dates the axis cannot read), polls without options, matrix rows with the wrong number of scores, calculator formulas with unknown names or cycles, quiz questions without a right answer, images that are not project files or https addresses, markers outside 0–100, trees, racks and floor plan excerpts naming entries, floor plans or rooms the project does not have. The Mermaid check catches common mistakes, not everything the renderer rejects. create_document and update_document return the same findings as blockProblems.", func(ctx context.Context, a core.Actor, in validateBlocksIn) (any, error) {
 		if in.Document == "" && in.Markdown == nil {
 			return nil, errors.New("give document or markdown")
 		}

@@ -381,3 +381,48 @@ func TestPluginStoreSync(t *testing.T) {
 		t.Fatal("lifted recall")
 	}
 }
+
+// Plugin blocks (ADR-0086): listed per project, drawn by block_render with
+// the SVG cleaned, checked by validate_blocks; core kinds cannot be taken over.
+func TestPluginBlocks(t *testing.T) {
+	ctx := context.Background()
+	s, owner, reader, _, priv := pluginSetup(t)
+	admin := owner
+	admin.User.IsAdmin = true
+	data := plugintest.Package(t, plugintest.Manifest)
+	if _, err := s.InstallPlugin(ctx, admin, data, signed(t, priv, data), "upload"); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Haus"})
+	_ = s.SetMember(ctx, owner, p.Slug, reader.User.Email, store.RoleReader)
+	if list, _ := s.PluginBlocks(ctx, reader, p.Slug); len(list) != 0 {
+		t.Fatalf("not enabled yet: %+v", list)
+	}
+	if _, err := s.RenderPluginBlock(ctx, reader, p.Slug, "timeline", "x", "de", 0); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("disabled plugin must not draw: %v", err)
+	}
+	if err := s.SetProjectPlugin(ctx, owner, p.Slug, "de.example.ups", true); err != nil {
+		t.Fatal(err)
+	}
+	list, err := s.PluginBlocks(ctx, reader, p.Slug)
+	if err != nil || len(list) != 1 || list[0].Kind != "timeline" || list[0].Element != "phx-timeline" || !list[0].Board ||
+		list[0].Frontend != "/api/v1/plugins/de.example.ups/1.2.0/files/frontend/index.js" {
+		t.Fatalf("blocks: %v %+v", err, list)
+	}
+	r, err := s.RenderPluginBlock(ctx, reader, p.Slug, "timeline", "2026-01-01", "de", 600)
+	if err != nil || !strings.Contains(r.SVG, "timeline:de") || strings.Contains(r.SVG, "script") || strings.Contains(r.SVG, "onclick") || len(r.Problems) != 0 {
+		t.Fatalf("render: %v %+v", err, r)
+	}
+	if _, err := s.RenderPluginBlock(ctx, reader, p.Slug, "chart", "{}", "de", 600); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("core kinds stay with the core: %v", err)
+	}
+	md := "```timeline\nbad\n```\n\nText\n\n```timeline\n2026-01-01\n```"
+	ps, err := s.ValidateBlocks(ctx, reader, p.Slug, "", &md)
+	if err != nil || len(ps) != 1 || ps[0].Kind != "timeline" || ps[0].Block != 1 || ps[0].Line != 2 || ps[0].Message != "bad is not a date" {
+		t.Fatalf("validate: %v %+v", err, ps)
+	}
+	pub := s.PubPluginBlock(ctx, p, "timeline", "x", "en")
+	if !strings.Contains(pub, "timeline:en") {
+		t.Fatalf("published: %q", pub)
+	}
+}

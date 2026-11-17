@@ -26,6 +26,8 @@ import { COMPS, DEVICES, PreviewCache, actionsView, drawFlow, drawScreen, inspec
 import { base } from "./shared";
 import { toast } from "./toasts";
 import "./block-view";
+import "./plugin-block";
+import { cachedPluginBlock, pluginBlock, pluginBlocks } from "../plugin-blocks";
 
 type Tool = "select" | "hand" | "rect" | "ellipse" | "diamond" | "arrow" | "line" | "pen" | "text" | "sticky" | "frame" | "image" | "embed" | "entity" | "comment" | "laser" | "eraser" | "screen" | "ui";
 const TOOLS: (readonly [Tool, string, string] | "|")[] = [
@@ -324,6 +326,7 @@ export class PhxWhiteboard extends LitElement {
   }
 
   disconnectedCallback() {
+    removeEventListener("phx-plugin-block-drawn", this.onPluginDrawn);
     super.disconnectedCallback();
     window.removeEventListener("keydown", this.onKey);
     window.removeEventListener("keyup", this.onKeyUp);
@@ -358,6 +361,7 @@ export class PhxWhiteboard extends LitElement {
     this.synced = this.clone(this.board);
     this.painted = false;
     loadModel(this.project).then((m) => { this.model = m; this.paint(); }).catch(() => {});
+    addEventListener("phx-plugin-block-drawn", this.onPluginDrawn);
     // Entries on the board show their name and kind.
     this.entities = [];
     if (this.board.elements.some((e) => e.entity)) void this.loadEntities();
@@ -869,6 +873,23 @@ export class PhxWhiteboard extends LitElement {
     card.style.cssText = "fill:var(--surface);stroke:var(--line);stroke-width:1.5";
     const def = blockDef(b.kind ?? "");
     const parsed = def?.parse(b.source ?? "");
+    if (!def && pluginBlock(b.kind ?? "")) {
+      // A plugin's block: the server draws it; the picture arrives later and repaints.
+      const r = cachedPluginBlock(this.project, b.kind!, b.source ?? "", w - 16, locale());
+      if (!r?.svg) {
+        const tx = mk("text", { x: x + 14, y: y + 26 }, g);
+        tx.style.cssText = "font:13px var(--font-body);fill:var(--muted)";
+        tx.textContent = `${pluginBlock(b.kind!)!.label} · ${t(r ? "block.cannot_show" : "plugin_block.drawing")}`;
+        return;
+      }
+      const pic = document.importNode(new DOMParser().parseFromString(r.svg, "image/svg+xml").documentElement, true) as unknown as SVGSVGElement;
+      pic.setAttribute("x", String(x + 8));
+      pic.setAttribute("y", String(y + 8));
+      pic.setAttribute("width", String(w - 16));
+      pic.setAttribute("height", String(h - 16));
+      g.appendChild(pic);
+      return;
+    }
     if (!def || !parsed?.model) {
       const tx = mk("text", { x: x + 14, y: y + 26 }, g);
       tx.style.cssText = "font:13px var(--font-body);fill:var(--bad)";
@@ -884,6 +905,8 @@ export class PhxWhiteboard extends LitElement {
     inner.style.fontFamily = "var(--font-body)";
     g.appendChild(inner);
   }
+
+  private onPluginDrawn = () => this.paint();
 
   /** Running apps: frames in an overlay, positioned over their cards. */
   private appFrames = new Map<string, HTMLElement>();
@@ -2826,17 +2849,19 @@ export class PhxWhiteboard extends LitElement {
     return html`<dialog class="chart wbdlg" aria-labelledby="wbct" @cancel=${(e: Event) => { e.preventDefault(); close(); }} @keydown=${(e: KeyboardEvent) => e.stopPropagation()}>
       <h2 id="wbct">${t("wb.block_title")}</h2>
       ${c.id ? nothing : html`<label class="kindsel">${t("wb.block_kind")}
-        <select @change=${(ev: Event) => { const k = (ev.target as HTMLSelectElement).value; this.chartEdit = { kind: k, src: blockDef(k)?.example ?? "" }; }}>
+        <select @change=${(ev: Event) => { const k = (ev.target as HTMLSelectElement).value; this.chartEdit = { kind: k, src: blockDef(k)?.example ?? pluginBlock(k)?.example ?? "" }; }}>
           ${boardKinds().map((d) => html`<option value=${d.kind} ?selected=${d.kind === c.kind}>${t(d.label as any)}</option>`)}
+          ${[...pluginBlocks.get().values()].filter((p) => p.board).map((p) => html`<option value=${p.kind} ?selected=${p.kind === c.kind}>${p.label}</option>`)}
         </select></label>`}
-      <p class="muted">${def ? t(def.hint as any) : ""}</p>
+      <p class="muted">${def ? t(def.hint as any) : pluginBlock(c.kind)?.label ?? ""}</p>
       <div class="chartgrid">
         <textarea aria-label=${t("block.source")} .value=${c.src} spellcheck="false" @input=${(ev: Event) => {
           const v = (ev.target as HTMLTextAreaElement).value;
           clearTimeout(this.chartTimer);
           this.chartTimer = window.setTimeout(() => { if (this.chartEdit) this.chartEdit = { ...this.chartEdit, src: v }; }, 300);
         }}></textarea>
-        <phx-block data-kind=${c.kind} data-src=${c.src} data-project=${this.project} data-doc=${this.doc?.id ?? ""}></phx-block>
+        ${def ? html`<phx-block data-kind=${c.kind} data-src=${c.src} data-project=${this.project} data-doc=${this.doc?.id ?? ""}></phx-block>`
+          : html`<phx-plugin-block data-kind=${c.kind} data-src=${c.src} data-project=${this.project}></phx-plugin-block>`}
       </div>
       <div class="acts"><button class="ghost" @click=${close}>${t("doc.cancel")}</button><button @click=${() => {
         const v = this.renderRoot.querySelector<HTMLTextAreaElement>("dialog.chart textarea")?.value;

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // HostAPI is the major version of the host API this server implements.
@@ -61,6 +62,20 @@ type Contributes struct {
 	Relations []RelationDef `json:"relations,omitempty"`
 	MCPTools  []ToolDef     `json:"mcpTools,omitempty"`
 	Events    []string      `json:"events,omitempty"`
+	// Blocks are content block kinds for pages (ADR-0086): the backend
+	// export block_render draws them, an optional element makes them
+	// interactive.
+	Blocks []BlockDef `json:"blocks,omitempty"`
+}
+
+// BlockDef is a content block kind of a plugin.
+type BlockDef struct {
+	ID      string `json:"id"`
+	Label   string `json:"label"`
+	Icon    string `json:"icon,omitempty"`
+	Element string `json:"element,omitempty"`
+	Board   bool   `json:"board,omitempty"`
+	Example string `json:"example,omitempty"`
 }
 
 type KindDef struct {
@@ -104,6 +119,8 @@ var (
 	semverRe  = regexp.MustCompile(`^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$`)
 	permRe    = regexp.MustCompile(`^(graph|docs|assets|events|ai|ha):(read|write|use|emit|control)(:[a-z0-9_,]+)?$|^net:fetch:[a-z0-9.-]+$|^secrets:[a-z0-9_]+$`)
 	kindRe    = regexp.MustCompile(`^[a-z][a-z0-9_]{0,39}$`)
+	blockRe   = regexp.MustCompile(`^[a-z][a-z0-9]{1,29}$`)
+	elementRe = regexp.MustCompile(`^phx-[a-z0-9]+(-[a-z0-9]+)*$`)
 	toolRe    = regexp.MustCompile(`^[a-z0-9]+([._-][a-z0-9]+)*$`)
 	maxMemory = 256
 )
@@ -184,6 +201,22 @@ func (m Manifest) Validate() error {
 		}
 		if t.Target != nil && (!argRe.MatchString(t.Target.Arg) || (t.Target.Attr != "" && !argRe.MatchString(t.Target.Attr)) || !t.Control) {
 			return fmt.Errorf("manifest: tool %s: target needs control and arg/attr of lowercase letters, digits and _", t.Name)
+		}
+	}
+	for _, b := range m.Contributes.Blocks {
+		switch {
+		case !blockRe.MatchString(b.ID):
+			return fmt.Errorf("manifest: block %q must be 2–30 lowercase letters and digits", b.ID)
+		case strings.TrimSpace(b.Label) == "" || utf8.RuneCountInString(b.Label) > 60:
+			return fmt.Errorf("manifest: block %s needs a label of at most 60 characters", b.ID)
+		case b.Element != "" && !elementRe.MatchString(b.Element):
+			return fmt.Errorf("manifest: block %s: element %q must be phx-<name>", b.ID, b.Element)
+		case b.Element != "" && m.Frontend == nil:
+			return fmt.Errorf("manifest: block %s has an element but the plugin has no frontend", b.ID)
+		case m.Backend == nil:
+			return fmt.Errorf("manifest: block %s needs a backend that exports block_render", b.ID)
+		case len(b.Example) > 4096:
+			return fmt.Errorf("manifest: block %s: example longer than 4096 bytes", b.ID)
 		}
 	}
 	for _, e := range m.Contributes.Events {

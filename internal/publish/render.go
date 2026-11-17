@@ -37,6 +37,9 @@ type Links struct {
 	// Floorplan renders a floor plan of the publication (```floorplan), cut
 	// to a room if one is given, or returns "".
 	Floorplan func(plan, room string) string
+	// PluginBlock draws a block kind a plugin of the project adds (ADR-0086)
+	// as a cleaned SVG, or returns "" when no plugin draws it.
+	PluginBlock func(kind, source string) string
 	// PageRef resolves a [[page]] link (slug, ADR-0007 or the start of a
 	// title, optionally "project/ref") to its URL, or "" if it is not part
 	// of the publication.
@@ -311,6 +314,12 @@ func (r fenceRenderer) render(w util.BufWriter, src []byte, n ast.Node, entering
 	case "query":
 		// Live queries need the app; published pages leave them out.
 	default:
+		if lang != "" && r.links.PluginBlock != nil {
+			if svg := r.links.PluginBlock(lang, text); svg != "" {
+				r.trust(w, `<figure class="plugin-block">`+svg+`</figure>`)
+				return ast.WalkSkipChildren, nil
+			}
+		}
 		cls := ""
 		if lang != "" {
 			cls = ` class="language-` + html.EscapeString(lang) + `"`

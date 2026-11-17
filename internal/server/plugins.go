@@ -108,6 +108,26 @@ func (a *api) projectPlugins(w http.ResponseWriter, r *http.Request) {
 	respond(w, list, err)
 }
 
+func (a *api) pluginBlocks(w http.ResponseWriter, r *http.Request) {
+	list, err := a.core.PluginBlocks(r.Context(), actorOf(r), chi.URLParam(r, "p"))
+	respond(w, list, err)
+}
+
+// renderPluginBlock draws a plugin block (ADR-0086) as SVG with its problems.
+func (a *api) renderPluginBlock(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Source string `json:"source"`
+		Locale string `json:"locale"`
+		Width  int    `json:"width"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	res, err := a.core.RenderPluginBlock(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "kind"), in.Source, in.Locale, in.Width)
+	respond(w, res, err)
+}
+
 func (a *api) setProjectPlugin(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Enabled bool `json:"enabled"`

@@ -386,7 +386,11 @@ func (s *Service) ValidateBlocks(ctx context.Context, a Actor, ref, docRef strin
 		schema = schemaTables(blocks)
 	}
 	out := CheckBlocks(*markdown, schema)
-	return append(out, s.checkGraphBlocks(ctx, a, ref, *markdown)...), nil
+	out = append(out, s.checkGraphBlocks(ctx, a, ref, *markdown)...)
+	if p, err := s.project(ctx, a, ref, store.RoleReader); err == nil {
+		out = append(out, s.checkPluginBlocks(ctx, p, *markdown)...)
+	}
+	return out, nil
 }
 
 // checkGraphBlocks warns about tree, rack and floor plan blocks that name
