@@ -22,8 +22,20 @@ import (
 //go:embed prompts/*.md
 var prompts embed.FS
 
-//go:embed mail/*.md
+//go:embed mail/*.md mail/layout.html
 var mails embed.FS
+
+// MailLayout is the HTML frame of e-mails (resources/mail/layout.html, or
+// PHOEDOX_MAIL_DIR/layout.html), a html/template.
+func MailLayout() string {
+	if dir := os.Getenv("PHOEDOX_MAIL_DIR"); dir != "" {
+		if b, err := os.ReadFile(filepath.Join(dir, "layout.html")); err == nil {
+			return string(b)
+		}
+	}
+	b, _ := mails.ReadFile("mail/layout.html")
+	return string(b)
+}
 
 //go:embed texts/*.txt
 var texts embed.FS

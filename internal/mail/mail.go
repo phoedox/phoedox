@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"mime"
@@ -21,11 +22,19 @@ import (
 	"github.com/phoedox/phoedox/internal/graph"
 )
 
-// Message is a plain-text email.
+// Message is an email: the plain-text body, sent together with an HTML
+// version (multipart/alternative). Without HTML, the HTML part is made from
+// the text (paragraphs, lists, links) in the brand's frame.
 type Message struct {
 	To      string
 	Subject string
 	Body    string
+	// HTML is an optional own HTML body (inside the frame).
+	HTML string
+	// OrgID picks the organization's theme for the frame ("" = instance).
+	OrgID string
+	// Lang is the language of the text (html lang attribute).
+	Lang string
 }
 
 // Undeliverable reports placeholder addresses in the reserved .invalid
@@ -70,6 +79,9 @@ type SMTP struct {
 	// RootCAs trusts additional certificate authorities (own mail server
 	// with an internal CA); nil = system roots.
 	RootCAs *x509.CertPool
+	// Brand returns the look of a message (theme of the organization or the
+	// instance); nil = Phoedox defaults.
+	Brand func(ctx context.Context, orgID string) Brand
 }
 
 func (s *SMTP) Enabled() bool { return true }
@@ -133,7 +145,11 @@ func (s *SMTP) Send(ctx context.Context, m Message) error {
 	if err != nil {
 		return err
 	}
-	if _, err := w.Write(Render(s.From, m)); err != nil {
+	var brand Brand
+	if s.Brand != nil {
+		brand = s.Brand(ctx, m.OrgID)
+	}
+	if _, err := w.Write(RenderBranded(s.From, m, brand)); err != nil {
 		return err
 	}
 	if err := w.Close(); err != nil {
@@ -195,21 +211,39 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	return nil, fmt.Errorf("unexpected server challenge %q", fromServer)
 }
 
-// Render builds the RFC 5322 message with UTF-8 subject and body.
-func Render(from string, m Message) []byte {
+// Render builds the RFC 5322 message with the default brand.
+func Render(from string, m Message) []byte { return RenderBranded(from, m, Brand{}) }
+
+// RenderBranded builds the RFC 5322 message: UTF-8 subject, a text part and
+// an HTML part (multipart/alternative).
+func RenderBranded(from string, m Message, brand Brand) []byte {
 	var b strings.Builder
 	domain := "phoedox"
 	if i := strings.LastIndex(addressOf(from), "@"); i >= 0 {
 		domain = addressOf(from)[i+1:]
 	}
+	boundary := "phx-" + strings.ToLower(string(graph.NewID()))
 	fmt.Fprintf(&b, "From: %s\r\n", from)
 	fmt.Fprintf(&b, "To: %s\r\n", m.To)
 	fmt.Fprintf(&b, "Subject: %s\r\n", mime.QEncoding.Encode("utf-8", m.Subject))
 	fmt.Fprintf(&b, "Date: %s\r\n", time.Now().Format(time.RFC1123Z))
 	fmt.Fprintf(&b, "Message-ID: <%s@%s>\r\n", strings.ToLower(string(graph.NewID())), domain)
-	b.WriteString("MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\nAuto-Submitted: auto-generated\r\n\r\n")
-	b.WriteString(strings.ReplaceAll(strings.ReplaceAll(m.Body, "\r\n", "\n"), "\n", "\r\n"))
+	b.WriteString("MIME-Version: 1.0\r\nAuto-Submitted: auto-generated\r\n")
+	fmt.Fprintf(&b, "Content-Type: multipart/alternative; boundary=%q\r\n\r\n", boundary)
+	crlf := func(s string) string { return strings.ReplaceAll(strings.ReplaceAll(s, "\r\n", "\n"), "\n", "\r\n") }
+	fmt.Fprintf(&b, "--%s\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n", boundary)
+	b.WriteString(crlf(m.Body))
 	b.WriteString("\r\n")
+	if h := RenderHTML(m, brand); h != "" {
+		fmt.Fprintf(&b, "--%s\r\nContent-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: base64\r\n\r\n", boundary)
+		enc := base64.StdEncoding.EncodeToString([]byte(h))
+		for len(enc) > 76 {
+			b.WriteString(enc[:76] + "\r\n")
+			enc = enc[76:]
+		}
+		b.WriteString(enc + "\r\n")
+	}
+	fmt.Fprintf(&b, "--%s--\r\n", boundary)
 	return []byte(b.String())
 }
 

@@ -131,6 +131,10 @@ func TestThemeResolution(t *testing.T) {
 	if e := eff(reader, ""); e.Source != "instance" || id(e) != inst.ID {
 		t.Fatalf("instance default: %+v", e)
 	}
+	// E-mails take the instance theme's accent (and logo).
+	if b := s.MailBrand(ctx, ""); b.Accent != inst.Data.Light["accent"] || b.Name != "Phoedox" {
+		t.Fatalf("mail brand: %+v", b)
+	}
 	if _, err := s.SetOrgTheme(ctx, owner, o.Slug, OrgThemeInput{ThemeID: orgT.ID}); err != nil {
 		t.Fatal(err)
 	}

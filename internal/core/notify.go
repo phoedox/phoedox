@@ -92,7 +92,7 @@ func (s *Service) notify(ctx context.Context, u store.User, n Note) {
 		}
 		subject, body, err := render(u, s.locale(u))
 		if err == nil {
-			err = s.Mail.Send(ctx, mail.Message{To: u.Email, Subject: subject, Body: body})
+			err = s.Mail.Send(ctx, mail.Message{To: u.Email, Subject: subject, Body: body, OrgID: s.projectOrg(ctx, n.ProjectID), Lang: s.locale(u)})
 		}
 		if err != nil {
 			slog.Warn("notification mail failed", "user", u.ID, "kind", n.Kind, "err", err)
@@ -388,7 +388,7 @@ func (s *Service) sendDigest(ctx context.Context, userID string, now time.Time) 
 	}
 	subject, body, err := resources.Mail("digest", s.locale(u), map[string]any{"Name": u.Name, "Items": items})
 	if err == nil {
-		err = s.Mail.Send(ctx, mail.Message{To: u.Email, Subject: subject, Body: body})
+		err = s.Mail.Send(ctx, mail.Message{To: u.Email, Subject: subject, Body: body, Lang: s.locale(u)})
 	}
 	if err != nil {
 		slog.Warn("digest mail failed", "user", u.ID, "err", err)

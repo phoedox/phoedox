@@ -127,3 +127,26 @@ func TestSMTPLoginAuthAndHelo(t *testing.T) {
 		t.Fatalf("EHLO name: %q", h)
 	}
 }
+
+func TestRenderHTML(t *testing.T) {
+	body := "Hello Ana,\n\nthis happened:\n• Page changed\n  https://docs.example/p/x/d/y\n• <b>Bold</b> try\n\nBye."
+	raw := string(RenderBranded("Phoedox <noreply@example.org>", Message{To: "a@b.de", Subject: "Digest", Body: body, Lang: "en"},
+		Brand{Name: "Acme", Logo: "https://docs.example/api/v1/theme-assets/logo.png", Accent: "#123456", Site: "https://docs.example"}))
+	for _, want := range []string{"multipart/alternative", "Content-Type: text/plain; charset=utf-8", "Content-Type: text/html; charset=utf-8", "\r\n\r\nHello Ana,\r\n"} {
+		if !strings.Contains(raw, want) {
+			t.Fatalf("missing %q", want)
+		}
+	}
+	h := RenderHTML(Message{Subject: "Digest", Body: body, Lang: "en"}, Brand{Name: "Acme", Logo: "https://docs.example/l.png", Accent: "#123456", Site: "https://docs.example"})
+	for _, want := range []string{`<html lang="en">`, `src="https://docs.example/l.png"`, "border-top:4px solid #123456", "<li", `<a href="https://docs.example/p/x/d/y"`,
+		"&lt;b&gt;Bold&lt;/b&gt;", "docs.example</a>", "<p style=\"margin:0 0 14px;\">Bye.</p>"} {
+		if !strings.Contains(h, want) {
+			t.Fatalf("html missing %q:\n%s", want, h)
+		}
+	}
+	// Unsafe brand values fall back to defaults.
+	h = RenderHTML(Message{Body: "x"}, Brand{Logo: "http://evil/x.png", Accent: "red;}body{x"})
+	if strings.Contains(h, "evil") || !strings.Contains(h, "#b84a0c") || !strings.Contains(h, ">Phoedox<") {
+		t.Fatalf("defaults: %s", h)
+	}
+}

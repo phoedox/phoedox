@@ -116,7 +116,7 @@ make build && ./bin/phoedox
 | `PHOEDOX_AI_BASE_URL` | – | Another address for the provider's API, e.g. a gateway |
 | `PHOEDOX_AI_PRICE` | – | Prices for budgets in US dollars per million tokens, `input,output,cache read,cache write`; only needed for models or gateways Phoedox does not know |
 | `PHOEDOX_PROMPTS_DIR` | – | Folder with your own AI prompts, see [`resources/prompts`](resources/prompts) |
-| `PHOEDOX_MAIL_DIR` | – | Folder with your own email templates, see [`resources/mail`](resources/mail) |
+| `PHOEDOX_MAIL_DIR` | – | Folder with your own email templates (`<name>.<lang>.md`) and HTML frame (`layout.html`), see [`resources/mail`](resources/mail). Mails are sent as text plus HTML in the theme of the organization or instance |
 
 You invite more people in the web app under **Users** (menu at the top right) or with
 `phx admin invite --email … --name …`. Without SMTP, Phoedox shows the invitation link for you to pass on.

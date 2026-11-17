@@ -1,0 +1,24 @@
+<!doctype html>
+<html{{if .Lang}} lang="{{.Lang}}"{{end}}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>{{.Subject}}</title>
+</head>
+<body style="margin:0;padding:0;background:#f6f4f2;-webkit-text-size-adjust:100%;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f6f4f2;">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#ffffff;border-radius:12px;border-top:4px solid {{.Accent}};">
+<tr><td style="padding:24px 28px 4px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+{{if .Logo}}<img src="{{.Logo}}" alt="{{.Name}}" height="32" style="display:block;height:32px;width:auto;border:0;">{{else}}<span style="font-size:18px;font-weight:700;color:{{.Accent}};">{{.Name}}</span>{{end}}
+</td></tr>
+<tr><td style="padding:12px 28px 28px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55;color:#1f1a17;">
+{{.Body}}
+</td></tr>
+</table>
+{{if .Site}}<p style="margin:16px 0 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;color:#6b6159;"><a href="{{.Site}}" style="color:#6b6159;">{{.SiteHost}}</a></p>{{end}}
+</td></tr>
+</table>
+</body>
+</html>

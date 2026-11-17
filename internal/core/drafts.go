@@ -509,7 +509,7 @@ func (s *Service) mailDraftReminder(ctx context.Context, u store.User, p store.P
 		"Link": s.PublicURL + "/p/" + p.Slug + "/d/" + doc.Slug,
 	})
 	if err == nil {
-		err = s.Mail.Send(ctx, mail.Message{To: u.Email, Subject: subject, Body: body})
+		err = s.Mail.Send(ctx, mail.Message{To: u.Email, Subject: subject, Body: body, OrgID: p.OrgID, Lang: locale})
 	}
 	if err != nil {
 		slog.Warn("draft reminder mail failed", "user", u.ID, "err", err)

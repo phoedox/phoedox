@@ -121,6 +121,9 @@ func Open(ctx context.Context) (*App, error) {
 	svc.Mail, svc.DefaultLocale = sender, cfg.DefaultLocale
 	svc.HashPassword, svc.VerifyPassword = auth.HashPassword, auth.VerifyPassword
 	svc.PublicURL = cfg.PublicURL
+	if smtp, ok := sender.(*mail.SMTP); ok {
+		smtp.Brand = svc.MailBrand // HTML mails in the theme of the organization or instance
+	}
 	svc.BackupDays = (cfg.BackupKeep*cfg.BackupHours + 23) / 24
 	svc.TrashDays = cfg.TrashDays
 	svc.SignupDefault = cfg.Signup == "open"
