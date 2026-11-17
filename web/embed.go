@@ -9,6 +9,12 @@ import (
 //go:embed all:dist
 var dist embed.FS
 
+// ProtoPlayer plays whiteboard prototypes (player/proto-player.js): the
+// web app bundles it, the server puts it into share pages and exports.
+//
+//go:embed player/proto-player.js
+var ProtoPlayer string
+
 // Dist returns the built frontend, or nil if it has not been built yet.
 func Dist() fs.FS {
 	sub, err := fs.Sub(dist, "dist")

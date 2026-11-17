@@ -45,7 +45,7 @@ examples:
 | `link` | external documentation | `create_link` | pages.md |
 | `board` | a task board; its cards are tasks | `create_board` | tasks.md |
 | `floorplan` | the floor plan of one floor | `save_floorplan` | floorplans.md |
-| `whiteboard` | a canvas drawn together live | `draw_diagram` (without `document`) or `save_whiteboard` | whiteboards.md |
+| `whiteboard` | a canvas drawn together live; also clickable prototypes | `draw_diagram` or `draw_screens` (without `document`), or `save_whiteboard` | whiteboards.md |
 | `app` | a small web program (HTML/JS or React) in an isolated frame | `create_app` | apps.md |
 
 ## Start of a conversation

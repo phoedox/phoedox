@@ -30,6 +30,8 @@ type Whiteboard struct {
 	Background string      `json:"background,omitempty"` // plain | grid | dots
 	Elements   []WBElement `json:"elements"`
 	Comments   []WBComment `json:"comments,omitempty"`
+	// Prototypes: clickable screens drawn on the board (prototypes.go).
+	Prototypes []WBPrototype `json:"prototypes,omitempty"`
 }
 
 // WBElement is one element of a whiteboard. Boxy elements (shapes, text,
@@ -74,6 +76,11 @@ type WBElement struct {
 	URL     string     `json:"url,omitempty"`
 	Kind    string     `json:"kind,omitempty"` // video | code | link | web | app (Doc is the app)
 	Preview *WBPreview `json:"preview,omitempty"`
+	// Prototypes: a frame as a screen, a component (type "ui") and what
+	// happens on click, change, hover or when a screen opens.
+	Screen  *WBScreen  `json:"screen,omitempty"`
+	UI      *WBUI      `json:"ui,omitempty"`
+	Actions []WBAction `json:"actions,omitempty"`
 }
 
 // WBBinding binds the end of a line or arrow to an element: towards its
@@ -134,7 +141,7 @@ const (
 
 var (
 	wbTypes = map[string]bool{"rect": true, "ellipse": true, "diamond": true, "line": true, "arrow": true, "pen": true, "text": true,
-		"sticky": true, "frame": true, "image": true, "embed": true, "entity": true}
+		"sticky": true, "frame": true, "image": true, "embed": true, "entity": true, "ui": true}
 	wbLinear   = map[string]bool{"line": true, "arrow": true, "pen": true}
 	wbEmbeds   = map[string]bool{"video": true, "code": true, "link": true, "web": true, "app": true}
 	wbColors   = map[string]bool{"gray": true, "red": true, "orange": true, "yellow": true, "green": true, "blue": true, "purple": true, "pink": true}
@@ -283,8 +290,14 @@ func whiteboardContent(wb *Whiteboard) (store.JSON, string, error) {
 		if len(e.Entity) > 200 || len(e.Doc) > 200 {
 			return nil, "", bad("link")
 		}
+		if err := checkPrototypeElement(wb, e, ids); err != nil {
+			return nil, "", err
+		}
 		if e.Text != "" {
 			text = append(text, e.Text)
+		}
+		if e.UI != nil {
+			text = append(text, e.UI.Placeholder, strings.Join(e.UI.Options, " "))
 		}
 		if e.Entity != "" {
 			text = append(text, "@"+e.Entity)
@@ -293,6 +306,11 @@ func whiteboardContent(wb *Whiteboard) (store.JSON, string, error) {
 			text = append(text, "[["+e.Doc+"]]")
 		}
 	}
+	pt, err := checkPrototypes(wb)
+	if err != nil {
+		return nil, "", err
+	}
+	text = append(text, pt...)
 	cids := map[string]bool{}
 	for i := range wb.Comments {
 		c := &wb.Comments[i]

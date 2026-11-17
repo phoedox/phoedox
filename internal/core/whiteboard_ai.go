@@ -31,6 +31,8 @@ type WBView struct {
 	Extent     [4]int        `json:"extent"` // minX, minY, maxX, maxY
 	Hint       string        `json:"hint,omitempty"`
 	Frames     []WBViewFrame `json:"frames,omitempty"`
+	// Prototypes: screens are frames with "screen", components have "ui".
+	Prototypes []WBPrototype `json:"prototypes,omitempty"`
 }
 
 // WBViewItem is one element, rounded and without styling noise.
@@ -51,6 +53,10 @@ type WBViewItem struct {
 	Kind   string   `json:"kind,omitempty"`
 	Title  string   `json:"title,omitempty"`  // embeds
 	Status string   `json:"status,omitempty"` // code embeds
+	// Prototypes.
+	Screen  *WBScreen  `json:"screen,omitempty"`
+	UI      *WBUI      `json:"ui,omitempty"`
+	Actions []WBAction `json:"actions,omitempty"`
 }
 
 // WBViewFrame names a frame and lists what is inside.
@@ -89,7 +95,7 @@ func (s *Service) WhiteboardView(ctx context.Context, a Actor, ref, docRef strin
 	if err != nil {
 		return WBView{}, err
 	}
-	v := WBView{Document: doc.Slug, Title: doc.Title, Background: wb.Background, Elements: []WBViewItem{}}
+	v := WBView{Document: doc.Slug, Title: doc.Title, Background: wb.Background, Elements: []WBViewItem{}, Prototypes: wb.Prototypes}
 	r := func(f float64) int { return int(math.Round(f)) }
 	texts := map[string]string{}
 	frames := map[string]*WBViewFrame{}
@@ -100,7 +106,8 @@ func (s *Service) WhiteboardView(ctx context.Context, a Actor, ref, docRef strin
 	els := slices.Clone(wb.Elements)
 	slices.SortStableFunc(els, func(x, y WBElement) int { return strings.Compare(x.Order, y.Order) })
 	for _, e := range els {
-		it := WBViewItem{ID: e.ID, Type: e.Type, Text: e.Text, Frame: e.Frame, Color: e.Stroke, Fill: e.Fill, Entity: e.Entity, Doc: e.Doc, URL: e.URL, Kind: e.Kind}
+		it := WBViewItem{ID: e.ID, Type: e.Type, Text: e.Text, Frame: e.Frame, Color: e.Stroke, Fill: e.Fill, Entity: e.Entity, Doc: e.Doc, URL: e.URL, Kind: e.Kind,
+			Screen: e.Screen, UI: e.UI, Actions: e.Actions}
 		if len(e.Points) > 0 {
 			step := 1
 			if e.Type == "pen" && len(e.Points) > 12 {

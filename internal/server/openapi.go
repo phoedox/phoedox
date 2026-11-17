@@ -455,6 +455,10 @@ var apiDocs = map[string]op{
 	"POST /projects/{p}/documents/{d}/whiteboard/ops": {Tag: "documents", Summary: "Change a whiteboard element by element (add, update with the changed fields, delete); open editors reload the board.", In: struct {
 		Ops []core.WBOp `json:"ops"`
 	}{}, Out: core.DocResult{}},
+	"POST /projects/{p}/documents/{d}/whiteboard/comments":      {Tag: "documents", Summary: "Pin a comment to a spot of a prototype screen while playing it (people who may read the board): {screen, x, y (relative to the screen), text}.", In: core.PlayComment{}, Out: core.WBComment{}},
+	"GET /projects/{p}/documents/{d}/prototypes/{id}/data":      {Tag: "documents", Summary: "The data sources of a whiteboard prototype with the viewer's rights: live sources (saved query, board cards, checks) or their sample rows.", Out: map[string][]map[string]any{}},
+	"GET /projects/{p}/documents/{d}/prototypes/{id}/export":    {Tag: "documents", Summary: "One HTML file that plays a prototype on its own (screens, interactions, data as of now, images inline); ?as=json returns {html, name}.", Out: map[string]string{}},
+	"POST /projects/{p}/documents/{d}/prototypes/{id}/app":      {Tag: "documents", Summary: "Create an app document from a prototype: the exported player file as its index.html (editors): {lang}.", In: prototypeAppIn{}, Out: core.DocResult{}},
 	"GET /projects/{p}/embed-policy":                            {Tag: "documents", Summary: "Which websites whiteboards of the project may embed live (instance and organization switches): web, sites (empty = any that allows framing).", Out: core.EmbedPolicy{}},
 	"POST /projects/{p}/whiteboards/code-status":                {Tag: "documents", Summary: "Live state (open, draft, merged, closed) and title of pull requests and issues on whiteboards, through the project's code connections: {urls}.", In: codeStatusIn{}, Out: map[string]core.CodeStatus{}},
 	"POST /projects/{p}/whiteboards/mermaid":                    {Tag: "documents", Summary: "Turn a Mermaid flowchart into shapes and bound arrows: {source, document (a whiteboard; empty creates one with title)}.", In: mermaidIn{}, Out: core.DocResult{}},

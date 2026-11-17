@@ -92,6 +92,14 @@ type drawDiagramIn struct {
 	core.DiagramInput
 }
 
+type drawScreensIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Document string `json:"document,omitempty" jsonschema:"whiteboard to draw on (slug); empty creates a new whiteboard"`
+	Title    string `json:"title,omitempty" jsonschema:"title of a new whiteboard"`
+	Category string `json:"category,omitempty"`
+	core.ScreensInput
+}
+
 type replyCommentIn struct {
 	Project  string `json:"project" jsonschema:"project slug"`
 	Document string `json:"document" jsonschema:"whiteboard slug or id"`
@@ -946,7 +954,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocFloorplan, Title: in.Title, Category: in.Category, Floorplan: &in.Floorplan})
 	})
-	tool(s, "get_whiteboard", "Read a whiteboard (document type whiteboard): elements with id, type, text, box [x,y,w,h] or points, bound ends (from/to), frames with their content, linked entries, embeds with title and status, and the open comments with the element they point to. Coordinates are board units (about pixels at 100 %); y grows downwards.", func(ctx context.Context, a core.Actor, in wbDocIn) (any, error) {
+	tool(s, "get_whiteboard", "Read a whiteboard (document type whiteboard): elements with id, type, text, box [x,y,w,h] or points, bound ends (from/to), frames with their content, linked entries, embeds with title and status, prototypes (screens are frames with screen, components have ui and actions) and the open comments with the element they point to. Coordinates are board units (about pixels at 100 %); y grows downwards.", func(ctx context.Context, a core.Actor, in wbDocIn) (any, error) {
 		return svc.WhiteboardView(ctx, a, in.Project, in.Document)
 	})
 	tool(s, "edit_whiteboard", "Change a whiteboard with operations; everyone on the board sees them at once. Elements: type rect|ellipse|diamond|text|sticky|frame|line|arrow|pen|image|embed|entity; boxes have x, y, w, h; lines and arrows have points [[x,y],...] (waypoints between the ends) and bind their ends with start/end {element} (towards the centre) or {element, fx, fy} (fixed point, 0–1 of the box); round: true for smooth corners. text, stroke and fill colours gray|red|orange|yellow|green|blue|purple|pink, dash dashed|dotted, frame (id of a frame), entity (entry slug: shows the entry), doc (page slug), url (embed: a video, pull request, issue or website; kind and preview are filled in; or kind app with doc = an app of the project, which runs on the board with each viewer's rights), file (image: a project file id). For diagrams prefer draw_diagram. Read the board first with get_whiteboard.", func(ctx context.Context, a core.Actor, in editWhiteboardIn) (any, error) {
@@ -957,6 +965,9 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 			return svc.DrawMermaid(ctx, a, in.Project, in.Document, in.Title, in.Category, in.Mermaid)
 		}
 		return svc.DrawDiagram(ctx, a, in.Project, in.Document, in.Title, in.Category, in.DiagramInput)
+	})
+	tool(s, "draw_screens", "Draw a clickable prototype on a whiteboard: screens (frames of a phone, tablet or desktop) with components and interactions; people play it full screen, comment on it and export it. prototype: name (existing prototypes are extended; a screen with an existing name is redrawn in place). device phone|tablet|desktop, look \"\"|sketch (wireframe). vars: [{name, type bool|text|number|list, value}]; data: [{name, source sample|query|tasks|checks, ref (saved query or board slug), rows (sample rows, also shown where live data cannot be read)}]. screens: [{name, start, overlay modal|sheet, actions (on open|delay), elements}]. elements stack from the top unless x/y (relative to the screen) are given: {comp button|link|input|textarea|checkbox|switch|radio|select|slider|tabs|navbar|list|card|table|toast|icon|chart|avatar|badge|progress, text (label; {{var}} inserts a variable, {{row.field}} a list row's field), variant primary|secondary|ghost|danger, placeholder, value, options (radio, select, tabs, navbar, list), icon (Lucide name), bind (variable), data (data source), fields (list: title and subtitle field; table/chart: columns; tabs/navbar: icons), min, max, show (\"var\", \"!var\", \"var=value\"), actions} or {type text|rect|ellipse|sticky|line, text, fontSize}. actions: [{on click|change|hover|open|delay, do goto|back|overlay|close|set|toggle|inc|add|link|toast, target (screen name, or variable), value, item (only for this option or row), anim slide|fade, delay ms}]. Without document a new whiteboard is created. Read prototypes with get_whiteboard.", func(ctx context.Context, a core.Actor, in drawScreensIn) (any, error) {
+		return svc.DrawScreens(ctx, a, in.Project, in.Document, in.Title, in.Category, in.ScreensInput)
 	})
 	tool(s, "reply_comment", "Answer a comment on a whiteboard (ids from get_whiteboard). People mark comments as done themselves.", func(ctx context.Context, a core.Actor, in replyCommentIn) (any, error) {
 		return svc.ReplyWhiteboardComment(ctx, a, in.Project, in.Document, in.Comment, in.Text)

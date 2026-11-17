@@ -2699,6 +2699,7 @@ export const en: Record<keyof typeof de, string> = {
   "plan3d.open_device": "Go to device",
   "plan3d.open_room": "Go to room",
   "plan3d.open_entry": "Open entry",
+  "validation.prototype": "The prototype is invalid: {what}.",
   "validation.whiteboard": "The whiteboard is invalid: {what}.",
   "validation.not_whiteboard": "This document is not a whiteboard.",
   "validation.whiteboard_ops": "Send between 1 and 500 operations.",

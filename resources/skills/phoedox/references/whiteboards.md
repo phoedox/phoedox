@@ -40,6 +40,52 @@ pixels at 100 %), y grows downwards.
            {"from": "nas", "to": "box", "label": "nightly 2:00", "dashed": true}]}
 ```
 
+## Prototypes
+
+A prototype is a set of screens on a board that people play like an app: full screen in a
+device frame, with working buttons, fields, lists and navigation. Use it for app screens,
+flows and small tools; for a real program write an app (`create_app`).
+
+- **Draw:** `draw_screens` with `prototype` (a name; an existing prototype is extended and
+  a screen with the same name is redrawn in place), `device` phone|tablet|desktop, `look`
+  "" or `sketch` (wireframe), and `screens`: `{name, start, overlay modal|sheet, actions,
+  elements}`. Elements stack from the top unless `x`/`y` (relative to the screen) are
+  given; a `navbar` goes to the bottom.
+- **Components** (`comp`): button, link, input, textarea, checkbox, switch, radio, select,
+  slider, tabs, navbar, list, card, table, toast, icon, chart, avatar, badge, progress.
+  `text` is the label; `variant` primary|secondary|ghost|danger; `placeholder`, `value`,
+  `options` (radio, select, tabs, navbar, list), `icon` (a Lucide name), `fields` (list:
+  title and subtitle field; table and chart: columns; tabs and navbar: one icon per
+  option), `min`/`max`, `show` (`"var"`, `"!var"`, `"var=value"`). Plain elements:
+  `{type: text|rect|ellipse|sticky|line, text, fontSize}`.
+- **State:** `vars` `[{name, type bool|text|number|list, value}]`; `bind` connects a
+  component to a variable; `{{var}}` in any text inserts it (`{{list.length}}` counts),
+  `{{row.field}}` a list or table row's field.
+- **Data:** `data` `[{name, source, ref, rows}]`: `sample` rows, or live and read-only
+  `query` (a saved query), `tasks` (a board's cards) and `checks`. Give live sources
+  sample `rows` too: share links and exported files show those.
+- **Interactions** (`actions` on any element, or on a screen for `open`/`delay`):
+  `{on click|change|hover|open|delay, do goto|back|overlay|close|set|toggle|inc|add|link|toast,
+  target (a screen name, or a variable), value, item (only for this option or list row),
+  anim slide|fade, delay}`.
+- **What people do with it:** play it (▶ on the board), comment on screens while playing
+  (the comments are normal board comments – answer them with `reply_comment`), export one
+  HTML file, or turn it into an app document to build on.
+
+```json
+{"project": "shop", "prototype": "Checkout", "device": "phone",
+ "vars": [{"name": "count", "type": "number", "value": 1}],
+ "screens": [
+  {"name": "Cart", "start": true, "elements": [
+    {"type": "text", "text": "Your cart", "fontSize": 28},
+    {"comp": "card", "text": "Coffee beans", "value": "{{count}} × 12.90 €"},
+    {"comp": "button", "text": "One more", "variant": "secondary", "actions": [{"on": "click", "do": "inc", "target": "count"}]},
+    {"comp": "button", "text": "Pay", "actions": [{"on": "click", "do": "overlay", "target": "Paid"}]}]},
+  {"name": "Paid", "overlay": "sheet", "elements": [
+    {"type": "text", "text": "Thank you!", "fontSize": 24},
+    {"comp": "button", "text": "Close", "actions": [{"on": "click", "do": "close"}]}]}]}
+```
+
 ## Other tools
 
 - `save_whiteboard` creates or replaces a whole board (e.g. an import); for changes

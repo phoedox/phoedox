@@ -2697,6 +2697,7 @@ export const de = {
   "plan3d.open_device": "Zum Gerät",
   "plan3d.open_room": "Zum Raum",
   "plan3d.open_entry": "Zum Eintrag",
+  "validation.prototype": "Der Prototyp ist ungültig: {what}.",
   "validation.whiteboard": "Das Whiteboard ist ungültig: {what}.",
   "validation.not_whiteboard": "Dieses Dokument ist kein Whiteboard.",
   "validation.whiteboard_ops": "Bitte 1 bis 500 Operationen senden.",
