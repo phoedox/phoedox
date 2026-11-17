@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/phoedox/phoedox/internal/blocks"
+	"github.com/phoedox/phoedox/internal/plugins"
 	"github.com/phoedox/phoedox/internal/store"
 )
 
@@ -34,7 +35,10 @@ type PluginBlockInfo struct {
 	Element  string `json:"element,omitempty"`
 	Frontend string `json:"frontend,omitempty"`
 	Board    bool   `json:"board,omitempty"`
-	Example  string `json:"example,omitempty"`
+	// Live: on whiteboards the element runs (needs the element), not only the picture.
+	Live    bool               `json:"live,omitempty"`
+	Size    *plugins.BlockSize `json:"size,omitempty"`
+	Example string             `json:"example,omitempty"`
 	// Missing is set for a kind that moved out of the core (ADR-0088) whose
 	// plugin is not active here: clients show which plugin it needs.
 	Missing *MissingPlugin `json:"missing,omitempty"`
@@ -80,10 +84,11 @@ func (s *Service) pluginBlockDefs(ctx context.Context, projectID string) ([]Plug
 				continue
 			}
 			by[b.ID] = ap
-			info := PluginBlockInfo{Kind: b.ID, Label: b.Label, Icon: b.Icon, Plugin: ap.row.ID, Version: ap.row.Version, Board: b.Board, Example: b.Example}
+			info := PluginBlockInfo{Kind: b.ID, Label: b.Label, Icon: b.Icon, Plugin: ap.row.ID, Version: ap.row.Version, Board: b.Board, Size: b.Size, Example: b.Example}
 			if b.Element != "" && ap.pkg.Manifest.Frontend != nil {
 				info.Element = b.Element
 				info.Frontend = pluginFrontendURL(ap)
+				info.Live = b.Live
 			}
 			out = append(out, info)
 		}

@@ -197,7 +197,7 @@ const marked = new Marked({
       if (kind === "board") return `<phx-board-embed data-board="${escape(value)}" data-project="${escape(context.project)}"></phx-board-embed>`;
       if (kind === "app") return `<phx-app-embed data-app="${escape(value)}" data-project="${escape(context.project)}"></phx-app-embed>`;
       if (kind === "whiteboard") return `<phx-whiteboard-embed data-board="${escape(value)}" data-project="${escape(context.project)}"></phx-whiteboard-embed>`;
-      if (kind && pluginBlock(kind)) return `<phx-plugin-block data-kind="${escape(kind)}" data-project="${escape(context.project)}"><pre>${escape(value)}</pre></phx-plugin-block>`;
+      if (kind && pluginBlock(kind)) return `<phx-plugin-block data-kind="${escape(kind)}" data-project="${escape(context.project)}" data-doc="${escape(context.doc)}"><pre>${escape(value)}</pre></phx-plugin-block>`;
       if (kind !== "request" && kind !== "http") return false;
       const i = requestIndex++;
       return `<phx-request-block data-index="${i}" data-project="${escape(context.project)}" data-doc="${escape(context.doc)}"><pre>${escape(text)}</pre></phx-request-block>`;

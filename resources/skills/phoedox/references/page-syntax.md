@@ -88,10 +88,10 @@ whiteboards and published pages) – read the one you are about to write.
 | ```dbmodel | the project's database schema as a diagram | `blocks/dbmodel.md` |
 | ```embed | a video or web page | `blocks/embed.md` |
 | ```chart | line, area, bar, scatter charts and annotated timelines | `blocks/chart.md` |
-| ```poll | a poll readers vote in | `blocks/poll.md` |
+| ```poll | a poll readers vote in (plugin `com.phoedox.poll`) | `blocks/poll.md` |
 | ```matrix | a weighted decision matrix (plugin `com.phoedox.matrix`) | `blocks/matrix.md` |
 | ```calc | a calculator with inputs and formulas (plugin `com.phoedox.calc`) | `blocks/calc.md` |
-| ```quiz | a quiz or flashcards | `blocks/quiz.md` |
+| ```quiz | a quiz or flashcards (plugin `com.phoedox.quiz`) | `blocks/quiz.md` |
 | ```mindmap | a mind map from an outline (plugin `com.phoedox.mindmap`) | `blocks/mindmap.md` |
 | ```beforeafter | two photos with a slider | `blocks/beforeafter.md` |
 | ```annotate | a photo with numbered markers | `blocks/annotate.md` |

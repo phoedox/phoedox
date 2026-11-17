@@ -75,7 +75,17 @@ type BlockDef struct {
 	Icon    string `json:"icon,omitempty"`
 	Element string `json:"element,omitempty"`
 	Board   bool   `json:"board,omitempty"`
-	Example string `json:"example,omitempty"`
+	// Live: on whiteboards the element runs, not only the picture (polls).
+	Live bool `json:"live,omitempty"`
+	// Size is the first size on a whiteboard.
+	Size    *BlockSize `json:"size,omitempty"`
+	Example string     `json:"example,omitempty"`
+}
+
+// BlockSize is a block's size on a whiteboard.
+type BlockSize struct {
+	W int `json:"w"`
+	H int `json:"h"`
 }
 
 type KindDef struct {
@@ -217,6 +227,10 @@ func (m Manifest) Validate() error {
 			return fmt.Errorf("manifest: block %s needs a backend that exports block_render", b.ID)
 		case len(b.Example) > 4096:
 			return fmt.Errorf("manifest: block %s: example longer than 4096 bytes", b.ID)
+		case b.Live && (!b.Board || b.Element == ""):
+			return fmt.Errorf("manifest: block %s: live needs board and an element", b.ID)
+		case b.Size != nil && (b.Size.W < 80 || b.Size.W > 2000 || b.Size.H < 80 || b.Size.H > 2000):
+			return fmt.Errorf("manifest: block %s: size must be 80–2000 wide and high", b.ID)
 		}
 	}
 	for _, e := range m.Contributes.Events {

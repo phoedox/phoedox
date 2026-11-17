@@ -27,6 +27,8 @@ var movedBlocks = map[string]MovedBlock{
 	"gantt":   {Plugin: "com.phoedox.gantt", Label: "Schedule (Gantt)"},
 	"calc":    {Plugin: "com.phoedox.calc", Label: "Calculator"},
 	"matrix":  {Plugin: "com.phoedox.matrix", Label: "Decision matrix"},
+	"poll":    {Plugin: "com.phoedox.poll", Label: "Poll"},
+	"quiz":    {Plugin: "com.phoedox.quiz", Label: "Quiz"},
 	"mindmap": {Plugin: "com.phoedox.mindmap", Label: "Mind map"},
 }
 

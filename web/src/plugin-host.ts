@@ -13,6 +13,7 @@ import { loadPluginBlocks } from "./plugin-blocks";
 import { locale } from "./i18n";
 import { currentProject, navigate } from "./state";
 import { CLIP_PREFIX } from "./whiteboard";
+import { blockState } from "./blocks/util";
 
 /**
  * Loads the frontend modules of a project's plugins and gives them the SDK
@@ -82,6 +83,14 @@ function makeSdk(pluginId: string) {
       list: (board: string) => api<unknown[]>("GET", `/projects/${project()}/tasks?board=${encodeURIComponent(board)}`),
     },
     blocks: {
+      // The reader's state of a block, as core blocks keep it (block_states).
+      state(ref: { doc: string; key: string }) {
+        const key = String(ref?.key ?? "");
+        if (!/^[A-Za-z0-9-]{1,40}$/.test(key)) throw new Error("a block key is 1–40 letters, digits and -");
+        let p = "";
+        try { p = project(); } catch { /* published or preview: kept in the browser */ }
+        return blockState({ project: p, doc: String(ref?.doc ?? ""), key, locale: locale() });
+      },
       render: (kind: string, source: string, width = 720) =>
         api<{ svg: string; problems: { line: number; message: string; severity: string }[] }>("POST", `/projects/${project()}/plugin-blocks/${encodeURIComponent(kind)}/render`, { source, width, locale: document.documentElement.lang || "en" }),
     },

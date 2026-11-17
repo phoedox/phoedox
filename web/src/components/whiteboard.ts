@@ -29,6 +29,12 @@ import "./block-view";
 import "./plugin-block";
 import { activePluginBlocks, cachedPluginBlock, pluginBlock } from "../plugin-blocks";
 
+/** A plugin block whose element runs on whiteboards (manifest "live"). */
+const liveOnBoard = (kind: string) => {
+  const b = pluginBlock(kind);
+  return !!(b && b.live && b.element && !b.missing);
+};
+
 type Tool = "select" | "hand" | "rect" | "ellipse" | "diamond" | "arrow" | "line" | "pen" | "text" | "sticky" | "frame" | "image" | "embed" | "entity" | "comment" | "laser" | "eraser" | "screen" | "ui";
 const TOOLS: (readonly [Tool, string, string] | "|")[] = [
   ["select", "MousePointer2", "V"], ["hand", "Hand", "H"], "|",
@@ -874,6 +880,8 @@ export class PhxWhiteboard extends LitElement {
     const def = blockDef(b.kind ?? "");
     const parsed = def?.parse(b.source ?? "");
     if (!def && pluginBlock(b.kind ?? "")) {
+      // Live plugin blocks run as an overlay (syncLiveBlocks), like core ones.
+      if (liveOnBoard(b.kind ?? "") && !this.still) return;
       // A plugin's block: the server draws it; the picture arrives later and repaints.
       const r = pluginBlock(b.kind!)!.missing ? undefined : cachedPluginBlock(this.project, b.kind!, b.source ?? "", w - 16, locale());
       if (!r?.svg) {
@@ -943,13 +951,14 @@ export class PhxWhiteboard extends LitElement {
   private liveBlocks = new Map<string, HTMLElement & { source?: string; render?: () => Promise<void> }>();
 
   private syncLiveBlocks(host: HTMLElement, z: number) {
-    const want = new Set(this.still ? [] : this.els().filter((e) => e.type === "block" && blockDef(e.kind ?? "")?.board?.live).map((e) => e.id));
+    const want = new Set(this.still ? [] : this.els().filter((e) => e.type === "block" && (blockDef(e.kind ?? "")?.board?.live || liveOnBoard(e.kind ?? ""))).map((e) => e.id));
     for (const [id, el] of this.liveBlocks) if (!want.has(id)) { el.remove(); this.liveBlocks.delete(id); }
     for (const id of want) {
       const e = this.byId(id)!;
       let el = this.liveBlocks.get(id);
       if (!el) {
-        el = document.createElement("phx-block") as HTMLElement & { source?: string; render?: () => Promise<void> };
+        // Core blocks and plugin blocks (their element runs inside <phx-plugin-block>).
+        el = document.createElement(blockDef(e.kind ?? "") ? "phx-block" : "phx-plugin-block") as HTMLElement & { source?: string; render?: () => Promise<void> };
         el.className = "app live";
         el.setAttribute("data-board", "");
         el.dataset.project = this.project;
@@ -2832,7 +2841,7 @@ export class PhxWhiteboard extends LitElement {
     } else {
       const r = this.svgEl.getBoundingClientRect();
       const [cx, cy] = this.toWorld(r.left + r.width / 2, r.top + r.height / 2);
-      const size = def?.board ?? { w: 560, h: 360 };
+      const size = def?.board ?? pluginBlock(c.kind)?.size ?? { w: 560, h: 360 };
       const el: WBElement = { id: newId(), type: "block", kind: c.kind, source: c.src, x: cx - size.w / 2, y: cy - size.h / 2, w: size.w, h: size.h };
       this.add(el);
       this.select(el.id);

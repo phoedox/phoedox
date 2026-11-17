@@ -10,7 +10,9 @@ the example, and read the plugin's own description when it has one.
   enabled; without the plugin the block shows its source.
 - `validate_blocks`, `create_document` and `update_document` report the plugin's findings
   like those of core blocks.
-- Some plugin blocks are interactive in the web app and the mobile app.
+- Some plugin blocks are interactive in the web app and the mobile app; polls and quizzes keep
+  each reader's vote or answers (only counts are shown, never who), and some run live on
+  whiteboards.
 - Some kinds moved from Phoedox into official plugins (ADR-0087), first `gantt`. Where
   the plugin is not active, `pluginBlocks` marks the kind `missing: true`: existing
   blocks keep their source and show which plugin they need, and Phoedox installs and

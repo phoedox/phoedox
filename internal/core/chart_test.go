@@ -47,7 +47,6 @@ func TestChartBlocksAndWhiteboardCharts(t *testing.T) {
 	}
 	for _, e := range []WBElement{
 		{ID: "b2", Type: "block", Kind: "No Pe", Source: "x", W: 1, H: 1},
-		{ID: "b5", Type: "block", Kind: "quiz", Source: "? q\n= a", W: 1, H: 1},
 		{ID: "b6", Type: "block", Kind: "mermaid", Source: "graph TD", W: 1, H: 1},
 		{ID: "b3", Type: "block", Kind: "chart", Source: `{"points":[]}`, W: 1, H: 1},
 		{ID: "b4", Type: "rect", Source: "x", W: 1, H: 1},

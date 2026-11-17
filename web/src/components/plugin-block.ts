@@ -6,6 +6,7 @@ import { api } from "../api";
 import { locale, t } from "../i18n";
 import { clearPluginBlockCache, loadPluginBlocks, pluginBlock, renderPluginBlock, type PluginBlockInfo } from "../plugin-blocks";
 import { reloadProjectPlugins } from "../plugin-host";
+import { hashText } from "../blocks/registry";
 import { currentProject, currentUser } from "../state";
 
 const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -70,10 +71,15 @@ export class PhxPluginBlock extends HTMLElement {
       // The plugin's element shows it interactively; the picture is its first paint.
       const tag = info?.element;
       if (tag && customElements.get(tag)) {
-        const el = document.createElement(tag) as HTMLElement & { source: string; svg: string; project: string };
+        const el = document.createElement(tag) as HTMLElement & { source: string; svg: string; project: string; doc: string; stateKey: string };
         el.source = src;
         el.svg = r.svg;
         el.project = project;
+        // Where the reader's state lives: the same keys as core blocks (a
+        // whiteboard element's id, else a hash of the source), so state
+        // survives a block's move into a plugin.
+        el.doc = this.dataset.doc ?? "";
+        el.stateKey = this.dataset.key || hashText(src.trim());
         root.innerHTML = `<style>${STYLE}</style>`;
         root.append(el);
         return;

@@ -6,14 +6,11 @@ import (
 	"strings"
 )
 
-// The interactive blocks (ADR-0085): polls and quizzes, read like
-// web/src/blocks/*.ts does. Decision matrices and calculators are plugins
-// (ADR-0087).
+// Helpers to read block sources line by line. The interactive blocks
+// (polls, quizzes, decision matrices, calculators) are plugins (ADR-0087).
 
 var (
-	keyLine  = regexp.MustCompile(`^([A-Za-z]+)\s*:\s*(.*)$`)
-	listLine = regexp.MustCompile(`^[-*+]\s+(.+)$`)
-	quizLine = regexp.MustCompile(`^([?+\-=>])\s*(.*)$`)
+	keyLine = regexp.MustCompile(`^([A-Za-z]+)\s*:\s*(.*)$`)
 )
 
 func lines(src []byte) []string {
@@ -46,112 +43,3 @@ func problem(f string, a ...any) Problem {
 }
 
 // --- poll ---------------------------------------------------------------------
-
-func parsePoll(src []byte) (question string, options []string, ps []Problem) {
-	for _, l := range lines(src) {
-		if k, v, ok := key(l, "question", "frage", "multiple", "closed", "results", "id"); ok {
-			if k == "question" || k == "frage" {
-				question = v
-			}
-			continue
-		}
-		if f := strings.ToLower(l); f == "multiple" || f == "closed" {
-			continue // a flag on its own line
-		}
-		if m := listLine.FindStringSubmatch(l); m != nil {
-			options = append(options, strings.TrimSpace(m[1]))
-		} else if question == "" {
-			question = l
-		}
-	}
-	if question == "" {
-		ps = append(ps, problem("the question is missing (question: …)"))
-	}
-	if len(options) < 2 {
-		ps = append(ps, problem("a poll needs at least two answers (- …)"))
-	}
-	if len(options) > 30 {
-		ps = append(ps, problem("at most 30 answers"))
-	}
-	seen := map[string]bool{}
-	for _, o := range options {
-		if seen[o] {
-			ps = append(ps, problem("the answer %q is there twice", o))
-			break
-		}
-		seen[o] = true
-	}
-	return
-}
-
-// --- quiz -------------------------------------------------------------------------
-
-func parseQuiz(src []byte) (questions []string, ps []Problem) {
-	type q struct {
-		text           string
-		options, right int
-		answer         bool
-	}
-	var qs []*q
-	var cur *q
-	for _, l := range lines(src) {
-		if cur == nil {
-			if _, _, ok := key(l, "title", "titel", "id"); ok {
-				continue
-			}
-		}
-		m := quizLine.FindStringSubmatch(l)
-		if m == nil {
-			ps = append(ps, problem("%q: lines start with ?, +, -, = or >", l))
-			continue
-		}
-		if m[1] == "?" {
-			cur = &q{text: m[2]}
-			qs = append(qs, cur)
-			continue
-		}
-		if cur == nil {
-			ps = append(ps, problem("%q comes before the first question (? …)", l))
-			continue
-		}
-		switch m[1] {
-		case "+":
-			cur.options++
-			cur.right++
-		case "-":
-			cur.options++
-		case "=":
-			cur.answer = true
-		}
-	}
-	if len(qs) == 0 {
-		ps = append(ps, problem("a question is missing (? …)"))
-	}
-	for i, x := range qs {
-		questions = append(questions, x.text)
-		switch {
-		case x.options == 0 && !x.answer:
-			ps = append(ps, problem("question %d needs answers (+ right, - wrong) or a solution (= …)", i+1))
-		case x.options > 0 && x.right == 0:
-			ps = append(ps, problem("question %d has no right answer (+ …)", i+1))
-		}
-	}
-	return
-}
-
-func init() {
-	Register(Def{Kind: "poll", Board: true,
-		Check: func(src []byte) []Problem { _, _, ps := parsePoll(src); return ps },
-		Text: func(src []byte) string {
-			q, o, _ := parsePoll(src)
-			return strings.Join(append([]string{q}, o...), " ")
-		},
-	})
-	Register(Def{Kind: "quiz",
-		Check: func(src []byte) []Problem { _, ps := parseQuiz(src); return ps },
-		Text: func(src []byte) string {
-			q, _ := parseQuiz(src)
-			return strings.Join(q, " ")
-		},
-	})
-}

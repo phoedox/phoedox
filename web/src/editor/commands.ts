@@ -51,8 +51,6 @@ export const SLASH_ITEMS: SlashItem[] = [
   { id: "app", group: "blocks", icon: "AppWindow", words: "app anwendung programm dashboard rechner calculator formular form widget", run: "fence:app" },
   { id: "mermaid", group: "blocks", icon: "Workflow", words: "mermaid diagramm diagram flowchart ablauf sequenz sequence", run: "fence:mermaid" },
   { id: "chart", group: "blocks", icon: "ChartSpline", words: "chart diagramm graph kurve curve verlauf timeline zeitstrahl linie line balken bar plot daten data", run: "fence:chart" },
-  { id: "poll", group: "blocks", icon: "Vote", words: "abstimmung umfrage poll vote voting wahl", run: "fence:poll" },
-  { id: "quiz", group: "blocks", icon: "BookOpenCheck", words: "quiz lernkarten flashcards test fragen lernen", run: "fence:quiz" },
   { id: "beforeafter", group: "blocks", icon: "SquareSplitHorizontal", words: "vorher nachher before after vergleich foto bild slider renovierung", run: "fence:beforeafter" },
   { id: "annotate", group: "blocks", icon: "MapPinned", words: "bild markierungen annotate annotation foto nummern punkte sicherungskasten beschriften", run: "fence:annotate" },
   { id: "tree", group: "blocks", icon: "ListTree", words: "baum tree stammbaum organigramm org chart hierarchie netz topologie family", run: "fence:tree" },

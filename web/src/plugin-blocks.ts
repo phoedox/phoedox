@@ -10,6 +10,10 @@ export interface MissingPlugin { plugin: string; installed: boolean; store: bool
 export interface PluginBlockInfo {
   kind: string; label: string; icon?: string; plugin: string; version?: string;
   element?: string; frontend?: string; board?: boolean; example?: string; missing?: MissingPlugin;
+  /** On whiteboards the element runs (not only the picture). */
+  live?: boolean;
+  /** First size on a whiteboard. */
+  size?: { w: number; h: number };
 }
 export interface PluginBlockResult { svg: string; problems: { line: number; message: string; severity: string }[]; missing?: MissingPlugin }
 

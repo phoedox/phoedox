@@ -409,7 +409,7 @@ func TestPluginBlocks(t *testing.T) {
 	}
 	list, err := s.PluginBlocks(ctx, reader, p.Slug)
 	list = active(list)
-	if err != nil || len(list) != 1 || list[0].Kind != "timeline" || list[0].Element != "phx-timeline" || !list[0].Board ||
+	if err != nil || len(list) != 1 || list[0].Kind != "timeline" || list[0].Element != "phx-timeline" || !list[0].Board || !list[0].Live || list[0].Size == nil || list[0].Size.W != 500 ||
 		list[0].Frontend != "/api/v1/plugins/de.example.ups/1.2.0/files/frontend/index.js" {
 		t.Fatalf("blocks: %v %+v", err, list)
 	}
@@ -424,6 +424,15 @@ func TestPluginBlocks(t *testing.T) {
 	ps, err := s.ValidateBlocks(ctx, reader, p.Slug, "", &md)
 	if err != nil || len(ps) != 1 || ps[0].Kind != "timeline" || ps[0].Block != 1 || ps[0].Line != 2 || ps[0].Message != "bad is not a date" {
 		t.Fatalf("validate: %v %+v", err, ps)
+	}
+	for _, bad := range []string{
+		strings.Replace(plugintest.Manifest, `"element": "phx-timeline", `, ``, 1), // live without an element
+		strings.Replace(plugintest.Manifest, `"w": 500`, `"w": 5000`, 1),           // too wide
+		strings.Replace(plugintest.Manifest, `"board": true, "live"`, `"live"`, 1), // live without board
+	} {
+		if _, err := plugins.ParseManifest([]byte(bad)); err == nil {
+			t.Errorf("accepted: %s", bad[strings.Index(bad, `"blocks"`):][:160])
+		}
 	}
 	pub := s.PubPluginBlock(ctx, p, "timeline", "x", "en")
 	if !strings.Contains(pub, "timeline:en") {
