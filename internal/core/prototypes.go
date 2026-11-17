@@ -466,6 +466,19 @@ func (s *Service) PrototypeHTML(ctx context.Context, a Actor, ref, docRef, proto
 	return page, pr.Name, err
 }
 
+// appHooks lets the Phoedox app (a WebView with the PhoedoxBridge channel)
+// save comments and open links; elsewhere the file plays on its own.
+const appHooks = `function appHooks() {
+  const b = window.PhoedoxBridge;
+  if (!b || !b.postMessage) return {};
+  let n = 0; const wait = {};
+  window.__phxReply = (id, ok, data) => { const w = wait[id]; delete wait[id]; if (w) (ok ? w[0] : w[1])(data); };
+  return {
+    onComment: (c) => new Promise((res, rej) => { const id = ++n; wait[id] = [res, rej]; b.postMessage(JSON.stringify({ op: "comment", id: id, comment: c })); }),
+    onLink: (url) => b.postMessage(JSON.stringify({ op: "link", url: url })),
+  };
+}`
+
 // PlayerPage is a page that plays a prototype; nonce marks its scripts
 // for a CSP (empty: a file without CSP).
 func PlayerPage(title string, m PlayerModel, nonce string) ([]byte, error) {
@@ -484,8 +497,8 @@ func PlayerPage(title string, m PlayerModel, nonce string) ([]byte, error) {
 	var b bytes.Buffer
 	fmt.Fprintf(&b, "<!doctype html>\n<html lang=\"%s\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"+
 		"<title>%s</title><style%s>html,body{margin:0;height:100%%}#phx-proto{position:fixed;inset:0}</style></head>"+
-		"<body><div id=\"phx-proto\"></div><script%s>\n%s\n</script><script%s>PhxProto.mount(document.getElementById('phx-proto'), %s);</script></body></html>\n",
-		html.EscapeString(lang), html.EscapeString(title), n, n, strings.ReplaceAll(web.ProtoPlayer, "</script", "<\\/script"), n, model)
+		"<body><div id=\"phx-proto\"></div><script%s>\n%s\n</script><script%s>%s\nPhxProto.mount(document.getElementById('phx-proto'), %s, appHooks());</script></body></html>\n",
+		html.EscapeString(lang), html.EscapeString(title), n, n, strings.ReplaceAll(web.ProtoPlayer, "</script", "<\\/script"), n, appHooks, model)
 	return b.Bytes(), nil
 }
 
