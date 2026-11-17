@@ -143,10 +143,10 @@ export class PhxPaymentsAdmin extends LitElement {
     switch (c) {
       case "managed":
         return html`<div class="note">${icon("ShieldCheck", 16)}<div><b>${t("pay.managed_title")}</b><ul>
-          <li>${t("pay.managed_1")}</li><li>${t("pay.managed_2")}</li><li>${t("pay.managed_3")}</li><li>${t("pay.managed_4")}</li></ul></div></div>`;
+          <li>${t("pay.managed_1")}</li><li>${t("pay.managed_2")}</li><li>${t("pay.managed_4")}</li></ul></div></div>`;
       case "paddle":
         return html`<div class="note">${icon("ShieldCheck", 16)}<div><b>${t("pay.paddle_title")}</b><ul>
-          <li>${t("pay.paddle_1")}</li><li>${t("pay.paddle_2")}</li><li>${t("pay.paddle_3")}</li></ul></div></div>`;
+          <li>${t("pay.paddle_1")}</li><li>${t("pay.paddle_2")}</li></ul></div></div>`;
       case "stripe":
         return html`<div class="note">${icon("Info", 16)}<div>${t("pay.classic_note")}</div></div>`;
       default:

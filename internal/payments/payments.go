@@ -1,12 +1,14 @@
 // Package payments is the provider interface for selling things (ADR-0079):
 // checkout pages, verified webhooks, refunds and the customer portal. The
 // core only talks to a Provider; providers call their APIs over plain HTTP
-// (no SDKs). Stripe is the first provider, in two modes:
+// (no SDKs). Providers:
 //
-//   - classic: Phoedox is the merchant (optionally with Stripe Tax);
-//   - managed: Stripe Managed Payments, Stripe is the merchant of record.
-//     Only digital products, each with an eligible tax code; marketplace
-//     sales are not allowed.
+//   - Stripe classic: we are the merchant (optionally with Stripe Tax);
+//   - Stripe managed: Stripe Managed Payments, Stripe is the merchant of
+//     record. Only digital products, each with an eligible tax code;
+//     marketplace sales are not allowed;
+//   - Paddle (Paddle Billing): Paddle is the merchant of record; own
+//     products only, checkout with Paddle.js on our own pay page.
 package payments
 
 import (
