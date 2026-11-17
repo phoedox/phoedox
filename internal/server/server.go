@@ -155,6 +155,8 @@ func New(d Deps) http.Handler {
 		r.Handle("/applib/*", appLibs(d.Web))
 		if d.Core != nil {
 			r.Get("/feedback/{handle}/embed", feedbackEmbed(d.Web, d.Core))
+			// Public apps: the page with a link preview.
+			r.Get("/shared/app/{token}", sharedAppPage(d.Web, d.Core))
 			// A feedback portal's own domain opens the portal.
 			r.Get("/", portalRoot(d.Core, spa(d.Web), d.Config.Domain))
 		}

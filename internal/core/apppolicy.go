@@ -3,8 +3,6 @@ package core
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -26,6 +24,8 @@ type AppPolicy struct {
 	NoAI     bool `json:"noAi,omitempty"`
 	// NoPublic forbids releasing apps to people without an account.
 	NoPublic bool `json:"noPublic,omitempty"`
+	// NoDevices forbids camera, microphone, location, screen and motion.
+	NoDevices bool `json:"noDevices,omitempty"`
 	// NoWebEmbeds switches interactive website embeds on whiteboards off
 	// (they stay link cards); EmbedSites limits them to these sites and
 	// their subdomains (empty = any site that allows framing).
@@ -153,12 +153,13 @@ func (s *Service) readAppPolicy(ctx context.Context, key string) AppPolicy {
 // organization's switches.
 func (s *Service) effectiveAppPolicy(ctx context.Context, p store.Project) AppPolicy {
 	inst := s.readAppPolicy(ctx, settingAppPolicy)
-	out := AppPolicy{Off: inst.Off, MaxLevel: inst.MaxLevel, NoAI: inst.NoAI, NoPublic: inst.NoPublic, Hosts: slices.Clone(inst.Hosts)}
+	out := AppPolicy{Off: inst.Off, MaxLevel: inst.MaxLevel, NoAI: inst.NoAI, NoPublic: inst.NoPublic, NoDevices: inst.NoDevices, Hosts: slices.Clone(inst.Hosts)}
 	if p.OrgID != "" {
 		org := s.readAppPolicy(ctx, appOrgKey(p.OrgID))
 		out.Off = out.Off || org.Off
 		out.NoAI = out.NoAI || org.NoAI
 		out.NoPublic = out.NoPublic || org.NoPublic
+		out.NoDevices = out.NoDevices || org.NoDevices
 		if org.MaxLevel != nil && (out.MaxLevel == nil || *org.MaxLevel < *out.MaxLevel) {
 			out.MaxLevel = org.MaxLevel
 		}
@@ -301,12 +302,15 @@ func (s *Service) SetAppTemplate(ctx context.Context, a Actor, ref, docRef strin
 type AppCopyInput struct {
 	Title    string `json:"title"`
 	Category string `json:"category,omitempty"`
+	// Project to put the copy in (slug); empty = the app's own project.
+	Project string `json:"project,omitempty"`
 }
 
-// CopyApp creates a new app with the files and manifest of another (its
-// storage and grants stay with the original).
+// CopyApp creates a new app with the files, manifest and assets of another
+// (its data and grants stay with the original), in its project or another
+// one where the person may write.
 func (s *Service) CopyApp(ctx context.Context, a Actor, ref, docRef string, in AppCopyInput) (DocResult, error) {
-	_, doc, err := s.docAccess(ctx, a, ref, docRef, store.RoleReader)
+	p, doc, err := s.docAccess(ctx, a, ref, docRef, store.RoleReader)
 	if err != nil {
 		return DocResult{}, err
 	}
@@ -314,16 +318,21 @@ func (s *Service) CopyApp(ctx context.Context, a Actor, ref, docRef string, in A
 		return DocResult{}, invalid("validation.not_app", nil, "%s is not an app", docRef)
 	}
 	app := appOf(doc)
-	app.Build, app.Origin = nil, nil
 	title := strings.TrimSpace(in.Title)
 	if title == "" {
 		title = doc.Title
 	}
-	res, err := s.CreateDocument(ctx, a, ref, DocumentInput{Type: store.DocApp, Title: title, Category: in.Category, App: &app})
-	for n := 2; errors.Is(err, store.ErrConflict) && n <= 20; n++ {
-		res, err = s.CreateDocument(ctx, a, ref, DocumentInput{Type: store.DocApp, Title: fmt.Sprintf("%s %d", title, n), Category: in.Category, App: &app})
+	target := in.Project
+	if target == "" {
+		target = ref
+	} else if target != p.Slug && target != p.ID {
+		// Sources point at this project's queries and boards.
+		app.Sources = nil
+		app.Level = min(app.Level, 2)
 	}
-	if err == nil {
+	assets, _ := s.appAssets(ctx, p, doc.ID)
+	res, err := s.copyAppInto(ctx, a, target, title, in.Category, app, assets)
+	if err == nil && res.Document != nil {
 		s.event(ctx, a, "app.copy", res.Document.ID, map[string]string{"from": doc.ID})
 	}
 	return res, err

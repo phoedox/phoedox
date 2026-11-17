@@ -204,6 +204,11 @@ func (s *Service) checkQuota(ctx context.Context, p store.Project, add int64) er
 // ingest checks, stores and registers spooled content as a new file or a
 // new version of existing, then queues preview and text extraction.
 func (s *Service) ingest(ctx context.Context, a Actor, p store.Project, sp spooled, name, docID, entID string, existing *store.File) (store.File, error) {
+	return s.ingestAs(ctx, a, p, sp, name, docID, entID, existing, "")
+}
+
+// ingestAs stores a spooled file with a purpose (files of apps).
+func (s *Service) ingestAs(ctx context.Context, a Actor, p store.Project, sp spooled, name, docID, entID string, existing *store.File, purpose string) (store.File, error) {
 	if sp.size == 0 {
 		return store.File{}, invalid("validation.file_empty", nil, "the file is empty")
 	}
@@ -233,7 +238,7 @@ func (s *Service) ingest(ctx context.Context, a Actor, p store.Project, sp spool
 		}
 	} else {
 		f, err = s.DB.CreateFile(ctx, store.File{ID: newID(), ProjectID: p.ID, SHA256: sp.hash, Name: name, Mime: mimeType, Size: sp.size,
-			DocumentID: docID, EntityID: entID, CreatedBy: a.User.ID})
+			DocumentID: docID, EntityID: entID, CreatedBy: a.User.ID, Purpose: purpose})
 		if err == nil {
 			s.event(ctx, a, "file.upload", f.ID, map[string]any{"name": f.Name, "size": f.Size, "document": docID, "entity": entID})
 		}

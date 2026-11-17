@@ -46,13 +46,19 @@ type App struct {
 	Build *AppBuild `json:"build,omitempty"`
 	// Origin is the store template the app was made from.
 	Origin *AppOrigin `json:"origin,omitempty"`
+	// Devices the app may ask for: camera, microphone, location, screen,
+	// motion. People allow each one separately (appdata.go).
+	Devices []string `json:"devices,omitempty"`
+	// SelfEdit lets the app save its own files (people who may edit it,
+	// after they confirm), e.g. a document edited in place.
+	SelfEdit bool `json:"selfEdit,omitempty"`
 }
 
 // AppSource is something an app may read.
 type AppSource struct {
 	ID    string `json:"id"`              // what the app calls it, e.g. "servers"
-	Kind  string `json:"kind"`            // query | board | checks | entities
-	Ref   string `json:"ref,omitempty"`   // saved query, board or kind
+	Kind  string `json:"kind"`            // query | board | checks | entities | request | readings
+	Ref   string `json:"ref,omitempty"`   // saved query, board, kind, page#n (a request block) or entry[:metric]
 	Label string `json:"label,omitempty"` // shown in the permission dialog
 }
 
@@ -81,7 +87,7 @@ var (
 	appFileRe = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9_.-]{0,60}$`)
 	appExts   = []string{".html", ".css", ".js", ".mjs", ".ts", ".tsx", ".jsx", ".json", ".svg", ".md", ".txt"}
 	appIDRe   = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,40}$`)
-	appKinds  = []string{"query", "board", "checks", "entities"}
+	appKinds  = []string{"query", "board", "checks", "entities", "request", "readings"}
 )
 
 //go:embed appbridge.js
@@ -166,6 +172,19 @@ func appContent(app *App) (store.JSON, string, error) {
 		}
 		seen[src.ID] = true
 		app.Sources[i] = src
+	}
+	devs := []string{}
+	for _, d := range app.Devices {
+		if !slices.Contains(appDevices, d) {
+			return nil, "", invalid("validation.app_device", map[string]any{"device": d}, "unknown device %q (camera, microphone, location, screen, motion)", d)
+		}
+		if !slices.Contains(devs, d) {
+			devs = append(devs, d)
+		}
+	}
+	app.Devices = devs
+	if len(app.Devices) == 0 {
+		app.Devices = nil
 	}
 	app.Build = buildApp(app.Files)
 	b, _ := json.Marshal(app)
@@ -253,6 +272,7 @@ type appFrameClaims struct {
 type appPreview struct {
 	app     App
 	project string
+	doc     string // the app being edited ("" for a new one): its assets
 	exp     time.Time
 }
 
@@ -313,6 +333,10 @@ type AppFrame struct {
 	Isolated bool `json:"isolated"`
 	// MaxLevel is the level the instance or organization allows (≤ Level).
 	MaxLevel int `json:"maxLevel"`
+	// Devices the app may ask for, and what this person answered.
+	Devices      []string        `json:"devices"`
+	DeviceGrants map[string]bool `json:"deviceGrants"`
+	SelfEdit     bool            `json:"selfEdit,omitempty"`
 }
 
 const appFrameTTL = 12 * time.Hour
@@ -342,8 +366,10 @@ func (s *Service) OpenApp(ctx context.Context, a Actor, ref, docRef string) (App
 	}
 	url, isolated := s.frameURL(doc.ID, tok)
 	level := pol.capLevel(app.Level)
+	devs, grants := s.appDeviceState(ctx, a, doc.ID, app, pol)
+	canEdit := rank[p.Role] >= rank[store.RoleEditor] && !s.readOnly(a, p)
 	return AppFrame{URL: url, Isolated: isolated, Level: app.Level, MaxLevel: level, Granted: min(granted, level), Sources: nonNil(app.Sources), AI: app.AI && !pol.NoAI, StorageMB: app.StorageMB, Errors: errs,
-		CanEdit: rank[p.Role] >= rank[store.RoleEditor] && !s.readOnly(a, p)}, nil
+		CanEdit: canEdit, Devices: devs, DeviceGrants: grants, SelfEdit: app.SelfEdit && canEdit}, nil
 }
 
 // frameURL is where a frame loads: <label>.<user content domain>, or the
@@ -370,16 +396,22 @@ func (s *Service) PreviewApp(ctx context.Context, a Actor, ref, docRef string, a
 		return AppFrame{}, err
 	}
 	granted := -1
+	docID := ""
+	grants := map[string]bool{}
 	if docRef != "" {
 		if _, doc, err := s.docAccess(ctx, a, ref, docRef, store.RoleEditor); err == nil && doc.Type == store.DocApp {
 			granted, _ = s.DB.AppGrant(ctx, doc.ID, a.User.ID)
+			docID = doc.ID
+			if g, err := s.DB.AppDeviceGrants(ctx, doc.ID, a.User.ID); err == nil {
+				grants = g
+			}
 		}
 	}
 	if _, _, err := appContent(&app); err != nil {
 		return AppFrame{}, err
 	}
 	id := newID()
-	appPreviews.Store(id, appPreview{app: app, project: p.ID, exp: time.Now().Add(30 * time.Minute)})
+	appPreviews.Store(id, appPreview{app: app, project: p.ID, doc: docID, exp: time.Now().Add(30 * time.Minute)})
 	// Old previews go away.
 	appPreviews.Range(func(k, v any) bool {
 		if time.Now().After(v.(appPreview).exp) {
@@ -392,7 +424,13 @@ func (s *Service) PreviewApp(ctx context.Context, a Actor, ref, docRef string, a
 		return AppFrame{}, err
 	}
 	url, isolated := s.frameURL("p"+id, tok)
-	return AppFrame{URL: url, Isolated: isolated, Level: app.Level, Granted: min(granted, app.Level), Sources: nonNil(app.Sources), AI: app.AI, StorageMB: app.StorageMB, Errors: app.Build.Errors, CanEdit: true}, nil
+	pol := s.effectiveAppPolicy(ctx, p)
+	devs := nonNil(app.Devices)
+	if pol.NoDevices {
+		devs = []string{}
+	}
+	return AppFrame{URL: url, Isolated: isolated, Level: app.Level, Granted: min(granted, app.Level), Sources: nonNil(app.Sources), AI: app.AI, StorageMB: app.StorageMB, Errors: app.Build.Errors, CanEdit: true,
+		Devices: devs, DeviceGrants: grants, SelfEdit: app.SelfEdit}, nil
 }
 
 // AppFile is one file the frame serves.
@@ -438,12 +476,14 @@ func (s *Service) AppFrameFile(ctx context.Context, tok, name, origin, label str
 		}
 	}
 	var app App
+	assetDoc := c.Doc
 	if c.Preview != "" {
 		v, ok := appPreviews.Load(c.Preview)
 		if !ok {
 			return AppFile{}, ErrNotFound
 		}
 		app = v.(appPreview).app
+		assetDoc = v.(appPreview).doc
 	} else {
 		doc, err := s.DB.GetDocument(ctx, c.Project, c.Doc)
 		if err != nil || doc.Type != store.DocApp {
@@ -470,6 +510,9 @@ func (s *Service) AppFrameFile(ctx context.Context, tok, name, origin, label str
 			page = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">` + css.String() + `</head><body><div id="root"></div><script type="module" src="` + html.EscapeString(main) + `"></script></body></html>`
 		}
 		return AppFile{Body: []byte(injectAppHead(page, origin, app)), Type: "text/html; charset=utf-8", Hosts: hosts}, nil
+	}
+	if asset, ok := strings.CutPrefix(name, "assets/"); ok {
+		return s.appAssetFile(ctx, c.Project, assetDoc, asset, hosts)
 	}
 	src, ok := app.Files[name]
 	if !ok {
@@ -590,6 +633,11 @@ func (s *Service) readSource(ctx context.Context, a Actor, p store.Project, src 
 		return s.Checks(ctx, a, p.Slug, src.Ref)
 	case "entities":
 		return s.RunQuery(ctx, a, p.Slug, GraphQuery{Kind: src.Ref, Limit: 500})
+	case "request":
+		return s.readRequestSource(ctx, a, p, src.Ref)
+	case "readings":
+		slug, metric, _ := strings.Cut(src.Ref, ":")
+		return s.EntityReadings(ctx, a, p.Slug, slug, metric, 24)
 	}
 	return nil, ErrNotFound
 }
@@ -796,6 +844,7 @@ func (s *Service) EditApp(ctx context.Context, a Actor, ref, docRef string, file
 	}
 	if manifest != nil {
 		app.Level, app.Sources, app.StorageMB, app.AI = manifest.Level, manifest.Sources, manifest.StorageMB, manifest.AI
+		app.Devices, app.SelfEdit = manifest.Devices, manifest.SelfEdit
 	}
 	return s.UpdateDocument(ctx, a, ref, doc.ID, DocumentPatch{App: &app})
 }

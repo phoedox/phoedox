@@ -79,20 +79,21 @@ func (d *DB) DeleteAppItem(ctx context.Context, docID, userID, key string) error
 // AppStorageSize is the bytes an app stores (all people), and of a project's apps.
 func (d *DB) AppStorageSize(ctx context.Context, docID string) (int64, error) {
 	var n sql.NullInt64
-	err := d.QueryRow(ctx, `SELECT SUM(size) FROM app_storage WHERE document_id = ?`, docID).Scan(&n)
+	err := d.QueryRow(ctx, `SELECT COALESCE((SELECT SUM(size) FROM app_storage WHERE document_id = ?), 0) + COALESCE((SELECT SUM(size) FROM app_records WHERE document_id = ?), 0)`, docID, docID).Scan(&n)
 	return n.Int64, err
 }
 
 // ProjectAppStorage is the bytes all apps of a project store.
 func (d *DB) ProjectAppStorage(ctx context.Context, projectID string) (int64, error) {
 	var n sql.NullInt64
-	err := d.QueryRow(ctx, `SELECT SUM(size) FROM app_storage WHERE project_id = ?`, projectID).Scan(&n)
+	err := d.QueryRow(ctx, `SELECT COALESCE((SELECT SUM(size) FROM app_storage WHERE project_id = ?), 0) + COALESCE((SELECT SUM(size) FROM app_records WHERE project_id = ?), 0)`, projectID, projectID).Scan(&n)
 	return n.Int64, err
 }
 
 // AppStorageByDocument sums the storage of a project's apps (document id → bytes).
 func (d *DB) AppStorageByDocument(ctx context.Context, projectID string) (map[string]int64, error) {
-	rows, err := d.Query(ctx, `SELECT document_id, SUM(size) FROM app_storage WHERE project_id = ? GROUP BY document_id`, projectID)
+	rows, err := d.Query(ctx, `SELECT document_id, SUM(size) FROM (SELECT document_id, size FROM app_storage WHERE project_id = ?
+		UNION ALL SELECT document_id, size FROM app_records WHERE project_id = ?) x GROUP BY document_id`, projectID, projectID)
 	if err != nil {
 		return nil, err
 	}

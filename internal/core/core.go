@@ -175,6 +175,7 @@ type Service struct {
 	vapidMu   sync.Mutex
 	boards    boardFeed
 	projects  feed[ProjectChange]
+	appFeed   feed[AppChange]
 	releases  releaseCache
 
 	// SyncNotify sends ntfy and web push before notify returns (tests).

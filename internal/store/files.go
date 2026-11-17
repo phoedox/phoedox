@@ -24,13 +24,16 @@ type File struct {
 	HasPreview  bool   `json:"hasPreview"`
 	// TextStatus tells whether text was extracted for search: "" (pending), done, none, failed.
 	TextStatus string `json:"textStatus"`
+	// Purpose of a file of an app: "" (an attachment), app_upload (added by
+	// people using the app), app_asset (the author's), app_preview.
+	Purpose string `json:"purpose,omitempty"`
 }
 
-const fileCols = `id, project_id, sha256, name, mime, size, COALESCE(document_id, ''), COALESCE(entity_id, ''), created_by, created_at, version, thumb_sha256, text_status`
+const fileCols = `id, project_id, sha256, name, mime, size, COALESCE(document_id, ''), COALESCE(entity_id, ''), created_by, created_at, version, thumb_sha256, text_status, purpose`
 
 func scanFile(r interface{ Scan(...any) error }) (File, error) {
 	var f File
-	err := r.Scan(&f.ID, &f.ProjectID, &f.SHA256, &f.Name, &f.Mime, &f.Size, &f.DocumentID, &f.EntityID, &f.CreatedBy, &f.CreatedAt, &f.Version, &f.ThumbSHA256, &f.TextStatus)
+	err := r.Scan(&f.ID, &f.ProjectID, &f.SHA256, &f.Name, &f.Mime, &f.Size, &f.DocumentID, &f.EntityID, &f.CreatedBy, &f.CreatedAt, &f.Version, &f.ThumbSHA256, &f.TextStatus, &f.Purpose)
 	f.HasPreview = f.ThumbSHA256 != ""
 	if errors.Is(err, sql.ErrNoRows) {
 		return f, ErrNotFound
@@ -49,9 +52,9 @@ func nullable(s string) any {
 func (d *DB) CreateFile(ctx context.Context, f File) (File, error) {
 	f.CreatedAt, f.Version = Now(), 1
 	err := d.InTx(ctx, func(tx *Tx) error {
-		if _, err := tx.Exec(ctx, `INSERT INTO files (id, tenant_id, project_id, sha256, name, mime, size, document_id, entity_id, created_by, created_at, version)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`, f.ID, TenantOf(ctx), f.ProjectID, f.SHA256, f.Name, f.Mime, f.Size,
-			nullable(f.DocumentID), nullable(f.EntityID), f.CreatedBy, f.CreatedAt); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO files (id, tenant_id, project_id, sha256, name, mime, size, document_id, entity_id, created_by, created_at, version, purpose)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`, f.ID, TenantOf(ctx), f.ProjectID, f.SHA256, f.Name, f.Mime, f.Size,
+			nullable(f.DocumentID), nullable(f.EntityID), f.CreatedBy, f.CreatedAt, f.Purpose); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO file_versions (file_id, version, tenant_id, sha256, mime, size, created_by, created_at) VALUES (?, 1, ?, ?, ?, ?, ?, ?)`,
@@ -161,6 +164,8 @@ func (d *DB) GetFile(ctx context.Context, id string) (File, error) {
 type FileFilter struct {
 	DocumentID string
 	EntityID   string
+	// Purpose selects files of one purpose; "" lists all but app previews.
+	Purpose string
 }
 
 // ListFiles lists live files of a project, newest first.
@@ -174,6 +179,12 @@ func (d *DB) ListFiles(ctx context.Context, projectID string, f FileFilter) ([]F
 	if f.EntityID != "" {
 		q += ` AND entity_id = ?`
 		args = append(args, f.EntityID)
+	}
+	if f.Purpose != "" {
+		q += ` AND purpose = ?`
+		args = append(args, f.Purpose)
+	} else {
+		q += ` AND purpose <> 'app_preview'`
 	}
 	rows, err := d.Query(ctx, q+` ORDER BY created_at DESC, name`, args...)
 	if err != nil {
