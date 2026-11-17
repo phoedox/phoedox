@@ -187,6 +187,8 @@ func (r fenceRenderer) render(w util.BufWriter, src []byte, n ast.Node, entering
 		_, _ = w.WriteString(`<phx-embed data-url="` + esc + `" data-kind="` + lang + `"><a href="` + esc + `" rel="noopener external">` + esc + `</a></phx-embed>`)
 	case "mermaid":
 		_, _ = w.WriteString(`<phx-mermaid><pre>` + esc + `</pre></phx-mermaid>`)
+	case "chart":
+		_, _ = w.WriteString(`<phx-chart><pre>` + esc + `</pre></phx-chart>`)
 	case "board":
 		if r.links.Board != nil {
 			_, _ = w.WriteString(r.links.Board(text))
@@ -220,8 +222,8 @@ var policy = func() *bluemonday.Policy {
 	p := bluemonday.UGCPolicy()
 	p.AllowAttrs("class").OnElements("span", "div", "code", "pre", "ul", "li", "input", "table", "td", "th", "section", "small", "h3")
 	p.AllowAttrs("data-kind", "data-icon").OnElements("div", "span")
-	p.AllowElements("u", "phx-math", "phx-embed", "phx-mermaid", "time", "section", "article", "h2", "h3")
-	p.AllowNoAttrs().OnElements("phx-mermaid") // the source is the <pre> inside
+	p.AllowElements("u", "phx-math", "phx-embed", "phx-mermaid", "phx-chart", "time", "section", "article", "h2", "h3")
+	p.AllowNoAttrs().OnElements("phx-mermaid", "phx-chart") // the source is the <pre> inside
 	p.AllowAttrs("data-tex", "data-display").OnElements("phx-math")
 	p.AllowAttrs("data-url", "data-kind").OnElements("phx-embed")
 	p.AllowAttrs("datetime", "data-kind").OnElements("time")

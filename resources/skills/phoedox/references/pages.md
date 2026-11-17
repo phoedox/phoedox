@@ -38,7 +38,7 @@ request blocks, live blocks, diagrams) is in `page-syntax.md`.
     slug) creates **no new version** and keeps translations current.
   - `expect_version` fails when the page changed since you read it.
 - Answers are short: `applied`, `document` (id, slug, title, version, url), `draft`
-  or `suggestion`, and `blockProblems` for mermaid and dbmodel blocks. Fix the
+  or `suggestion`, and `blockProblems` for mermaid, dbmodel and chart blocks. Fix the
   blocks it names. `verbose: true` returns the whole document.
 - `delete_document` moves a document to the trash.
 
@@ -88,7 +88,7 @@ plus its translations. Combine changes to the same document into one operation.
 
 ## Check diagrams
 
-`validate_blocks` checks the mermaid and dbmodel blocks of a page (its draft if
+`validate_blocks` checks the mermaid, dbmodel and chart blocks of a page (its draft if
 open) or of Markdown you are about to save: unknown diagram types, Mermaid keywords
 used as names, unclosed blocks, unbalanced brackets or quotes, tables that no dbmodel
 block of the project defines. The Mermaid check catches common mistakes, not

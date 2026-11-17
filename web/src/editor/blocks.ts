@@ -153,6 +153,9 @@ export class FenceNode extends DecoratorNode<null> {
     } else if (this.__kind === "mermaid") {
       el = document.createElement("phx-mermaid");
       el.dataset.src = src;
+    } else if (this.__kind === "chart") {
+      el = document.createElement("phx-chart");
+      el.dataset.src = src;
     } else if (this.__kind === "dbmodel") {
       el = document.createElement("phx-dbmodel");
       el.dataset.src = src;

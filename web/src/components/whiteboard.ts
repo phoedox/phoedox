@@ -10,7 +10,8 @@ import rough from "roughjs";
 import { ApiError, api, type Doc, type Entity } from "../api";
 import { userColor } from "../collab";
 import { uploadFile } from "../files";
-import { formatDate, t } from "../i18n";
+import { CHART_EXAMPLE, chartSVG, parseChart } from "../chart";
+import { formatDate, locale, t } from "../i18n";
 import { icon, iconSVG } from "../icon";
 import { findKind, groupColor, kindName, loadModel, type Model } from "../model";
 import { currentUser, navigate } from "../state";
@@ -24,6 +25,7 @@ import type { Comp, Device, WBPrototype } from "../whiteboard";
 import { COMPS, DEVICES, PreviewCache, actionsView, drawFlow, drawScreen, inspector, newProtoId, protoById, screenOf, screensOf, settingsDialog, type InspectorCtx } from "./wb-proto";
 import { base } from "./shared";
 import { toast } from "./toasts";
+import "./chart-block";
 
 type Tool = "select" | "hand" | "rect" | "ellipse" | "diamond" | "arrow" | "line" | "pen" | "text" | "sticky" | "frame" | "image" | "embed" | "entity" | "comment" | "laser" | "eraser" | "screen" | "ui";
 const TOOLS: (readonly [Tool, string, string] | "|")[] = [
@@ -78,7 +80,7 @@ interface Pop { kind: "comment" | "newcomment" | "embed" | "entity"; x: number; 
 export class PhxWhiteboard extends LitElement {
   static properties = {
     project: {}, doc: { attribute: false }, canEdit: { type: Boolean }, still: { type: Boolean, reflect: true },
-    tool: { state: true }, selId: { state: true }, sel: { state: true }, snap: { state: true }, embedWeb: { state: true }, apps: { state: true }, cards: { state: true }, mermaid: { state: true }, present: { state: true }, status: { state: true }, saved: { state: true }, peers: { state: true }, zoom: { state: true },
+    tool: { state: true }, selId: { state: true }, sel: { state: true }, snap: { state: true }, embedWeb: { state: true }, apps: { state: true }, cards: { state: true }, mermaid: { state: true }, chartEdit: { state: true }, present: { state: true }, status: { state: true }, saved: { state: true }, peers: { state: true }, zoom: { state: true },
     pop: { state: true }, menu: { state: true }, panel: { state: true }, arrowMode: { state: true }, roundDefault: { state: true }, trail: { state: true }, laserSize: { state: true },
     entities: { state: true }, query: { state: true }, busy: { state: true }, boardVersion: { state: true },
     uiComp: { state: true }, screenDevice: { state: true }, screenProto: { state: true }, protoDlg: { state: true }, playing: { state: true },
@@ -99,6 +101,11 @@ export class PhxWhiteboard extends LitElement {
     dialog.wbdlg .cardlist li { display: flex; gap: 8px; align-items: center; }
     dialog.wbdlg .cardlist input[type=checkbox] { width: auto; }
     dialog.wbdlg .cardlist input[type=text] { flex: 1; }
+    dialog.wbdlg.chart { width: min(1040px, 96vw); }
+    dialog.wbdlg .chartgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; align-items: start; }
+    dialog.wbdlg .chartgrid textarea { min-height: 420px; margin: 0; }
+    dialog.wbdlg .chartgrid phx-chart { margin: 0; max-height: 60vh; overflow: auto; }
+    @media (max-width: 760px) { dialog.wbdlg .chartgrid { grid-template-columns: 1fr; } }
     dialog.wbdlg textarea { width: 100%; min-height: 200px; box-sizing: border-box; font: 13px/1.5 var(--font-mono); margin: 10px 0 14px; }
     dialog.wbdlg .acts { display: flex; gap: 8px; justify-content: flex-end; }
     .apps { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
@@ -241,6 +248,9 @@ export class PhxWhiteboard extends LitElement {
   cards?: { items: { id: string; title: string; description: string; on: boolean }[]; boards: Doc[]; board: string; columns: { id: string; name: string }[]; column: string };
   /** A Mermaid flowchart to turn into shapes. */
   mermaid?: string;
+  /** The chart being written in the dialog (a new one without id). */
+  chartEdit?: { id?: string; src: string };
+  private chartTimer = 0;
   /** Live state of entries (slug → ok | warn | down | fail …). */
   private entStatus = new Map<string, string>();
   /** Which websites may be embedded live (instance and organization). */
@@ -711,6 +721,7 @@ export class PhxWhiteboard extends LitElement {
         break;
       }
       case "embed": this.drawEmbed(e, g); break;
+      case "chart": this.drawChart(e, g); break;
       case "arrow":
       case "line": {
         const pts = linePts(e, this.byId);
@@ -844,6 +855,46 @@ export class PhxWhiteboard extends LitElement {
       hx("div", "min-width:0;display:grid;gap:2px;align-content:start", [title(pv.title || e.url || ""),
         hx("div", "color:var(--muted);font-size:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden", [pv.description ?? ""])]),
     ]), foot("Link", pv.site || "")));
+  }
+
+  /** Charts are drawn as SVG (not HTML), so exports keep them; points show
+   * their text as a tooltip. The numbered list stays on pages. */
+  private drawChart(e: WBElement, g: SVGGElement) {
+    const x = e.x ?? 0, y = e.y ?? 0, w = Math.max(240, e.w ?? 0), h = Math.max(160, e.h ?? 0), spec = e.chart;
+    const card = mk("rect", { x, y, width: w, height: h, rx: 10 }, g);
+    card.style.cssText = "fill:var(--surface);stroke:var(--line);stroke-width:1.5";
+    let top = y + 10;
+    if (spec?.title) {
+      const tx = mk("text", { x: x + 14, y: y + 28 }, g);
+      tx.style.cssText = "font:600 16px var(--font-body);fill:var(--fg)";
+      tx.textContent = spec.title;
+      top = y + 40;
+    }
+    const bands = (spec?.bands ?? []).filter((b) => b.label);
+    const legendH = bands.length ? 24 : 0;
+    if (!spec || parseChart(JSON.stringify(spec)).problems.length) {
+      const tx = mk("text", { x: x + 14, y: top + 20 }, g);
+      tx.style.cssText = "font:13px var(--font-body);fill:var(--bad)";
+      tx.textContent = t("chart.error");
+      return;
+    }
+    const markup = chartSVG(spec, { width: w - 16, height: h - (top - y) - legendH - 6, locale: locale() });
+    const inner = document.importNode(new DOMParser().parseFromString(markup, "image/svg+xml").documentElement, true) as unknown as SVGSVGElement;
+    inner.setAttribute("x", String(x + 8));
+    inner.setAttribute("y", String(top));
+    inner.removeAttribute("style");
+    inner.style.fontFamily = "var(--font-body)";
+    g.appendChild(inner);
+    let lx = x + 14;
+    for (const b of bands) {
+      if (lx > x + w - 60) break;
+      const sw = mk("rect", { x: lx, y: y + h - 20, width: 11, height: 11, rx: 2 }, g);
+      sw.style.cssText = `fill:var(--tb-${b.color ?? "gray"});stroke:var(--tc-${b.color ?? "gray"})`;
+      const tx = mk("text", { x: lx + 16, y: y + h - 10.5 }, g);
+      tx.style.cssText = "font:11px var(--font-body);fill:var(--muted)";
+      tx.textContent = b.label ?? "";
+      lx += 16 + (b.label ?? "").length * 6.2 + 14;
+    }
   }
 
   /** Running apps: frames in an overlay, positioned over their cards. */
@@ -1608,6 +1659,11 @@ export class PhxWhiteboard extends LitElement {
       return;
     }
     const h = hitTest(this.els(), x, y, 8 / this.view.z, this.byId);
+    if (h?.type === "chart") {
+      this.select(h.id);
+      void this.openChart(h);
+      return;
+    }
     if (h && (TEXTUAL.has(h.type) || h.type === "frame")) {
       this.select(h.id);
       this.editText(h);
@@ -2702,6 +2758,58 @@ export class PhxWhiteboard extends LitElement {
     </dialog>`;
   }
 
+  private async openChart(e?: WBElement) {
+    this.chartEdit = { id: e?.id, src: e?.chart ? JSON.stringify(e.chart, null, 2) : CHART_EXAMPLE };
+    await this.updateComplete;
+    this.renderRoot.querySelector<HTMLDialogElement>("dialog.chart")?.showModal();
+  }
+
+  private saveChart() {
+    const c = this.chartEdit;
+    if (!c) return;
+    const { spec, problems } = parseChart(c.src);
+    if (!spec) {
+      toast(`${t("chart.error")}: ${t(problems[0].key as any, problems[0].params ?? {})}`, "error");
+      return;
+    }
+    const old = c.id ? this.byId(c.id) : undefined;
+    if (old) {
+      old.chart = spec;
+    } else {
+      const r = this.svgEl.getBoundingClientRect();
+      const [cx, cy] = this.toWorld(r.left + r.width / 2, r.top + r.height / 2);
+      const el: WBElement = { id: newId(), type: "chart", chart: spec, x: cx - 280, y: cy - 180, w: 560, h: 360 };
+      this.add(el);
+      this.select(el.id);
+    }
+    this.changed();
+    this.renderRoot.querySelector<HTMLDialogElement>("dialog.chart")?.close();
+    this.chartEdit = undefined;
+  }
+
+  private chartDialog() {
+    const c = this.chartEdit;
+    if (!c) return nothing;
+    const close = () => { this.renderRoot.querySelector<HTMLDialogElement>("dialog.chart")?.close(); this.chartEdit = undefined; };
+    return html`<dialog class="chart wbdlg" aria-labelledby="wbct" @cancel=${(e: Event) => { e.preventDefault(); close(); }} @keydown=${(e: KeyboardEvent) => e.stopPropagation()}>
+      <h2 id="wbct">${t("wb.chart_title")}</h2>
+      <p class="muted">${t("block.chart_hint")}</p>
+      <div class="chartgrid">
+        <textarea aria-label=${t("block.chart_source")} .value=${c.src} spellcheck="false" @input=${(ev: Event) => {
+          const v = (ev.target as HTMLTextAreaElement).value;
+          clearTimeout(this.chartTimer);
+          this.chartTimer = window.setTimeout(() => { if (this.chartEdit) this.chartEdit = { ...this.chartEdit, src: v }; }, 300);
+        }}></textarea>
+        <phx-chart data-src=${c.src}></phx-chart>
+      </div>
+      <div class="acts"><button class="ghost" @click=${close}>${t("doc.cancel")}</button><button @click=${() => {
+        const v = this.renderRoot.querySelector<HTMLTextAreaElement>("dialog.chart textarea")?.value;
+        if (v !== undefined && this.chartEdit) this.chartEdit = { ...this.chartEdit, src: v };
+        this.saveChart();
+      }}>${icon("ChartSpline", 14)} ${t(c.id ? "wb.chart_save" : "wb.chart_add")}</button></div>
+    </dialog>`;
+  }
+
   private async openMermaid() {
     this.mermaid = "flowchart LR\n  A[Idea] --> B{Decide}\n  B -->|yes| C[Build]\n  B -->|no| D[Drop]";
     await this.updateComplete;
@@ -2889,7 +2997,8 @@ export class PhxWhiteboard extends LitElement {
         <button aria-label=${t("wb.export_png")} title=${t("wb.export_png")} @click=${() => this.exportAs("png")}>${icon("Image", 16)}</button>
         <button aria-label=${t("wb.export_excalidraw")} title=${t("wb.export_excalidraw")} @click=${() => this.exportExcalidraw()}>${icon("FileCode", 16)}</button>
         ${this.readOnly ? nothing : html`<button aria-label=${t("wb.import_excalidraw")} title=${t("wb.import_excalidraw")} @click=${() => this.pickExcalidraw()}>${icon("Upload", 16)}</button>
-          <button aria-label=${t("wb.mermaid_title")} title=${t("wb.mermaid_title")} @click=${() => void this.openMermaid()}>${icon("Workflow", 16)}</button>`}
+          <button aria-label=${t("wb.mermaid_title")} title=${t("wb.mermaid_title")} @click=${() => void this.openMermaid()}>${icon("Workflow", 16)}</button>
+          <button aria-label=${t("wb.chart_title")} title=${t("wb.chart_title")} @click=${() => void this.openChart()}>${icon("ChartSpline", 16)}</button>`}
         <button aria-label=${t("wb.present")} title=${t("wb.present")} @click=${() => this.presentAt(0)}>${icon("Presentation", 16)}</button>
         ${(this.board.prototypes ?? []).length ? html`<button aria-label=${t("proto.prototypes")} title=${t("proto.prototypes")} @click=${() => {
           const list = this.board.prototypes ?? [];
@@ -2903,6 +3012,7 @@ export class PhxWhiteboard extends LitElement {
       ${this.menuView()}
       ${this.cardsDialog()}
       ${this.mermaidDialog()}
+      ${this.chartDialog()}
       ${this.protoView()}
       ${this.present >= 0 ? html`<div class="bar present" role="toolbar" aria-label=${t("wb.present")}>
         <button aria-label=${t("wb.prev")} @click=${() => this.presentAt(Math.max(0, this.present - 1))}>${icon("ChevronLeft", 16)}</button>

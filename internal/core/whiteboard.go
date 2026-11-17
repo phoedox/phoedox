@@ -76,6 +76,8 @@ type WBElement struct {
 	URL     string     `json:"url,omitempty"`
 	Kind    string     `json:"kind,omitempty"` // video | code | link | web | app (Doc is the app)
 	Preview *WBPreview `json:"preview,omitempty"`
+	// Charts: the same JSON as a ```chart block in pages (chart.go).
+	Chart json.RawMessage `json:"chart,omitempty"`
 	// Prototypes: a frame as a screen, a component (type "ui") and what
 	// happens on click, change, hover or when a screen opens.
 	Screen  *WBScreen  `json:"screen,omitempty"`
@@ -141,7 +143,7 @@ const (
 
 var (
 	wbTypes = map[string]bool{"rect": true, "ellipse": true, "diamond": true, "line": true, "arrow": true, "pen": true, "text": true,
-		"sticky": true, "frame": true, "image": true, "embed": true, "entity": true, "ui": true}
+		"sticky": true, "frame": true, "image": true, "embed": true, "entity": true, "ui": true, "chart": true}
 	wbLinear   = map[string]bool{"line": true, "arrow": true, "pen": true}
 	wbEmbeds   = map[string]bool{"video": true, "code": true, "link": true, "web": true, "app": true}
 	wbColors   = map[string]bool{"gray": true, "red": true, "orange": true, "yellow": true, "green": true, "blue": true, "purple": true, "pink": true}
@@ -220,6 +222,15 @@ func whiteboardContent(wb *Whiteboard) (store.JSON, string, error) {
 		}
 		if len(e.Text) > maxWBText {
 			return nil, "", bad("text")
+		}
+		if e.Type == "chart" {
+			c, ps := ParseChart(e.Chart)
+			if len(ps) > 0 {
+				return nil, "", invalid("validation.whiteboard_chart", map[string]any{"id": e.ID, "problem": ps[0].Message}, "whiteboard: chart %s: %s", e.ID, ps[0].Message)
+			}
+			text = append(text, chartText(c))
+		} else if len(e.Chart) > 0 {
+			return nil, "", bad("chart")
 		}
 		if wbLinear[e.Type] {
 			if len(e.Points) < 2 || len(e.Points) > maxWBPoints {

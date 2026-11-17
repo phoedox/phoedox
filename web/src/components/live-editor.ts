@@ -1,4 +1,5 @@
 import { $createCodeNode } from "@lexical/code";
+import { CHART_EXAMPLE, parseChart } from "../chart";
 import { TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { INSERT_CHECK_LIST_COMMAND, INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND } from "@lexical/list";
 import { $createHeadingNode, $createQuoteNode, type HeadingTagType } from "@lexical/rich-text";
@@ -538,6 +539,18 @@ export class PhxLiveEditor extends LitElement {
       const v = await this.askForm({ title: t("slash.mermaid"), hint: t("block.mermaid_hint"),
         fields: [{ name: "v", label: t("block.mermaid_source"), type: "textarea", value: current || "flowchart LR\n  Internet --> Router --> Switch\n  Switch --> NAS" }] });
       return v?.v.trim() || undefined;
+    }
+    if (kind === "chart") {
+      const v = await this.askForm({ title: t("slash.chart"), hint: t("block.chart_hint"),
+        fields: [{ name: "v", label: t("block.chart_source"), type: "textarea", value: current || CHART_EXAMPLE }] });
+      const src = v?.v.trim();
+      if (!src) return undefined;
+      const { problems } = parseChart(src);
+      if (problems.length) {
+        toast(`${t("chart.error")}: ${t(problems[0].key as any, problems[0].params ?? {})}`, "error");
+        return undefined;
+      }
+      return src;
     }
     if (kind === "dbmodel" || kind === "status" || kind === "entity") {
       const preset = kind === "dbmodel" ? "CREATE TABLE customers (\n  id INTEGER PRIMARY KEY,\n  name TEXT NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  customer_id INTEGER REFERENCES customers(id),\n  total NUMERIC(10,2)\n);"

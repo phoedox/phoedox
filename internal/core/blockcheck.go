@@ -19,7 +19,7 @@ import (
 // BlockProblem is one finding in a fenced block.
 type BlockProblem struct {
 	Block    int    `json:"block"` // 1-based number of the fenced block on the page
-	Kind     string `json:"kind"`  // mermaid | dbmodel
+	Kind     string `json:"kind"`  // mermaid | dbmodel | chart
 	Line     int    `json:"line"`  // line in the page (1-based)
 	Severity string `json:"severity"`
 	Message  string `json:"message"`
@@ -284,6 +284,8 @@ func CheckBlocks(md string, schema map[string][]string) []BlockProblem {
 			ps = checkMermaid(b.Body)
 		case "dbmodel":
 			ps = checkDBModel(b.Body, schema)
+		case "chart":
+			ps = checkChart(b.Body)
 		}
 		for _, p := range ps {
 			p.Block, p.Line = i+1, b.Line+p.Line
@@ -375,7 +377,7 @@ func (s *Service) ValidateBlocks(ctx context.Context, a Actor, ref, docRef strin
 		}
 		markdown = &c.Markdown
 	}
-	if !strings.Contains(*markdown, "mermaid") && !strings.Contains(*markdown, "dbmodel") {
+	if !strings.Contains(*markdown, "mermaid") && !strings.Contains(*markdown, "dbmodel") && !strings.Contains(*markdown, "chart") {
 		return []BlockProblem{}, nil
 	}
 	var schema map[string][]string

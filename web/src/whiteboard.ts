@@ -2,8 +2,10 @@
 // geometry of the editor: bindings of arrow ends, hit tests, extents and
 // the order of elements. Pure, so it can be tested without a browser.
 
+import type { ChartSpec } from "./chart";
+
 export type Pt = [number, number];
-export type ElementType = "rect" | "ellipse" | "diamond" | "line" | "arrow" | "pen" | "text" | "sticky" | "frame" | "image" | "embed" | "entity" | "ui";
+export type ElementType = "rect" | "ellipse" | "diamond" | "line" | "arrow" | "pen" | "text" | "sticky" | "frame" | "image" | "embed" | "entity" | "ui" | "chart";
 export type Color = "gray" | "red" | "orange" | "yellow" | "green" | "blue" | "purple" | "pink";
 export const PALETTE: Color[] = ["gray", "red", "orange", "yellow", "green", "blue", "purple", "pink"];
 
@@ -24,6 +26,8 @@ export interface WBElement {
   url?: string; kind?: "video" | "code" | "link" | "web" | "app"; preview?: Preview;
   /** Prototypes: a frame as a screen, a component, interactions. */
   screen?: WBScreen; ui?: WBUI; actions?: WBAction[];
+  /** Charts: the same JSON as a ```chart block in pages (chart.ts). */
+  chart?: ChartSpec;
 }
 
 // ---- prototypes ---------------------------------------------------------------
@@ -51,7 +55,7 @@ export type Background = "" | "plain" | "grid" | "dots";
 export interface Whiteboard { version?: number; background?: Background; elements: WBElement[]; comments?: WBComment[]; prototypes?: WBPrototype[] }
 
 export const LINEAR = new Set<ElementType>(["line", "arrow"]);
-export const BOXY = new Set<ElementType>(["rect", "ellipse", "diamond", "sticky", "entity", "image", "embed", "frame", "text", "ui"]);
+export const BOXY = new Set<ElementType>(["rect", "ellipse", "diamond", "sticky", "entity", "image", "embed", "frame", "text", "ui", "chart"]);
 /** Elements that hold a text a double-click edits. */
 export const TEXTUAL = new Set<ElementType>(["rect", "ellipse", "diamond", "sticky", "text", "arrow", "line", "ui"]);
 
@@ -546,7 +550,7 @@ export function toExcalidraw(b: Whiteboard): string {
     const type = e.type === "ellipse" ? "ellipse" : e.type === "diamond" ? "diamond" : "rectangle";
     const el = base(e, type, box);
     if (e.type === "sticky") Object.assign(el, { backgroundColor: EX_FILL[(e.fill as Color) ?? "yellow"] ?? EX_FILL.yellow, strokeColor: "transparent" });
-    const label = e.text || (e.type === "entity" ? e.entity : e.type === "embed" ? e.url : "") || "";
+    const label = e.text || (e.type === "entity" ? e.entity : e.type === "embed" ? e.url : e.type === "chart" ? e.chart?.title : "") || "";
     out.push(el);
     if (label) {
       const tid = e.id + "-t";

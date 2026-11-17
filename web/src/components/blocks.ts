@@ -7,6 +7,7 @@ import { locale, t } from "../i18n";
 import { icon, iconSVG } from "../icon";
 import { attrLabel } from "../model";
 import { base } from "./shared";
+import "./chart-block";
 
 /** Formula: KaTeX as MathML (no fonts or styles needed). */
 export class PhxMath extends HTMLElement {

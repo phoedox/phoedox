@@ -73,5 +73,5 @@ export function calloutHead(a: CalloutAttrs): string {
 }
 
 /** Fenced blocks with their own rendering. */
-export const FENCES = ["math", "embed", "iframe", "board", "whiteboard", "app", "mermaid", "dbmodel", "status", "entity", "include", "query", "map"] as const;
+export const FENCES = ["math", "embed", "iframe", "board", "whiteboard", "app", "mermaid", "chart", "dbmodel", "status", "entity", "include", "query", "map"] as const;
 export type FenceKind = (typeof FENCES)[number];
