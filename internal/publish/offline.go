@@ -148,6 +148,8 @@ func WriteOffline(ctx context.Context, w io.Writer, d core.OfflineData, open fun
 			b.WriteString(whiteboardSVG(doc, "files/"))
 		case store.DocApp:
 			fmt.Fprintf(&b, `<p>%s</p>`, template.HTMLEscapeString(t["app_not_public"]))
+		case store.DocCalendar:
+			fmt.Fprintf(&b, `<p>%s</p>`, template.HTMLEscapeString(t["calendar_not_public"]))
 		}
 		if err := write(page(doc.Slug), doc.Title, b.String()); err != nil {
 			return err

@@ -48,6 +48,7 @@ examples:
 | `floorplan` | the floor plan of one floor | `save_floorplan` | floorplans.md |
 | `whiteboard` | a canvas drawn together live; also clickable prototypes | `draw_diagram` or `draw_screens` (without `document`), or `save_whiteboard` | whiteboards.md |
 | `app` | a small web program (HTML/JS or React) in an isolated frame | `create_app` | apps.md |
+| `calendar` | the project's dates and external calendars as a month or a list, with filters | `create_calendar` | blocks/calendar.md |
 
 ## Start of a conversation
 

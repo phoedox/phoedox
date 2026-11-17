@@ -38,12 +38,14 @@ var Tables = []string{
 	"doc_updates", "project_env", "instance_settings", "project_kinds",
 	"files", "file_versions", "jobs", "share_links", "webhooks", "webhook_deliveries",
 	"plugins", "project_plugins", "plugin_kv", "drafts", "document_translations", "tasks", "images", "publications", "agent_enrollments", "agents", "signing_keys", "agent_jobs", "publication_releases", "checks", "comments", "notifications", "notification_settings", "push_subscriptions", "project_git", "org_domains", "incidents", "incident_updates", "recent_views", "user_prefs", "secret_links", "page_rules", "read_confirmations", "maintenance_plans", "entity_meta", "kind_rules", "saved_queries", "doc_skills", "device_settings", "control_grants", "entity_readings", "automation_rules", "rule_runs", "entitlements", "code_repos", "task_code_links", "task_documents", "ai_providers", "ai_chats", "ai_chat_messages", "ai_chat_proposals", "ai_usage", "discovered_devices", "task_time", "org_ai_prices", "budget_warnings", "ai_budget_requests", "feedback_portals", "feedback_moderators", "feedback_topics", "feedback_reports", "feedback_attachments", "feedback_topic_links", "themes", "app_grants", "app_storage", "app_records", "app_device_grants", "block_states", "project_snapshots", "store_requests", "provider_links", "theme_assets", "app_shares", "feedback_topic_entities", "feedback_replies", "purchases", "payment_events", "dpa_versions", "dpa_acceptances", "ai_credit_lots", "feedback_votes", "feedback_subscriptions", "feedback_comments", "feedback_trackers", "feedback_forwards", "feedback_storage_lots",
+	"calendars", "calendar_pushed", "calendar_feeds",
 }
 
 // Skipped are tables that are not backed up.
 // user_exports: personal data exports are short-lived (7 days) and must not
 // come back from a backup after they were deleted.
-var Skipped = []string{"goose_db_version", "sqlite_sequence", "search_index", "search_terms", "search_vectors", "uploads", "user_exports", "bot_used", "bot_events"}
+// calendar_events: a cache of external calendars, read again within 30 minutes.
+var Skipped = []string{"goose_db_version", "sqlite_sequence", "search_index", "search_terms", "search_vectors", "uploads", "user_exports", "bot_used", "bot_events", "calendar_events"}
 
 // Manifest describes a backup.
 type Manifest struct {

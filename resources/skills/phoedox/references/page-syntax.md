@@ -88,6 +88,7 @@ whiteboards and published pages) – read the one you are about to write.
 | ```dbmodel | the project's database schema as a diagram | `blocks/dbmodel.md` |
 | ```embed | a video or web page | `blocks/embed.md` |
 | ```chart | line, area, bar, scatter charts and annotated timelines | `blocks/chart.md` |
+| ```calendar | the project's dates as a month or a list | `blocks/calendar.md` |
 | ```poll | a poll readers vote in (plugin `com.phoedox.poll`) | `blocks/poll.md` |
 | ```matrix | a weighted decision matrix (plugin `com.phoedox.matrix`) | `blocks/matrix.md` |
 | ```calc | a calculator with inputs and formulas (plugin `com.phoedox.calc`) | `blocks/calc.md` |

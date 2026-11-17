@@ -50,6 +50,7 @@ export const SLASH_ITEMS: SlashItem[] = [
   { id: "whiteboard", group: "blocks", icon: "Presentation", words: "whiteboard skizze sketch zeichnung drawing tafel", run: "fence:whiteboard" },
   { id: "app", group: "blocks", icon: "AppWindow", words: "app anwendung programm dashboard rechner calculator formular form widget", run: "fence:app" },
   { id: "mermaid", group: "blocks", icon: "Workflow", words: "mermaid diagramm diagram flowchart ablauf sequenz sequence", run: "fence:mermaid" },
+  { id: "calendar", group: "blocks", icon: "CalendarDays", words: "kalender calendar termine dates fristen wartung due agenda", run: "fence:calendar" },
   { id: "chart", group: "blocks", icon: "ChartSpline", words: "chart diagramm graph kurve curve verlauf timeline zeitstrahl linie line balken bar plot daten data", run: "fence:chart" },
   { id: "beforeafter", group: "blocks", icon: "SquareSplitHorizontal", words: "vorher nachher before after vergleich foto bild slider renovierung", run: "fence:beforeafter" },
   { id: "annotate", group: "blocks", icon: "MapPinned", words: "bild markierungen annotate annotation foto nummern punkte sicherungskasten beschriften", run: "fence:annotate" },

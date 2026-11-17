@@ -599,8 +599,8 @@ export class PhxLiveEditor extends LitElement {
       }
       return src;
     }
-    if (kind === "dbmodel" || kind === "status" || kind === "entity") {
-      const preset = kind === "dbmodel" ? "CREATE TABLE customers (\n  id INTEGER PRIMARY KEY,\n  name TEXT NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  customer_id INTEGER REFERENCES customers(id),\n  total NUMERIC(10,2)\n);"
+    if (kind === "dbmodel" || kind === "status" || kind === "entity" || kind === "calendar") {
+      const preset = kind === "calendar" ? "view: list\ndays: 30" : kind === "dbmodel" ? "CREATE TABLE customers (\n  id INTEGER PRIMARY KEY,\n  name TEXT NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  customer_id INTEGER REFERENCES customers(id),\n  total NUMERIC(10,2)\n);"
         : kind === "status" ? "@router\n@nas\nchecks" : "";
       const v = await this.askForm({ title: t(`slash.${kind}` as any), hint: t(`block.${kind}_hint` as any),
         fields: [{ name: "v", label: t(`block.${kind}_source` as any), type: kind === "entity" ? "text" : "textarea", value: current || preset }] });

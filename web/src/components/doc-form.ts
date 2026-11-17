@@ -86,6 +86,7 @@ export class PhxDocForm extends LitElement {
       body.floorplan = { ...base, description: s("description") };
     }
     if (this.type === "whiteboard" && !this.doc) body.whiteboard = { elements: [] };
+    if (this.type === "calendar" && !this.doc) body.calendar = { view: "month" };
     if (this.type === "app" && !this.doc) {
       // Built-in kinds (slides, dashboard, sheet, design) are made by the server.
       const kind = new URLSearchParams(location.search).get("kind") ?? "";

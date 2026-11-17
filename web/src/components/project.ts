@@ -17,6 +17,7 @@ import "./topology-view";
 import "./locations";
 import "./entity-table";
 import "./household";
+import "./calendar";
 import "./ipam";
 import "./doc-view";
 import "./doc-form";
@@ -41,7 +42,7 @@ import "./create-dialog";
 import "./ai-chat";
 import type { PhxCreateDialog } from "./create-dialog";
 
-const typeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scale", link: "ExternalLink", board: "SquareKanban", floorplan: "LandPlot", whiteboard: "Presentation", app: "AppWindow" };
+const typeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scale", link: "ExternalLink", board: "SquareKanban", floorplan: "LandPlot", whiteboard: "Presentation", app: "AppWindow", calendar: "CalendarDays" };
 
 /** Project layout: sidebar with documents by category + nested routes. */
 export class PhxProject extends SignalWatcher(LitElement) {
@@ -242,6 +243,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
     { path: "topology", render: () => this.knowledge("topology") },
     { path: "ipam", render: () => this.knowledge("ipam") },
     { path: "household", render: () => this.gated("household", html`<phx-household .project=${this.slug}></phx-household>`) },
+    { path: "calendar", render: () => this.gated("calendar", html`<div class="enter wide" style="padding:24px 28px 60px"><h1 style="margin-bottom:14px">${t("cal.title")}</h1><phx-calendar filters .project=${this.slug}></phx-calendar></div>`) },
     { path: "locations", render: () => this.knowledge("locations") },
     { path: "discovered", render: () => this.knowledge("discovered") },
     { path: "e/:entity", render: ({ entity }) => html`<phx-entity-view .project=${this.slug} .entity=${entity!}></phx-entity-view>` },
@@ -813,6 +815,7 @@ export class PhxProject extends SignalWatcher(LitElement) {
             ${docOnly || !hasFeature(proj, "files") ? "" : html`<a href="/p/${this.slug}/files" class=${here === `/p/${this.slug}/files` ? "on" : ""}>${icon("Paperclip", 15)} ${t("nav.files")}</a>`}
             ${docOnly ? "" : html`<a href="/p/${this.slug}/health" class=${at("health") || at("monitoring") || at("insights") ? "on" : ""}>${icon("HeartPulse", 15)} ${t("health.title")}
               ${failing ? html`<span class="num bad" title=${t("health.failing", { count: failing })}>${failing}</span>` : gaps ? html`<span class="num" title=${t("health.gaps", { count: gaps })}>${gaps}</span>` : ""}</a>`}
+            ${docOnly || !hasFeature(proj, "calendar") ? "" : html`<a href="/p/${this.slug}/calendar" class=${at("calendar") ? "on" : ""}>${icon("CalendarDays", 15)} ${t("cal.title")}</a>`}
             ${docOnly || !hasFeature(proj, "household") ? "" : html`<a href="/p/${this.slug}/household" class=${at("household") ? "on" : ""}>${icon("House", 15)} ${t("house.title")}</a>`}
             ${docOnly || !portals ? "" : html`<a href="/p/${this.slug}/feedback" class=${at("feedback") ? "on" : ""}>${icon("MessageSquareText", 15)} ${t("fb.nav")}
               ${newTopics ? html`<span class="num" title=${t("fb.new_topics", { n: newTopics })}>${newTopics}</span>` : ""}</a>`}</div>

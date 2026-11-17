@@ -5,7 +5,7 @@ import { icon } from "../icon";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
-export const docTypeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scale", link: "ExternalLink", board: "SquareKanban", floorplan: "LandPlot", whiteboard: "Presentation", app: "AppWindow" };
+export const docTypeIcon: Record<Doc["type"], string> = { markdown: "FileText", adr: "Scale", link: "ExternalLink", board: "SquareKanban", floorplan: "LandPlot", whiteboard: "Presentation", app: "AppWindow", calendar: "CalendarDays" };
 
 /** Pages and decisions linked to a task card; several of each (ADR-0064). */
 export class PhxTaskDocs extends LitElement {

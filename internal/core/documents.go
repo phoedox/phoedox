@@ -284,6 +284,8 @@ type DocumentInput struct {
 	Whiteboard *Whiteboard `json:"whiteboard,omitempty"`
 	// App is the content of an app document.
 	App *App `json:"app,omitempty"`
+	// Calendar is the content of a calendar document (ADR-0089).
+	Calendar *CalendarSpec `json:"calendar,omitempty"`
 	// Parent makes the document part of a page (slug or id), e.g. a board
 	// created from the page's "/" menu; it stays out of the sidebar.
 	Parent string `json:"parent,omitempty"`
@@ -296,19 +298,20 @@ type DocumentInput struct {
 
 // DocumentPatch changes a document; nil fields stay as they are.
 type DocumentPatch struct {
-	Title         *string     `json:"title,omitempty"`
-	Slug          *string     `json:"slug,omitempty"`
-	Category      *string     `json:"category,omitempty"`
-	Position      *int        `json:"position,omitempty"`
-	Markdown      *string     `json:"markdown,omitempty"`
-	ADR           *ADR        `json:"adr,omitempty"`
-	Link          *Link       `json:"link,omitempty"`
-	Board         *Board      `json:"board,omitempty"`
-	Floorplan     *Floorplan  `json:"floorplan,omitempty"`
-	Whiteboard    *Whiteboard `json:"whiteboard,omitempty"`
-	App           *App        `json:"app,omitempty"`
-	ExtRef        *string     `json:"extRef,omitempty"`
-	ExpectVersion int         `json:"expectVersion,omitempty"`
+	Title         *string       `json:"title,omitempty"`
+	Slug          *string       `json:"slug,omitempty"`
+	Category      *string       `json:"category,omitempty"`
+	Position      *int          `json:"position,omitempty"`
+	Markdown      *string       `json:"markdown,omitempty"`
+	ADR           *ADR          `json:"adr,omitempty"`
+	Link          *Link         `json:"link,omitempty"`
+	Board         *Board        `json:"board,omitempty"`
+	Floorplan     *Floorplan    `json:"floorplan,omitempty"`
+	Whiteboard    *Whiteboard   `json:"whiteboard,omitempty"`
+	App           *App          `json:"app,omitempty"`
+	Calendar      *CalendarSpec `json:"calendar,omitempty"`
+	ExtRef        *string       `json:"extRef,omitempty"`
+	ExpectVersion int           `json:"expectVersion,omitempty"`
 	// Edits change exact passages instead of sending the whole text.
 	Edits []TextEdit `json:"edits,omitempty"`
 	// After moves the document right after another one (slug or id) in
@@ -330,6 +333,14 @@ type DocResult struct {
 // text used for mention extraction.
 func content(typ, markdown string, adr *ADR, link *Link, board *Board, fp *Floorplan, extra ...any) (store.JSON, string, error) {
 	switch typ {
+	case store.DocCalendar:
+		var cs *CalendarSpec
+		for _, x := range extra {
+			if v, ok := x.(*CalendarSpec); ok {
+				cs = v
+			}
+		}
+		return calendarContent(cs)
 	case store.DocWhiteboard:
 		var w *Whiteboard
 		for _, x := range extra {
@@ -388,7 +399,7 @@ func content(typ, markdown string, adr *ADR, link *Link, board *Board, fp *Floor
 		b, _ := json.Marshal(link)
 		return b, link.Description, nil
 	default:
-		return nil, "", invalid("validation.doc_type", nil, "type must be markdown, adr, link, board, floorplan, whiteboard or app")
+		return nil, "", invalid("validation.doc_type", nil, "type must be markdown, adr, link, board, floorplan, whiteboard, app or calendar")
 	}
 }
 
@@ -466,7 +477,7 @@ func (s *Service) CreateDocument(ctx context.Context, a Actor, ref string, in Do
 		}
 		in.App = &app
 	}
-	if _, _, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board, in.Floorplan, in.Whiteboard, in.App); err != nil {
+	if _, _, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board, in.Floorplan, in.Whiteboard, in.App, in.Calendar); err != nil {
 		return DocResult{}, err
 	}
 	in.ExtRef = strings.TrimSpace(in.ExtRef)
@@ -510,7 +521,7 @@ func (s *Service) createDocument(ctx context.Context, a Actor, p store.Project, 
 			return DocResult{}, err
 		}
 	}
-	c, text, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board, in.Floorplan, in.Whiteboard, in.App)
+	c, text, err := content(in.Type, in.Markdown, in.ADR, in.Link, in.Board, in.Floorplan, in.Whiteboard, in.App, in.Calendar)
 	if err != nil {
 		return DocResult{}, err
 	}
@@ -653,7 +664,14 @@ func (s *Service) patched(ctx context.Context, p store.Project, cur store.Docume
 	var fp *Floorplan
 	var wb *Whiteboard
 	var app *App
+	var cal *CalendarSpec
 	switch cur.Type {
+	case store.DocCalendar:
+		cal = &CalendarSpec{}
+		_ = json.Unmarshal(cur.Content, cal)
+		if patch.Calendar != nil {
+			cal = patch.Calendar
+		}
 	case store.DocApp:
 		app = &App{}
 		_ = json.Unmarshal(cur.Content, app)
@@ -723,7 +741,7 @@ func (s *Service) patched(ctx context.Context, p store.Project, cur store.Docume
 			return doc, "", nil, err
 		}
 	}
-	c, text, err := content(cur.Type, md, adr, link, board, fp, wb, app)
+	c, text, err := content(cur.Type, md, adr, link, board, fp, wb, app, cal)
 	doc.Content = c
 	return doc, text, related, err
 }

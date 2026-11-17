@@ -151,6 +151,8 @@ export class PhxCreateDialog extends LitElement {
           html`<span class="pv plan"><svg viewBox="0 0 60 40" aria-hidden="true"><path d="M2 2h34v22H2zM36 2h22v36H20V24h16" /><circle cx="12" cy="12" r="3"/><circle cx="46" cy="28" r="3"/></svg></span>`, () => this.create("floorplan"))}
         ${this.choice("Presentation", t("doc.type.whiteboard"), t("create.whiteboard_desc"),
           html`<span class="pv plan"><svg viewBox="0 0 60 40" aria-hidden="true"><rect x="4" y="6" width="18" height="12" rx="2"/><ellipse cx="46" cy="12" rx="10" ry="7"/><path d="M22 12h13M41 30l-6-8"/><rect x="28" y="26" width="16" height="10" rx="1"/></svg></span>`, () => this.create("whiteboard"))}
+        ${this.choice("CalendarDays", t("doc.type.calendar"), t("create.calendar_desc"),
+          html`<span class="pv tiles"><b></b><b class="ok"></b><b></b><b></b><b class="bad"></b><b></b><b></b><b class="ok"></b></span>`, () => this.create("calendar"))}
         ${this.choice("AppWindow", t("doc.type.app"), t("create.app_desc"),
           html`<span class="pv app"><span class="win"><i class="h"></i><b></b><b class="ok"></b></span></span>`, () => this.create("app"))}
         ${this.choice("GalleryHorizontal", t("create.appkind.slides"), t("create.appkind.slides_desc"),

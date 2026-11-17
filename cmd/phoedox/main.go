@@ -120,6 +120,8 @@ func main() {
 					a.Core.RunGitSyncs(store.System(ctx), time.Now())
 					a.Core.SendSummaries(ctx, time.Now())
 					a.Core.RunMaintenance(ctx, time.Now())
+					// External calendars are read every 30 minutes (ADR-0089).
+					a.Core.SyncCalendars(ctx)
 					a.Core.RemindReviews(ctx, time.Now())
 					a.Core.RemindEntityReviews(ctx, time.Now())
 					a.Core.RemindWarranties(ctx, time.Now())

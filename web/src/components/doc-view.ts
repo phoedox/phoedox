@@ -14,6 +14,7 @@ import { contentLocale, currentProject, docsVersion, favorites, navigate, setWid
 import "./request-block";
 import "./board";
 import "./floorplan";
+import "./calendar";
 import { recordView } from "../recent";
 import { blockStyles } from "./blocks";
 import { base } from "./shared";
@@ -461,6 +462,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       void import("./whiteboard");
       return html`<phx-whiteboard .project=${this.project} .doc=${d} ?canEdit=${!this.kiosk && ["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "")}></phx-whiteboard>`;
     }
+    if (d.type === "calendar") return html`<phx-calendar-doc .project=${this.project} .doc=${d} ?canEdit=${!this.kiosk && ["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "")} @changed=${() => this.reload()}></phx-calendar-doc>`;
     if (d.type === "app") {
       void import("./apps");
       return html`<phx-app-view .project=${this.project} .doc=${d}></phx-app-view>`;
@@ -571,7 +573,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     const wide = wideReading.get();
     if (this.kiosk) return html`<article class="enter wide kiosk"><header><div><h1>${d.title}</h1></div></header>${this.body(d)}${this.zoomDialog()}</article>`;
     // Boards need the room of the whole page.
-    return html`<article class=${wide || d.type === "board" || d.type === "floorplan" || d.type === "whiteboard" || d.type === "app" ? "enter wide" : "enter"} @click=${this.onClick}
+    return html`<article class=${wide || d.type === "board" || d.type === "floorplan" || d.type === "whiteboard" || d.type === "app" || d.type === "calendar" ? "enter wide" : "enter"} @click=${this.onClick}
       @mouseover=${this.onHover} @mouseout=${this.hideGutter} @comments-changed=${this.onComments} @show-block=${this.showBlock}>
       ${d.type === "link" || d.type === "whiteboard" || d.type === "app" ? "" : html`<div class="cbtns" role="group" aria-label=${t("comment.block")}>
         <button class="ghost" title=${t("comment.on_block")} aria-label=${t("comment.on_block")} @click=${this.commentBlock}>${icon("MessageSquarePlus", 15)}</button>
@@ -592,7 +594,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         </div>
         <div class="row">
           ${this.favoriteButtons(d)}
-          ${d.type === "board" || d.type === "floorplan" || d.type === "whiteboard" || d.type === "app" ? "" : html`<button class="ghost icon" aria-pressed=${wide ? "true" : "false"} title=${t(wide ? "doc.narrow" : "doc.wide")} aria-label=${t(wide ? "doc.narrow" : "doc.wide")}
+          ${d.type === "board" || d.type === "floorplan" || d.type === "whiteboard" || d.type === "app" || d.type === "calendar" ? "" : html`<button class="ghost icon" aria-pressed=${wide ? "true" : "false"} title=${t(wide ? "doc.narrow" : "doc.wide")} aria-label=${t(wide ? "doc.narrow" : "doc.wide")}
             @click=${() => setWideReading(!wide)}>${icon(wide ? "Minimize2" : "Maximize2", 15)}</button>`}
           <a class="btn ghost" href="/p/${this.project}/d/${d.id}/history">${icon("History", 14)} ${t("doc.history")}</a>
           ${d.type === "link" ? "" : html`<a class="btn ghost icon" href="/kiosk/${this.project}/${d.slug}" target="_blank" rel="noopener" title=${t("kiosk.open")} aria-label=${t("kiosk.open")}>${icon("MonitorPlay", 15)}</a>`}

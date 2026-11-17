@@ -15,7 +15,7 @@ import (
 
 var linkSvc *core.Service
 
-var docTypes = map[string]bool{"markdown": true, "adr": true, "link": true, "board": true, "floorplan": true, "whiteboard": true}
+var docTypes = map[string]bool{"markdown": true, "adr": true, "link": true, "board": true, "floorplan": true, "whiteboard": true, "calendar": true}
 
 // withURLs returns v as generic JSON with "url" fields added.
 func withURLs(ctx context.Context, v any) any {

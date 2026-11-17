@@ -17,6 +17,7 @@ const (
 	DocFloorplan  = "floorplan"  // rooms as polygons and devices as points (ADR-0034)
 	DocWhiteboard = "whiteboard" // a canvas drawn together live, published automatically (ADR-0068)
 	DocApp        = "app"        // a small web program in an isolated frame (apps-definition)
+	DocCalendar   = "calendar"   // the project's dates and external calendars, filtered (ADR-0089)
 )
 
 // Document is a page of any document type.

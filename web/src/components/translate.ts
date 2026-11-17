@@ -21,6 +21,7 @@ const fieldsOf: Record<Doc["type"], Field[]> = {
   floorplan: ["description"],
   whiteboard: [],
   app: [],
+  calendar: [],
 };
 
 /** Side-by-side translation of a page or decision (ADR-0028). */

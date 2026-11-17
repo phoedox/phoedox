@@ -1,4 +1,5 @@
 import { LitElement, css, html } from "lit";
+import "./calendar-settings";
 import { ApiError, api, hasFeature, projectFeatures, shareURL, type Member, type Org, type Project, type ProjectGroup, type Group, type OrgDetail, type ShareLink } from "../api";
 import { applyProjectColor } from "../color";
 import { formatDate, t } from "../i18n";
@@ -359,6 +360,8 @@ export class PhxProjectSettings extends LitElement {
       case "code": return canEdit ? html`${pageHead(t("sx.p.code"), t("sx.p.code_text"))}
         ${card(t("code.title"), "", html`<phx-code-repos .project=${this.project} ?owner=${owner}></phx-code-repos>`)}
         ${owner ? card(t("git.title"), t("git.hint"), html`<phx-project-transfer .project=${this.project}></phx-project-transfer>`) : ""}` : "";
+      case "calendars": return canEdit ? html`${pageHead(t("cal.settings"), t("cal.settings_text"))}
+        ${card(t("cal.external"), t("cal.external_text"), html`<phx-calendar-settings .project=${this.project} ?owner=${owner}></phx-calendar-settings>`)}` : "";
       case "integrations": return owner ? html`${pageHead(t("sx.p.int"), "")}
         ${card(t("agents.title"), "", html`<phx-agents .project=${this.project}></phx-agents>`)}
         ${card(t("plugins.title"), "", html`<phx-project-plugins .project=${this.project}></phx-project-plugins>`)}

@@ -254,6 +254,23 @@ type queryEntitiesIn struct {
 	core.GraphQuery
 }
 
+type calendarIn struct {
+	Project   string   `json:"project" jsonschema:"project slug"`
+	From      string   `json:"from,omitempty" jsonschema:"first day (YYYY-MM-DD); default: the start of this month minus a week"`
+	To        string   `json:"to,omitempty" jsonschema:"day after the last (YYYY-MM-DD); default: about six weeks after from; at most 400 days"`
+	Document  string   `json:"document,omitempty" jsonschema:"a calendar document whose filters to use"`
+	Sources   []string `json:"sources,omitempty" jsonschema:"maintenance, tasks, entities, external; empty = all"`
+	Kinds     []string `json:"kinds,omitempty" jsonschema:"entry kinds for date fields and maintenance; empty = all"`
+	Calendars []string `json:"calendars,omitempty" jsonschema:"ids of external calendars; empty = all"`
+}
+
+type createCalendarIn struct {
+	Project  string            `json:"project" jsonschema:"project slug"`
+	Title    string            `json:"title"`
+	Category string            `json:"category,omitempty" jsonschema:"sidebar group; reuse existing categories"`
+	Calendar core.CalendarSpec `json:"calendar" jsonschema:"view (month or list), sources, kinds, calendars (external calendar ids), days (list view)"`
+}
+
 type projectOnlyIn struct {
 	Project string `json:"project" jsonschema:"project slug"`
 }
@@ -1237,6 +1254,36 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	})
 	tool(s, "save_maintenance_plan", "Create or change a maintenance plan for an entry: every N days/weeks/months/years Phoedox puts a card on the given board, leadDays before it is due. Only in projects where AI writes directly.", func(ctx context.Context, a core.Actor, in maintenanceSaveIn) (any, error) {
 		return svc.SaveMaintenancePlan(ctx, a, in.Project, in.ID, in.MaintenanceInput)
+	})
+	tool(s, "calendar", "The project's dates in a range (ADR-0089): maintenance plans (with the following dates), cards with a due date, date fields of entries (e.g. a contract's cancel_by) and events of external calendars. Each event has start/end (all-day dates or times), source, link (e/<entry> or d/<board>?task=<id>) and for date fields the field name.", func(ctx context.Context, a core.Actor, in calendarIn) (any, error) {
+		from, to, err := core.CalendarRange(in.From, in.To, time.Now())
+		if err != nil {
+			return nil, err
+		}
+		spec := &core.CalendarSpec{}
+		if in.Document != "" {
+			if spec, err = svc.CalendarDocSpec(ctx, a, in.Project, in.Document); err != nil {
+				return nil, err
+			}
+		}
+		if len(in.Sources) > 0 {
+			spec.Sources = in.Sources
+		}
+		if len(in.Kinds) > 0 {
+			spec.Kinds = in.Kinds
+		}
+		if len(in.Calendars) > 0 {
+			spec.Calendars = in.Calendars
+		}
+		v, err := svc.Calendar(ctx, a, in.Project, from, to, spec)
+		v.Feed = nil
+		return v, err
+	})
+	tool(s, "list_external_calendars", "External calendars of a project (CalDAV or iCal URLs; whether Phoedox writes its dates into them, last sync, last error). People add them in Phoedox (project settings → Calendars), because they hold passwords.", func(ctx context.Context, a core.Actor, in projectOnlyIn) (any, error) {
+		return svc.ExternalCalendars(ctx, a, in.Project)
+	})
+	tool(s, "create_calendar", "Create a calendar document: a month or list view of the project's dates with filters (sources, entry kinds, external calendars). Pages can show the same with a ```calendar block.", func(ctx context.Context, a core.Actor, in createCalendarIn) (any, error) {
+		return svc.CreateDocument(ctx, a, in.Project, core.DocumentInput{Type: store.DocCalendar, Title: in.Title, Category: in.Category, Calendar: &in.Calendar})
 	})
 	tool(s, "list_saved_queries", "Saved queries of a project (name, slug and definition: kind, field and relation conditions).", func(ctx context.Context, a core.Actor, in projectOnlyIn) (any, error) {
 		return svc.SavedQueries(ctx, a, in.Project)

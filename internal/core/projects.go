@@ -36,7 +36,7 @@ type ProjectInput struct {
 }
 
 // Features are the optional tabs of a project.
-var Features = []string{"decisions", "graph", "model", "files", "household"}
+var Features = []string{"decisions", "graph", "model", "files", "household", "calendar"}
 
 func normalizeFeatures(in []string) ([]string, error) {
 	out := []string{}

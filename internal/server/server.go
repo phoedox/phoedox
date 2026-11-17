@@ -140,6 +140,10 @@ func New(d Deps) http.Handler {
 		r.Get("/pub/{slug}", servePub)
 		r.Handle("/pub/{slug}/*", http.HandlerFunc(servePub))
 	}
+	// Secret iCal feeds of a project's dates (ADR-0089).
+	if d.Core != nil {
+		r.Get("/cal/{token}", calendarFeed(d.Core))
+	}
 	// Label links (QR codes, the app's scanner): /e/<project>/<slug> opens the entry.
 	r.Get("/e/{project}/{slug}", func(w http.ResponseWriter, r *http.Request) {
 		project, slug := chi.URLParam(r, "project"), chi.URLParam(r, "slug")
