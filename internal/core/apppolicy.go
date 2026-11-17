@@ -24,6 +24,8 @@ type AppPolicy struct {
 	// MaxLevel caps the bridge level (0–3); nil = no cap.
 	MaxLevel *int `json:"maxLevel,omitempty"`
 	NoAI     bool `json:"noAi,omitempty"`
+	// NoPublic forbids releasing apps to people without an account.
+	NoPublic bool `json:"noPublic,omitempty"`
 	// Hosts apps may connect to (https only, exact host names).
 	Hosts []string `json:"hosts,omitempty"`
 	// OrgHosts (instance only): organizations may allow their own hosts.
@@ -72,11 +74,12 @@ func (s *Service) readAppPolicy(ctx context.Context, key string) AppPolicy {
 // organization's switches.
 func (s *Service) effectiveAppPolicy(ctx context.Context, p store.Project) AppPolicy {
 	inst := s.readAppPolicy(ctx, settingAppPolicy)
-	out := AppPolicy{Off: inst.Off, MaxLevel: inst.MaxLevel, NoAI: inst.NoAI, Hosts: slices.Clone(inst.Hosts)}
+	out := AppPolicy{Off: inst.Off, MaxLevel: inst.MaxLevel, NoAI: inst.NoAI, NoPublic: inst.NoPublic, Hosts: slices.Clone(inst.Hosts)}
 	if p.OrgID != "" {
 		org := s.readAppPolicy(ctx, appOrgKey(p.OrgID))
 		out.Off = out.Off || org.Off
 		out.NoAI = out.NoAI || org.NoAI
+		out.NoPublic = out.NoPublic || org.NoPublic
 		if org.MaxLevel != nil && (out.MaxLevel == nil || *org.MaxLevel < *out.MaxLevel) {
 			out.MaxLevel = org.MaxLevel
 		}

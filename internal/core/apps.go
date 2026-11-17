@@ -244,7 +244,10 @@ type appFrameClaims struct {
 	Project string `json:"p"`
 	Doc     string `json:"d,omitempty"`
 	Preview string `json:"v,omitempty"`
-	Exp     int64  `json:"e"`
+	// Share is the address of a public release (the frame then serves it
+	// only while the release exists).
+	Share string `json:"s,omitempty"`
+	Exp   int64  `json:"e"`
 }
 
 type appPreview struct {
@@ -413,6 +416,8 @@ func (s *Service) AppFrameFile(ctx context.Context, tok, name, origin, label str
 		want := usercontent.Label(c.Doc)
 		if c.Preview != "" {
 			want = usercontent.Label("p" + c.Preview)
+		} else if c.Share != "" {
+			want = usercontent.Label("s" + c.Doc)
 		}
 		if label != want {
 			return AppFile{}, ErrNotFound
@@ -422,10 +427,15 @@ func (s *Service) AppFrameFile(ctx context.Context, tok, name, origin, label str
 	var hosts []string
 	if pr, err := s.DB.ProjectFor(ctx, c.Project, ""); err == nil {
 		pol := s.effectiveAppPolicy(ctx, pr)
-		if pol.Off {
+		if pol.Off || (c.Share != "" && pol.NoPublic) {
 			return AppFile{}, ErrNotFound
 		}
 		hosts = pol.Hosts
+	}
+	if c.Share != "" {
+		if sh, err := s.DB.AppShare(ctx, c.Doc); err != nil || sh.Token != c.Share {
+			return AppFile{}, ErrNotFound
+		}
 	}
 	var app App
 	if c.Preview != "" {
@@ -566,7 +576,11 @@ func (s *Service) ReadAppSource(ctx context.Context, a Actor, ref, docRef, sourc
 	if i < 0 {
 		return nil, invalid("validation.app_source_unknown", map[string]any{"id": sourceID}, "the app has no source %q", sourceID)
 	}
-	src := app.Sources[i]
+	return s.readSource(ctx, a, p, app.Sources[i])
+}
+
+// readSource reads one source with the actor's rights.
+func (s *Service) readSource(ctx context.Context, a Actor, p store.Project, src AppSource) (any, error) {
 	switch src.Kind {
 	case "query":
 		return s.RunSavedQuery(ctx, a, p.Slug, src.Ref)
@@ -802,6 +816,11 @@ func (s *Service) AskAppAI(ctx context.Context, a Actor, ref, docRef, prompt str
 	if !app.AI {
 		return AppAIAnswer{}, invalid("validation.app_ai_off", nil, "this app does not use the AI")
 	}
+	return s.askAppAI(ctx, a, ref, doc.ID, prompt, wantJSON)
+}
+
+// askAppAI runs one AI call of an app on the actor's chat budget.
+func (s *Service) askAppAI(ctx context.Context, a Actor, ref, docID, prompt string, wantJSON bool) (AppAIAnswer, error) {
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" || len(prompt) > 20_000 {
 		return AppAIAnswer{}, invalid("validation.app_ai_prompt", nil, "the prompt is empty or longer than 20,000 characters")
@@ -825,7 +844,7 @@ func (s *Service) AskAppAI(ctx context.Context, a Actor, ref, docRef, prompt str
 	if err != nil {
 		return AppAIAnswer{}, invalid("validation.app_ai_failed", nil, "the AI did not answer")
 	}
-	s.RecordAIUsage(ctx, a, cs, "app:"+doc.ID, m, turn.Usage)
+	s.RecordAIUsage(ctx, a, cs, "app:"+docID, m, turn.Usage)
 	var b strings.Builder
 	for _, p := range ai.Parts(turn.Message) {
 		if p.Type == "text" {

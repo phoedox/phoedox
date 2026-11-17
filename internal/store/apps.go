@@ -108,3 +108,118 @@ func (d *DB) AppStorageByDocument(ctx context.Context, projectID string) (map[st
 	}
 	return out, rows.Err()
 }
+
+// AppShare is the public release of an app (apps-definition "Sharing").
+type AppShare struct {
+	DocumentID    string `json:"documentId"`
+	ProjectID     string `json:"projectId"`
+	TenantID      string `json:"-"`
+	Token         string `json:"token"`
+	Mode          string `json:"mode"`     // static | snapshot
+	Schedule      string `json:"schedule"` // manual | hourly | daily | weekly
+	AILimit       int    `json:"aiLimit"`
+	AIMonth       string `json:"aiMonth"`
+	AIUsed        int    `json:"aiUsed"`
+	Snapshot      string `json:"-"`
+	SnapshotAt    Time   `json:"snapshotAt"`
+	SnapshotError string `json:"snapshotError,omitempty"`
+	PublishedBy   string `json:"publishedBy"`
+	PublishedAt   Time   `json:"publishedAt"`
+}
+
+const appShareCols = `document_id, project_id, tenant_id, token, mode, schedule, ai_limit, ai_month, ai_used, snapshot, snapshot_at, snapshot_error, published_by, published_at`
+
+func scanAppShare(r interface{ Scan(...any) error }) (AppShare, error) {
+	var s AppShare
+	err := r.Scan(&s.DocumentID, &s.ProjectID, &s.TenantID, &s.Token, &s.Mode, &s.Schedule, &s.AILimit, &s.AIMonth, &s.AIUsed, &s.Snapshot, &s.SnapshotAt, &s.SnapshotError, &s.PublishedBy, &s.PublishedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = ErrNotFound
+	}
+	return s, err
+}
+
+// AppShare reads the public release of an app.
+func (d *DB) AppShare(ctx context.Context, docID string) (AppShare, error) {
+	return scanAppShare(d.QueryRow(ctx, `SELECT `+appShareCols+` FROM app_shares WHERE document_id = ?`, docID))
+}
+
+// AppShareByToken finds a public app by its address (system context: the
+// visitor has no tenant yet).
+func (d *DB) AppShareByToken(ctx context.Context, token string) (AppShare, error) {
+	return scanAppShare(d.QueryRow(ctx, `SELECT `+appShareCols+` FROM app_shares WHERE token = ?`, token))
+}
+
+// AppSharesDue lists releases with a schedule (all tenants in a system context).
+func (d *DB) AppSharesDue(ctx context.Context) ([]AppShare, error) {
+	rows, err := d.Query(ctx, `SELECT `+appShareCols+` FROM app_shares WHERE mode = 'snapshot' AND schedule <> 'manual'`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []AppShare{}
+	for rows.Next() {
+		s, err := scanAppShare(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// ProjectAppShares lists the public apps of a project.
+func (d *DB) ProjectAppShares(ctx context.Context, projectID string) ([]AppShare, error) {
+	rows, err := d.Query(ctx, `SELECT `+appShareCols+` FROM app_shares WHERE project_id = ? ORDER BY published_at`, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []AppShare{}
+	for rows.Next() {
+		s, err := scanAppShare(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// SaveAppShare creates or replaces the public release of an app.
+func (d *DB) SaveAppShare(ctx context.Context, s AppShare) error {
+	_, err := d.Exec(ctx, `INSERT INTO app_shares (`+appShareCols+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (document_id) DO UPDATE SET mode = excluded.mode, schedule = excluded.schedule, ai_limit = excluded.ai_limit,
+		snapshot = excluded.snapshot, snapshot_at = excluded.snapshot_at, snapshot_error = excluded.snapshot_error,
+		published_by = excluded.published_by, published_at = excluded.published_at`,
+		s.DocumentID, s.ProjectID, TenantOf(ctx), s.Token, s.Mode, s.Schedule, s.AILimit, s.AIMonth, s.AIUsed, s.Snapshot, s.SnapshotAt, s.SnapshotError, s.PublishedBy, s.PublishedAt)
+	return err
+}
+
+// SetAppShareSnapshot stores a new snapshot (or the error of a failed one,
+// keeping the old data).
+func (d *DB) SetAppShareSnapshot(ctx context.Context, docID, snapshot string, at Time, errText string) error {
+	if errText != "" {
+		_, err := d.Exec(ctx, `UPDATE app_shares SET snapshot_error = ? WHERE document_id = ?`, errText, docID)
+		return err
+	}
+	_, err := d.Exec(ctx, `UPDATE app_shares SET snapshot = ?, snapshot_at = ?, snapshot_error = '' WHERE document_id = ?`, snapshot, at, docID)
+	return err
+}
+
+// UseAppShareAI counts one AI call against the monthly limit; false when
+// the limit is reached.
+func (d *DB) UseAppShareAI(ctx context.Context, docID, month string) (bool, error) {
+	res, err := d.Exec(ctx, `UPDATE app_shares SET ai_used = CASE WHEN ai_month = ? THEN ai_used + 1 ELSE 1 END, ai_month = ?
+		WHERE document_id = ? AND ai_limit > 0 AND (ai_month <> ? OR ai_used < ai_limit)`, month, month, docID, month)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
+}
+
+// DeleteAppShare withdraws the public release.
+func (d *DB) DeleteAppShare(ctx context.Context, docID string) error {
+	_, err := d.Exec(ctx, `DELETE FROM app_shares WHERE document_id = ?`, docID)
+	return err
+}

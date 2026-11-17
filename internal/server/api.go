@@ -41,6 +41,8 @@ type api struct {
 	loginFails failures
 	// feedbackIP limits feedback reports per client address.
 	feedbackIP *limiter
+	// sharedAppIP limits reads of public apps per client address.
+	sharedAppIP *limiter
 	// root is the whole router (for the OpenAPI description).
 	root chi.Routes
 	// backups is nil in the hosted mode.
@@ -67,6 +69,10 @@ func (a *api) routes(r chi.Router) {
 	// Feedback portals: public page data, reports, status links.
 	r.Get("/feedback/{handle}", a.publicPortal)
 	r.Post("/feedback/{handle}/reports", a.submitFeedback)
+	// Public apps: the frame, reads from the snapshot, AI within the limit.
+	r.Get("/shared-apps/{token}", a.openSharedApp)
+	r.Post("/shared-apps/{token}/read", a.readSharedApp)
+	r.Post("/shared-apps/{token}/ai", a.askSharedApp)
 	// Pull request events of a project's code connection (signed).
 	r.Post("/hooks/code/{id}", a.codeHook)
 	// Short-lived download links of project exports (sealed token).
@@ -528,6 +534,10 @@ func (a *api) routes(r chi.Router) {
 			r.Delete("/apps/{doc}/storage/{key}", a.appStorageDelete)
 			r.Post("/apps/{doc}/console", a.appConsole)
 			r.Post("/apps/{doc}/ai", a.appAI)
+			r.Get("/apps/{doc}/share", a.getAppShare)
+			r.Put("/apps/{doc}/share", a.publishApp)
+			r.Post("/apps/{doc}/share/refresh", a.refreshAppShare)
+			r.Delete("/apps/{doc}/share", a.unpublishApp)
 			r.Post("/store/apps", a.installStoreApp)
 			r.Get("/app-templates", a.appTemplates)
 			r.Put("/apps/{doc}/template", a.setAppTemplate)

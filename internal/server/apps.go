@@ -5,9 +5,11 @@ import (
 	"io/fs"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/phoedox/phoedox/internal/botcheck"
 	"github.com/phoedox/phoedox/internal/config"
 	"github.com/phoedox/phoedox/internal/core"
 	"github.com/phoedox/phoedox/internal/usercontent"
@@ -220,4 +222,83 @@ func appHosts(hosts []string) string {
 		out += " https://" + h
 	}
 	return out
+}
+
+// --- public apps --------------------------------------------------------------
+
+func (a *api) getAppShare(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.GetAppShare(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "doc"), r.URL.Query().Get("preview") == "1")
+	respond(w, v, err)
+}
+
+func (a *api) publishApp(w http.ResponseWriter, r *http.Request) {
+	var in core.AppShareInput
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.PublishApp(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "doc"), in)
+	respond(w, v, err)
+}
+
+func (a *api) refreshAppShare(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.RefreshAppShare(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "doc"))
+	respond(w, v, err)
+}
+
+func (a *api) unpublishApp(w http.ResponseWriter, r *http.Request) {
+	respond(w, nil, a.core.UnpublishApp(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "doc")))
+}
+
+func (a *api) sharedAppLimited(w http.ResponseWriter, r *http.Request) bool {
+	if a.sharedAppIP.allow(clientIP(r)) {
+		return false
+	}
+	writeJSON(w, http.StatusTooManyRequests, errBody("rate_limited", "Too many requests. Please wait a while."))
+	return true
+}
+
+func (a *api) openSharedApp(w http.ResponseWriter, r *http.Request) {
+	if a.sharedAppLimited(w, r) {
+		return
+	}
+	v, err := a.core.OpenSharedApp(r.Context(), chi.URLParam(r, "token"))
+	respond(w, v, err)
+}
+
+func (a *api) readSharedApp(w http.ResponseWriter, r *http.Request) {
+	if a.sharedAppLimited(w, r) {
+		return
+	}
+	var in struct {
+		Source string `json:"source"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.ReadSharedApp(r.Context(), chi.URLParam(r, "token"), in.Source)
+	respond(w, v, err)
+}
+
+type sharedAppAIIn struct {
+	Prompt   string `json:"prompt"`
+	JSON     bool   `json:"json"`
+	BotToken string `json:"botToken"`
+}
+
+func (a *api) askSharedApp(w http.ResponseWriter, r *http.Request) {
+	if a.sharedAppLimited(w, r) {
+		return
+	}
+	var in sharedAppAIIn
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	if !a.botCheck(w, r, botcheck.PlaceApps, in.BotToken) {
+		return
+	}
+	v, err := a.core.AskSharedApp(r.Context(), chi.URLParam(r, "token"), in.Prompt, in.JSON, time.Now())
+	respond(w, v, err)
 }

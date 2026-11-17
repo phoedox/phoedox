@@ -86,9 +86,9 @@ type UsageReport struct {
 	ByOrg        []UsageLine    `json:"byOrg,omitempty"`
 	Storage      []UsageStorage `json:"storage,omitempty"`
 	// Apps is the own storage of each app of the project (project level).
-	Apps []UsageApp `json:"apps,omitempty"`
-	StorageBytes int64          `json:"storageBytes"`
-	Up           []UsageLink    `json:"up"`
+	Apps         []UsageApp  `json:"apps,omitempty"`
+	StorageBytes int64       `json:"storageBytes"`
+	Up           []UsageLink `json:"up"`
 	// PricesHidden: amounts are left out; bars show percentages and the
 	// tiles tokens and calls (usage-prices-concept).
 	PricesHidden bool  `json:"pricesHidden"`

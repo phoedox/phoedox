@@ -9,11 +9,15 @@ import { docsVersion, navigate } from "../state";
 import { base } from "./shared";
 import { toast } from "./toasts";
 import "./store-items";
+import type { AppShareView, PhxAppShare } from "./app-share";
+import "./app-share";
+import type { PhxBotcheck } from "./botcheck";
+import "./botcheck";
 
 export interface AppSource { id: string; kind: "query" | "board" | "checks" | "entities"; ref?: string; label?: string }
 export interface AppDiag { file: string; line: number; column: number; text: string }
 export interface AppContent { files: Record<string, string>; level: number; sources?: AppSource[]; storageMb?: number; ai?: boolean; build?: { errors: AppDiag[] } }
-export interface AppFrameInfo { url: string; isolated?: boolean; level: number; granted: number; sources: AppSource[]; ai: boolean; storageMb: number; errors: AppDiag[]; canEdit: boolean; maxLevel?: number }
+export interface AppFrameInfo { url: string; isolated?: boolean; level: number; granted: number; sources: AppSource[]; ai: boolean; storageMb: number; errors: AppDiag[]; canEdit: boolean; maxLevel?: number; snapshotAt?: string }
 export interface ConsoleEntry { level: string; text: string; line?: number; col?: number; file?: string }
 
 type Proposal =
@@ -31,7 +35,7 @@ function isDark() {
 /** Runs an app in a sandboxed frame and answers its bridge calls. */
 export class PhxAppFrame extends LitElement {
   static properties = {
-    project: {}, doc: {}, info: { attribute: false }, autoHeight: { type: Boolean, attribute: "auto-height" }, width: {}, dark: {},
+    project: {}, doc: {}, info: { attribute: false }, autoHeight: { type: Boolean, attribute: "auto-height" }, width: {}, dark: {}, shared: {},
     asking: { state: true }, proposal: { state: true },
   };
   static styles = [base, css`
@@ -52,6 +56,8 @@ export class PhxAppFrame extends LitElement {
 
   project = "";
   doc = "";
+  /** Address of a public app: reads come from its snapshot, nothing else. */
+  shared = "";
   info?: AppFrameInfo;
   autoHeight = false;
   width = "";
@@ -125,11 +131,12 @@ export class PhxAppFrame extends LitElement {
           this.log({ level: String(a.level ?? "error"), text: String(a.text ?? ""), line: a.line, col: a.col, file: a.file });
           return;
         case "info":
-          return this.reply(m.id, { level: this.info?.level ?? 0, granted: this.granted(), project: this.project, sources: (this.info?.sources ?? []).map((s) => ({ id: s.id, kind: s.kind, label: s.label ?? "" })) });
+          return this.reply(m.id, { level: this.info?.level ?? 0, granted: this.granted(), project: this.shared ? "" : this.project, ...(this.shared ? { public: true, snapshotAt: this.info?.snapshotAt ?? null } : {}), sources: (this.info?.sources ?? []).map((s) => ({ id: s.id, kind: s.kind, label: s.label ?? "" })) });
         case "grant":
-          return this.reply(m.id, await this.ask());
+          return this.reply(m.id, this.shared ? this.granted() : await this.ask());
         case "read":
           await this.need(1);
+          if (this.shared) return this.reply(m.id, await api("POST", `/shared-apps/${encodeURIComponent(this.shared)}/read`, { source: String(a.source ?? "") }));
           return this.reply(m.id, await api("POST", `${this.base()}/read`, { source: String(a.source ?? "") }));
         case "storage.get":
           await this.need(2);
@@ -149,12 +156,18 @@ export class PhxAppFrame extends LitElement {
           await this.need(3);
           return this.reply(m.id, await this.write(a as Proposal));
         case "open": {
+          if (this.shared) return this.reply(m.id, false);
           const ref = String(a.ref ?? "");
           if (/^[\w@.-]+$/.test(ref)) navigate(ref.startsWith("@") ? `/p/${this.project}/e/${ref.slice(1)}` : `/p/${this.project}/d/${ref}`);
           return this.reply(m.id, true);
         }
         case "ai": {
           if (!this.info?.ai) return this.reply(m.id, undefined, t("app.ai_unavailable"), "ai_unavailable");
+          if (this.shared) {
+            const botToken = await this.renderRoot.querySelector<PhxBotcheck>("phx-botcheck")?.token();
+            const r = await api<{ text: string; json?: unknown }>("POST", `/shared-apps/${encodeURIComponent(this.shared)}/ai`, { prompt: String(a.prompt ?? ""), json: !!a.json, botToken });
+            return this.reply(m.id, a.json && r.json !== undefined ? r.json : r.text);
+          }
           const r = await api<{ text: string; json?: unknown }>("POST", `${this.base()}/ai`, { prompt: String(a.prompt ?? ""), json: !!a.json });
           return this.reply(m.id, a.json && r.json !== undefined ? r.json : r.text);
         }
@@ -262,6 +275,7 @@ export class PhxAppFrame extends LitElement {
           sandbox=${this.info.isolated ? "allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads" : "allow-scripts allow-forms allow-modals allow-popups allow-downloads"} referrerpolicy="no-referrer"
           @load=${this.sendTheme}></iframe>
       </div>
+      ${this.shared && this.info.ai ? html`<phx-botcheck place="apps"></phx-botcheck>` : nothing}
       ${this.asking ? this.grantDialog() : nothing}
       ${this.proposal ? this.proposalDialog() : nothing}`;
   }
@@ -274,7 +288,7 @@ function appOrigin(doc: Doc): { id: string; version: string; name?: string } | u
 }
 
 export class PhxAppView extends LitElement {
-  static properties = { project: {}, doc: { attribute: false }, info: { state: true }, error: { state: true }, full: { state: true }, isTemplate: { state: true } };
+  static properties = { project: {}, doc: { attribute: false }, info: { state: true }, error: { state: true }, full: { state: true }, isTemplate: { state: true }, share: { state: true } };
   static styles = [base, css`
     :host { display: block; }
     .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
@@ -302,6 +316,7 @@ export class PhxAppView extends LitElement {
     if (!this.doc) return;
     try {
       const info = await api<AppFrameInfo>("POST", `/projects/${this.project}/apps/${this.doc.id}/open`);
+      void api<AppShareView>("GET", `/projects/${this.project}/apps/${this.doc.id}/share`).then((v) => (this.share = v)).catch(() => undefined);
       void api<{ id: string }[]>("GET", `/projects/${this.project}/app-templates`).then((l) => (this.isTemplate = l.some((x) => x.id === this.doc?.id))).catch(() => undefined);
       // The instance or organization may allow less than the app asks for.
       if (info.maxLevel !== undefined && info.maxLevel < info.level) info.level = info.maxLevel;
@@ -325,6 +340,9 @@ export class PhxAppView extends LitElement {
     }
   }
 
+  /** Sharing state (owners may release the app publicly). */
+  share?: AppShareView;
+
   private setFull(on: boolean) {
     this.full = on;
     this.toggleAttribute("full", on);
@@ -338,7 +356,9 @@ export class PhxAppView extends LitElement {
     return html`<div class="bar">
         <span class="chip lvl" title=${t("app.level_help")}>${icon(["Box", "Eye", "HardDrive", "Pencil"][i.level], 12)} ${t(`app.level${i.level}` as Key)}</span>
         ${i.level > 0 ? html`<span class="chip">${granted >= i.level ? t("app.allowed") : t("app.not_allowed_yet")}</span>` : nothing}
+        ${this.share?.shared ? html`<span class="chip" title=${t("appshare.public_help")}>${icon("Globe", 12)} ${t("appshare.public")}</span>` : nothing}
         <span class="sp"></span>
+        ${this.share?.canEdit ? html`<button class="ghost" @click=${() => this.renderRoot.querySelector<PhxAppShare>("phx-app-share")?.open()}>${icon("Globe", 14)} ${t("appshare.button")}</button>` : nothing}
         ${i.canEdit ? html`<button class="ghost" aria-pressed=${this.isTemplate ? "true" : "false"} title=${t("app.template_help")} @click=${() => this.toggleTemplate()}>${icon("Copy", 14)} ${t(this.isTemplate ? "app.is_template" : "app.make_template")}</button>
           <a class="btn ghost" href="/p/${this.project}/d/${this.doc.slug}/app-edit">${icon("Code", 14)} ${t("app.edit")}</a>` : nothing}
         <button class="ghost" @click=${() => this.setFull(!this.full)}>${icon(this.full ? "Minimize2" : "Maximize2", 14)} ${t(this.full ? "app.exit_full" : "app.full")}</button>
@@ -347,7 +367,8 @@ export class PhxAppView extends LitElement {
         @reload=${() => location.reload()}></phx-app-origin>` : nothing}
       ${i.errors.length ? html`<div class="errs" role="alert">${i.errors.map((e) => `${e.file}:${e.line}:${e.column} ${e.text}`).join("\n")}</div>` : nothing}
       <div class="box"><phx-app-frame .project=${this.project} .doc=${this.doc.id} .info=${i}
-        @granted=${(e: CustomEvent<number>) => (this.info = { ...i, granted: e.detail })}></phx-app-frame></div>`;
+        @granted=${(e: CustomEvent<number>) => (this.info = { ...i, granted: e.detail })}></phx-app-frame></div>
+      ${this.share?.canEdit ? html`<phx-app-share .project=${this.project} .doc=${this.doc.id} .view=${this.share} @changed=${(e: CustomEvent<AppShareView>) => (this.share = e.detail)}></phx-app-share>` : nothing}`;
   }
 }
 

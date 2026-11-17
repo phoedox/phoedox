@@ -75,3 +75,19 @@ files (its stored data stays), so when you change such an app with
 changes. Organizations can limit who may install themes and app templates
 from the store; people without access send a request to the organization's
 admins. Point users there instead of copying a template's code by hand.
+
+## Public apps
+
+Project owners can release an app to people without an account (the app's
+page → Share publicly). Visitors never reach the project: the app runs at
+level 0, or – in snapshot mode – its `read()` calls are answered from a
+snapshot of its sources that the owner took with their own rights and
+checked in a preview first. The snapshot is refreshed by hand or on a
+schedule (hourly, daily, weekly). Storage, proposals and `open()` are
+refused for visitors; `ai()` works only within a monthly limit the owner
+sets, on the owner's budget, behind the bot check. Admins of the instance
+or the organization can forbid public apps. There is no MCP tool for this:
+publishing is a step a person takes in Phoedox. When you build an app meant
+to be shared publicly, keep it to level 1 and make it work with data that
+is not live: for visitors `info()` also returns `public: true` and
+`snapshotAt` (the time of the data), which the app can show.
