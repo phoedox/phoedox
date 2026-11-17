@@ -240,6 +240,7 @@ export class PhxPalette extends SignalWatcher(LitElement) {
           aria-activedescendant=${`opt-${this.active}`} placeholder=${t("palette.placeholder")} autocomplete="off" spellcheck="false"
           .value=${this.query} @input=${this.onInput} @keydown=${this.onKey} />
       </div>
+      ${this.hits[0]?.corrected ? html`<p class="note" role="status">${t("palette.corrected", { query: this.hits[0].corrected })}</p>` : ""}
       <ul id="results" role="listbox" aria-label=${t("palette.label")}>
         ${groups.map(([label, items]) => html`
           <li class="group" role="presentation">${label}</li>

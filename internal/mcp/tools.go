@@ -1217,7 +1217,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "create_check", "Monitor a reading request block (```request with GET, HEAD or OPTIONS) of a page every intervalSec seconds (60–86400, default 300). Optionally link an entry; its state attribute then shows online/offline. The creator gets a mail when the state changes.", func(ctx context.Context, a core.Actor, in createCheckIn) (any, error) {
 		return svc.CreateCheck(ctx, a, in.Project, core.CheckInput{Document: in.Document, Block: in.Index, Entity: in.Entity, Name: in.Name, IntervalSec: in.IntervalSec})
 	})
-	tool(s, "search", "Search documents and entities in one or all visible projects.", func(ctx context.Context, a core.Actor, in searchIn) (any, error) {
+	tool(s, "search", "Search documents and entities in one or all visible projects. When nothing matches as typed, typos are corrected and hits carry \"corrected\".", func(ctx context.Context, a core.Actor, in searchIn) (any, error) {
 		return svc.Search(ctx, a, in.Query, in.Project, in.Limit)
 	})
 	tool(s, "get_data_model", "The data model of a project: kinds of entities with their attributes as JSON schema and the allowed relations. Read it before creating entities or relations.", func(ctx context.Context, a core.Actor, in projectRef) (any, error) {

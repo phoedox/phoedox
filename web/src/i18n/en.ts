@@ -4611,4 +4611,5 @@ export const en: Record<keyof typeof de, string> = {
   "validation.credits_target": "Choose people or organizations.",
   "validation.credits_amount": "The credit must be between 0.01 and 1,000,000.",
   "validation.credits_expiry": "The expiry must be a future day.",
+  "palette.corrected": "Nothing found as typed – showing results for “{query}”.",
 };

@@ -61,6 +61,8 @@ examples:
 3. Find before you create: `search` (pages and entries, one or all projects, ranked
    by words, with text snippets). Never create a second page or entry for something
    that exists. `find_in_documents` finds every exact occurrence of a text instead.
+   When a query finds nothing as typed, `search` corrects typos against the words in
+   the projects; such hits carry `corrected` (the query that matched) – mention it.
 
 ## Rules that apply everywhere
 

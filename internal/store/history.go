@@ -139,7 +139,10 @@ func (d *DB) Purge(ctx context.Context, projectID, id string) error {
 				return err
 			}
 		}
-		_, err = tx.Exec(ctx, `DELETE FROM search_index WHERE ref_id = ?`, id)
+		if _, err = tx.Exec(ctx, `DELETE FROM search_index WHERE ref_id = ?`, id); err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `DELETE FROM search_terms WHERE ref_id = ?`, id)
 		return err
 	})
 }

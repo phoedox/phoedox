@@ -172,6 +172,8 @@ export interface Hit {
   id: string; slug: string; title: string; kind: string; snippet?: string;
   /** Set when the match is in a translation (language code). */
   locale?: string;
+  /** The query with typos corrected, when the query as typed found nothing. */
+  corrected?: string;
 }
 /** Snippet markers from the server around matches. */
 export const MARK_START = "\uE000";

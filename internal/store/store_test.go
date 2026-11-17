@@ -528,6 +528,20 @@ func TestSearchIndex(t *testing.T) {
 			if hs := search(`"; DROP TABLE x; --`); len(hs) != 0 {
 				t.Fatalf("junk: %s", ids(hs))
 			}
+			// Typos: nothing found as typed, so the words are corrected
+			// against the index (also without AI).
+			if hs := search("glasfasr"); ids(hs) != "d1" || hs[0].Corrected != "glasfaser" {
+				t.Fatalf("typo: %s %+v", ids(hs), hs)
+			}
+			if hs := search("sicherungskasetn modem"); ids(hs) != "d1" || hs[0].Corrected != "sicherungskasten modem" {
+				t.Fatalf("swap: %s %+v", ids(hs), hs)
+			}
+			if hs := search("geheim"); len(hs) != 0 {
+				t.Fatalf("words of other projects must not leak: %s", ids(hs))
+			}
+			if hs := search("router"); hs[0].Corrected != "" {
+				t.Fatal("exact hits are not corrected")
+			}
 			if err := d.IndexDelete(ctx, "d1"); err != nil {
 				t.Fatal(err)
 			}

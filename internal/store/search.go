@@ -29,7 +29,7 @@ type IndexEntry struct {
 	Body      string
 }
 
-// IndexPut adds or replaces an entry.
+// IndexPut adds or replaces an entry, with its words for typo correction.
 func (d *DB) IndexPut(ctx context.Context, e IndexEntry) error {
 	return d.InTx(ctx, func(tx *Tx) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM search_index WHERE ref_id = ?`, e.RefID); err != nil {
@@ -39,8 +39,78 @@ func (d *DB) IndexPut(ctx context.Context, e IndexEntry) error {
 		_, err := tx.Exec(ctx, `INSERT INTO search_index (ref_id, kind, tenant_id, project_id, slug, subtype, title, body)
 			SELECT ?, ?, tenant_id, id, ?, ?, ?, ? FROM projects WHERE id = ?`,
 			e.RefID, e.Kind, e.Slug, e.Subtype, e.Title, e.Body, e.ProjectID)
-		return err
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM search_terms WHERE ref_id = ?`, e.RefID); err != nil {
+			return err
+		}
+		terms := termsOf(e.Title + " " + e.Body)
+		for len(terms) > 0 {
+			n := min(len(terms), 200)
+			args := make([]any, 0, n*3+1)
+			vals := make([]string, n)
+			for i, t := range terms[:n] {
+				vals[i] = "(?, ?, ?)"
+				args = append(args, e.RefID, e.ProjectID, t)
+			}
+			_, err := tx.Exec(ctx, `INSERT INTO search_terms (ref_id, project_id, term, tenant_id)
+				SELECT v.ref_id, v.project_id, v.term, p.tenant_id FROM (`+termValues(n)+`) v JOIN projects p ON p.id = v.project_id`, args...)
+			if err != nil {
+				return err
+			}
+			terms = terms[n:]
+		}
+		return nil
 	})
+}
+
+// termValues is a VALUES list of n (ref_id, project_id, term) rows usable as
+// a sub-select in SQLite and Postgres.
+func termValues(n int) string {
+	var b strings.Builder
+	for i := 0; i < n; i++ {
+		if i > 0 {
+			b.WriteString(" UNION ALL ")
+		}
+		b.WriteString("SELECT ? AS ref_id, ? AS project_id, ? AS term")
+	}
+	return b.String()
+}
+
+// termsOf returns the distinct lower-case words of a text that typo
+// correction knows (3–32 letters, at most 4000 per entry).
+func termsOf(text string) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(w string) {
+		w = strings.Trim(w, "._-")
+		n := utf8.RuneCountInString(w)
+		if n < 3 || n > 32 || seen[w] || !hasLetter(w) || len(out) >= 4000 {
+			return
+		}
+		seen[w] = true
+		out = append(out, w)
+	}
+	for _, w := range wordRe.FindAllString(strings.ToLower(text), -1) {
+		add(w)
+		// Parts of compounds like glasfaser-modem or web.app count too.
+		if strings.ContainsAny(w, "._-") {
+			for _, part := range strings.FieldsFunc(w, func(r rune) bool { return r == '.' || r == '_' || r == '-' }) {
+				add(part)
+			}
+		}
+	}
+	return out
+}
+
+func hasLetter(s string) bool {
+	for _, r := range s {
+		if unicode.IsLetter(r) {
+			return true
+		}
+	}
+	return false
 }
 
 // TranslationRef is the index key of a document's translation.
@@ -49,7 +119,10 @@ func TranslationRef(documentID, locale string) string { return documentID + "~" 
 // IndexDelete removes an entry (deleted or trashed objects), with the
 // translations of a document.
 func (d *DB) IndexDelete(ctx context.Context, refID string) error {
-	_, err := d.Exec(ctx, `DELETE FROM search_index WHERE ref_id = ? OR ref_id LIKE ? ESCAPE '\'`, refID, escapeLike(refID)+"~%")
+	if _, err := d.Exec(ctx, `DELETE FROM search_index WHERE ref_id = ? OR ref_id LIKE ? ESCAPE '\'`, refID, escapeLike(refID)+"~%"); err != nil {
+		return err
+	}
+	_, err := d.Exec(ctx, `DELETE FROM search_terms WHERE ref_id = ? OR ref_id LIKE ? ESCAPE '\'`, refID, escapeLike(refID)+"~%")
 	return err
 }
 
@@ -74,6 +147,7 @@ func (d *DB) IndexCount(ctx context.Context) (int, error) {
 // them is in the index (instances updated from before they were searchable).
 func (d *DB) IndexIncomplete(ctx context.Context) (bool, error) {
 	for _, q := range [][2]string{
+		{`SELECT count(*) FROM search_index`, `SELECT count(*) FROM search_terms`},
 		{`SELECT count(*) FROM document_translations`, `SELECT count(*) FROM search_index WHERE kind = 'document' AND ref_id LIKE '%~%'`},
 		{`SELECT count(*) FROM tasks`, `SELECT count(*) FROM search_index WHERE kind = 'task'`},
 	} {
@@ -96,17 +170,20 @@ func (d *DB) IndexIncomplete(ctx context.Context) (bool, error) {
 
 // Hit is a search result.
 type Hit struct {
-	Type        string  `json:"type"` // document | entity
-	ProjectID   string  `json:"projectId"`
-	ProjectSlug string  `json:"projectSlug"`
-	ProjectName string  `json:"projectName"`
-	ID          string  `json:"id"`
-	Slug        string  `json:"slug"`
-	Title       string  `json:"title"`
-	Kind        string  `json:"kind"`             // document type or entity kind
-	Locale      string  `json:"locale,omitempty"` // set when a translation matched
-	Snippet     string  `json:"snippet,omitempty"`
-	Score       float64 `json:"-"`
+	Type        string `json:"type"` // document | entity
+	ProjectID   string `json:"projectId"`
+	ProjectSlug string `json:"projectSlug"`
+	ProjectName string `json:"projectName"`
+	ID          string `json:"id"`
+	Slug        string `json:"slug"`
+	Title       string `json:"title"`
+	Kind        string `json:"kind"`             // document type or entity kind
+	Locale      string `json:"locale,omitempty"` // set when a translation matched
+	Snippet     string `json:"snippet,omitempty"`
+	// Corrected is the query with typos corrected, when the query as typed
+	// found nothing and these hits come from the corrected one.
+	Corrected string  `json:"corrected,omitempty"`
+	Score     float64 `json:"-"`
 }
 
 var wordRe = regexp.MustCompile(`[\p{L}\p{N}][\p{L}\p{N}._-]*`)
@@ -142,6 +219,23 @@ func (d *DB) Search(ctx context.Context, projectIDs []string, query string, limi
 	}
 	if err != nil {
 		return nil, err
+	}
+	// Nothing found: correct typos against the words of the index and try again.
+	if len(hits) == 0 {
+		if fixed, ok := d.correctWords(ctx, projectIDs, words); ok {
+			q := strings.Join(fixed, " ")
+			if d.Dialect == Postgres {
+				hits, err = d.searchPostgres(ctx, projectIDs, q, fixed, limit)
+			} else {
+				hits, err = d.searchSQLite(ctx, projectIDs, fixed, limit)
+			}
+			if err != nil {
+				return nil, err
+			}
+			for i := range hits {
+				hits[i].Corrected = q
+			}
+		}
 	}
 	// A document and its translations count once: the best match wins.
 	seen := map[string]bool{}
@@ -402,4 +496,100 @@ func (d *DB) AllEntities(ctx context.Context) ([]Entity, error) {
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// correctWords replaces words that the index does not know by the closest
+// known word (edit distance 1 for words up to 5 letters, 2 for longer
+// ones; the more frequent word wins a tie). ok is false when nothing
+// changed.
+func (d *DB) correctWords(ctx context.Context, projectIDs []string, words []string) ([]string, bool) {
+	out := append([]string(nil), words...)
+	changed := false
+	for i, w := range words {
+		n := utf8.RuneCountInString(w)
+		if n < 3 || !hasLetter(w) {
+			continue
+		}
+		args := []any{TenantOf(ctx)}
+		for _, p := range projectIDs {
+			args = append(args, p)
+		}
+		var known int
+		_ = d.QueryRow(ctx, `SELECT count(*) FROM search_terms WHERE tenant_id = ? AND project_id IN (`+placeholders(len(projectIDs))+`) AND term LIKE ? ESCAPE '\'`,
+			append(args, escapeLike(w)+"%")...).Scan(&known)
+		if known > 0 {
+			continue // the word (or a longer one starting with it) exists
+		}
+		maxDist := 1
+		if n > 5 {
+			maxDist = 2
+		}
+		rows, err := d.Query(ctx, `SELECT term, count(*) FROM search_terms WHERE tenant_id = ? AND project_id IN (`+placeholders(len(projectIDs))+`)
+			AND length(term) BETWEEN ? AND ? GROUP BY term LIMIT 200000`, append(args, n-maxDist, n+maxDist)...)
+		if err != nil {
+			continue
+		}
+		best, bestDist, bestCount := "", maxDist+1, 0
+		for rows.Next() {
+			var term string
+			var count int
+			if rows.Scan(&term, &count) != nil {
+				continue
+			}
+			dist := editDistance(w, term, maxDist)
+			if dist > maxDist {
+				continue
+			}
+			if dist < bestDist || dist == bestDist && count > bestCount {
+				best, bestDist, bestCount = term, dist, count
+			}
+		}
+		rows.Close()
+		if best != "" {
+			out[i], changed = best, true
+		}
+	}
+	return out, changed
+}
+
+// editDistance is the Damerau-Levenshtein distance (adjacent swaps count
+// once), or max+1 when it is larger than max.
+func editDistance(a, b string, max int) int {
+	ra, rb := []rune(a), []rune(b)
+	if abs(len(ra)-len(rb)) > max {
+		return max + 1
+	}
+	prev2 := make([]int, len(rb)+1)
+	prev := make([]int, len(rb)+1)
+	cur := make([]int, len(rb)+1)
+	for j := range prev {
+		prev[j] = j
+	}
+	for i := 1; i <= len(ra); i++ {
+		cur[0] = i
+		rowMin := cur[0]
+		for j := 1; j <= len(rb); j++ {
+			cost := 1
+			if fold(ra[i-1]) == fold(rb[j-1]) {
+				cost = 0
+			}
+			cur[j] = min(prev[j]+1, cur[j-1]+1, prev[j-1]+cost)
+			if i > 1 && j > 1 && ra[i-1] == rb[j-2] && ra[i-2] == rb[j-1] {
+				cur[j] = min(cur[j], prev2[j-2]+1)
+			}
+			rowMin = min(rowMin, cur[j])
+		}
+		if rowMin > max {
+			return max + 1
+		}
+		prev2, prev, cur = prev, cur, prev2
+	}
+	return prev[len(rb)]
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }

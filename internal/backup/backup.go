@@ -43,7 +43,7 @@ var Tables = []string{
 // Skipped are tables that are not backed up.
 // user_exports: personal data exports are short-lived (7 days) and must not
 // come back from a backup after they were deleted.
-var Skipped = []string{"goose_db_version", "sqlite_sequence", "search_index", "uploads", "user_exports", "bot_used", "bot_events"}
+var Skipped = []string{"goose_db_version", "sqlite_sequence", "search_index", "search_terms", "uploads", "user_exports", "bot_used", "bot_events"}
 
 // Manifest describes a backup.
 type Manifest struct {
@@ -407,7 +407,7 @@ func Restore(ctx context.Context, db *store.DB, blobs blob.Store, tmpDir, path s
 
 func clear(ctx context.Context, db *store.DB, tx *store.Tx) error {
 	if db.Dialect == store.Postgres {
-		_, err := tx.Exec(ctx, `TRUNCATE `+strings.Join(Tables, ", ")+`, search_index, uploads CASCADE`)
+		_, err := tx.Exec(ctx, `TRUNCATE `+strings.Join(Tables, ", ")+`, search_index, search_terms, uploads CASCADE`)
 		return err
 	}
 	for i := len(Tables) - 1; i >= 0; i-- {
@@ -415,7 +415,7 @@ func clear(ctx context.Context, db *store.DB, tx *store.Tx) error {
 			return err
 		}
 	}
-	for _, t := range []string{"search_index", "uploads"} {
+	for _, t := range []string{"search_terms", "search_index", "uploads"} {
 		if _, err := tx.Exec(ctx, `DELETE FROM `+t); err != nil {
 			return err
 		}

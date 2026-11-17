@@ -4609,4 +4609,5 @@ export const de = {
   "validation.credits_target": "Wähle Personen oder Organisationen.",
   "validation.credits_amount": "Das Guthaben muss zwischen 0,01 und 1.000.000 liegen.",
   "validation.credits_expiry": "Das Ablaufdatum muss in der Zukunft liegen.",
+  "palette.corrected": "Wörtlich nichts gefunden – Ergebnisse für „{query}“.",
 } as const;
