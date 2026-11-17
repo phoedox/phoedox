@@ -6,7 +6,6 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/google/jsonschema-go/jsonschema"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/phoedox/phoedox/internal/core"
@@ -36,7 +35,7 @@ func registerChatTool[In any](name, desc string, fn func(ctx context.Context, a 
 	if _, ok := chatTools[name]; ok {
 		return
 	}
-	schema, err := jsonschema.For[In](nil)
+	schema, err := inputSchema[In]()
 	if err != nil {
 		return
 	}

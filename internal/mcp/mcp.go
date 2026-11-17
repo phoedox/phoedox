@@ -13,10 +13,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 	"regexp"
 	"sync"
 	"time"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -166,9 +168,24 @@ func result(v any) *sdk.CallToolResult {
 }
 
 // tool registers a handler that receives the authenticated actor.
+// schemaOpts describes raw JSON fields (an element, a variable's value) as
+// any JSON value; inferred from the Go type they would be byte arrays.
+var schemaOpts = &jsonschema.ForOptions{TypeSchemas: map[reflect.Type]*jsonschema.Schema{
+	reflect.TypeFor[json.RawMessage](): {Description: "any JSON value"},
+}}
+
+// inputSchema is the JSON schema of a tool's input.
+func inputSchema[In any]() (*jsonschema.Schema, error) {
+	return jsonschema.For[In](schemaOpts)
+}
+
 func tool[In any](s *sdk.Server, name, desc string, fn func(ctx context.Context, a core.Actor, in In) (any, error)) {
 	registerChatTool(name, desc, fn)
-	sdk.AddTool(s, &sdk.Tool{Name: name, Description: desc}, func(ctx context.Context, req *sdk.CallToolRequest, in In) (*sdk.CallToolResult, any, error) {
+	schema, err := inputSchema[In]()
+	if err != nil {
+		panic("mcp: schema of " + name + ": " + err.Error())
+	}
+	sdk.AddTool(s, &sdk.Tool{Name: name, Description: desc, InputSchema: schema}, func(ctx context.Context, req *sdk.CallToolRequest, in In) (*sdk.CallToolResult, any, error) {
 		a, err := actorFrom(req)
 		if err != nil {
 			return nil, nil, err

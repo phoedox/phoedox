@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	phxauth "github.com/phoedox/phoedox/internal/auth"
@@ -323,5 +324,32 @@ func TestMCPTools(t *testing.T) {
 	res, err := session.CallTool(ctx, &sdk.CallToolParams{Name: "get_document", Arguments: map[string]any{"project": "phoedox", "document": "gibt-es-nicht"}})
 	if err != nil || !res.IsError {
 		t.Fatalf("missing document must be a tool error: %v %+v", err, res)
+	}
+}
+
+func TestRawJSONFieldsTakeAnyValue(t *testing.T) {
+	// Elements of edit_whiteboard and variable values of draw_screens are
+	// raw JSON: the schema must accept objects and numbers, not byte arrays.
+	for name, in := range map[string]any{
+		"edit_whiteboard": map[string]any{"project": "p", "document": "d", "ops": []any{map[string]any{"op": "add", "element": map[string]any{"type": "rect", "x": 1.0}}}},
+		"draw_screens":    map[string]any{"project": "p", "prototype": "x", "vars": []any{map[string]any{"name": "n", "type": "number", "value": 3.0}}, "screens": []any{map[string]any{"name": "a", "elements": []any{}}}},
+	} {
+		var schema *jsonschema.Schema
+		var err error
+		if name == "edit_whiteboard" {
+			schema, err = inputSchema[editWhiteboardIn]()
+		} else {
+			schema, err = inputSchema[drawScreensIn]()
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		r, err := schema.Resolve(nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := r.Validate(in); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
 	}
 }
