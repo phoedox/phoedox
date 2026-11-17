@@ -32,8 +32,10 @@ func Handler(svc *core.Service, a *phxauth.Auth, version string, baseURL func(*h
 	servers := &serverCache{byTenant: map[string]cachedServer{}}
 	linkSvc = svc
 	build := func(ctx context.Context) *sdk.Server {
-		server := sdk.NewServer(&sdk.Implementation{Name: "phoedox", Title: "Phoedox", Version: version}, &sdk.ServerOptions{Instructions: resources.Prompt("mcp-instructions")})
+		server := sdk.NewServer(&sdk.Implementation{Name: "phoedox", Title: "Phoedox", Version: version}, &sdk.ServerOptions{Instructions: resources.Prompt("mcp-instructions"),
+			Capabilities: skillsCapabilities()})
 		registerTools(server, svc)
+		registerSkills(server)
 		registerResources(server, svc)
 		registerPluginTools(ctx, server, svc)
 		return server

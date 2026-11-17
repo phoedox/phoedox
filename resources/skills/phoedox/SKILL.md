@@ -170,5 +170,8 @@ instead of rebuilding them in pages:
 
 Clients with resource support can attach `phoedox://projects`,
 `phoedox://<project>/doc/<slug>` and `phoedox://<project>/entity/<slug>`.
+This skill itself comes with the connector: the server supports the MCP skills extension
+(`skills/list`, `skills/get`) and serves every file as `skill://phoedox/SKILL.md` and
+`skill://phoedox/references/<file>.md`, so a reference file can be read on demand.
 Public published sites have their own read-only MCP endpoint (`list_pages`, `search`,
 `get_page`) at `<site>/mcp`.

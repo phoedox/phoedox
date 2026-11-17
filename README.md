@@ -157,7 +157,9 @@ external links); read and extend the data model; maintain and search entries
 and relations in the knowledge graph; boards, floor plans, checks, readings, agent actions and more.
 
 **Phoedox skill**: [`resources/skills/phoedox`](resources/skills/phoedox/SKILL.md) teaches AI clients which tool to use
-when and the rules for writing. Every instance serves it at `/api/v1/phoedox-skill.zip`; for Claude Code:
+when and the rules for writing. The MCP server delivers it with the connector (MCP skills extension:
+`skills/list`, `skills/get`, resources `skill://phoedox/…`) to clients that support it. Every instance also serves it
+at `/api/v1/phoedox-skill.zip` for clients without that support (upload it as a skill); for Claude Code:
 
 ```bash
 curl -sL https://docs.example.org/api/v1/phoedox-skill.zip -o /tmp/phoedox-skill.zip && unzip -o /tmp/phoedox-skill.zip -d ~/.claude/skills

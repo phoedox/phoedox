@@ -55,6 +55,8 @@ func TestMCPTools(t *testing.T) {
 	}
 
 	client := sdk.NewClient(&sdk.Implementation{Name: "test", Version: "1"}, nil)
+	_ = sdk.AddSendingCustomMethod[*skillsListParams, *skillsListResult](client, "skills/list")
+	_ = sdk.AddSendingCustomMethod[*skillsGetParams, *skillsGetResult](client, "skills/get")
 	session, err := client.Connect(ctx, &sdk.StreamableClientTransport{Endpoint: srv.URL, HTTPClient: &http.Client{Transport: bearer{token, http.DefaultTransport}}}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -70,6 +72,29 @@ func TestMCPTools(t *testing.T) {
 	for _, tl := range tools.Tools {
 		if !strings.Contains(skill, "`"+tl.Name+"`") {
 			t.Errorf("tool %s is not explained in resources/skills/phoedox", tl.Name)
+		}
+	}
+
+	// The skill comes with the connector (extension io.modelcontextprotocol/skills).
+	if ext := session.InitializeResult().Capabilities.Extensions; ext == nil || ext[skillsExtension] == nil {
+		t.Fatalf("skills extension not declared: %+v", session.InitializeResult().Capabilities)
+	}
+	sl, err := sdk.CallCustomMethod[*skillsListParams, *skillsListResult](ctx, session, "skills/list", &skillsListParams{})
+	if err != nil || len(sl.Skills) != 1 || sl.Skills[0].URI != "skill://phoedox/SKILL.md" || sl.Skills[0].Frontmatter["name"] != "phoedox" ||
+		len(sl.Skills[0].Resources) < 5 || sl.ResultType != "complete" || sl.CacheScope != "public" || !strings.HasPrefix(sl.Skills[0].Resources[0].Digest, "sha256:") {
+		t.Fatalf("skills/list: %v %+v", err, sl)
+	}
+	sg, err := sdk.CallCustomMethod[*skillsGetParams, *skillsGetResult](ctx, session, "skills/get", &skillsGetParams{URI: "skill://phoedox/SKILL.md"})
+	if err != nil || sg.Skill.URI != "skill://phoedox/SKILL.md" || sg.URI != sg.Skill.URI {
+		t.Fatalf("skills/get: %v %+v", err, sg)
+	}
+	if _, err := sdk.CallCustomMethod[*skillsGetParams, *skillsGetResult](ctx, session, "skills/get", &skillsGetParams{URI: "skill://nope/SKILL.md"}); err == nil {
+		t.Fatal("unknown skill")
+	}
+	for _, r := range sl.Skills[0].Resources {
+		rr, err := session.ReadResource(ctx, &sdk.ReadResourceParams{URI: r.URI})
+		if err != nil || len(rr.Contents) != 1 || len(rr.Contents[0].Text) != r.Size {
+			t.Fatalf("read %s: %v", r.URI, err)
 		}
 	}
 

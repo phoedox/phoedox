@@ -178,6 +178,26 @@ func SkillText() string {
 	return b.String()
 }
 
+// SkillFile is one file of the Phoedox skill, Path relative to the skills
+// folder (phoedox/SKILL.md, phoedox/references/pages.md …).
+type SkillFile struct {
+	Path    string
+	Content []byte
+}
+
+// SkillFiles lists the files of the Phoedox skill (served over MCP).
+func SkillFiles() []SkillFile {
+	var out []SkillFile
+	_ = fs.WalkDir(skills, "skills", func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			c, _ := skills.ReadFile(p)
+			out = append(out, SkillFile{Path: strings.TrimPrefix(p, "skills/"), Content: c})
+		}
+		return nil
+	})
+	return out
+}
+
 // WriteSkill writes the Phoedox skill for AI clients (resources/skills/phoedox)
 // as a ZIP with the folder phoedox/ (SKILL.md and references).
 func WriteSkill(w io.Writer) error {
