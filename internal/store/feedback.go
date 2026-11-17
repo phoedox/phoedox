@@ -178,16 +178,20 @@ type FeedbackTopic struct {
 	// their status link); AnswerAuto marks an answer Phoedox gave by itself.
 	Question   string `json:"question,omitempty"`
 	AnswerAuto bool   `json:"answerAuto,omitempty"`
+	// Public: released on the portal's public page; Votes counts visitors'
+	// votes there.
+	Public bool `json:"public"`
+	Votes  int  `json:"votes"`
 }
 
 const topicCols = `t.id, t.project_id, t.portal_id, t.title, t.summary, t.type, t.category, t.tags, t.priority, t.state, t.answer, t.report_count, t.created_at, t.updated_at, t.closed_at,
-	(SELECT COUNT(*) FROM feedback_topic_links l WHERE l.topic_id = t.id), t.ai_note, t.duplicate_of, t.spam, t.fixed_in, t.question, t.answer_auto`
+	(SELECT COUNT(*) FROM feedback_topic_links l WHERE l.topic_id = t.id), t.ai_note, t.duplicate_of, t.spam, t.fixed_in, t.question, t.answer_auto, t.public, t.votes`
 
 func scanTopic(r interface{ Scan(...any) error }) (FeedbackTopic, error) {
 	var t FeedbackTopic
 	var tags string
 	var closed sql.Null[Time]
-	err := r.Scan(&t.ID, &t.ProjectID, &t.PortalID, &t.Title, &t.Summary, &t.Type, &t.Category, &tags, &t.Priority, &t.State, &t.Answer, &t.ReportCount, &t.CreatedAt, &t.UpdatedAt, &closed, &t.Tickets, &t.AINote, &t.DuplicateOf, &t.Spam, &t.FixedIn, &t.Question, &t.AnswerAuto)
+	err := r.Scan(&t.ID, &t.ProjectID, &t.PortalID, &t.Title, &t.Summary, &t.Type, &t.Category, &tags, &t.Priority, &t.State, &t.Answer, &t.ReportCount, &t.CreatedAt, &t.UpdatedAt, &closed, &t.Tickets, &t.AINote, &t.DuplicateOf, &t.Spam, &t.FixedIn, &t.Question, &t.AnswerAuto, &t.Public, &t.Votes)
 	if errors.Is(err, sql.ErrNoRows) {
 		return t, ErrNotFound
 	}
@@ -209,13 +213,13 @@ func (d *DB) SaveFeedbackTopic(ctx context.Context, t FeedbackTopic) error {
 	if t.ClosedAt != nil {
 		closed = *t.ClosedAt
 	}
-	_, err := d.Exec(ctx, `INSERT INTO feedback_topics (id, tenant_id, project_id, portal_id, title, summary, type, category, tags, priority, state, answer, report_count, created_at, updated_at, closed_at, ai_note, duplicate_of, spam, fixed_in, question, answer_auto)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := d.Exec(ctx, `INSERT INTO feedback_topics (id, tenant_id, project_id, portal_id, title, summary, type, category, tags, priority, state, answer, report_count, created_at, updated_at, closed_at, ai_note, duplicate_of, spam, fixed_in, question, answer_auto, public)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (id) DO UPDATE SET portal_id = excluded.portal_id, title = excluded.title, summary = excluded.summary, type = excluded.type, category = excluded.category,
-		ai_note = excluded.ai_note, duplicate_of = excluded.duplicate_of, spam = excluded.spam, fixed_in = excluded.fixed_in, question = excluded.question, answer_auto = excluded.answer_auto,
+		ai_note = excluded.ai_note, duplicate_of = excluded.duplicate_of, spam = excluded.spam, fixed_in = excluded.fixed_in, question = excluded.question, answer_auto = excluded.answer_auto, public = excluded.public,
 		tags = excluded.tags, priority = excluded.priority, state = excluded.state, answer = excluded.answer, report_count = excluded.report_count,
 		updated_at = excluded.updated_at, closed_at = excluded.closed_at`,
-		t.ID, TenantOf(ctx), t.ProjectID, t.PortalID, t.Title, t.Summary, t.Type, t.Category, string(tags), t.Priority, t.State, t.Answer, t.ReportCount, t.CreatedAt, t.UpdatedAt, closed, t.AINote, t.DuplicateOf, t.Spam, t.FixedIn, t.Question, t.AnswerAuto)
+		t.ID, TenantOf(ctx), t.ProjectID, t.PortalID, t.Title, t.Summary, t.Type, t.Category, string(tags), t.Priority, t.State, t.Answer, t.ReportCount, t.CreatedAt, t.UpdatedAt, closed, t.AINote, t.DuplicateOf, t.Spam, t.FixedIn, t.Question, t.AnswerAuto, t.Public)
 	return err
 }
 

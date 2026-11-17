@@ -65,6 +65,9 @@ type TopicDetail struct {
 	Tickets []store.TopicTicket    `json:"tickets"`
 	// Entities are the entries of the knowledge graph the topic is about.
 	Entities []store.TopicEntity `json:"entities"`
+	// Comments of the public view (all states) and how many people follow.
+	Comments  []store.FeedbackComment `json:"comments"`
+	Followers int                     `json:"followers"`
 }
 
 func (s *Service) moderatedTopic(ctx context.Context, a Actor, ref, id string) (store.Project, store.FeedbackPortal, store.FeedbackTopic, error) {
@@ -114,7 +117,12 @@ func (s *Service) FeedbackTopic(ctx context.Context, a Actor, ref, id string) (T
 	if ents == nil {
 		ents = []store.TopicEntity{}
 	}
-	return TopicDetail{FeedbackTopic: t, Portal: s.portalView(ctx, portal), Reports: reports, Tickets: tickets, Entities: ents}, nil
+	comments, _ := s.DB.FeedbackComments(ctx, t.ID, "")
+	if comments == nil {
+		comments = []store.FeedbackComment{}
+	}
+	subs, _ := s.DB.FeedbackSubscriptions(ctx, t.ID)
+	return TopicDetail{FeedbackTopic: t, Portal: s.portalView(ctx, portal), Reports: reports, Tickets: tickets, Entities: ents, Comments: comments, Followers: len(subs)}, nil
 }
 
 // TopicPatch changes a topic; nil fields stay.
@@ -133,6 +141,8 @@ type TopicPatch struct {
 	DismissDuplicate bool  `json:"dismissDuplicate,omitempty"`
 	// FixedIn is the version that fixed it (told reporters).
 	FixedIn *string `json:"fixedIn,omitempty"`
+	// Public releases the topic on the portal's public page.
+	Public *bool `json:"public,omitempty"`
 	// Question asks the reporters for more information; they answer on
 	// their status link ("" withdraws it).
 	Question *string `json:"question,omitempty"`
@@ -187,6 +197,9 @@ func (s *Service) UpdateFeedbackTopic(ctx context.Context, a Actor, ref, id stri
 	if patch.FixedIn != nil {
 		t.FixedIn = excerpt(strings.TrimSpace(*patch.FixedIn), 60)
 	}
+	if patch.Public != nil {
+		t.Public = *patch.Public
+	}
 	if patch.Question != nil {
 		t.Question = excerpt(strings.TrimSpace(*patch.Question), 2000)
 	}
@@ -224,6 +237,9 @@ func (s *Service) UpdateFeedbackTopic(ctx context.Context, a Actor, ref, id stri
 	s.event(ctx, a, "feedback.topic", t.ID, patch)
 	if t.State != before.State || t.Answer != before.Answer || t.FixedIn != before.FixedIn || (t.Question != before.Question && t.Question != "") {
 		s.tellReporters(ctx, p, portal, t)
+	}
+	if t.Public && (t.State != before.State || t.Answer != before.Answer || t.FixedIn != before.FixedIn) {
+		s.tellFollowers(ctx, p, portal, t)
 	}
 	return s.FeedbackTopic(ctx, a, ref, id)
 }

@@ -33,6 +33,8 @@ builds – a game, a website, a system. Reports that describe the same thing are
    - `question`: asks the reporters for more information; they answer on their status
      link and the answers appear under their reports (`replies` in `get_feedback_topic`).
      Like `answer`, set it only when a person asked for it.
+   - `public`: releases the topic on the portal's public page (only when the portal has
+     the public view on, and only when a person asked for it).
 4. Duplicates: `merge_feedback_topics` (into = the topic that stays, from = the duplicate).
 5. Into work: `feedback_to_board` creates a card on a board linked to the topic. Make one
    ticket per team or part (e.g. "Frontend" and "Backend"). When all tickets of a topic are
@@ -63,6 +65,16 @@ a reason (`aiNote`), a suspected duplicate (`duplicateOf`) and a spam flag. The
 AI never merges or deletes. When you check a topic, merge real duplicates with
 `merge_feedback_topics`, or clear a wrong suggestion with `update_feedback_topic`
 `dismiss_duplicate: true`; `spam: false` clears a wrong spam flag.
+
+## Public view
+
+Owners can turn on a portal's **public view** (portal settings): released topics appear
+under "Topics" on `/feedback/<handle>` with their state, answer and fixed version. Visitors
+vote (one vote per account or browser), follow a topic (account or e-mail; they are told
+when its state, answer or fixed version changes) and, if the portal allows it, comment.
+Comments from visitors wait for a moderator's approval; team comments are shown at once.
+Topics are released one by one by moderators (`update_feedback_topic` `public: true`);
+reports themselves and reporters stay private.
 
 ## Routing and follow-up
 

@@ -454,6 +454,7 @@ type feedbackUpdateIn struct {
 	Spam             *bool     `json:"spam,omitempty" jsonschema:"false clears the AI's spam flag (only after reading the reports)"`
 	DismissDuplicate bool      `json:"dismiss_duplicate,omitempty" jsonschema:"drop the AI's duplicate suggestion (duplicateOf) when the topics differ"`
 	FixedIn          *string   `json:"fixed_in,omitempty" jsonschema:"product version that fixed it; reporters are told"`
+	Public           *bool     `json:"public,omitempty" jsonschema:"release the topic on the portal's public page (votes, comments, followers) – only when a person asked for it; requires the portal's public view"`
 	Entities         *[]string `json:"entities,omitempty" jsonschema:"replaces the linked knowledge-graph entries (slugs) the topic is about"`
 	Question         *string   `json:"question,omitempty" jsonschema:"ask the reporters for more information (they answer on their status link); only when a person asked for it, \"\" withdraws it"`
 }
@@ -1276,8 +1277,8 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 	tool(s, "get_feedback_topic", "A feedback topic with all its reports (text, form fields, context, attachments' names and types), the portal's settings (states, categories) and its tickets.", func(ctx context.Context, a core.Actor, in feedbackTopicIn) (any, error) {
 		return svc.FeedbackTopic(ctx, a, in.Project, in.Topic)
 	})
-	tool(s, "update_feedback_topic", "Triage a feedback topic: title, summary, category and tags from the portal's lists, priority 1–4, state, the version that fixed it, the knowledge-graph entries it is about; an answer is sent to the reporters, so set it only when a person asked for it.", func(ctx context.Context, a core.Actor, in feedbackUpdateIn) (any, error) {
-		return svc.UpdateFeedbackTopic(ctx, a, in.Project, in.Topic, core.TopicPatch{Title: in.Title, Summary: in.Summary, Category: in.Category, Tags: in.Tags, Priority: in.Priority, State: in.State, Answer: in.Answer, Spam: in.Spam, DismissDuplicate: in.DismissDuplicate, FixedIn: in.FixedIn, Entities: in.Entities, Question: in.Question})
+	tool(s, "update_feedback_topic", "Triage a feedback topic: title, summary, category and tags from the portal's lists, priority 1–4, state, the version that fixed it, the knowledge-graph entries it is about, whether it is shown on the portal's public page; an answer is sent to the reporters, so set it only when a person asked for it.", func(ctx context.Context, a core.Actor, in feedbackUpdateIn) (any, error) {
+		return svc.UpdateFeedbackTopic(ctx, a, in.Project, in.Topic, core.TopicPatch{Title: in.Title, Summary: in.Summary, Category: in.Category, Tags: in.Tags, Priority: in.Priority, State: in.State, Answer: in.Answer, Spam: in.Spam, DismissDuplicate: in.DismissDuplicate, FixedIn: in.FixedIn, Public: in.Public, Entities: in.Entities, Question: in.Question})
 	})
 	tool(s, "merge_feedback_topics", "Merge a duplicate feedback topic into another: its reports and tickets move over and it is removed.", func(ctx context.Context, a core.Actor, in feedbackMergeIn) (any, error) {
 		return svc.MergeFeedbackTopics(ctx, a, in.Project, in.Into, in.From)

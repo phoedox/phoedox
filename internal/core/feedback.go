@@ -95,6 +95,10 @@ type PortalSettings struct {
 	// AutoAnswers tells reporters at once when their report matches a topic
 	// the team already answered or fixed (marked as automatic).
 	AutoAnswers bool `json:"autoAnswers,omitempty"`
+	// PublicView shows released topics on the portal page with votes and
+	// following; PublicComments lets visitors comment (moderated).
+	PublicView     bool `json:"publicView,omitempty"`
+	PublicComments bool `json:"publicComments,omitempty"`
 }
 
 var reportTypes = []string{"bug", "idea", "question", "praise"}
@@ -436,6 +440,10 @@ type PublicPortal struct {
 	Accepting bool `json:"accepting"`
 	// FilesFull: attachments are refused until storage is freed.
 	FilesFull bool `json:"filesFull"`
+	// PublicView: released topics can be seen, voted on and followed;
+	// PublicComments: visitors may comment.
+	PublicView     bool `json:"publicView"`
+	PublicComments bool `json:"publicComments"`
 }
 
 func localized(m map[string]string, lang string) string {
@@ -467,7 +475,8 @@ func (s *Service) PublicFeedbackPortal(ctx context.Context, handle, lang string)
 	full := s.feedbackFull(ctx, proj, 0)
 	out := PublicPortal{Handle: portal.Handle, Name: portal.Name, Project: proj.Name, Intro: localized(ps.Intro, lang), Privacy: localized(ps.Privacy, lang),
 		Types: ps.Types, Fields: ps.Fields, Attachments: ps.Attachments, Anonymous: ps.Anonymous, Accounts: ps.Accounts, AskEmail: ps.AskEmail && ps.Anonymous,
-		Theme: ps.Theme, Languages: ps.Languages, Accepting: portal.Enabled && !(full && ps.StorageFull == "pause"), FilesFull: full && ps.StorageFull == "no_files"}
+		Theme: ps.Theme, Languages: ps.Languages, Accepting: portal.Enabled && !(full && ps.StorageFull == "pause"), FilesFull: full && ps.StorageFull == "no_files",
+		PublicView: ps.PublicView, PublicComments: ps.PublicView && ps.PublicComments}
 	if out.Privacy == "" {
 		out.Privacy = defaultPrivacy(lang, portal.Name)
 	}

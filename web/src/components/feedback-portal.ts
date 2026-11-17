@@ -13,6 +13,26 @@ export interface AttachRules { images: boolean; videos: boolean; logs: boolean; 
 interface Portal {
   handle: string; name: string; project: string; intro: string; privacy: string; types: string[]; fields: PortalField[]; attachments: AttachRules;
   anonymous: boolean; accounts: boolean; askEmail: boolean; theme: { accent?: string; accentDark?: string; logo?: string }; accepting: boolean; filesFull: boolean;
+  publicView: boolean; publicComments: boolean;
+}
+interface Comment { id: string; authorName: string; body: string; team: boolean; createdAt: string }
+interface PublicTopic {
+  id: string; title: string; summary: string; type: string; category?: string; state: string; answer?: string; fixedIn?: string;
+  votes: number; reportCount: number; createdAt: string; updatedAt: string; voted: boolean; subscribed?: boolean; comments?: Comment[];
+}
+
+/** The visitor's key for anonymous votes, kept in this browser only. */
+function voterKey(): string {
+  try {
+    let k = localStorage.getItem("phx.voter") ?? "";
+    if (k.length < 16) {
+      k = Array.from(crypto.getRandomValues(new Uint8Array(18)), (b) => b.toString(16).padStart(2, "0")).join("");
+      localStorage.setItem("phx.voter", k);
+    }
+    return k;
+  } catch {
+    return "";
+  }
 }
 interface Status { portal: string; handle: string; type: string; title: string; body: string; createdAt: string; state: string; finished: boolean; answer?: string; fixedIn?: string; answerAuto?: boolean; question?: string; replies?: { id: string; body: string; createdAt: string }[]; reports: number; deleted: boolean; files: number }
 
@@ -26,7 +46,8 @@ function themeStyle(th: Portal["theme"]) {
 
 /** Public page of a feedback portal: /feedback/<handle>. */
 export class PhxFeedbackPortal extends LitElement {
-  static properties = { handle: {}, portal: { state: true }, type: { state: true }, files: { state: true }, busy: { state: true }, error: { state: true }, done: { state: true }, missing: { state: true } };
+  static properties = { handle: {}, portal: { state: true }, type: { state: true }, files: { state: true }, busy: { state: true }, error: { state: true }, done: { state: true }, missing: { state: true },
+    tab: { state: true }, topics: { state: true }, topic: { state: true }, sort: { state: true }, query: { state: true } };
   static styles = [base, css`
     :host { display: block; min-height: 100vh; background: var(--bg); }
     .wrap { max-width: 680px; margin: 0 auto; padding: 32px 16px 64px; }
@@ -53,6 +74,23 @@ export class PhxFeedbackPortal extends LitElement {
     @media (prefers-color-scheme: dark) { :host-context(html:not([data-theme=light])) .wrap.themed { --accent: var(--pd); --accent-soft: color-mix(in srgb, var(--pd) 20%, var(--surface)); } }
     :host-context(html[data-theme=dark]) .wrap.themed { --accent: var(--pd); --accent-soft: color-mix(in srgb, var(--pd) 20%, var(--surface)); }
     .powered a { color: inherit; }
+    .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+    .tabs button[aria-pressed=true] { background: var(--accent); color: var(--on-color); border-color: var(--accent); }
+    .topics { display: grid; gap: 8px; }
+    .topic { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; }
+    .vote { display: grid; justify-items: center; min-width: 52px; padding: 6px 4px; border-radius: 10px; }
+    .vote[aria-pressed=true] { background: var(--accent); color: var(--on-color); border-color: var(--accent); }
+    .vote b { font-size: 16px; }
+    .topic h3 { margin: 0 0 4px; font-size: 16px; }
+    .topic h3 a { color: inherit; text-decoration: none; }
+    .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; color: var(--muted); font-size: 12.5px; }
+    .state { border-radius: 99px; padding: 1px 9px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 12px; }
+    .summary { color: var(--fg); font-size: 14px; white-space: pre-wrap; }
+    .answer { border-left: 3px solid var(--accent); padding: 6px 12px; white-space: pre-wrap; }
+    .comment { border-top: 1px solid var(--line); padding-top: 10px; }
+    .comment .who { font-weight: 600; font-size: 13.5px; }
+    .comment .who .team { color: var(--accent); }
+    .comment p { margin: 4px 0 0; white-space: pre-wrap; }
   `];
 
   handle = "";
@@ -63,6 +101,12 @@ export class PhxFeedbackPortal extends LitElement {
   error = "";
   done?: { statusToken: string };
   missing = false;
+  tab: "report" | "topics" = "report";
+  topics: PublicTopic[] = [];
+  topic?: PublicTopic;
+  sort: "votes" | "new" = "votes";
+  query = "";
+  private voter = voterKey();
 
   async connectedCallback() {
     super.connectedCallback();
@@ -70,9 +114,127 @@ export class PhxFeedbackPortal extends LitElement {
       this.portal = await api<Portal>("GET", `/feedback/${this.handle}?lang=${locale()}`);
       this.type = this.portal.types[0] ?? "bug";
       document.title = this.portal.name;
+      const open = new URLSearchParams(location.search).get("topic");
+      if (this.portal.publicView && (open || new URLSearchParams(location.search).get("tab") === "topics")) {
+        this.tab = "topics";
+        await this.loadTopics();
+        if (open) await this.openTopic(open);
+      }
     } catch {
       this.missing = true;
     }
+  }
+
+  private get vh() {
+    return this.voter ? { "X-Phoedox-Voter": this.voter } : undefined;
+  }
+
+  private async loadTopics() {
+    const q = new URLSearchParams({ sort: this.sort, q: this.query });
+    this.topics = (await api<PublicTopic[]>("GET", `/feedback/${this.handle}/topics?${q}`, undefined, this.vh).catch(() => [])) ?? [];
+  }
+
+  private async openTopic(id: string) {
+    try {
+      this.topic = await api<PublicTopic>("GET", `/feedback/${this.handle}/topics/${id}`, undefined, this.vh);
+      history.replaceState(null, "", `?topic=${id}`);
+    } catch {
+      this.topic = undefined;
+    }
+  }
+
+  private async vote(tp: PublicTopic) {
+    try {
+      const r = await api<{ voted: boolean; votes: number }>("POST", `/feedback/${this.handle}/topics/${tp.id}/vote`, {}, this.vh);
+      this.topics = this.topics.map((x) => (x.id === tp.id ? { ...x, voted: r.voted, votes: r.votes } : x));
+      if (this.topic?.id === tp.id) this.topic = { ...this.topic, voted: r.voted, votes: r.votes };
+    } catch (e) {
+      toast(e instanceof ApiError ? e.text : t("error.unknown"), "error");
+    }
+  }
+
+  private async follow(e: Event) {
+    e.preventDefault();
+    const tp = this.topic!;
+    const user = currentUser.get();
+    try {
+      if (user && tp.subscribed) {
+        await api("DELETE", `/feedback/${this.handle}/topics/${tp.id}/follow`);
+        this.topic = { ...tp, subscribed: false };
+        return;
+      }
+      const form = (e.target as HTMLElement).closest("form");
+      const email = form ? String(new FormData(form).get("email") ?? "") : "";
+      const botToken = user ? undefined : await this.renderRoot.querySelector<PhxBotcheck>("#follow-check")?.token();
+      await api("POST", `/feedback/${this.handle}/topics/${tp.id}/follow`, { email: email || undefined, lang: locale(), botToken });
+      if (user) this.topic = { ...tp, subscribed: true };
+      toast(t(user ? "fbpub.following" : "fbpub.following_mail"));
+      form?.reset();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+    }
+  }
+
+  private async comment(e: SubmitEvent) {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const fd = new FormData(form);
+    const user = currentUser.get();
+    try {
+      const botToken = user ? undefined : await this.renderRoot.querySelector<PhxBotcheck>("#comment-check")?.token();
+      await api("POST", `/feedback/${this.handle}/topics/${this.topic!.id}/comments`, { name: String(fd.get("name") ?? ""), body: String(fd.get("body") ?? ""), botToken });
+      form.reset();
+      toast(t("fbpub.comment_pending"));
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+    }
+  }
+
+  private voteButton(tp: PublicTopic) {
+    return html`<button class="ghost vote" aria-pressed=${tp.voted} aria-label=${t(tp.voted ? "fbpub.unvote" : "fbpub.vote", { title: tp.title })} @click=${() => void this.vote(tp)}>
+      ${icon("ChevronUp", 16)}<b>${tp.votes}</b></button>`;
+  }
+
+  private topicsView() {
+    const p = this.portal!;
+    const user = currentUser.get();
+    const tp = this.topic;
+    if (tp) {
+      return html`<div class="card">
+        <div><button class="ghost" @click=${() => { this.topic = undefined; history.replaceState(null, "", location.pathname + "?tab=topics"); void this.loadTopics(); }}>${icon("ChevronLeft", 14)} ${t("fbpub.all")}</button></div>
+        <div class="topic" style="border:0;padding:0">${this.voteButton(tp)}<div>
+          <h2 style="margin:0 0 6px;font-size:20px">${tp.title}</h2>
+          <div class="meta"><span class="state">${stateLabel(tp.state)}</span>${icon(TYPE_ICON[tp.type] ?? "MessageSquare", 13)} ${t(`fb.type.${tp.type}` as any)}
+            <span>${t("fbpub.reports", { n: tp.reportCount })}</span>${tp.fixedIn ? html`<span>${t("fbpub.fixed_in", { v: tp.fixedIn })}</span>` : nothing}</div></div></div>
+        ${tp.summary ? html`<p class="summary">${tp.summary}</p>` : nothing}
+        ${tp.answer ? html`<div><b>${t("fbpub.answer")}</b><div class="answer">${tp.answer}</div></div>` : nothing}
+        ${user ? html`<div><button class="ghost" @click=${this.follow}>${icon(tp.subscribed ? "BellOff" : "Bell", 14)} ${t(tp.subscribed ? "fbpub.unfollow" : "fbpub.follow")}</button></div>`
+          : p.anonymous ? html`<form class="row" @submit=${this.follow}><input name="email" type="email" required placeholder=${t("fb.email_ph")} aria-label=${t("fb.email")} style="flex:1;min-width:200px">
+              <button>${icon("Bell", 14)} ${t("fbpub.follow")}</button><phx-botcheck id="follow-check" place="feedback"></phx-botcheck></form>` : nothing}
+        ${p.publicComments ? html`<div style="display:grid;gap:10px">
+          <b>${t("fbpub.comments", { n: tp.comments?.length ?? 0 })}</b>
+          ${(tp.comments ?? []).map((c) => html`<div class="comment"><div class="who">${c.authorName}${c.team ? html` <span class="team">· ${t("fbpub.team")}</span>` : nothing}
+            <span class="sub"> · ${new Date(c.createdAt).toLocaleDateString(locale())}</span></div><p>${c.body}</p></div>`)}
+          ${user || p.anonymous ? html`<form style="display:grid;gap:8px" @submit=${this.comment}>
+            ${user ? nothing : html`<label class="field">${t("fbpub.name")}<input name="name" maxlength="60" autocomplete="nickname"></label>`}
+            <label class="field">${t("fbpub.your_comment")}<textarea name="body" rows="3" maxlength="4000" required></textarea></label>
+            ${user ? nothing : html`<phx-botcheck id="comment-check" place="feedback"></phx-botcheck>`}
+            <div class="row"><button>${icon("Send", 14)} ${t("fbpub.send_comment")}</button><span class="sub">${t("fbpub.moderated")}</span></div></form>` : nothing}
+        </div>` : nothing}
+      </div>`;
+    }
+    return html`<div class="row" style="margin-bottom:10px">
+        <input type="search" placeholder=${t("fbpub.search")} aria-label=${t("fbpub.search")} .value=${this.query} style="flex:1;min-width:180px"
+          @input=${(e: Event) => { this.query = (e.target as HTMLInputElement).value; void this.loadTopics(); }}>
+        <select aria-label=${t("fbpub.sort")} style="width:auto" @change=${(e: Event) => { this.sort = (e.target as HTMLSelectElement).value as "votes" | "new"; void this.loadTopics(); }}>
+          <option value="votes" ?selected=${this.sort === "votes"}>${t("fbpub.sort_votes")}</option><option value="new" ?selected=${this.sort === "new"}>${t("fbpub.sort_new")}</option></select>
+      </div>
+      <div class="topics">${this.topics.length ? this.topics.map((tp) => html`<div class="topic">${this.voteButton(tp)}<div>
+          <h3><a href=${`?topic=${tp.id}`} @click=${(e: Event) => { e.preventDefault(); void this.openTopic(tp.id); }}>${tp.title}</a></h3>
+          <div class="meta"><span class="state">${stateLabel(tp.state)}</span>${icon(TYPE_ICON[tp.type] ?? "MessageSquare", 13)} ${t(`fb.type.${tp.type}` as any)}
+            <span>${t("fbpub.reports", { n: tp.reportCount })}</span></div>
+          ${tp.summary ? html`<p class="summary" style="margin:6px 0 0">${tp.summary.length > 220 ? tp.summary.slice(0, 220) + " …" : tp.summary}</p>` : nothing}</div></div>`)
+        : html`<div class="card"><p class="sub" style="margin:0">${t("fbpub.none")}</p></div>`}</div>`;
   }
 
   private accept() {
@@ -154,7 +316,11 @@ export class PhxFeedbackPortal extends LitElement {
     const status = this.done ? `${location.origin}/feedback/status/${this.done.statusToken}` : "";
     return html`<div class=${p.theme.accent ? "wrap themed" : "wrap"} style=${themeStyle(p.theme)}>
       <header>${p.theme.logo ? html`<img src=${p.theme.logo} alt="">` : nothing}<div><h1>${p.name}</h1><div class="sub">${t("fb.portal_sub", { project: p.project })}</div></div></header>
-      ${this.done ? html`<div class="card ok" role="status">
+      ${p.publicView ? html`<div class="tabs" role="tablist">
+        <button class="ghost" role="tab" aria-pressed=${this.tab === "report"} @click=${() => { this.tab = "report"; this.topic = undefined; history.replaceState(null, "", location.pathname); }}>${icon("Send", 14)} ${t("fbpub.tab_report")}</button>
+        <button class="ghost" role="tab" aria-pressed=${this.tab === "topics"} @click=${() => { this.tab = "topics"; history.replaceState(null, "", location.pathname + "?tab=topics"); void this.loadTopics(); }}>${icon("ListChecks", 14)} ${t("fbpub.tab_topics")}</button>
+      </div>` : nothing}
+      ${this.tab === "topics" && p.publicView ? this.topicsView() : this.done ? html`<div class="card ok" role="status">
           <h2 style="margin:0;font-size:18px">${icon("CircleCheck", 18)} ${t("fb.thanks")}</h2>
           <p style="margin:0">${t("fb.status_hint")}</p>
           <code>${status}</code>
@@ -275,3 +441,32 @@ export function stateLabel(s: string) {
   const v = t(k as any);
   return v === k ? s : v;
 }
+
+/** Stop following a topic with the link from the e-mails: /feedback/unfollow/<token>. */
+export class PhxFeedbackUnfollow extends LitElement {
+  static properties = { token: {}, state: { state: true } };
+  static styles = [base, css`
+    :host { display: block; min-height: 100vh; background: var(--bg); }
+    .wrap { max-width: 560px; margin: 0 auto; padding: 48px 16px; }
+    .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; }
+  `];
+  token = "";
+  state: "" | "ok" | "gone" = "";
+
+  async connectedCallback() {
+    super.connectedCallback();
+    try {
+      await api("DELETE", `/feedback/unfollow/${encodeURIComponent(this.token)}`);
+      this.state = "ok";
+    } catch {
+      this.state = "gone";
+    }
+  }
+
+  render() {
+    if (!this.state) return html`<div class="wrap"><p>${t("app.loading")}</p></div>`;
+    return html`<div class="wrap"><div class="card" role="status">${icon(this.state === "ok" ? "BellOff" : "CircleAlert", 18)}
+      ${t(this.state === "ok" ? "fbpub.unfollowed" : "fbpub.unfollow_gone")}</div></div>`;
+  }
+}
+customElements.get("phx-feedback-unfollow") || customElements.define("phx-feedback-unfollow", PhxFeedbackUnfollow);

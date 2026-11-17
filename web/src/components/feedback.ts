@@ -6,7 +6,7 @@ import { label, stateLabel, type PortalField } from "./feedback-portal";
 import { base } from "./shared";
 import { toast } from "./toasts";
 
-interface PortalSettings { types: string[]; categories: string[]; states: string[]; defaultState: string; finishedState: string; fields: PortalField[] }
+interface PortalSettings { types: string[]; categories: string[]; states: string[]; defaultState: string; finishedState: string; fields: PortalField[]; publicView?: boolean; publicComments?: boolean }
 interface Portal { id: string; handle: string; name: string; settings: PortalSettings }
 interface Topic { id: string; portalId: string; title: string; summary: string; type: string; category: string; tags: string[]; priority: number; state: string; answer: string; reportCount: number; updatedAt: string; tickets: number; aiNote?: string; duplicateOf?: string; spam?: boolean }
 interface FileMeta { id: string; name: string; mime: string; size: number }
@@ -14,7 +14,9 @@ interface Reply { id: string; body: string; createdAt: string }
 interface Report { replies?: Reply[]; id: string; type: string; title: string; body: string; fields: Record<string, unknown>; context: Record<string, string>; userName?: string; userId?: string; email?: string; via: string; check?: string; deleted: boolean; createdAt: string; attachments?: FileMeta[] }
 interface Ticket { taskId: string; title: string; boardSlug: string; board: string; column: string; done: boolean }
 interface TopicEntity { id: string; slug: string; name: string; kind: string; source: "person" | "ai" }
-interface Detail extends Omit<Topic, "tickets"> { portal: Portal; reports: Report[]; tickets: Ticket[]; entities: TopicEntity[]; fixedIn?: string; question?: string; answerAuto?: boolean }
+interface PubComment { id: string; authorName: string; body: string; status: "pending" | "approved" | "rejected"; team: boolean; createdAt: string }
+interface Detail extends Omit<Topic, "tickets"> { portal: Portal; reports: Report[]; tickets: Ticket[]; entities: TopicEntity[]; fixedIn?: string; question?: string; answerAuto?: boolean;
+  public: boolean; votes: number; comments: PubComment[]; followers: number }
 interface List { portals: Portal[]; topics: Topic[]; owner: boolean }
 interface Doc { id: string; slug: string; title: string; type: string; content?: Board }
 
@@ -25,6 +27,12 @@ export class PhxFeedback extends LitElement {
   static properties = { project: {}, list: { state: true }, detail: { state: true }, filter: { state: true }, boards: { state: true }, boardCols: { state: true }, busy: { state: true }, ents: { state: true } };
   static styles = [base, css`
     :host { display: block; }
+    .pub { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 6px; }
+    .comments { display: grid; gap: 8px; }
+    .pcomment { border-top: 1px solid var(--line); padding-top: 8px; display: grid; gap: 4px; }
+    .pcomment.pending { background: color-mix(in srgb, var(--signal) 8%, transparent); border-radius: 8px; padding: 8px; }
+    .pcomment .body { white-space: pre-wrap; font-size: 14px; }
+    .chip.warn { background: color-mix(in srgb, var(--signal) 18%, var(--surface)); }
     .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin-bottom: 14px; }
     .bar select, .bar input { width: auto; }
     .split { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 16px; align-items: start; }
@@ -170,6 +178,26 @@ export class PhxFeedback extends LitElement {
     </div>`;
   }
 
+  /** Public view: release, votes, followers and comments to moderate. */
+  private publicPart(d: Detail) {
+    const s = d.portal.settings;
+    return html`<div class="pub">
+      <label class="row" style="gap:8px"><input type="checkbox" .checked=${d.public} @change=${(e: Event) => void this.patch({ public: (e.target as HTMLInputElement).checked })}>
+        <strong>${t("fbpub.release")}</strong></label>
+      <p class="muted" style="margin:2px 0 6px">${t("fbpub.release_help")} ${d.public ? html`<a href=${`/feedback/${d.portal.handle}?topic=${d.id}`} target="_blank" rel="noopener">${icon("ExternalLink", 12)}</a>` : nothing}</p>
+      ${d.public ? html`<div class="muted">${t("fbpub.votes", { n: d.votes })} · ${t("fbpub.followers", { n: d.followers })}</div>` : nothing}
+      ${s.publicComments && d.comments.length ? html`<div class="comments">${d.comments.filter((c) => c.status !== "rejected").map((c) => html`<div class="pcomment ${c.status}">
+          <div><strong>${c.authorName}</strong>${c.team ? html` <span class="chip">${t("fbpub.team")}</span>` : nothing}${c.status === "pending" ? html` <span class="chip warn">${t("fbpub.pending")}</span>` : nothing}</div>
+          <div class="body">${c.body}</div>
+          ${c.status === "pending" ? html`<div class="row"><button class="ghost" @click=${() => void this.post(`topics/${d.id}/comments/${c.id}/approve`, {}, t("doc.saved"))}>${icon("Check", 13)} ${t("fbpub.approve")}</button>
+            <button class="ghost" @click=${() => void this.post(`topics/${d.id}/comments/${c.id}/reject`, {}, t("doc.saved"))}>${icon("X", 13)} ${t("fbpub.reject")}</button></div>` : nothing}
+        </div>`)}</div>` : nothing}
+      ${s.publicComments && d.public ? html`<div class="row" style="align-items:flex-end">
+        <label class="field" style="flex:1">${t("fbpub.team_comment")}<textarea rows="2" id="teamc" placeholder=${t("fbpub.team_comment_ph")}></textarea></label>
+        <button class="ghost" @click=${() => { const el = this.renderRoot.querySelector("#teamc") as HTMLTextAreaElement; if (el.value.trim()) void this.post(`topics/${d.id}/comments`, { body: el.value }, t("doc.saved")); }}>${icon("Send", 13)}</button></div>` : nothing}
+    </div>`;
+  }
+
   private detailView(d: Detail) {
     const s = d.portal.settings;
     const others = (this.list?.topics ?? []).filter((x) => x.id !== d.id && x.portalId === d.portalId);
@@ -200,6 +228,7 @@ export class PhxFeedback extends LitElement {
       <div class="actions"><button class="ghost" @click=${() => void this.patch({ question: (this.renderRoot.querySelector("#question") as HTMLTextAreaElement).value }, t("fb.question_sent"))}>${icon("CircleHelp", 14)} ${t("fb.question_send")}</button>
         <span class="muted">${t("fb.question_hint")}</span></div>
       <label class="field" style="max-width:260px">${t("fb.fixed_in")}<input .value=${d.fixedIn ?? ""} placeholder="1.5.0" @change=${(e: Event) => void this.patch({ fixedIn: (e.target as HTMLInputElement).value }, t("fb.fixed_in_saved"))}></label>
+      ${s.publicView ? this.publicPart(d) : nothing}
       <div><strong>${t("fb.entities")}</strong>
         <div class="ents">${d.entities.map((x) => html`<span class="ent ${x.source}">${x.source === "ai" ? icon("Sparkles", 12) : nothing}<a href="/p/${this.project}/e/${x.slug}">${x.name}</a>
           <button class="ghost icon" aria-label=${t("fb.entity_remove", { name: x.name })} title=${t("fb.entity_remove", { name: x.name })} @click=${() => void this.patch({ entities: d.entities.filter((y) => y.id !== x.id).map((y) => y.slug) })}>${icon("X", 12)}</button></span>`)}

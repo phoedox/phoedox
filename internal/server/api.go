@@ -69,6 +69,14 @@ func (a *api) routes(r chi.Router) {
 	// Feedback portals: public page data, reports, status links.
 	r.Get("/feedback/{handle}", a.publicPortal)
 	r.Post("/feedback/{handle}/reports", a.submitFeedback)
+	// Public view: released topics, votes, following, moderated comments.
+	r.Get("/feedback/{handle}/topics", a.publicTopics)
+	r.Get("/feedback/{handle}/topics/{id}", a.publicTopic)
+	r.Post("/feedback/{handle}/topics/{id}/vote", a.voteTopic)
+	r.Post("/feedback/{handle}/topics/{id}/follow", a.followTopic)
+	r.Delete("/feedback/{handle}/topics/{id}/follow", a.unfollowTopic)
+	r.Post("/feedback/{handle}/topics/{id}/comments", a.commentTopic)
+	r.With(requireHeader).Delete("/feedback/unfollow/{token}", a.unfollowByLink)
 	// Public apps: the frame, reads from the snapshot, AI within the limit.
 	r.Get("/shared-apps/{token}", a.openSharedApp)
 	r.Post("/shared-apps/{token}/read", a.readSharedApp)
@@ -537,6 +545,8 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/feedback/topics/{id}", a.feedbackTopic)
 			r.Patch("/feedback/topics/{id}", a.updateFeedbackTopic)
 			r.Post("/feedback/topics/{id}/merge", a.mergeFeedbackTopic)
+			r.Post("/feedback/topics/{id}/comments", a.teamCommentTopic)
+			r.Post("/feedback/topics/{id}/comments/{cid}/{action}", a.decideTopicComment)
 			r.Post("/feedback/topics/{id}/tickets", a.feedbackToBoard)
 			r.Post("/feedback/topics/{id}/answer-draft", a.feedbackAnswerDraft)
 			r.Get("/feedback/entities/{e}", a.entityFeedback)

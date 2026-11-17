@@ -92,6 +92,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
 
   private router = new Router(this, [
     { path: "/login", render: () => html`<phx-login></phx-login>` },
+    { path: "/feedback/unfollow/:token", render: ({ token }) => html`<phx-feedback-unfollow .token=${token!}></phx-feedback-unfollow>` },
     { path: "/feedback/status/:token", render: ({ token }) => html`<phx-feedback-status .token=${token!}></phx-feedback-status>` },
     { path: "/feedback/:handle", render: ({ handle }) => html`<phx-feedback-portal .handle=${handle!}></phx-feedback-portal>` },
     { path: "/pay", render: () => html`<phx-pay></phx-pay>` },

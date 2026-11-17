@@ -9,7 +9,7 @@ import { base } from "./shared";
 import { toast } from "./toasts";
 
 interface Settings {
-  intro: Record<string, string>; privacy: Record<string, string>; languages: string[]; types: string[]; categories: string[]; tags?: string[]; aiTriage?: boolean; autoAnswers?: boolean; fields: PortalField[];
+  intro: Record<string, string>; privacy: Record<string, string>; languages: string[]; types: string[]; categories: string[]; tags?: string[]; aiTriage?: boolean; autoAnswers?: boolean; publicView?: boolean; publicComments?: boolean; fields: PortalField[];
   attachments: AttachRules; anonymous: boolean; accounts: boolean; askEmail: boolean; states: string[]; defaultState: string; finishedState: string;
   storageFull: string; theme: { accent?: string; accentDark?: string; logo?: string }; publicKeyOn: boolean; serverKeyOn: boolean; retentionMonths: number;
 }
@@ -174,6 +174,10 @@ export class PhxFeedbackSettings extends LitElement {
         <label class="check"><input type="checkbox" .checked=${!!s.aiTriage} @change=${(e: Event) => (s.aiTriage = (e.target as HTMLInputElement).checked)}> ${t("fb.ai_triage")}</label>
         <p class="muted" style="margin:0">${t("fb.ai_triage_help")}</p>
         <label class="check"><input type="checkbox" .checked=${!!s.autoAnswers} @change=${(e: Event) => (s.autoAnswers = (e.target as HTMLInputElement).checked)}> ${t("fb.auto_answers")}</label>
+        <label class="check"><input type="checkbox" .checked=${!!s.publicView} @change=${(e: Event) => { s.publicView = (e.target as HTMLInputElement).checked; this.requestUpdate(); }}> ${t("fbpub.settings_public")}</label>
+        <p class="muted" style="margin:0 0 0 24px;font-size:13px">${t("fbpub.settings_public_help")}</p>
+        ${s.publicView ? html`<label class="check"><input type="checkbox" .checked=${!!s.publicComments} @change=${(e: Event) => (s.publicComments = (e.target as HTMLInputElement).checked)}> ${t("fbpub.settings_comments")}</label>
+          <p class="muted" style="margin:0 0 0 24px;font-size:13px">${t("fbpub.settings_comments_help")}</p>` : nothing}
         <p class="muted" style="margin:0">${t("fb.auto_answers_help")}</p>
         <strong style="font-size:14px">${t("fb.fields")}</strong>
         ${this.fieldEditor(s)}
