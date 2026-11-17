@@ -4,7 +4,10 @@
 (() => {
   const pending = new Map();
   let n = 0;
-  const post = (m) => parent.postMessage(Object.assign({ phx: 1 }, m), "*");
+  // In the Phoedox app (Flutter WebView) the page is the top window: calls
+  // go to the native channel, answers come back as message events.
+  const native = window.PhoedoxBridge && parent === window ? window.PhoedoxBridge : null;
+  const post = (m) => (native ? native.postMessage(JSON.stringify(Object.assign({ phx: 1 }, m))) : parent.postMessage(Object.assign({ phx: 1 }, m), "*"));
   const call = (op, args) => new Promise((resolve, reject) => {
     const id = ++n;
     pending.set(id, { resolve, reject });
