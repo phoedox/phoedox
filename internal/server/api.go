@@ -416,6 +416,7 @@ func (a *api) routes(r chi.Router) {
 			r.Put("/documents/{d}/draft/code", a.linkDraftCode)
 			r.Delete("/documents/{d}/draft/code", a.unlinkDraftCode)
 			r.Put("/documents/{d}/whiteboard", a.saveWhiteboard)
+			r.Post("/documents/{d}/whiteboard/ops", a.whiteboardOps)
 			r.Get("/embed-preview", a.embedPreview)
 			r.Get("/embed-policy", a.embedPolicy)
 			r.Post("/whiteboards/code-status", a.whiteboardCodeStatus)

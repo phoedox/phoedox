@@ -67,6 +67,20 @@ func (a *api) saveWhiteboard(w http.ResponseWriter, r *http.Request) {
 	respond(w, map[string]any{"version": doc.Version, "updatedAt": doc.UpdatedAt}, err)
 }
 
+// whiteboardOps applies element operations (add, update, delete) to a
+// board – the app draws with these; open editors reload the board.
+func (a *api) whiteboardOps(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Ops []core.WBOp `json:"ops"`
+	}
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.EditWhiteboard(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"), in.Ops)
+	respond(w, v, err)
+}
+
 // embedPreview fetches title, description and site of an address for a
 // whiteboard embed.
 func (a *api) embedPreview(w http.ResponseWriter, r *http.Request) {
