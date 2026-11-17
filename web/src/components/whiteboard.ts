@@ -32,6 +32,8 @@ const TOOLS: (readonly [Tool, string, string] | "|")[] = [
 ];
 const VIEW_TOOLS = new Set<Tool>(["select", "hand", "laser"]);
 const NS = "http://www.w3.org/2000/svg";
+/** Height of the title bar of an app on the board (the app runs below it). */
+const WB_APP_BAR = 30;
 const XH = "http://www.w3.org/1999/xhtml";
 const tc = (c?: string) => `var(--tc-${c || "gray"})`;
 const tb = (c?: string) => `var(--tb-${c || "gray"})`;
@@ -73,7 +75,7 @@ interface Pop { kind: "comment" | "newcomment" | "embed" | "entity"; x: number; 
 export class PhxWhiteboard extends LitElement {
   static properties = {
     project: {}, doc: { attribute: false }, canEdit: { type: Boolean }, still: { type: Boolean, reflect: true },
-    tool: { state: true }, selId: { state: true }, sel: { state: true }, snap: { state: true }, embedWeb: { state: true }, present: { state: true }, status: { state: true }, saved: { state: true }, peers: { state: true }, zoom: { state: true },
+    tool: { state: true }, selId: { state: true }, sel: { state: true }, snap: { state: true }, embedWeb: { state: true }, apps: { state: true }, present: { state: true }, status: { state: true }, saved: { state: true }, peers: { state: true }, zoom: { state: true },
     pop: { state: true }, menu: { state: true }, panel: { state: true }, arrowMode: { state: true }, roundDefault: { state: true }, trail: { state: true }, laserSize: { state: true },
     entities: { state: true }, query: { state: true }, busy: { state: true }, boardVersion: { state: true },
   };
@@ -84,6 +86,8 @@ export class PhxWhiteboard extends LitElement {
     :host([still]) .stage { border: 0; border-radius: 0; }
     :host([still]) svg.board { pointer-events: none; }
     .stage { position: absolute; inset: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--canvas, var(--bg)); touch-action: none; }
+    .apps { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
+    .apps .app { position: absolute; transform-origin: 0 0; pointer-events: auto; border-radius: 0 0 10px 10px; overflow: hidden; }
     svg.board { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none; -webkit-user-select: none; outline: none; }
     svg.board.t-hand, svg.board.panning { cursor: grab; }
     svg.board.panning { cursor: grabbing; }
@@ -196,6 +200,8 @@ export class PhxWhiteboard extends LitElement {
   snap = localStorage.getItem("wb.snap") === "1";
   /** Embed dialog: a live website instead of a preview card. */
   embedWeb = false;
+  /** Apps of the project for the embed dialog. */
+  apps: Doc[] = [];
   /** Presentation: index of the frame shown (-1 = off). */
   present = -1;
   status: Status = "connecting";
@@ -472,6 +478,7 @@ export class PhxWhiteboard extends LitElement {
     const grid = svg.querySelector("pattern#wbgrid");
     grid?.setAttribute("patternTransform", `translate(${this.view.x % (24 * this.view.z)},${this.view.y % (24 * this.view.z)}) scale(${this.view.z})`);
     layer.replaceChildren(...sorted(this.els()).map((e) => this.drawEl(svg, e)));
+    this.syncApps();
     if (this.sel.length > 1) layer.append(this.drawMulti());
     const d = this.drag;
     if (d?.mode === "box") {
@@ -670,6 +677,18 @@ export class PhxWhiteboard extends LitElement {
       ]), foot("GitCommitHorizontal", pv.site || "")));
       return;
     }
+    if (e.kind === "app") {
+      const bar = hx("div", `display:flex;gap:6px;align-items:center;height:${WB_APP_BAR}px;box-sizing:border-box;padding:0 10px;border-bottom:1px solid var(--line);background:var(--surface2);font-size:12px;color:var(--muted)`, [
+        ico("AppWindow", 13), hx("span", "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg);font-weight:600", [pv.title || e.doc || ""]),
+        hx("a", "color:var(--muted);text-decoration:none", [ico("ExternalLink", 12)], { href: `/p/${this.project}/d/${encodeURIComponent(e.doc ?? "")}`, "data-link": "1", title: t("wb.open_app") })]);
+      // A running app lives in the overlay above the drawing (so it keeps
+      // its state while the board repaints); here only its place.
+      const body = loaded && !this.still
+        ? hx("div", "flex:1;background:var(--surface)", [])
+        : hx("div", "flex:1;display:grid;place-items:center;align-content:center;gap:6px;text-align:center;padding:12px;cursor:pointer;color:var(--muted);font-size:12px", [ico("Play", 22), hx("b", "color:var(--fg)", [pv.title || t("wb.app")]), t("wb.click_to_start_app")], { "data-load": e.id });
+      fo.append(card(bar, body));
+      return;
+    }
     if (e.kind === "web") {
       const bar = hx("div", "display:flex;gap:6px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);background:var(--surface2);font:11px var(--font-mono);color:var(--muted)", [
         hx("span", "flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:var(--surface);border-radius:6px;padding:2px 8px", [e.url ?? ""]), ico("Lock", 11)]);
@@ -684,6 +703,34 @@ export class PhxWhiteboard extends LitElement {
       hx("div", "min-width:0;display:grid;gap:2px;align-content:start", [title(pv.title || e.url || ""),
         hx("div", "color:var(--muted);font-size:12px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden", [pv.description ?? ""])]),
     ]), foot("Link", pv.site || "")));
+  }
+
+  /** Running apps: frames in an overlay, positioned over their cards. */
+  private appFrames = new Map<string, HTMLElement>();
+
+  private syncApps() {
+    const host = this.renderRoot.querySelector<HTMLElement>(".apps");
+    if (!host) return;
+    const want = new Set(this.still ? [] : this.els().filter((e) => e.type === "embed" && e.kind === "app" && e.doc && this.loaded.has(e.id)).map((e) => e.id));
+    for (const [id, el] of this.appFrames) if (!want.has(id)) { el.remove(); this.appFrames.delete(id); }
+    const z = this.view.z;
+    for (const id of want) {
+      const e = this.byId(id)!;
+      let el = this.appFrames.get(id);
+      if (!el) {
+        void import("./apps");
+        el = document.createElement("div");
+        el.className = "app";
+        const embed = document.createElement("phx-wb-app") as HTMLElement & { project: string; app: string };
+        embed.project = this.project;
+        embed.app = e.doc!;
+        el.append(embed);
+        host.append(el);
+        this.appFrames.set(id, el);
+      }
+      const [sx, sy] = this.toScreen(e.x ?? 0, (e.y ?? 0) + WB_APP_BAR);
+      el.style.cssText = `left:${sx}px;top:${sy}px;width:${e.w ?? 0}px;height:${Math.max(0, (e.h ?? 0) - WB_APP_BAR)}px;transform:scale(${z})`;
+    }
   }
 
   private handle(g: SVGGElement, x: number, y: number, attrs: Record<string, string | number>, round = false) {
@@ -1055,6 +1102,7 @@ export class PhxWhiteboard extends LitElement {
     if (this.tool === "embed") {
       this.embedWeb = false;
       this.pop = { kind: "embed", x, y };
+      void api<Doc[]>("GET", `/projects/${this.project}/documents?type=app`).then((l) => (this.apps = l ?? [])).catch(() => (this.apps = []));
       return;
     }
     if (this.tool === "entity") {
@@ -2015,6 +2063,9 @@ export class PhxWhiteboard extends LitElement {
             @click=${() => (this.embedWeb = w)}>${t(w ? "wb.embed_as_web" : "wb.embed_as_card")}</button>`)}</span></div>
         <p class="muted" style="margin:0">${t("wb.embed_hint")}</p>
         <div class="acts"><button class="ghost" @click=${close}>${t("doc.cancel")}</button><button ?disabled=${this.busy} @click=${() => this.submitEmbed()}>${t("wb.embed_button")}</button></div>
+        ${this.apps.length ? html`<div class="as"><span>${t("wb.embed_app")}</span>
+          <select aria-label=${t("wb.embed_app")} @keydown=${(e: KeyboardEvent) => e.stopPropagation()}>${this.apps.map((d) => html`<option value=${d.slug}>${d.title}</option>`)}</select>
+          <button class="ghost" @click=${(e: Event) => this.placeApp((e.target as HTMLElement).closest(".as")!.querySelector("select")!.value, p.x, p.y)}>${icon("AppWindow", 14)} ${t("wb.embed_app_button")}</button></div>` : nothing}
       </div>`;
     }
     if (p.kind === "entity") {
@@ -2052,6 +2103,17 @@ export class PhxWhiteboard extends LitElement {
         <button class="ghost" @click=${() => { this.updateComment(c.id, (x) => ({ ...x, resolved: true })); close(); }}>${icon("Check", 13)} ${t("wb.resolve")}</button>
       </div>`}
     </div>`;
+  }
+
+  private placeApp(slug: string, x: number, y: number) {
+    const d = this.apps.find((a) => a.slug === slug);
+    if (!d) return;
+    const e: WBElement = { id: newId(), type: "embed", kind: "app", doc: d.slug, preview: { title: d.title }, x, y, w: 420, h: 320 };
+    this.add(e);
+    this.pop = null;
+    this.tool = "select";
+    this.select(e.id);
+    this.changed();
   }
 
   private submitEmbed() {
@@ -2397,6 +2459,7 @@ export class PhxWhiteboard extends LitElement {
         <g class="world"><g class="layer"></g><g class="pins"></g><g class="others"></g></g>
         <g class="laser" style="pointer-events:none"></g>
       </svg>
+      <div class="apps"></div>
       ${this.els().length === 0 && this.painted ? html`<div class="empty"><div>${this.readOnly ? t("wb.empty_read") : t("wb.empty")}
         ${this.readOnly ? nothing : html`<div class="tpls"><span>${t("wb.tpl.start")}</span>${TEMPLATES.map((k) => html`<button class="ghost" @click=${() => this.useTemplate(k)}>${t(`wb.tpl.${k}` as any)}</button>`)}
           <button class="ghost" @click=${() => this.pickExcalidraw()}>${icon("Upload", 14)} ${t("wb.import_excalidraw")}</button></div>`}</div></div>` : nothing}

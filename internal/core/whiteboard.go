@@ -72,7 +72,7 @@ type WBElement struct {
 	// Images: a project file. Embeds: the address, its kind and a preview.
 	File    string     `json:"file,omitempty"`
 	URL     string     `json:"url,omitempty"`
-	Kind    string     `json:"kind,omitempty"` // video | code | link | web
+	Kind    string     `json:"kind,omitempty"` // video | code | link | web | app (Doc is the app)
 	Preview *WBPreview `json:"preview,omitempty"`
 }
 
@@ -136,7 +136,7 @@ var (
 	wbTypes = map[string]bool{"rect": true, "ellipse": true, "diamond": true, "line": true, "arrow": true, "pen": true, "text": true,
 		"sticky": true, "frame": true, "image": true, "embed": true, "entity": true}
 	wbLinear   = map[string]bool{"line": true, "arrow": true, "pen": true}
-	wbEmbeds   = map[string]bool{"video": true, "code": true, "link": true, "web": true}
+	wbEmbeds   = map[string]bool{"video": true, "code": true, "link": true, "web": true, "app": true}
 	wbColors   = map[string]bool{"gray": true, "red": true, "orange": true, "yellow": true, "green": true, "blue": true, "purple": true, "pink": true}
 	wbOrderRe  = regexp.MustCompile(`^[0-9A-Za-z]{0,40}$`)
 	wbFileIDRe = regexp.MustCompile(`^[0-9A-Z]{26}$`)
@@ -254,7 +254,12 @@ func whiteboardContent(wb *Whiteboard) (store.JSON, string, error) {
 		if e.Type != "image" && e.File != "" {
 			return nil, "", bad("file")
 		}
-		if e.Type == "embed" {
+		if e.Type == "embed" && e.Kind == "app" {
+			// An app of the project: it runs with the viewer's rights.
+			if e.Doc == "" || e.URL != "" {
+				return nil, "", bad("link")
+			}
+		} else if e.Type == "embed" {
 			u, err := url.Parse(e.URL)
 			if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" || len(e.URL) > 2000 {
 				return nil, "", bad("url")

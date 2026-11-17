@@ -4306,4 +4306,9 @@ export const en: Record<keyof typeof de, string> = {
   "block.app_none": "This project has no app yet.",
   "taskdocs.app_run": "Run",
   "taskdocs.app_close": "Close",
+  "wb.embed_app": "Or an app of this project",
+  "wb.embed_app_button": "Place app",
+  "wb.open_app": "Open the app",
+  "wb.app": "App",
+  "wb.click_to_start_app": "Click to start the app",
 };

@@ -460,6 +460,16 @@ export class PhxLiveEditor extends LitElement {
   }
 
   private async askFence(kind: FenceKind, current: string): Promise<string | undefined> {
+    if (kind === "app") {
+      const apps = (await api<Doc[]>("GET", `/projects/${this.project}/documents?type=app`).catch(() => [])) ?? [];
+      if (!apps.length) {
+        toast(t("block.app_none"), "error");
+        return undefined;
+      }
+      const v = await this.askForm({ title: t("slash.app"), hint: t("block.app_hint"), fields: [
+        { name: "a", label: t("block.app_pick"), type: "select", value: current || apps[0].slug, options: apps.map((b) => [b.slug, b.title] as [string, string]) }] });
+      return v?.a || undefined;
+    }
     if (kind === "whiteboard") {
       const boards = (await api<Doc[]>("GET", `/projects/${this.project}/documents?type=whiteboard`).catch(() => [])) ?? [];
       if (!boards.length) {

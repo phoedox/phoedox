@@ -76,6 +76,16 @@ changes. Organizations can limit who may install themes and app templates
 from the store; people without access send a request to the organization's
 admins. Point users there instead of copying a template's code by hand.
 
+## Where apps show up
+
+- On pages with an ```app block holding the app's slug (`page-syntax.md`).
+- On whiteboards as an embed `{kind: app, doc: <slug>}` (`whiteboards.md`).
+- On task cards: link the app document to the card (`documents` of the task);
+  people start it inside the card.
+
+Everywhere the app runs with the rights and grants of the person looking at
+it.
+
 ## Public apps
 
 Project owners can release an app to people without an account (the app's

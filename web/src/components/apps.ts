@@ -281,6 +281,38 @@ export class PhxAppFrame extends LitElement {
   }
 }
 
+/** An app on a whiteboard: the frame filling its card (the board draws the title bar). */
+export class PhxWbApp extends LitElement {
+  static properties = { project: {}, app: {}, info: { state: true }, error: { state: true } };
+  static styles = [base, css`
+    :host { display: block; width: 100%; height: 100%; background: var(--surface); }
+    phx-app-frame { height: 100%; }
+    p { margin: 0; padding: 12px; color: var(--muted); font-size: 13px; }
+  `];
+  project = "";
+  app = "";
+  info?: AppFrameInfo;
+  error = "";
+  private loaded = "";
+
+  willUpdate() {
+    const key = `${this.project}/${this.app}`;
+    if (!this.project || !this.app || key === this.loaded) return;
+    this.loaded = key;
+    api<AppFrameInfo>("POST", `/projects/${this.project}/apps/${encodeURIComponent(this.app)}/open`).then((i) => {
+      if (i.maxLevel !== undefined && i.maxLevel < i.level) i.level = i.maxLevel;
+      this.info = i;
+    }).catch((e) => (this.error = e instanceof ApiError ? e.text : t("error.unknown")));
+  }
+
+  render() {
+    if (this.error) return html`<p role="alert">${this.error}</p>`;
+    if (!this.info) return html`<p>${t("app.loading")}</p>`;
+    return html`<phx-app-frame .project=${this.project} .doc=${this.app} .info=${this.info} @granted=${(e: CustomEvent<number>) => (this.info = { ...this.info!, granted: e.detail })}></phx-app-frame>`;
+  }
+}
+customElements.get("phx-wb-app") || customElements.define("phx-wb-app", PhxWbApp);
+
 /** An app's page: the running app with a bar above it. */
 /** The store template an app was made from. */
 function appOrigin(doc: Doc): { id: string; version: string; name?: string } | undefined {

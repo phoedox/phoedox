@@ -21,7 +21,7 @@ export interface WBElement {
   round?: boolean; start?: Binding; end?: Binding;
   frame?: string; groups?: string[]; locked?: boolean; seed?: number;
   entity?: string; doc?: string; file?: string;
-  url?: string; kind?: "video" | "code" | "link" | "web"; preview?: Preview;
+  url?: string; kind?: "video" | "code" | "link" | "web" | "app"; preview?: Preview;
 }
 
 export interface WBReply { id: string; author?: string; name?: string; text: string; at?: string }

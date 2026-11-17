@@ -32,8 +32,15 @@ func TestWhiteboard(t *testing.T) {
 		{Elements: []WBElement{{ID: "b", Type: "rect"}, {ID: "a", Type: "arrow", Points: [][2]float64{{0, 0}, {1, 1}}, Start: &WBBinding{Element: "b", FX: &half}}}},
 		{Elements: []WBElement{{ID: "a", Type: "embed", URL: "javascript:alert(1)", Kind: "link"}}},
 		{Elements: []WBElement{{ID: "a", Type: "image", File: "nope"}}},
+		{Elements: []WBElement{{ID: "a", Type: "embed", Kind: "app"}}},
+		{Elements: []WBElement{{ID: "a", Type: "embed", Kind: "app", Doc: "x", URL: "https://example.org"}}},
 		{Elements: []WBElement{{ID: "a", Type: "rect", X: 1e9}}},
 		{Background: "stars"},
+	}
+	// An app of the project as an embed.
+	if _, err := s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: "whiteboard", Title: "Apps", Whiteboard: &Whiteboard{Elements: []WBElement{
+		{ID: "app", Type: "embed", Kind: "app", Doc: "chores", X: 0, Y: 400, W: 420, H: 320}}}}); err != nil {
+		t.Fatalf("app embed: %v", err)
 	}
 	for i, wb := range bad {
 		if _, err := s.CreateDocument(ctx, owner, p.Slug, DocumentInput{Type: "whiteboard", Title: "X", Whiteboard: &wb}); invalidKey(err) != "validation.whiteboard" {

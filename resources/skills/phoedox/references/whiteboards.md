@@ -18,7 +18,9 @@ pixels at 100 %), y grows downwards.
   `start`/`end`: `{element}` (towards the centre) or `{element, fx, fy}` (a fixed point,
   0–1 of the box); `points` are the waypoints, `round: true` draws smooth corners.
   Embeds take a `url` (video, pull request, issue, website); kind and preview are
-  filled in. `entity` on a shape shows that entry; `doc` links a page.
+  filled in. An app of the project goes on the board as `{type: embed, kind: app,
+  doc: <app slug>, w, h}`; people start it there and it runs with their rights.
+  `entity` on a shape shows that entry; `doc` links a page.
 - **Comments:** work through open comments (text or handwritten) and answer each with
   `reply_comment`; people resolve them.
 

@@ -4304,4 +4304,9 @@ export const de = {
   "block.app_none": "Dieses Projekt hat noch keine App.",
   "taskdocs.app_run": "Starten",
   "taskdocs.app_close": "Schließen",
+  "wb.embed_app": "Oder eine App dieses Projekts",
+  "wb.embed_app_button": "App platzieren",
+  "wb.open_app": "App öffnen",
+  "wb.app": "App",
+  "wb.click_to_start_app": "Klicken, um die App zu starten",
 } as const;

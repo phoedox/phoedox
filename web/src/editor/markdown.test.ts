@@ -63,6 +63,7 @@ describe("building blocks round trip (ADR-0031)", () => {
     "```embed\nhttps://youtu.be/dQw4w9WgXcQ\n```",
     "```iframe\nhttps://example.org/status\n```",
     "```board\numbau\n```",
+    "```app\nchores-checklist\n```",
     "```mermaid\nflowchart LR\n  A --> B\n```",
     "| a | b |\n|---|---|\n| [rot]{color=red} | $x$ |",
   ];
@@ -77,6 +78,7 @@ test("building blocks become editor nodes", () => {
   expect(importedTypes("> [!note]\n> x")).toContain("callout");
   expect(importedTypes("> [!NOTE]\n> x")).toContain("callout");
   expect(importedTypes("```math\nx\n```")).toEqual(["fence"]);
+  expect(importedTypes("```app\nchores\n```")).toEqual(["fence"]);
   expect(importedTypes("a $x^2$ b")).toContain("imath");
   expect(importedTypes('a <time datetime="2026-12-24">x</time> b')).toContain("phxtime");
   expect(importedTypes("a [rot]{color=red} b").filter((t) => t === "text").length).toBe(3);

@@ -42,6 +42,7 @@ export const SLASH_ITEMS: SlashItem[] = [
   { id: "imath", group: "blocks", icon: "Sigma", words: "inline formel latex math", run: "imath" },
   { id: "board", group: "blocks", icon: "SquareKanban", words: "board kanban aufgaben tasks", run: "fence:board" },
   { id: "whiteboard", group: "blocks", icon: "Presentation", words: "whiteboard skizze sketch zeichnung drawing tafel", run: "fence:whiteboard" },
+  { id: "app", group: "blocks", icon: "AppWindow", words: "app anwendung programm dashboard rechner calculator formular form widget", run: "fence:app" },
   { id: "mermaid", group: "blocks", icon: "Workflow", words: "mermaid diagramm diagram flowchart ablauf sequenz sequence", run: "fence:mermaid" },
   { id: "dbmodel", group: "blocks", icon: "Database", words: "datenbank database schema sql er tabelle table model modell", run: "fence:dbmodel" },
   { id: "status", group: "blocks", icon: "Activity", words: "status dashboard kacheln tiles monitoring überwachung zustand", run: "fence:status" },

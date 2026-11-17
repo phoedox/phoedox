@@ -9,8 +9,10 @@ export const docTypeIcon: Record<Doc["type"], string> = { markdown: "FileText", 
 
 /** Pages and decisions linked to a task card; several of each (ADR-0064). */
 export class PhxTaskDocs extends LitElement {
-  static properties = { project: {}, task: {}, docs: {}, canEdit: { type: Boolean }, all: { state: true }, query: { state: true }, busy: { state: true } };
+  static properties = { project: {}, task: {}, docs: {}, canEdit: { type: Boolean }, all: { state: true }, query: { state: true }, busy: { state: true }, running: { state: true } };
   static styles = [base, css`
+    li.app { display: block; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    button.run { margin-left: auto; padding: 2px 8px; font-size: 12.5px; }
     :host { display: block; }
     h3 { font-size: 13px; margin: 4px 0 6px; color: var(--muted); font-weight: 600; display: flex; gap: 6px; align-items: center; }
     ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
@@ -33,6 +35,18 @@ export class PhxTaskDocs extends LitElement {
   all: Doc[] = [];
   query = "";
   busy = false;
+  /** Linked apps that run inside the card. */
+  running = new Set<string>();
+
+  private async run(id: string) {
+    const next = new Set(this.running);
+    if (next.has(id)) next.delete(id);
+    else {
+      await import("./blocks");
+      next.add(id);
+    }
+    this.running = next;
+  }
 
   async connectedCallback() {
     super.connectedCallback();
@@ -75,9 +89,11 @@ export class PhxTaskDocs extends LitElement {
       ${this.docs.length ? html`<ul>${this.docs.map((d) => html`<li>
         ${icon(docTypeIcon[d.type] as any, 14)}
         <a href="/p/${this.project}/d/${d.id}">${this.label(d) ? html`<span class="ref">${this.label(d)}</span> ` : ""}${d.title}</a>
+        ${d.type === "app" ? html`<button type="button" class="ghost run" aria-pressed=${this.running.has(d.id) ? "true" : "false"} @click=${() => this.run(d.id)}>
+          ${icon(this.running.has(d.id) ? "X" : "Play", 13)} ${t(this.running.has(d.id) ? "taskdocs.app_close" : "taskdocs.app_run")}</button>` : ""}
         ${this.canEdit ? html`<button type="button" class="ghost icon" ?disabled=${this.busy} title=${t("taskdocs.remove")} aria-label=${t("taskdocs.remove")}
           @click=${() => this.save(this.docs.filter((x) => x.id !== d.id))}>${icon("X", 13)}</button>` : ""}
-      </li>`)}</ul>` : html`<p class="muted hint">${t("taskdocs.empty")}</p>`}
+      </li>${d.type === "app" && this.running.has(d.id) ? html`<li class="app"><phx-app-embed data-app=${d.id} data-project=${this.project}></phx-app-embed></li>` : ""}`)}</ul>` : html`<p class="muted hint">${t("taskdocs.empty")}</p>`}
       ${this.canEdit ? html`<div class="add">
         <input type="search" role="combobox" aria-expanded=${hits.length ? "true" : "false"} aria-controls="hits" autocomplete="off"
           placeholder=${t("taskdocs.search")} aria-label=${t("taskdocs.search")} .value=${this.query}
