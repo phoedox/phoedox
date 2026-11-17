@@ -11,7 +11,7 @@ import { toast } from "./toasts";
 
 interface Link {
   id: string; customerName: string; customerSlug: string; providerName: string; providerSlug: string;
-  role: "reader" | "editor" | "admin"; projects: string[]; expiresAt?: string; note?: string; createdAt: string; revokedAt?: string;
+  role: "reader" | "editor" | "admin"; projects: string[]; expiresAt?: string; note?: string; createdAt: string; revokedAt?: string; mayCreateProjects: boolean;
 }
 interface Links { providers: Link[]; customers: Link[] }
 interface CustomerProject { slug: string; name: string; role: string; openTasks: number; failingChecks: number; maintenanceDue: number; minutesMonth: number }
@@ -23,7 +23,7 @@ const hours = (m: number) => (m ? `${Math.floor(m / 60)}:${String(m % 60).padSta
 
 /** The org page section for providers (as customer) and customers (as provider). */
 export class PhxOrgProviders extends LitElement {
-  static properties = { org: {}, admin: { type: Boolean }, projects: { attribute: false }, links: { state: true }, customers: { state: true }, busy: { state: true }, all: { state: true }, templates: { state: true } };
+  static properties = { org: {}, admin: { type: Boolean }, projects: { attribute: false }, links: { state: true }, customers: { state: true }, busy: { state: true }, all: { state: true }, role: { state: true }, templates: { state: true } };
   static styles = [base, css`
     :host { display: block; }
     table { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -51,6 +51,7 @@ export class PhxOrgProviders extends LitElement {
   customers: Customer[] = [];
   busy = false;
   all = true;
+  role = "editor";
   /** Ids of the organization's template projects. */
   templates: string[] = [];
 
@@ -73,15 +74,29 @@ export class PhxOrgProviders extends LitElement {
       await api("POST", `/orgs/${this.org}/providers`, {
         provider: String(f.get("provider") ?? "").trim(), role: f.get("role"), until: f.get("until") || "",
         projects: this.all ? [] : f.getAll("projects"), note: String(f.get("note") ?? ""),
+        mayCreateProjects: f.get("mayCreate") === "on",
       });
       form.reset();
       this.all = true;
+      this.role = "editor";
       toast(t("prov.granted"));
       await this.load();
     } catch (err) {
       toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
     } finally {
       this.busy = false;
+    }
+  }
+
+  /** Customer admins decide whether the provider's admins may create projects here. */
+  private async setCreate(l: Link, on: boolean) {
+    try {
+      await api("PATCH", `/orgs/${this.org}/providers/${l.id}`, { mayCreateProjects: on });
+      toast(t("doc.saved"));
+      await this.load();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+      await this.load();
     }
   }
 
@@ -125,17 +140,20 @@ export class PhxOrgProviders extends LitElement {
       <p class="muted" style="margin-top:0">${t("prov.intro")}</p>
       ${ls.length ? html`<div class="wrap"><table><tr><th>${t("prov.provider")}</th><th>${t("prov.role")}</th><th>${t("prov.scope")}</th><th>${t("prov.until")}</th><th></th></tr>
         ${ls.map((l) => html`<tr><td><b>${l.providerName}</b>${l.note ? html`<br><span class="muted">${l.note}</span>` : nothing}</td>
-          <td><span class="chip ${l.revokedAt ? "off" : ""}">${t(`prov.role.${l.role}`)}</span></td><td>${this.scope(l)}</td>
+          <td><span class="chip ${l.revokedAt ? "off" : ""}">${t(`prov.role.${l.role}`)}</span>
+            ${l.role === "admin" && !l.projects.length && !l.revokedAt ? html`<br><label class="inline-check small" title=${t("prov.may_create_help")}><input type="checkbox" .checked=${l.mayCreateProjects}
+              @change=${(e: Event) => void this.setCreate(l, (e.target as HTMLInputElement).checked)}> ${t("prov.may_create")}</label>` : nothing}</td><td>${this.scope(l)}</td>
           <td>${l.revokedAt ? t("prov.revoked") : l.expiresAt ? lastDay(l.expiresAt) : "–"}</td>
           <td>${l.revokedAt ? nothing : html`<button class="danger" @click=${() => this.revoke(l, false)}>${t("prov.revoke")}</button>`}</td></tr>`)}</table></div>`
         : html`<p class="muted">${t("prov.none")}</p>`}
       <form class="grant" @submit=${this.grant}>
         <div class="row">
           <label class="field" style="flex:1 1 200px">${t("prov.provider_slug")}<input name="provider" required placeholder="systemhaus" spellcheck="false"></label>
-          <label class="field">${t("prov.role")}<select name="role"><option value="reader">${t("prov.role.reader")}</option><option value="editor" selected>${t("prov.role.editor")}</option><option value="admin">${t("prov.role.admin")}</option></select></label>
+          <label class="field">${t("prov.role")}<select name="role" @change=${(e: Event) => (this.role = (e.target as HTMLSelectElement).value)}><option value="reader">${t("prov.role.reader")}</option><option value="editor" selected>${t("prov.role.editor")}</option><option value="admin">${t("prov.role.admin")}</option></select></label>
           <label class="field">${t("prov.until")}<input name="until" type="date"></label>
         </div>
         <label class="inline-check"><input type="checkbox" .checked=${this.all} @change=${(e: Event) => (this.all = (e.target as HTMLInputElement).checked)}> ${t("prov.all_projects")}</label>
+        ${this.all && this.role === "admin" ? html`<label class="inline-check"><input type="checkbox" name="mayCreate"> ${t("prov.may_create")}<span class="muted"> – ${t("prov.may_create_help")}</span></label>` : nothing}
         ${this.all ? nothing : html`<div class="checks">${this.projects.map((p) => html`<label><input type="checkbox" name="projects" value=${p.slug}> ${p.name}</label>`)}</div>`}
         <label class="field">${t("prov.note")}<input name="note" maxlength="500"></label>
         <div><button ?disabled=${this.busy}>${icon("Plus", 13)} ${t("prov.grant")}</button></div>

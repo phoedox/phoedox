@@ -4501,4 +4501,8 @@ export const en: Record<keyof typeof de, string> = {
   "validation.payments_paddle_webhook": "A Paddle webhook secret starts with pdl_ntfset_.",
   "validation.payments_client_token": "A Paddle client-side token starts with live_ or test_.",
   "validation.payments_tax_category": "Unknown tax category.",
+  "prov.may_create": "May create projects",
+  "prov.may_create_help": "Admins of this provider may create new projects in your organization. Off by default.",
+  "validation.provider_no_create": "{org} does not let its service providers create projects. An admin of {org} can allow it under Service providers.",
+  "validation.provider_create_role": "Only providers with the admin role for all projects can create projects.",
 };

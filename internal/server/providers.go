@@ -25,6 +25,20 @@ func (a *api) grantProvider(w http.ResponseWriter, r *http.Request) {
 	respond(w, v, err)
 }
 
+type providerPatch struct {
+	MayCreateProjects bool `json:"mayCreateProjects"`
+}
+
+func (a *api) patchProvider(w http.ResponseWriter, r *http.Request) {
+	var in providerPatch
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.SetProviderCreateProjects(r.Context(), actorOf(r), chi.URLParam(r, "o"), chi.URLParam(r, "id"), in.MayCreateProjects)
+	respond(w, v, err)
+}
+
 func (a *api) revokeProvider(w http.ResponseWriter, r *http.Request) {
 	respond(w, map[string]bool{"ok": true}, a.core.RevokeProvider(r.Context(), actorOf(r), chi.URLParam(r, "o"), chi.URLParam(r, "id")))
 }

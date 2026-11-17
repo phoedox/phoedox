@@ -4499,4 +4499,8 @@ export const de = {
   "validation.payments_paddle_webhook": "Ein Paddle-Webhook-Schlüssel beginnt mit pdl_ntfset_.",
   "validation.payments_client_token": "Ein Paddle-Client-Token beginnt mit live_ oder test_.",
   "validation.payments_tax_category": "Unbekannte Steuerkategorie.",
+  "prov.may_create": "Darf Projekte anlegen",
+  "prov.may_create_help": "Admins dieses Dienstleisters dürfen neue Projekte in deiner Organisation anlegen. Standardmäßig aus.",
+  "validation.provider_no_create": "{org} erlaubt seinen Dienstleistern nicht, Projekte anzulegen. Ein Admin von {org} kann es unter Dienstleister erlauben.",
+  "validation.provider_create_role": "Nur Dienstleister mit der Admin-Rolle für alle Projekte können Projekte anlegen.",
 } as const;

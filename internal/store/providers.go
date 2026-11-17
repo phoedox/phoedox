@@ -19,14 +19,17 @@ type ProviderLink struct {
 	ProviderSlug  string   `json:"providerSlug"`
 	Role          string   `json:"role"`     // reader | editor | admin
 	Projects      []string `json:"projects"` // project ids; empty = all
-	ExpiresAt     *Time    `json:"expiresAt,omitempty"`
-	Note          string   `json:"note,omitempty"`
-	CreatedBy     string   `json:"createdBy"`
-	CreatedAt     Time     `json:"createdAt"`
-	RevokedAt     *Time    `json:"revokedAt,omitempty"`
+	// MayCreateProjects: the customer lets provider admins create projects
+	// in its organization.
+	MayCreateProjects bool   `json:"mayCreateProjects"`
+	ExpiresAt         *Time  `json:"expiresAt,omitempty"`
+	Note              string `json:"note,omitempty"`
+	CreatedBy         string `json:"createdBy"`
+	CreatedAt         Time   `json:"createdAt"`
+	RevokedAt         *Time  `json:"revokedAt,omitempty"`
 }
 
-const providerCols = `pl.id, pl.customer_org_id, c.name, c.slug, pl.provider_org_id, p.name, p.slug, pl.role, pl.projects, pl.expires_at, pl.note, pl.created_by, pl.created_at, pl.revoked_at`
+const providerCols = `pl.id, pl.customer_org_id, c.name, c.slug, pl.provider_org_id, p.name, p.slug, pl.role, pl.projects, pl.may_create_projects, pl.expires_at, pl.note, pl.created_by, pl.created_at, pl.revoked_at`
 
 const providerFrom = ` FROM provider_links pl JOIN organizations c ON c.id = pl.customer_org_id JOIN organizations p ON p.id = pl.provider_org_id`
 
@@ -34,7 +37,7 @@ func scanProviderLink(r interface{ Scan(...any) error }) (ProviderLink, error) {
 	var l ProviderLink
 	var projects string
 	var exp, rev sql.Null[Time]
-	err := r.Scan(&l.ID, &l.CustomerOrgID, &l.CustomerName, &l.CustomerSlug, &l.ProviderOrgID, &l.ProviderName, &l.ProviderSlug, &l.Role, &projects, &exp, &l.Note, &l.CreatedBy, &l.CreatedAt, &rev)
+	err := r.Scan(&l.ID, &l.CustomerOrgID, &l.CustomerName, &l.CustomerSlug, &l.ProviderOrgID, &l.ProviderName, &l.ProviderSlug, &l.Role, &projects, &l.MayCreateProjects, &exp, &l.Note, &l.CreatedBy, &l.CreatedAt, &rev)
 	if errors.Is(err, sql.ErrNoRows) {
 		return l, ErrNotFound
 	}
@@ -58,11 +61,12 @@ func (d *DB) SaveProviderLink(ctx context.Context, l ProviderLink) error {
 	if l.ExpiresAt != nil {
 		exp = *l.ExpiresAt
 	}
-	_, err := d.Exec(ctx, `INSERT INTO provider_links (id, tenant_id, customer_org_id, provider_org_id, role, projects, expires_at, note, created_by, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (customer_org_id, provider_org_id) DO UPDATE SET role = excluded.role, projects = excluded.projects, expires_at = excluded.expires_at,
+	_, err := d.Exec(ctx, `INSERT INTO provider_links (id, tenant_id, customer_org_id, provider_org_id, role, projects, may_create_projects, expires_at, note, created_by, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (customer_org_id, provider_org_id) DO UPDATE SET role = excluded.role, projects = excluded.projects,
+		  may_create_projects = excluded.may_create_projects, expires_at = excluded.expires_at,
 		  note = excluded.note, created_by = excluded.created_by, created_at = excluded.created_at, revoked_at = NULL`,
-		l.ID, TenantOf(ctx), l.CustomerOrgID, l.ProviderOrgID, l.Role, strings.Join(l.Projects, ","), exp, l.Note, l.CreatedBy, l.CreatedAt)
+		l.ID, TenantOf(ctx), l.CustomerOrgID, l.ProviderOrgID, l.Role, strings.Join(l.Projects, ","), l.MayCreateProjects, exp, l.Note, l.CreatedBy, l.CreatedAt)
 	return err
 }
 
@@ -122,6 +126,29 @@ func (d *DB) ProviderVia(ctx context.Context, projectID, userID string) string {
 		return ""
 	}
 	return slug
+}
+
+// SetProviderCreateProjects switches whether provider admins may create
+// projects at the customer.
+func (d *DB) SetProviderCreateProjects(ctx context.Context, id string, on bool) error {
+	res, err := d.Exec(ctx, `UPDATE provider_links SET may_create_projects = ? WHERE id = ? AND revoked_at IS NULL`, on, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ProviderMayCreate tells whether a user works for a provider with the
+// admin role at a customer that lets it create projects there.
+func (d *DB) ProviderMayCreate(ctx context.Context, customerOrgID, userID string) bool {
+	var n int
+	err := d.QueryRow(ctx, `SELECT COUNT(*) FROM provider_links pl JOIN org_members pm ON pm.org_id = pl.provider_org_id AND pm.user_id = ?
+		WHERE pl.customer_org_id = ? AND pl.role = 'admin' AND pl.projects = '' AND pl.may_create_projects AND pl.revoked_at IS NULL
+		AND (pl.expires_at IS NULL OR pl.expires_at > ?)`, userID, customerOrgID, Now()).Scan(&n)
+	return err == nil && n > 0
 }
 
 // ProviderAdmin tells whether a user works for a provider that has the

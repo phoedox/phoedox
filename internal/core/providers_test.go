@@ -127,12 +127,22 @@ func TestServiceProviders(t *testing.T) {
 		t.Fatal("editor providers cannot create customer projects")
 	}
 
-	// All projects, admin role.
-	if _, err := s.GrantProvider(ctx, owner, cust.Slug, ProviderInput{Provider: prov.Slug, Role: "admin"}); err != nil {
+	// All projects, admin role – creating projects needs the customer's consent.
+	link, err := s.GrantProvider(ctx, owner, cust.Slug, ProviderInput{Provider: prov.Slug, Role: "admin"})
+	if err != nil || link.MayCreateProjects {
 		t.Fatal(err)
 	}
 	if p, err := s.Project(ctx, reader, hr.Slug); err != nil || p.Role != store.RoleOwner {
 		t.Fatalf("all projects: %v %+v", err, p.Role)
+	}
+	if _, err := s.CreateProject(ctx, stranger, ProjectInput{Name: "Neu", Org: &custSlug}); invalidKey(err) != "validation.provider_no_create" {
+		t.Fatalf("without consent: %v", err)
+	}
+	if _, err := s.SetProviderCreateProjects(ctx, stranger, prov.Slug, link.ID, true); err == nil {
+		t.Fatal("only the customer decides")
+	}
+	if l, err := s.SetProviderCreateProjects(ctx, owner, cust.Slug, link.ID, true); err != nil || !l.MayCreateProjects {
+		t.Fatalf("consent: %v %+v", err, l)
 	}
 	np, err := s.CreateProject(ctx, stranger, ProjectInput{Name: "Neu", Org: &custSlug, Template: "project:" + tpl.ID})
 	if err != nil || np.OrgID != cust.ID {

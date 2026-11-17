@@ -29,6 +29,9 @@ type ProviderInput struct {
 	Projects []string `json:"projects"` // project slugs; empty = all
 	Until    string   `json:"until,omitempty"`
 	Note     string   `json:"note,omitempty"`
+	// MayCreateProjects lets the provider's admins create projects here
+	// (admin role for all projects only).
+	MayCreateProjects bool `json:"mayCreateProjects,omitempty"`
 }
 
 // ProviderLinks are an organization's links as customer and as provider.
@@ -59,7 +62,7 @@ func (s *Service) GrantProvider(ctx context.Context, a Actor, customerRef string
 		return store.ProviderLink{}, invalid("validation.provider_role", nil, "role must be reader, editor or admin")
 	}
 	l := store.ProviderLink{ID: newID(), CustomerOrgID: c.ID, ProviderOrgID: prov.ID, Role: in.Role, Projects: []string{},
-		Note: excerpt(strings.TrimSpace(in.Note), 500), CreatedBy: a.User.ID, CreatedAt: store.Now()}
+		Note: excerpt(strings.TrimSpace(in.Note), 500), CreatedBy: a.User.ID, CreatedAt: store.Now(), MayCreateProjects: in.MayCreateProjects && in.Role == "admin"}
 	for _, ref := range in.Projects {
 		p, err := s.DB.ProjectFor(ctx, ref, a.User.ID)
 		if err != nil || p.OrgID != c.ID {
@@ -77,10 +80,13 @@ func (s *Service) GrantProvider(ctx context.Context, a Actor, customerRef string
 		end := store.Time{Time: day.Add(24 * time.Hour)} // to the end of that day
 		l.ExpiresAt = &end
 	}
+	if len(l.Projects) > 0 {
+		l.MayCreateProjects = false
+	}
 	if err := s.DB.SaveProviderLink(ctx, l); err != nil {
 		return l, err
 	}
-	s.event(ctx, a, "org.provider_grant", c.ID, map[string]any{"provider": prov.Slug, "role": l.Role, "projects": l.Projects, "until": in.Until})
+	s.event(ctx, a, "org.provider_grant", c.ID, map[string]any{"provider": prov.Slug, "role": l.Role, "projects": l.Projects, "until": in.Until, "mayCreateProjects": l.MayCreateProjects})
 	s.notifyOrgAdmins(ctx, prov.ID, Note{Kind: "provider.granted", Subject: c.ID, Title: c.Name, Body: l.Role, Actor: a.User.Name, Link: "/orgs/" + prov.Slug + "#customers"})
 	links, _ := s.DB.ProviderLinks(ctx, c.ID, prov.ID)
 	if len(links) > 0 {
@@ -105,6 +111,28 @@ func (s *Service) RevokeProvider(ctx context.Context, a Actor, orgRef, id string
 	}
 	s.event(ctx, a, "org.provider_revoke", l.CustomerOrgID, map[string]any{"provider": l.ProviderSlug, "by": o.Slug})
 	return nil
+}
+
+// SetProviderCreateProjects lets a provider's admins create projects in the
+// customer organization, or stops it (customer admins only).
+func (s *Service) SetProviderCreateProjects(ctx context.Context, a Actor, orgRef, id string, on bool) (store.ProviderLink, error) {
+	o, err := s.org(ctx, a, orgRef, store.OrgAdmin)
+	if err != nil {
+		return store.ProviderLink{}, err
+	}
+	l, err := s.DB.GetProviderLink(ctx, id)
+	if err != nil || l.CustomerOrgID != o.ID || l.RevokedAt != nil {
+		return store.ProviderLink{}, ErrNotFound
+	}
+	if on && (l.Role != "admin" || len(l.Projects) > 0) {
+		return store.ProviderLink{}, invalid("validation.provider_create_role", nil, "only providers with the admin role for all projects can create projects")
+	}
+	if err := s.DB.SetProviderCreateProjects(ctx, l.ID, on); err != nil {
+		return store.ProviderLink{}, err
+	}
+	s.event(ctx, a, "org.provider_create_projects", o.ID, map[string]any{"provider": l.ProviderSlug, "on": on})
+	l.MayCreateProjects = on
+	return l, nil
 }
 
 // OrgProviderLinks lists an organization's providers (its admins) and the

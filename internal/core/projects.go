@@ -60,8 +60,12 @@ func (s *Service) orgFor(ctx context.Context, a Actor, ref *string) (string, err
 	}
 	o, err := s.org(ctx, a, *ref, "")
 	if err != nil {
-		// Admins of a service provider may start projects at their customers (ADR-0073).
+		// Admins of a service provider may start projects at customers that
+		// allow it (ADR-0073).
 		if c, cerr := s.DB.OrgFor(ctx, *ref, ""); cerr == nil && s.DB.ProviderAdmin(ctx, c.ID, a.User.ID) {
+			if !s.DB.ProviderMayCreate(ctx, c.ID, a.User.ID) {
+				return "", invalid("validation.provider_no_create", map[string]any{"org": c.Name}, "%s does not let its service providers create projects", c.Name)
+			}
 			return c.ID, nil
 		}
 		return "", invalid("validation.org_unknown", map[string]any{"org": *ref}, "organization %q not found", *ref)

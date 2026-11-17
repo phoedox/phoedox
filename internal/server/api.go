@@ -294,6 +294,7 @@ func (a *api) routes(r chi.Router) {
 			r.Put("/{o}/background-ai", a.setOrgBackgroundAI)
 			r.Get("/{o}/providers", a.orgProviders)
 			r.Post("/{o}/providers", a.grantProvider)
+			r.Patch("/{o}/providers/{id}", a.patchProvider)
 			r.Delete("/{o}/providers/{id}", a.revokeProvider)
 			r.Get("/{o}/customers", a.customerOverview)
 			r.Get("/{o}/apps", a.orgAppPolicy)
