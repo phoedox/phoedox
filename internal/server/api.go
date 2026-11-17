@@ -103,6 +103,7 @@ func (a *api) routes(r chi.Router) {
 	r.Post("/agent/enroll", a.agentEnroll)
 	r.Post("/agent/report", a.agentReport)
 	r.Get("/agent/jobs", a.agentJobs)
+	r.Get("/agent/ws", a.agentWS)
 	r.Post("/agent/jobs/{id}/result", a.agentJobResult)
 	r.Get("/agent/releases/{tag}/{asset}", a.agentRelease)
 	r.Get("/agent/terminal/{id}", a.terminalAgent)
