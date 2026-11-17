@@ -355,7 +355,8 @@ export class PhxPluginsAdmin extends LitElement {
         <div class="t"><h3>${c.name} <span class="muted" style="font-weight:400">${c.version}</span>
             ${c.channel === "beta" ? html`<span class="chip" title=${t("plugins.beta_hint")}>${t("plugins.beta")}</span>` : ""}</h3>
           <span class="muted" style="font-size:13px">${c.author}${c.verified ? html` · ${icon("BadgeCheck", 12)} ${t("plugins.verified_author")}` : ""}
-            ${c.authorDomain ? html` · <span title=${t("plugins.domain_verified", { domain: c.authorDomain })}>${icon("Globe", 12)} ${c.authorDomain}</span>` : ""}</span>
+            ${c.authorDomain ? html` · <span title=${t("plugins.domain_verified", { domain: c.authorDomain })}>${icon("Globe", 12)} ${c.authorDomain}</span>` : ""}
+            ${c.ratings ? html` · <span title=${t("plugins.rating", { avg: c.rating ?? 0, n: c.ratings })}>${icon("Star", 12)} ${(c.rating ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} (${c.ratings})</span>` : ""}</span>
           ${c.summary ? html`<p class="muted" style="margin:4px 0 0;font-size:14px">${c.summary}</p>` : ""}</div>
         ${upToDate ? html`<span class="chip good">${t("plugins.installed_chip")}</span>`
           : html`<button ?disabled=${this.busy} @click=${() => (this.confirming = this.confirming === c.id ? "" : c.id)}>${icon("Download", 13)} ${t(c.installed ? "plugins.update_now" : "plugins.install")}</button>`}

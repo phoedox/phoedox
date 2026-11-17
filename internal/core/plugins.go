@@ -89,6 +89,9 @@ type CatalogEntry struct {
 	RecallNote  string          `json:"recallNote,omitempty"`
 	// Engines is the Phoedox version range of this version.
 	Engines string `json:"engines,omitempty"`
+	// Rating is the average of the store's ratings (1–5), Ratings their number.
+	Rating  float64 `json:"rating,omitempty"`
+	Ratings int     `json:"ratings,omitempty"`
 	// Filled by the instance:
 	Installed string `json:"installed,omitempty"` // installed version
 }

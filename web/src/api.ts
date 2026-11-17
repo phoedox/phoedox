@@ -198,6 +198,9 @@ export interface CatalogEntry {
   id: string; name: string; version: string; summary: string; author: string; verified: boolean; icon?: string;
   /** Domain a verified author proved to the store. */
   authorDomain?: string;
+  /** Average of the store's ratings (1–5) and their number. */
+  rating?: number;
+  ratings?: number;
   channel?: "stable" | "beta";
   permissions: string[]; sha256: string; recall?: string; recallNote?: string; installed?: string;
 }

@@ -4779,4 +4779,5 @@ export const de = {
   "validation.feedback_mail": "Das ist keine lesbare E-Mail-Nachricht.",
   "fb.via.email": "E-Mail",
   "fbm.address_once": "Eingangsadresse – nur jetzt sichtbar, gut aufbewahren:",
+  "plugins.rating": "Bewertung im Store: {avg} von 5 ({n} Bewertungen)",
 } as const;

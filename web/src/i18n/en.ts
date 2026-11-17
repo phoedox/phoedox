@@ -4781,4 +4781,5 @@ export const en: Record<keyof typeof de, string> = {
   "validation.feedback_mail": "This is not a readable e-mail message.",
   "fb.via.email": "e-mail",
   "fbm.address_once": "Inbound address – shown only now, keep it safe:",
+  "plugins.rating": "Store rating: {avg} of 5 ({n} ratings)",
 };
