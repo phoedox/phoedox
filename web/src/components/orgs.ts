@@ -3,6 +3,7 @@ import "./themes";
 import "./bgai";
 import "./store-items";
 import "./org-providers";
+import "./app-policy";
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
 import { ApiError, api, type Group, type Org, type OrgDetail } from "../api";
@@ -215,6 +216,8 @@ export class PhxOrg extends SignalWatcher(LitElement) {
         <phx-org-domain .org=${this.slug}></phx-org-domain>
         <h2>${icon("Palette", 16)} ${t("theme.appearance")}</h2>
         <phx-theme-list scope="org" .owner=${this.slug}></phx-theme-list>
+        <h2 id="apps">${icon("AppWindow", 16)} ${t("apppol.title")}</h2>
+        <phx-app-policy scope="org" .org=${this.slug}></phx-app-policy>
         <h2 id="store">${icon("Store", 16)} ${t("store.org_title")}</h2>
         <phx-org-store .org=${this.slug} .groups=${o.groups}></phx-org-store>` : ""}
 

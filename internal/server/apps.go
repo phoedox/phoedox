@@ -45,7 +45,7 @@ func appFrame(svc *core.Service, cfg config.Config) http.HandlerFunc {
 		h.Set("Content-Type", f.Type)
 		h.Set("Content-Security-Policy", "sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads; default-src 'none'; "+
 			"script-src 'unsafe-inline' 'unsafe-eval' "+own+" "+lib+"; style-src 'unsafe-inline' "+own+" "+lib+"; img-src data: blob: "+own+"; "+
-			"font-src data: "+lib+" "+origin+"/fonts/; media-src data: blob: "+own+"; connect-src "+own+"; worker-src blob:; "+
+			"font-src data: "+lib+" "+origin+"/fonts/; media-src data: blob: "+own+"; connect-src "+own+appHosts(f.Hosts)+"; worker-src blob:; "+
 			"frame-ancestors "+origin+"; form-action 'none'; base-uri 'none'")
 		h.Set("Access-Control-Allow-Origin", "*")
 		h.Set("Referrer-Policy", "no-referrer")
@@ -174,7 +174,7 @@ func UserContentHandler(svc *core.Service, cfg config.Config) http.Handler {
 		h.Set("Content-Type", f.Type)
 		h.Set("Content-Security-Policy", "sandbox allow-scripts allow-same-origin allow-forms allow-modals allow-popups allow-downloads; default-src 'none'; "+
 			"script-src 'self' 'unsafe-inline' 'unsafe-eval' "+lib+"; style-src 'self' 'unsafe-inline' "+lib+"; img-src 'self' data: blob:; "+
-			"font-src 'self' data: "+lib+" "+instance+"/fonts/; media-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:; "+
+			"font-src 'self' data: "+lib+" "+instance+"/fonts/; media-src 'self' data: blob:; connect-src 'self'"+appHosts(f.Hosts)+"; worker-src 'self' blob:; "+
 			"frame-ancestors "+instance+"; form-action 'none'; base-uri 'none'")
 		h.Set("Referrer-Policy", "no-referrer")
 		h.Set("X-Content-Type-Options", "nosniff")
@@ -210,4 +210,14 @@ func (a *api) appAI(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := a.core.AskAppAI(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "doc"), in.Prompt, in.JSON)
 	respond(w, v, err)
+}
+
+// appHosts adds the hosts the instance or organization allows apps to
+// reach (https only).
+func appHosts(hosts []string) string {
+	out := ""
+	for _, h := range hosts {
+		out += " https://" + h
+	}
+	return out
 }

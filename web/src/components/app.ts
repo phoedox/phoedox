@@ -126,7 +126,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     } },
     { path: "/settings/themes/:id", render: ({ id }) => html`<phx-theme-editor .themeId=${id!} .owner=${new URLSearchParams(location.search).get("owner") ?? ""}></phx-theme-editor>` },
     { path: "/admin/appearance", render: () => adm("appearance", html`<phx-theme-list scope="instance"></phx-theme-list>`) },
-    { path: "/admin/user-content", render: () => adm("usercontent", html`<phx-usercontent-admin></phx-usercontent-admin>`) },
+    { path: "/admin/user-content", render: () => adm("usercontent", html`<phx-usercontent-admin></phx-usercontent-admin><phx-app-policy scope="instance"></phx-app-policy>`) },
     { path: "/admin/usage", render: () => adm("usage", html`<phx-usage level="admin"></phx-usage>`) },
     { path: "/admin/bot-protection", render: () => adm("bot", html`<phx-bot-admin></phx-bot-admin>`) },
     { path: "/admin/orgs/:slug/usage", render: ({ slug }) => adm("orgs", html`<phx-usage level="org" .ref=${slug!}></phx-usage>`) },

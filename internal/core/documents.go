@@ -450,6 +450,9 @@ func (s *Service) CreateDocument(ctx context.Context, a Actor, ref string, in Do
 	if in.Title == "" {
 		return DocResult{}, invalid("validation.title_required", nil, "title is required")
 	}
+	if in.Type == store.DocApp && s.effectiveAppPolicy(ctx, p).Off {
+		return DocResult{}, errAppsOff()
+	}
 	if in.Slug == "" {
 		in.Slug = graph.Slugify(in.Title)
 	}

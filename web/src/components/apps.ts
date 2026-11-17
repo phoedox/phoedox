@@ -13,7 +13,7 @@ import "./store-items";
 export interface AppSource { id: string; kind: "query" | "board" | "checks" | "entities"; ref?: string; label?: string }
 export interface AppDiag { file: string; line: number; column: number; text: string }
 export interface AppContent { files: Record<string, string>; level: number; sources?: AppSource[]; storageMb?: number; ai?: boolean; build?: { errors: AppDiag[] } }
-export interface AppFrameInfo { url: string; isolated?: boolean; level: number; granted: number; sources: AppSource[]; ai: boolean; storageMb: number; errors: AppDiag[]; canEdit: boolean }
+export interface AppFrameInfo { url: string; isolated?: boolean; level: number; granted: number; sources: AppSource[]; ai: boolean; storageMb: number; errors: AppDiag[]; canEdit: boolean; maxLevel?: number }
 export interface ConsoleEntry { level: string; text: string; line?: number; col?: number; file?: string }
 
 type Proposal =
@@ -301,7 +301,10 @@ export class PhxAppView extends LitElement {
   private async load() {
     if (!this.doc) return;
     try {
-      this.info = await api<AppFrameInfo>("POST", `/projects/${this.project}/apps/${this.doc.id}/open`);
+      const info = await api<AppFrameInfo>("POST", `/projects/${this.project}/apps/${this.doc.id}/open`);
+      // The instance or organization may allow less than the app asks for.
+      if (info.maxLevel !== undefined && info.maxLevel < info.level) info.level = info.maxLevel;
+      this.info = info;
     } catch (e) {
       this.error = e instanceof ApiError ? e.text : t("error.unknown");
     }

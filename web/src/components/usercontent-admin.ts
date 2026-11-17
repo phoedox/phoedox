@@ -8,6 +8,7 @@ import { icon } from "../icon";
 import { pageHead, scard, settingsUI, srow, sswitch } from "./settings-ui";
 import { base } from "./shared";
 import { toast } from "./toasts";
+import "./app-policy";
 
 interface Status { state: "off" | "waiting" | "ready" | "failed"; error?: string; expires?: string; since?: string }
 interface View { domain: string; provider: string; email: string; staging: boolean; customerNumber?: string; hasSecret: boolean; status: Status; serving: boolean }

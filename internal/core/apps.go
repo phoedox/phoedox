@@ -308,6 +308,8 @@ type AppFrame struct {
 	// domain (then it may keep browser storage); otherwise in a frame
 	// without an origin.
 	Isolated bool `json:"isolated"`
+	// MaxLevel is the level the instance or organization allows (≤ Level).
+	MaxLevel int `json:"maxLevel"`
 }
 
 const appFrameTTL = 12 * time.Hour
@@ -322,6 +324,10 @@ func (s *Service) OpenApp(ctx context.Context, a Actor, ref, docRef string) (App
 		return AppFrame{}, ErrNotFound
 	}
 	app := appOf(doc)
+	pol := s.effectiveAppPolicy(ctx, p)
+	if pol.Off {
+		return AppFrame{}, errAppsOff()
+	}
 	tok, err := s.sealFrame(appFrameClaims{Tenant: store.TenantOf(ctx), Project: p.ID, Doc: doc.ID, Exp: time.Now().Add(appFrameTTL).Unix()})
 	if err != nil {
 		return AppFrame{}, err
@@ -332,7 +338,8 @@ func (s *Service) OpenApp(ctx context.Context, a Actor, ref, docRef string) (App
 		errs = app.Build.Errors
 	}
 	url, isolated := s.frameURL(doc.ID, tok)
-	return AppFrame{URL: url, Isolated: isolated, Level: app.Level, Granted: min(granted, app.Level), Sources: nonNil(app.Sources), AI: app.AI, StorageMB: app.StorageMB, Errors: errs,
+	level := pol.capLevel(app.Level)
+	return AppFrame{URL: url, Isolated: isolated, Level: app.Level, MaxLevel: level, Granted: min(granted, level), Sources: nonNil(app.Sources), AI: app.AI && !pol.NoAI, StorageMB: app.StorageMB, Errors: errs,
 		CanEdit: rank[p.Role] >= rank[store.RoleEditor] && !s.readOnly(a, p)}, nil
 }
 
@@ -389,6 +396,8 @@ func (s *Service) PreviewApp(ctx context.Context, a Actor, ref, docRef string, a
 type AppFile struct {
 	Body []byte
 	Type string
+	// Hosts the app may connect to (policy of the instance and organization).
+	Hosts []string
 }
 
 // AppFrameFile serves a file of an app's frame by its sealed address.
@@ -410,6 +419,14 @@ func (s *Service) AppFrameFile(ctx context.Context, tok, name, origin, label str
 		}
 	}
 	ctx = store.WithTenant(ctx, c.Tenant)
+	var hosts []string
+	if pr, err := s.DB.ProjectFor(ctx, c.Project, ""); err == nil {
+		pol := s.effectiveAppPolicy(ctx, pr)
+		if pol.Off {
+			return AppFile{}, ErrNotFound
+		}
+		hosts = pol.Hosts
+	}
 	var app App
 	if c.Preview != "" {
 		v, ok := appPreviews.Load(c.Preview)
@@ -442,7 +459,7 @@ func (s *Service) AppFrameFile(ctx context.Context, tok, name, origin, label str
 			}
 			page = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">` + css.String() + `</head><body><div id="root"></div><script type="module" src="` + html.EscapeString(main) + `"></script></body></html>`
 		}
-		return AppFile{Body: []byte(injectAppHead(page, origin, app)), Type: "text/html; charset=utf-8"}, nil
+		return AppFile{Body: []byte(injectAppHead(page, origin, app)), Type: "text/html; charset=utf-8", Hosts: hosts}, nil
 	}
 	src, ok := app.Files[name]
 	if !ok {
@@ -460,11 +477,11 @@ func (s *Service) AppFrameFile(ctx context.Context, tok, name, origin, label str
 			}
 			js = "throw new Error(" + jsString(msg) + ");"
 		}
-		return AppFile{Body: []byte(js), Type: "text/javascript; charset=utf-8"}, nil
+		return AppFile{Body: []byte(js), Type: "text/javascript; charset=utf-8", Hosts: hosts}, nil
 	}
 	types := map[string]string{".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8",
 		".json": "application/json", ".svg": "image/svg+xml", ".md": "text/plain; charset=utf-8", ".txt": "text/plain; charset=utf-8"}
-	return AppFile{Body: []byte(src), Type: types[path.Ext(name)]}, nil
+	return AppFile{Body: []byte(src), Type: types[path.Ext(name)], Hosts: hosts}, nil
 }
 
 func jsString(s string) string {
@@ -503,8 +520,13 @@ func (s *Service) appFor(ctx context.Context, a Actor, ref, docRef string) (stor
 		return p, doc, App{}, 0, ErrNotFound
 	}
 	app := appOf(doc)
+	pol := s.effectiveAppPolicy(ctx, p)
+	if pol.Off {
+		return p, doc, app, 0, errAppsOff()
+	}
+	app.AI = app.AI && !pol.NoAI
 	g, err := s.DB.AppGrant(ctx, doc.ID, a.User.ID)
-	return p, doc, app, min(g, app.Level), err
+	return p, doc, app, min(g, pol.capLevel(app.Level)), err
 }
 
 // GrantApp stores the level a person allows an app (at most what it asks for).
