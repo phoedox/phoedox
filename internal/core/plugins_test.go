@@ -279,6 +279,9 @@ func TestPluginLicense(t *testing.T) {
 func b64(b []byte) string { return base64.StdEncoding.EncodeToString(b) }
 
 type fakeStore struct {
+	items   []CatalogEntry
+	pkgs    map[string][]byte // id@version → package (themes, apps)
+	priv    ed25519.PrivateKey
 	catalog []CatalogEntry
 	recalls map[string]Recall
 	pkg     []byte
@@ -293,7 +296,32 @@ func (f *fakeStore) Catalog(_ context.Context, _, _, channel string) ([]CatalogE
 func (f *fakeStore) Collections(context.Context) ([]PluginCollection, error) {
 	return []PluginCollection{{Slug: "home-lab", Title: "Home lab", Plugins: []string{"de.example.ups"}}}, nil
 }
-func (f *fakeStore) Download(context.Context, string, string) ([]byte, plugins.Signature, error) {
+func (f *fakeStore) Items(_ context.Context, _, itemType, _ string) ([]CatalogEntry, error) {
+	out := []CatalogEntry{}
+	for _, e := range f.items {
+		if e.Type == itemType {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}
+func (f *fakeStore) Versions(_ context.Context, id, _ string) ([]CatalogEntry, error) {
+	out := []CatalogEntry{}
+	for k := range f.pkgs {
+		if i, v, _ := strings.Cut(k, "@"); i == id {
+			out = append(out, CatalogEntry{ID: id, Version: v})
+		}
+	}
+	return out, nil
+}
+func (f *fakeStore) Download(_ context.Context, id, version string) ([]byte, plugins.Signature, error) {
+	if data, ok := f.pkgs[id+"@"+version]; ok {
+		p, err := plugins.ReadPackage(data)
+		if err != nil {
+			return nil, plugins.Signature{}, err
+		}
+		return data, plugins.Sign(f.priv, "store-1", p.Manifest.ID, p.Manifest.Version, p.SHA256), nil
+	}
 	return f.pkg, f.sig, nil
 }
 func (f *fakeStore) Redeem(context.Context, string, string, string, string) (json.RawMessage, error) {

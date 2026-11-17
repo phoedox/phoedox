@@ -26,6 +26,9 @@ var SupportedHostAPIs = []string{"1"}
 // go/pdk/manifest.go). The host keeps its own copy so it does not depend on
 // an SDK release; the tests use the same example manifest as the SDK.
 type Manifest struct {
+	// Type is plugin (default), theme or app (an app template); themes and
+	// app templates are content without code that runs in Phoedox.
+	Type         string          `json:"type,omitempty"`
 	ID           string          `json:"id"`
 	Name         string          `json:"name"`
 	Version      string          `json:"version"`
@@ -117,8 +120,33 @@ func ParseManifest(data []byte) (Manifest, error) {
 	return m, m.Validate()
 }
 
+// Item types of store packages.
+const (
+	TypePlugin = "plugin"
+	TypeTheme  = "theme"
+	TypeApp    = "app"
+)
+
+// Kind is the item type; an empty type is a plugin.
+func (m Manifest) Kind() string {
+	if m.Type == "" {
+		return TypePlugin
+	}
+	return m.Type
+}
+
 // Validate checks the fields the host relies on.
 func (m Manifest) Validate() error {
+	switch m.Kind() {
+	case TypePlugin:
+	case TypeTheme, TypeApp:
+		if m.Backend != nil || m.Frontend != nil || len(m.Permissions) > 0 || m.CriticalPath ||
+			len(m.Contributes.Kinds) > 0 || len(m.Contributes.Relations) > 0 || len(m.Contributes.MCPTools) > 0 || len(m.Contributes.Events) > 0 {
+			return fmt.Errorf("manifest: themes and app templates have no backend, frontend, permissions or contributions")
+		}
+	default:
+		return fmt.Errorf("manifest: type %q must be plugin, theme or app", m.Type)
+	}
 	switch {
 	case !idRe.MatchString(m.ID):
 		return fmt.Errorf("manifest: id %q must be reverse-DNS like de.example.ups", m.ID)
@@ -126,7 +154,7 @@ func (m Manifest) Validate() error {
 		return fmt.Errorf("manifest: name is required")
 	case !semverRe.MatchString(m.Version):
 		return fmt.Errorf("manifest: version %q is not SemVer", m.Version)
-	case m.HostAPI == "":
+	case m.HostAPI == "" && m.Kind() == TypePlugin:
 		return fmt.Errorf("manifest: hostApi is required")
 	case m.Engines.Phoedox == "":
 		return fmt.Errorf("manifest: engines.phoedox is required")
@@ -168,7 +196,7 @@ func (m Manifest) Validate() error {
 
 // Supported tells whether this server can run the plugin.
 func (m Manifest) Supported(serverVersion string) error {
-	if !slices.Contains(SupportedHostAPIs, m.HostAPI) {
+	if m.Kind() == TypePlugin && !slices.Contains(SupportedHostAPIs, m.HostAPI) {
 		return fmt.Errorf("plugin needs host API %s, this server offers %s", m.HostAPI, strings.Join(SupportedHostAPIs, ", "))
 	}
 	r, err := ParseRange(m.Engines.Phoedox)

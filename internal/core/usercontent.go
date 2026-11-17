@@ -90,7 +90,9 @@ func (s *Service) SaveUserContent(ctx context.Context, a Actor, in usercontent.C
 			}
 		}
 		if err := in.Validate(); err != nil {
-			return UserContentView{}, invalid("validation.usercontent_"+err.Error(), nil, "user content domain: %v", err)
+			// validation.usercontent_domain, _provider, _token, _netcup, _email
+			key := "validation.usercontent_" + err.Error()
+			return UserContentView{}, invalid(key, nil, "user content domain: %v", err)
 		}
 	}
 	raw, _ := json.Marshal(in)

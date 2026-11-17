@@ -39,6 +39,12 @@ type PluginConfig struct {
 type PluginStore interface {
 	// Catalog lists the newest compatible versions; channel "beta" includes pre-releases.
 	Catalog(ctx context.Context, version, hostAPI, channel string) ([]CatalogEntry, error)
+	// Items lists the newest compatible themes or app templates (itemType
+	// theme or app).
+	Items(ctx context.Context, version, itemType, channel string) ([]CatalogEntry, error)
+	// Versions lists an item's approved versions that fit the Phoedox
+	// version, newest first (for rollbacks).
+	Versions(ctx context.Context, id, version string) ([]CatalogEntry, error)
 	// Collections lists the store's curated plugin collections.
 	Collections(ctx context.Context) ([]PluginCollection, error)
 	Download(ctx context.Context, id, version string) ([]byte, plugins.Signature, error)
@@ -63,6 +69,8 @@ type Recall struct {
 
 // CatalogEntry is a plugin offered by the store (newest compatible version).
 type CatalogEntry struct {
+	// Type is plugin, theme or app.
+	Type     string `json:"type,omitempty"`
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Version  string `json:"version"`
@@ -79,6 +87,8 @@ type CatalogEntry struct {
 	SHA256      string          `json:"sha256"`
 	Recall      string          `json:"recall,omitempty"` // warning | critical
 	RecallNote  string          `json:"recallNote,omitempty"`
+	// Engines is the Phoedox version range of this version.
+	Engines string `json:"engines,omitempty"`
 	// Filled by the instance:
 	Installed string `json:"installed,omitempty"` // installed version
 }
@@ -222,6 +232,9 @@ func (s *Service) InstallPlugin(ctx context.Context, a Actor, data []byte, sig *
 		return PluginInfo{}, invalid("validation.plugin_package", map[string]any{"reason": strings.TrimPrefix(err.Error(), plugins.ErrPackage.Error()+": ")}, "%v", err)
 	}
 	m := p.Manifest
+	if m.Kind() != plugins.TypePlugin {
+		return PluginInfo{}, invalid("validation.plugin_package", map[string]any{"reason": "a " + m.Kind() + " is not a plugin"}, "a %s is not a plugin", m.Kind())
+	}
 	if err := m.Supported(s.Plugins.Version); err != nil {
 		return PluginInfo{}, invalid("validation.plugin_incompatible", map[string]any{"reason": err.Error()}, "%v", err)
 	}

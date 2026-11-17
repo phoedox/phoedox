@@ -44,6 +44,8 @@ type App struct {
 	AI bool `json:"ai,omitempty"`
 	// Build is the compiled result, made on save.
 	Build *AppBuild `json:"build,omitempty"`
+	// Origin is the store template the app was made from.
+	Origin *AppOrigin `json:"origin,omitempty"`
 }
 
 // AppSource is something an app may read.

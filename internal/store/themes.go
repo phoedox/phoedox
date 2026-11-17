@@ -18,17 +18,20 @@ type Theme struct {
 	Data        json.RawMessage `json:"data"`
 	CSS         string          `json:"css"`
 	CSSReleased string          `json:"cssReleased"` // comma-separated Phoedox versions the CSS is released for
-	CreatedBy   string          `json:"createdBy"`
-	CreatedAt   Time            `json:"createdAt"`
-	UpdatedAt   Time            `json:"updatedAt"`
+	// OriginID and OriginVersion: the store item a theme was installed from.
+	OriginID      string `json:"originId,omitempty"`
+	OriginVersion string `json:"originVersion,omitempty"`
+	CreatedBy     string `json:"createdBy"`
+	CreatedAt     Time   `json:"createdAt"`
+	UpdatedAt     Time   `json:"updatedAt"`
 }
 
-const themeCols = `id, scope, owner_id, name, data, css, css_released, created_by, created_at, updated_at`
+const themeCols = `id, scope, owner_id, name, data, css, css_released, origin_id, origin_version, created_by, created_at, updated_at`
 
 func scanTheme(r interface{ Scan(...any) error }) (Theme, error) {
 	var t Theme
 	var data string
-	err := r.Scan(&t.ID, &t.Scope, &t.OwnerID, &t.Name, &data, &t.CSS, &t.CSSReleased, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt)
+	err := r.Scan(&t.ID, &t.Scope, &t.OwnerID, &t.Name, &data, &t.CSS, &t.CSSReleased, &t.OriginID, &t.OriginVersion, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return t, ErrNotFound
 	}
@@ -38,9 +41,9 @@ func scanTheme(r interface{ Scan(...any) error }) (Theme, error) {
 
 // SaveTheme inserts or updates a theme.
 func (d *DB) SaveTheme(ctx context.Context, t Theme) error {
-	_, err := d.Exec(ctx, `INSERT INTO themes (id, tenant_id, scope, owner_id, name, data, css, css_released, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (id) DO UPDATE SET name = excluded.name, data = excluded.data, css = excluded.css, css_released = excluded.css_released, updated_at = excluded.updated_at`,
-		t.ID, TenantOf(ctx), t.Scope, t.OwnerID, t.Name, string(t.Data), t.CSS, t.CSSReleased, t.CreatedBy, t.CreatedAt, t.UpdatedAt)
+	_, err := d.Exec(ctx, `INSERT INTO themes (id, tenant_id, scope, owner_id, name, data, css, css_released, origin_id, origin_version, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (id) DO UPDATE SET name = excluded.name, data = excluded.data, css = excluded.css, css_released = excluded.css_released, origin_id = excluded.origin_id, origin_version = excluded.origin_version, updated_at = excluded.updated_at`,
+		t.ID, TenantOf(ctx), t.Scope, t.OwnerID, t.Name, string(t.Data), t.CSS, t.CSSReleased, t.OriginID, t.OriginVersion, t.CreatedBy, t.CreatedAt, t.UpdatedAt)
 	return err
 }
 

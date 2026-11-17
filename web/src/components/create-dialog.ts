@@ -4,8 +4,9 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { currentProject, navigate } from "../state";
 import { base } from "./shared";
+import "./store-items";
 
-type Step = "what" | "type" | "folder";
+type Step = "what" | "type" | "folder" | "store";
 
 /**
  * Creating from the sidebar: "+" on a category asks for a folder or a page;
@@ -123,6 +124,12 @@ export class PhxCreateDialog extends LitElement {
           <div class="row"><button type="button" class="ghost" @click=${this.close}>${t("doc.cancel")}</button><button>${t("create.next")}</button></div>
         </form>`;
     }
+    if (this.step === "store") {
+      return html`<h2 id="ct">${t("create.app_store")}</h2>
+        <p class="where">${t("create.app_store_desc")}</p>
+        <phx-store-apps .project=${this.project} .category=${this.category} @done=${this.close}></phx-store-apps>
+        <div class="row"><button class="ghost" @click=${() => (this.step = "type")}>${t("create.back")}</button><button class="ghost" @click=${this.close}>${t("doc.cancel")}</button></div>`;
+    }
     const where = html`<p class="where">${this.category ? t("create.inside", { category: this.category.replace(/\//g, " › ") }) : t("create.top_level")}</p>`;
     if (this.step === "what") {
       return html`<h2 id="ct">${t("create.title")}</h2>${where}
@@ -146,6 +153,8 @@ export class PhxCreateDialog extends LitElement {
           html`<span class="pv plan"><svg viewBox="0 0 60 40" aria-hidden="true"><rect x="4" y="6" width="18" height="12" rx="2"/><ellipse cx="46" cy="12" rx="10" ry="7"/><path d="M22 12h13M41 30l-6-8"/><rect x="28" y="26" width="16" height="10" rx="1"/></svg></span>`, () => this.create("whiteboard"))}
         ${this.choice("AppWindow", t("doc.type.app"), t("create.app_desc"),
           html`<span class="pv app"><span class="win"><i class="h"></i><b></b><b class="ok"></b></span></span>`, () => this.create("app"))}
+        ${this.choice("Store", t("create.app_store"), t("create.app_store_desc"),
+          html`<span class="pv app"><span class="win"><i class="h"></i><b></b><b class="ok"></b></span></span>`, () => (this.step = "store"))}
         ${this.choice("Link", t("doc.type.link"), t("create.link_desc"),
           html`<span class="pv link">${icon("ExternalLink", 22)}<i></i></span>`, () => this.create("link"))}
         ${this.choice("Workflow", t("create.kind.process"), t("create.kind.process_desc"),

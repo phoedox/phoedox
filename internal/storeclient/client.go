@@ -88,6 +88,37 @@ func (c *Client) Catalog(ctx context.Context, version, hostAPI, channel string) 
 	return out.Plugins, nil
 }
 
+// Items lists the newest compatible themes or app templates.
+func (c *Client) Items(ctx context.Context, version, itemType, channel string) ([]core.CatalogEntry, error) {
+	var out struct {
+		Plugins []core.CatalogEntry `json:"plugins"`
+	}
+	q := url.Values{"phoedox": {version}, "type": {itemType}}
+	if channel == "beta" {
+		q.Set("channel", "beta")
+	}
+	if err := c.do(ctx, http.MethodGet, "/api/v1/catalog?"+q.Encode(), nil, &out); err != nil {
+		return nil, err
+	}
+	if out.Plugins == nil {
+		out.Plugins = []core.CatalogEntry{}
+	}
+	return out.Plugins, nil
+}
+
+// Versions lists an item's approved versions that fit the Phoedox version.
+func (c *Client) Versions(ctx context.Context, id, version string) ([]core.CatalogEntry, error) {
+	var out []core.CatalogEntry
+	q := url.Values{"phoedox": {version}}
+	if err := c.do(ctx, http.MethodGet, "/api/v1/plugins/"+url.PathEscape(id)+"/versions?"+q.Encode(), nil, &out); err != nil {
+		return nil, err
+	}
+	if out == nil {
+		out = []core.CatalogEntry{}
+	}
+	return out, nil
+}
+
 // Collections lists the store's curated plugin collections.
 func (c *Client) Collections(ctx context.Context) ([]core.PluginCollection, error) {
 	var out struct {

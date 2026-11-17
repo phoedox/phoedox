@@ -1,6 +1,7 @@
 import "./org-ai-chat";
 import "./themes";
 import "./bgai";
+import "./store-items";
 import { SignalWatcher } from "@lit-labs/signals";
 import { LitElement, css, html } from "lit";
 import { ApiError, api, type Group, type Org, type OrgDetail } from "../api";
@@ -207,7 +208,9 @@ export class PhxOrg extends SignalWatcher(LitElement) {
         <h2>${icon("Globe", 16)} ${t("orgdomain.title")}</h2>
         <phx-org-domain .org=${this.slug}></phx-org-domain>
         <h2>${icon("Palette", 16)} ${t("theme.appearance")}</h2>
-        <phx-theme-list scope="org" .owner=${this.slug}></phx-theme-list>` : ""}
+        <phx-theme-list scope="org" .owner=${this.slug}></phx-theme-list>
+        <h2 id="store">${icon("Store", 16)} ${t("store.org_title")}</h2>
+        <phx-org-store .org=${this.slug} .groups=${o.groups}></phx-org-store>` : ""}
 
       <h2>${t("orgs.members")}</h2>
       <table>${o.members.map((m) => html`<tr><td>${m.name}</td><td class="muted">${m.email}</td>

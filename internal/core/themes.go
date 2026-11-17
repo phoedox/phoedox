@@ -429,6 +429,9 @@ type ThemeSummary struct {
 	// Owner is the slug of the project or organization.
 	Owner   string `json:"owner,omitempty"`
 	CanEdit bool   `json:"canEdit"`
+	// OriginID and OriginVersion: the store item the theme came from.
+	OriginID      string `json:"originId,omitempty"`
+	OriginVersion string `json:"originVersion,omitempty"`
 	// Swatch: bg, surface, fg, accent in light and dark (for the picker).
 	Swatch []string `json:"swatch"`
 }
@@ -471,7 +474,7 @@ func (s *Service) themesOf(ctx context.Context, scope, ownerID, ownerSlug, owner
 		return
 	}
 	for _, t := range ts {
-		*out = append(*out, ThemeSummary{ID: t.ID, Name: t.Name, Scope: scope, OwnerName: ownerName, Owner: ownerSlug, CanEdit: canEdit, Swatch: swatch(themeData(t))})
+		*out = append(*out, ThemeSummary{ID: t.ID, Name: t.Name, Scope: scope, OwnerName: ownerName, Owner: ownerSlug, CanEdit: canEdit, OriginID: t.OriginID, OriginVersion: t.OriginVersion, Swatch: swatch(themeData(t))})
 	}
 }
 

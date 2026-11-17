@@ -15,6 +15,7 @@ import {
 import { pageHead, scard, settingsUI, srow, sseg, sswitch } from "./settings-ui";
 import { base } from "./shared";
 import { toast } from "./toasts";
+import "./store-items";
 
 const BASE_TOKENS = ["bg", "surface", "surface2", "line", "fg", "muted", "accent", "accent-soft", "signal", "bad", "good", "wire", "on-color"];
 const COMPONENT_TOKENS = ["btn-bg", "btn-fg", "btn-ghost-bg", "btn-ghost-fg", "input-bg", "input-border", "sidebar-bg", "header-bg", "link", "focus"];
@@ -149,11 +150,12 @@ export class PhxAppearance extends LitElement {
       ${scard(t("theme.mine"), t("theme.mine_text"), html`
         ${own.length ? html`<div class="slist">${own.map((x) => html`<div class="item">
           ${swatchTile(x.swatch, dark)}
-          <div class="t"><b>${x.name}</b></div>
+          <div class="t"><b>${x.name}</b>${x.originId ? html`<span>${t("store.from_store", { version: x.originVersion ?? "" })}</span>` : nothing}</div>
           <div class="acts"><a class="btn ghost" href="/settings/themes/${x.id}">${icon("Pencil", 14)} ${t("doc.edit")}</a>
             <button class="danger" @click=${() => this.removeTheme(x)} aria-label=${t("doc.delete")}>${icon("Trash2", 14)}</button></div></div>`)}</div>`
           : html`<p class="empty">${t("theme.none_yet")}</p>`}
-        <div class="body"><a class="btn" href="/settings/themes/new?scope=user">${icon("Plus", 14)} ${t("theme.new")}</a></div>`)}`;
+        <div class="body"><a class="btn" href="/settings/themes/new?scope=user">${icon("Plus", 14)} ${t("theme.new")}</a></div>`)}
+      <phx-store-themes scope="user" @changed=${() => this.load()}></phx-store-themes>`;
   }
 }
 
@@ -258,11 +260,12 @@ export class PhxThemeList extends LitElement {
         ${this.scope === "org" ? srow(t("theme.force"), t("theme.force_help"), sswitch(this.forced, t("theme.force"), (on) => this.choose(this.chosen, on), this.busy || !this.chosen)) : nothing}`)}
       ${scard(t(`theme.own_${this.scope}` as Key), t("theme.own_text"), html`
         ${mine.length ? html`<div class="slist">${mine.map((x) => html`<div class="item">
-          ${swatchTile(x.swatch, dark)}<div class="t"><b>${x.name}</b></div>
+          ${swatchTile(x.swatch, dark)}<div class="t"><b>${x.name}</b>${x.originId ? html`<span>${t("store.from_store", { version: x.originVersion ?? "" })}</span>` : nothing}</div>
           ${x.canEdit ? html`<div class="acts"><a class="btn ghost" href="/settings/themes/${x.id}${this.owner ? `?owner=${encodeURIComponent(this.owner)}` : ""}">${icon("Pencil", 14)} ${t("doc.edit")}</a>
             <button class="danger" @click=${() => this.removeTheme(x)} aria-label=${t("doc.delete")}>${icon("Trash2", 14)}</button></div>` : html`<span></span>`}</div>`)}</div>`
           : html`<p class="empty">${t("theme.none_yet")}</p>`}
-        <div class="body"><a class="btn" href="/settings/themes/new?scope=${this.scope}${ownerQ}">${icon("Plus", 14)} ${t("theme.new")}</a></div>`)}`;
+        <div class="body"><a class="btn" href="/settings/themes/new?scope=${this.scope}${ownerQ}">${icon("Plus", 14)} ${t("theme.new")}</a></div>`)}
+      <phx-store-themes .scope=${this.scope} .owner=${this.owner} @changed=${() => this.load()}></phx-store-themes>`;
   }
 }
 

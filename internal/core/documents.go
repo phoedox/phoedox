@@ -648,6 +648,9 @@ func (s *Service) patched(ctx context.Context, p store.Project, cur store.Docume
 		app = &App{}
 		_ = json.Unmarshal(cur.Content, app)
 		if patch.App != nil {
+			if patch.App.Origin == nil {
+				patch.App.Origin = app.Origin // editors do not send it
+			}
 			app = patch.App
 		}
 	case store.DocWhiteboard:

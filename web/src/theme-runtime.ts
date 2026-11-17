@@ -49,6 +49,8 @@ export interface ThemeSummary {
   owner?: string;
   canEdit: boolean;
   swatch?: string[];
+  originId?: string;
+  originVersion?: string;
 }
 export interface MyTheme {
   themeId: string;

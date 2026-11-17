@@ -8,6 +8,7 @@ import { icon } from "../icon";
 import { docsVersion, navigate } from "../state";
 import { base } from "./shared";
 import { toast } from "./toasts";
+import "./store-items";
 
 export interface AppSource { id: string; kind: "query" | "board" | "checks" | "entities"; ref?: string; label?: string }
 export interface AppDiag { file: string; line: number; column: number; text: string }
@@ -267,6 +268,11 @@ export class PhxAppFrame extends LitElement {
 }
 
 /** An app's page: the running app with a bar above it. */
+/** The store template an app was made from. */
+function appOrigin(doc: Doc): { id: string; version: string; name?: string } | undefined {
+  return (doc.content as { origin?: { id: string; version: string; name?: string } } | undefined)?.origin;
+}
+
 export class PhxAppView extends LitElement {
   static properties = { project: {}, doc: { attribute: false }, info: { state: true }, error: { state: true }, full: { state: true } };
   static styles = [base, css`
@@ -318,6 +324,8 @@ export class PhxAppView extends LitElement {
         ${i.canEdit ? html`<a class="btn ghost" href="/p/${this.project}/d/${this.doc.slug}/app-edit">${icon("Code", 14)} ${t("app.edit")}</a>` : nothing}
         <button class="ghost" @click=${() => this.setFull(!this.full)}>${icon(this.full ? "Minimize2" : "Maximize2", 14)} ${t(this.full ? "app.exit_full" : "app.full")}</button>
       </div>
+      ${appOrigin(this.doc) ? html`<phx-app-origin style="margin-bottom:10px" .project=${this.project} .doc=${this.doc.id} .origin=${appOrigin(this.doc)} ?canEdit=${i.canEdit}
+        @reload=${() => location.reload()}></phx-app-origin>` : nothing}
       ${i.errors.length ? html`<div class="errs" role="alert">${i.errors.map((e) => `${e.file}:${e.line}:${e.column} ${e.text}`).join("\n")}</div>` : nothing}
       <div class="box"><phx-app-frame .project=${this.project} .doc=${this.doc.id} .info=${i}
         @granted=${(e: CustomEvent<number>) => (this.info = { ...i, granted: e.detail })}></phx-app-frame></div>`;

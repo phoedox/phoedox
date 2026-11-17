@@ -64,3 +64,14 @@ the app will be allowed to do.
    `files` (null removes one) or a new `manifest`.
 
 Every save is a version (restore with `restore_document_version`).
+
+## Apps from store templates
+
+People can create an app from a reviewed template of the Phoedox store
+(New → App from the store). Such an app has `app.origin` (store item id and
+version) in `get_app`. Updating it to a newer template version replaces its
+files (its stored data stays), so when you change such an app with
+`edit_app`, tell the user that a later template update would overwrite those
+changes. Organizations can limit who may install themes and app templates
+from the store; people without access send a request to the organization's
+admins. Point users there instead of copying a template's code by hand.
