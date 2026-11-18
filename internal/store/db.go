@@ -319,7 +319,14 @@ func rebind(d Dialect, query string) string {
 }
 
 // Now returns the current UTC time truncated to milliseconds, as stored in the DB.
-func Now() Time { return Time{time.Now().UTC().Truncate(time.Millisecond)} }
+func Now() Time { return Time{time.Now().Add(clockShift).UTC().Truncate(time.Millisecond)} }
+
+// clockShift moves Now (development only: PHOEDOX_FAKE_NOW for
+// reproducible screenshots); time keeps running from the given moment.
+var clockShift time.Duration
+
+// SetClock makes Now start at t (development only).
+func SetClock(t time.Time) { clockShift = time.Until(t) }
 
 // Time scans timestamps from both dialects (time.Time, RFC 3339 text).
 type Time struct{ time.Time }

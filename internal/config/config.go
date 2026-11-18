@@ -126,6 +126,9 @@ type Config struct {
 	// (PHOEDOX_PLUGINS_FETCH_MAP; only with PluginsUnsigned, for fake APIs
 	// in tests and screenshots).
 	PluginsFetchMap string
+	// FakeNow starts the server clock at this RFC 3339 time
+	// (PHOEDOX_FAKE_NOW; only with PluginsUnsigned, for screenshots).
+	FakeNow string
 	// OIDC enables sign-in with an external identity provider.
 	OIDC OIDC
 	// HAURL enables sign-in with Home Assistant (PHOEDOX_HA_URL): the address
@@ -275,6 +278,7 @@ func FromEnv() (Config, error) {
 	c.HAAutoCreate = getenv("PHOEDOX_HA_AUTO_CREATE", "true") == "true"
 	c.PluginsUnsigned = os.Getenv("PHOEDOX_PLUGINS_ALLOW_UNSIGNED") == "true"
 	c.PluginsFetchMap = os.Getenv("PHOEDOX_PLUGINS_FETCH_MAP")
+	c.FakeNow = os.Getenv("PHOEDOX_FAKE_NOW")
 	c.S3 = S3{Endpoint: os.Getenv("PHOEDOX_S3_ENDPOINT"), Bucket: os.Getenv("PHOEDOX_S3_BUCKET"), Region: os.Getenv("PHOEDOX_S3_REGION"),
 		AccessKey: os.Getenv("PHOEDOX_S3_ACCESS_KEY"), SecretKey: os.Getenv("PHOEDOX_S3_SECRET_KEY"), Prefix: os.Getenv("PHOEDOX_S3_PREFIX"),
 		Insecure: os.Getenv("PHOEDOX_S3_INSECURE") == "true"}

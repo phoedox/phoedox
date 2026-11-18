@@ -175,6 +175,15 @@ func Open(ctx context.Context) (*App, error) {
 		}
 		rt := plugins.NewRuntime(slog.Default(), 8)
 		rt.Code = core.PluginErrorCode
+		if cfg.FakeNow != "" {
+			t, err := time.Parse(time.RFC3339, cfg.FakeNow)
+			if err != nil || !cfg.PluginsUnsigned {
+				db.Close()
+				return nil, errors.New("PHOEDOX_FAKE_NOW needs an RFC 3339 time and PHOEDOX_PLUGINS_ALLOW_UNSIGNED=true (development only)")
+			}
+			store.SetClock(t)
+			slog.Warn("the server clock is set (development only)", "now", cfg.FakeNow)
+		}
 		if cfg.PluginsFetchMap != "" {
 			if !cfg.PluginsUnsigned {
 				db.Close()
