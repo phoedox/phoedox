@@ -117,6 +117,15 @@ func ReadPackage(data []byte) (*Package, error) {
 		return nil, fmt.Errorf("%w: %v", ErrPackage, err)
 	}
 	m := p.Manifest
+	for _, l := range m.LogoFiles() {
+		b, ok := p.File(l)
+		if !ok {
+			return nil, bad("logo %s is missing", l)
+		}
+		if err := CheckSVG(b); err != nil {
+			return nil, bad("%s: %v", l, err)
+		}
+	}
 	if m.Backend != nil {
 		if w, ok := p.File(m.Backend.Wasm); !ok || !bytes.HasPrefix(w, []byte("\x00asm")) {
 			return nil, bad("backend %s is missing or not WebAssembly", m.Backend.Wasm)

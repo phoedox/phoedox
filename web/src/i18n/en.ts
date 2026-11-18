@@ -5221,4 +5221,13 @@ export const en: Record<keyof typeof de, string> = {
   "validation.calendar_auth": "The calendar refused the user name or password.",
   "validation.calendar_not_calendar": "This address is not a calendar (use the CalDAV address of the calendar itself).",
   "validation.calendar_doc": "This is not a calendar page.",
+  "plugins.cat.home": "Smart home",
+  "plugins.cat.network": "Network",
+  "plugins.cat.servers": "Servers & storage",
+  "plugins.cat.cloud": "Cloud & identity",
+  "plugins.cat.monitoring": "Monitoring",
+  "plugins.cat.development": "Development",
+  "plugins.cat.records": "Records & compliance",
+  "plugins.cat.blocks": "Page blocks",
+  "plugins.cat.other": "Other",
 };

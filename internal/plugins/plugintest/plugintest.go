@@ -50,6 +50,7 @@ func Wasm(t testing.TB) []byte {
 // Manifest is the manifest of the test package ("de.example.ups").
 const Manifest = `{
   "id": "de.example.ups", "name": "USV", "version": "1.2.0", "hostApi": "1",
+  "icon": "battery-charging", "category": "servers", "logo": "logo.svg",
   "description": "Test plugin",
   "engines": { "phoedox": ">=0.1.0 <2.0.0" },
   "backend": { "wasm": "backend.wasm", "memoryMb": 32 },
@@ -74,6 +75,7 @@ func Package(t testing.TB, manifest string) []byte {
 		"frontend/index.js":    []byte("export default {}"),
 		"schemas/ups.json":     []byte(`{"title":"USV","type":"object","required":["kapazitaet"],"properties":{"kapazitaet":{"type":"number","title":"Kapazität","x-unit":"VA"},"ladung":{"type":"number","x-unit":"%"},"modell":{"type":"string"}}}`),
 		"schemas/runtime.json": []byte(`{"type":"object","properties":{"ups":{"type":"string"}}}`),
+		"logo.svg":             []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3"/></svg>`),
 	})
 	if e != nil {
 		t.Fatal(e)

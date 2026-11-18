@@ -5219,4 +5219,13 @@ export const de = {
   "validation.calendar_auth": "Der Kalender hat Benutzername oder Passwort abgelehnt.",
   "validation.calendar_not_calendar": "Diese Adresse ist kein Kalender (bitte die CalDAV-Adresse des Kalenders selbst nehmen).",
   "validation.calendar_doc": "Das ist keine Kalenderseite.",
+  "plugins.cat.home": "Smart Home",
+  "plugins.cat.network": "Netzwerk",
+  "plugins.cat.servers": "Server & Speicher",
+  "plugins.cat.cloud": "Cloud & Identität",
+  "plugins.cat.monitoring": "Überwachung",
+  "plugins.cat.development": "Entwicklung",
+  "plugins.cat.records": "Verzeichnisse & Compliance",
+  "plugins.cat.blocks": "Seitenblöcke",
+  "plugins.cat.other": "Sonstiges",
 } as const;

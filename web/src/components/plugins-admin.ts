@@ -3,6 +3,7 @@ import { ApiError, api, type CatalogEntry, type PluginCollection, type PluginInf
 import { formatSize } from "../files";
 import { formatDate, locale, t } from "../i18n";
 import { icon } from "../icon";
+import { categoryLabel, pluginTile, tileStyles } from "./plugin-tile";
 import { permLabel } from "../plugin-perms";
 import "./admin-settings";
 import { base } from "./shared";
@@ -19,7 +20,7 @@ export class PhxPluginsAdmin extends LitElement {
     confirming: { state: true }, logs: { state: true }, logsFor: { state: true }, removing: { state: true },
     request: { state: true }, requested: { state: true }, installedReq: { state: true }, ownProjects: { state: true },
   };
-  static styles = [base, css`
+  static styles = [base, tileStyles, css`
     .req { display: grid; gap: 10px; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); margin-bottom: 18px; }
     .req .row { display: flex; gap: 8px; flex-wrap: wrap; }
     .req select { width: auto; margin-left: 6px; }
@@ -31,8 +32,6 @@ export class PhxPluginsAdmin extends LitElement {
     .plugin header { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
     .plugin header .t { flex: 1; min-width: 220px; }
     .plugin header h3 { font-size: 16px; margin: 0; }
-    .pic { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 10px; flex: none; color: var(--signal);
-      background: color-mix(in srgb, var(--signal) 14%, transparent); }
     .chips { display: flex; flex-wrap: wrap; gap: 5px; }
     .chip.good { color: var(--good); } .chip.bad { color: var(--bad); }
     .perms { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13px; }
@@ -106,7 +105,7 @@ export class PhxPluginsAdmin extends LitElement {
     }
     return html`<section class="plugin card req" aria-label=${t("plugins.request_title")}>
       <span class="muted" style="font-size:12.5px">${icon("Store", 12)} ${t("plugins.request_title")}</span>
-      <header><span class="pic">${icon("Puzzle", 20)}</span>
+      <header>${pluginTile(c, 38)}
         <div class="t"><h3>${c.name} <span class="muted" style="font-weight:400">${c.version}</span></h3>
           <span class="muted" style="font-size:13px">${c.author}${c.verified ? html` · ${icon("BadgeCheck", 12)} ${t("plugins.verified_author")}` : ""}</span>
           ${c.summary ? html`<p class="muted" style="margin:4px 0 0;font-size:14px">${c.summary}</p>` : ""}</div></header>
@@ -301,7 +300,7 @@ export class PhxPluginsAdmin extends LitElement {
   private card(p: PluginInfo) {
     return html`<article class="plugin card">
       <header>
-        <span class="pic">${icon("Puzzle", 20)}</span>
+        ${pluginTile(p, 38)}
         <div class="t"><h3>${p.name} <span class="muted" style="font-weight:400">${p.version}</span></h3>
           <code class="muted" style="font-size:12px">${p.id}</code>
           ${p.description ? html`<p class="muted" style="margin:4px 0 0;font-size:14px">${p.description}</p>` : ""}</div>
@@ -351,10 +350,10 @@ export class PhxPluginsAdmin extends LitElement {
   private entry(c: CatalogEntry) {
     const upToDate = c.installed === c.version;
     return html`<article class="plugin card">
-      <header><span class="pic">${icon("Puzzle", 20)}</span>
+      <header>${pluginTile(c, 38)}
         <div class="t"><h3>${c.name} <span class="muted" style="font-weight:400">${c.version}</span>
             ${c.channel === "beta" ? html`<span class="chip" title=${t("plugins.beta_hint")}>${t("plugins.beta")}</span>` : ""}</h3>
-          <span class="muted" style="font-size:13px">${c.author}${c.verified ? html` · ${icon("BadgeCheck", 12)} ${t("plugins.verified_author")}` : ""}
+          <span class="muted" style="font-size:13px">${categoryLabel(c.category)} · ${c.author}${c.verified ? html` · ${icon("BadgeCheck", 12)} ${t("plugins.verified_author")}` : ""}
             ${c.authorDomain ? html` · <span title=${t("plugins.domain_verified", { domain: c.authorDomain })}>${icon("Globe", 12)} ${c.authorDomain}</span>` : ""}
             ${c.ratings ? html` · <span title=${t("plugins.rating", { avg: c.rating ?? 0, n: c.ratings })}>${icon("Star", 12)} ${(c.rating ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })} (${c.ratings})</span>` : ""}</span>
           ${c.summary ? html`<p class="muted" style="margin:4px 0 0;font-size:14px">${c.summary}</p>` : ""}</div>

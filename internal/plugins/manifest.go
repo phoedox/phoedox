@@ -29,13 +29,19 @@ var SupportedHostAPIs = []string{"1"}
 type Manifest struct {
 	// Type is plugin (default), theme or app (an app template); themes and
 	// app templates are content without code that runs in Phoedox.
-	Type         string          `json:"type,omitempty"`
-	ID           string          `json:"id"`
-	Name         string          `json:"name"`
-	Version      string          `json:"version"`
-	HostAPI      string          `json:"hostApi"`
-	Engines      Engines         `json:"engines"`
-	Description  string          `json:"description,omitempty"`
+	Type        string  `json:"type,omitempty"`
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Version     string  `json:"version"`
+	HostAPI     string  `json:"hostApi"`
+	Engines     Engines `json:"engines"`
+	Description string  `json:"description,omitempty"`
+	// Icon (a Lucide name) and Category make the plugin's tile; Logo and
+	// LogoDark are SVG files of the package shown instead (ADR-0090).
+	Icon         string          `json:"icon,omitempty"`
+	Category     string          `json:"category,omitempty"`
+	Logo         string          `json:"logo,omitempty"`
+	LogoDark     string          `json:"logoDark,omitempty"`
 	Backend      *Backend        `json:"backend,omitempty"`
 	Frontend     *Frontend       `json:"frontend,omitempty"`
 	CriticalPath bool            `json:"criticalPath,omitempty"`
@@ -132,8 +138,13 @@ var (
 	blockRe   = regexp.MustCompile(`^[a-z][a-z0-9]{1,29}$`)
 	elementRe = regexp.MustCompile(`^phx-[a-z0-9]+(-[a-z0-9]+)*$`)
 	toolRe    = regexp.MustCompile(`^[a-z0-9]+([._-][a-z0-9]+)*$`)
+	iconRe    = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+	logoRe    = regexp.MustCompile(`^[A-Za-z0-9_-][A-Za-z0-9._-]*\.svg$`)
 	maxMemory = 256
 )
+
+// Categories of plugins (manifest category, phoedox-sdk pdk.Categories).
+var Categories = []string{"home", "network", "servers", "cloud", "monitoring", "development", "records", "blocks", "other"}
 
 // MinSchedule is the shortest interval a plugin may be woken up at.
 const MinSchedule = 30 * time.Second
@@ -238,7 +249,32 @@ func (m Manifest) Validate() error {
 			return err
 		}
 	}
+	if m.Icon != "" && (len(m.Icon) > 40 || !iconRe.MatchString(m.Icon)) {
+		return fmt.Errorf("manifest: icon %q must be a Lucide name like battery-charging", m.Icon)
+	}
+	if m.Category != "" && !slices.Contains(Categories, m.Category) {
+		return fmt.Errorf("manifest: category %q must be one of %s", m.Category, strings.Join(Categories, ", "))
+	}
+	for _, l := range []string{m.Logo, m.LogoDark} {
+		if l != "" && !logoRe.MatchString(l) {
+			return fmt.Errorf("manifest: logo %q must be an SVG file at the package root, like logo.svg", l)
+		}
+	}
+	if m.LogoDark != "" && m.Logo == "" {
+		return fmt.Errorf("manifest: logoDark needs logo")
+	}
 	return nil
+}
+
+// LogoFiles are the logo files the manifest names.
+func (m Manifest) LogoFiles() []string {
+	var out []string
+	for _, l := range []string{m.Logo, m.LogoDark} {
+		if l != "" {
+			out = append(out, l)
+		}
+	}
+	return out
 }
 
 // Supported tells whether this server can run the plugin.

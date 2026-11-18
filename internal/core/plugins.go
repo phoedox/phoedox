@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -80,8 +81,12 @@ type CatalogEntry struct {
 	// AuthorDomain is the domain a verified author proved to the store.
 	AuthorDomain string `json:"authorDomain,omitempty"`
 	// Channel is stable or beta.
-	Channel     string          `json:"channel,omitempty"`
-	Icon        string          `json:"icon,omitempty"`
+	Channel string `json:"channel,omitempty"`
+	Icon    string `json:"icon,omitempty"`
+	// Category and the logo addresses come from the store (ADR-0090).
+	Category    string          `json:"category,omitempty"`
+	Logo        string          `json:"logo,omitempty"`
+	LogoDark    string          `json:"logoDark,omitempty"`
 	Permissions []string        `json:"permissions"`
 	License     json.RawMessage `json:"license,omitempty"`
 	SHA256      string          `json:"sha256"`
@@ -158,7 +163,13 @@ func (s *Service) adminOnly(a Actor) error {
 // PluginInfo is an installed plugin as admins see it.
 type PluginInfo struct {
 	store.Plugin
-	Description  string                `json:"description,omitempty"`
+	Description string `json:"description,omitempty"`
+	// Icon and Category make the tile; Logo and LogoDark are addresses of
+	// the logo files when the plugin has its product's logo (ADR-0090).
+	Icon         string                `json:"icon,omitempty"`
+	Category     string                `json:"category,omitempty"`
+	Logo         string                `json:"logo,omitempty"`
+	LogoDark     string                `json:"logoDark,omitempty"`
 	Permissions  []string              `json:"permissions"`
 	Kinds        []string              `json:"kinds"`
 	Tools        []string              `json:"tools"`
@@ -185,6 +196,8 @@ func (s *Service) pluginInfo(ctx context.Context, row store.Plugin) PluginInfo {
 		return info
 	}
 	info.Description, info.CriticalPath, info.Terms = m.Description, m.CriticalPath, m.License
+	info.Icon, info.Category = m.Icon, m.Category
+	info.Logo, info.LogoDark = pluginFileURL(row, m.Logo), pluginFileURL(row, m.LogoDark)
 	info.Permissions = append(info.Permissions, m.Permissions...)
 	for _, k := range m.Contributes.Kinds {
 		info.Kinds = append(info.Kinds, k.ID)
@@ -392,6 +405,10 @@ type ProjectPluginInfo struct {
 	Name        string          `json:"name"`
 	Version     string          `json:"version"`
 	Description string          `json:"description,omitempty"`
+	Icon        string          `json:"icon,omitempty"`
+	Category    string          `json:"category,omitempty"`
+	Logo        string          `json:"logo,omitempty"`
+	LogoDark    string          `json:"logoDark,omitempty"`
 	Enabled     bool            `json:"enabled"`
 	Permissions []string        `json:"permissions,omitempty"`
 	Kinds       []string        `json:"kinds"`
@@ -503,6 +520,7 @@ func (s *Service) ProjectPlugins(ctx context.Context, a Actor, ref string) ([]Pr
 			continue // switched off by the admin: not offered
 		}
 		info := ProjectPluginInfo{ID: row.ID, Name: row.Name, Version: row.Version, Description: m.Description, Enabled: i >= 0,
+			Icon: m.Icon, Category: m.Category, Logo: pluginFileURL(row, m.Logo), LogoDark: pluginFileURL(row, m.LogoDark),
 			Kinds: []string{}, Tools: []string{}, Problem: problem, Recall: row.Recall}
 		for _, k := range m.Contributes.Kinds {
 			info.Kinds = append(info.Kinds, k.ID)
@@ -637,19 +655,32 @@ func (s *Service) SetPluginSecrets(ctx context.Context, a Actor, ref, id string,
 	return nil
 }
 
+// pluginFileURL is the address of a file of an installed plugin ("" for
+// no file).
+func pluginFileURL(row store.Plugin, name string) string {
+	if name == "" {
+		return ""
+	}
+	return "/api/v1/plugins/" + url.PathEscape(row.ID) + "/" + url.PathEscape(row.Version) + "/files/" + name
+}
+
 // PluginFile serves a file of an installed plugin's package (frontend
-// modules). Every signed-in user may load the files of enabled plugins.
+// modules). Every signed-in user may load the files of enabled plugins and
+// the logos of all installed ones (the plugin list shows them).
 func (s *Service) PluginFile(ctx context.Context, a Actor, id, version, name string) ([]byte, error) {
 	if !s.pluginsOn() || a.User.ID == "" {
 		return nil, ErrNotFound
 	}
 	row, err := s.DB.GetPlugin(ctx, id)
-	if err != nil || row.Version != version || !row.Enabled {
+	if err != nil || row.Version != version {
 		return nil, ErrNotFound
 	}
 	pkg, err := s.pkg(ctx, row.SHA256)
 	if err != nil {
 		return nil, err
+	}
+	if !row.Enabled && !slices.Contains(pkg.Manifest.LogoFiles(), name) {
+		return nil, ErrNotFound
 	}
 	if name == plugins.ManifestFile || (pkg.Manifest.Backend != nil && strings.TrimPrefix(name, "./") == strings.TrimPrefix(pkg.Manifest.Backend.Wasm, "./")) {
 		return nil, ErrNotFound

@@ -103,6 +103,9 @@ func TestPlugins(t *testing.T) {
 	if _, err := s.PluginFile(ctx, reader, "de.example.ups", "1.2.0", "backend.wasm"); !errors.Is(err, ErrNotFound) {
 		t.Fatal("the backend is not served")
 	}
+	if list[0].Icon != "battery-charging" || list[0].Category != "servers" || list[0].Logo != "/api/v1/plugins/de.example.ups/1.2.0/files/logo.svg" || list[0].LogoDark != "" {
+		t.Fatalf("tile and logo (ADR-0090): %+v", list[0])
+	}
 
 	// The plugin's kind is part of the data model and cannot be redefined.
 	m, _ := s.DataModel(ctx, reader, p.Slug)

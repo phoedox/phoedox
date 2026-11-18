@@ -192,10 +192,13 @@ export interface PluginInfo {
   id: string; version: string; name: string; sha256: string; size: number; source: "store" | "upload"; signedBy: string; signed: boolean;
   enabled: boolean; recall: "" | "warning" | "critical"; recallNote?: string; latest?: string; installedAt: string; updatedAt: string;
   description?: string; permissions: string[]; kinds: string[]; tools: string[]; events: string[]; secrets: string[];
+  /** Tile and logo (ADR-0090). */
+  icon?: string; category?: string; logo?: string; logoDark?: string;
   frontend: boolean; backend: boolean; criticalPath: boolean; license: LicenseStatus; projects: number; problem?: "manifest" | "incompatible"; needs?: string;
 }
 export interface CatalogEntry {
   id: string; name: string; version: string; summary: string; author: string; verified: boolean; icon?: string;
+  category?: string; logo?: string; logoDark?: string;
   /** Domain a verified author proved to the store. */
   authorDomain?: string;
   /** Average of the store's ratings (1–5) and their number. */
@@ -209,5 +212,6 @@ export interface ProjectPlugin {
   id: string; name: string; version: string; description?: string; enabled: boolean; permissions?: string[];
   kinds: string[]; tools: string[]; frontend?: string; secrets?: Record<string, boolean>; lastRun: string | null; lastError?: string;
   problem?: string; recall?: string;
+  icon?: string; category?: string; logo?: string; logoDark?: string;
 }
 export interface PluginLog { time: string; level: string; msg: string }

@@ -81,6 +81,14 @@ html, body { margin: 0; background: var(--bg); color: var(--fg); font-family: va
   --tb-green: #1d3324; --tb-blue: #1e2a44; --tb-purple: #2f2240; --tb-pink: #3c1f2e;
 }
 
+/* Things that differ between light and dark (plugin logos, ADR-0090):
+   display: var(--light-only) / var(--dark-only). */
+:root { --light-only: inline-block; --dark-only: none; --logo-plate: transparent; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --light-only: none; --dark-only: inline-block; --logo-plate: #f6f3f0; }
+}
+:root[data-theme="dark"] { --light-only: none; --dark-only: inline-block; --logo-plate: #f6f3f0; }
+
 /* Built-in fonts (SIL Open Font License, files in /fonts with their
    licences). Browsers download only the fonts a theme uses. */
 @font-face { font-family: "IBM Plex Sans"; src: url(/fonts/ibm-plex-sans-latin-400-normal.woff2) format("woff2"); font-weight: 400; font-display: swap; }

@@ -2,6 +2,7 @@ import { LitElement, css, html } from "lit";
 import { ApiError, api, type ProjectPlugin } from "../api";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
+import { pluginTile, tileStyles } from "./plugin-tile";
 import { reloadProjectPlugins } from "../plugin-host";
 import { permLabel } from "../plugin-perms";
 import { base } from "./shared";
@@ -10,7 +11,7 @@ import { toast } from "./toasts";
 /** Plugins of a project (owners): switch on/off, secrets, last run. */
 export class PhxProjectPlugins extends LitElement {
   static properties = { project: {}, list: { state: true }, busy: { state: true }, open: { state: true } };
-  static styles = [base, css`
+  static styles = [base, tileStyles, css`
     :host { display: block; }
     .pl { padding: 12px 14px; margin-bottom: 8px; display: grid; gap: 8px; }
     .pl header { display: flex; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
@@ -84,7 +85,7 @@ export class PhxProjectPlugins extends LitElement {
     return html`${this.list.map((p) => {
       const secrets = Object.entries(p.secrets ?? {});
       return html`<article class="pl card">
-        <header><span style="color:var(--signal)">${icon("Puzzle", 18)}</span>
+        <header>${pluginTile(p, 32)}
           <div class="t"><h3>${p.name} <span class="muted" style="font-weight:400">${p.version}</span></h3>
             ${p.description ? html`<p class="muted small">${p.description}</p>` : ""}</div>
           <label class="switch"><input type="checkbox" .checked=${p.enabled} ?disabled=${this.busy || (!p.enabled && !!p.problem)}

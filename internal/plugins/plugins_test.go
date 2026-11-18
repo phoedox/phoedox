@@ -9,6 +9,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -290,6 +291,27 @@ func TestPackageChecks(t *testing.T) {
 	}
 	if _, err := ReadPackage([]byte("not gzip")); !errors.Is(err, ErrPackage) {
 		t.Error("garbage must fail")
+	}
+
+	// Logos (ADR-0090): the named SVG must be there and pass CheckSVG.
+	withLogo := strings.Replace(testManifest, `"name"`, `"category": "servers", "logo": "logo.svg", "name"`, 1)
+	base := map[string][]byte{ManifestFile: []byte(withLogo), "backend.wasm": wasm, "frontend/index.js": nil, "schemas/ups.json": []byte("{}")}
+	for name, logo := range map[string][]byte{"ok": []byte(`<svg xmlns="http://www.w3.org/2000/svg"><circle r="3"/></svg>`), "script": []byte(`<svg><script>x</script></svg>`), "missing": nil} {
+		files := maps.Clone(base)
+		if logo != nil {
+			files["logo.svg"] = logo
+		}
+		data, _ := BuildPackage(files)
+		p, err := ReadPackage(data)
+		if (name == "ok") != (err == nil) {
+			t.Errorf("logo %s: %v", name, err)
+		}
+		if name == "ok" && (p.Manifest.Category != "servers" || p.Manifest.LogoFiles()[0] != "logo.svg") {
+			t.Errorf("logo fields: %+v", p.Manifest)
+		}
+	}
+	if _, err := ParseManifest([]byte(strings.Replace(testManifest, `"name"`, `"category": "toys", "name"`, 1))); err == nil {
+		t.Error("unknown category accepted")
 	}
 }
 

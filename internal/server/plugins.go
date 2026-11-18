@@ -185,7 +185,9 @@ func (a *api) pluginFile(w http.ResponseWriter, r *http.Request) {
 	case ".css":
 		ct = "text/css; charset=utf-8"
 	case ".svg":
+		// Logos and icons: shown with <img>; opened directly they run nothing.
 		ct = "image/svg+xml"
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
 	}
 	if ct == "" || strings.HasPrefix(ct, "text/html") {
 		ct = "application/octet-stream"
