@@ -243,6 +243,30 @@ func TestFetch(t *testing.T) {
 	if m := callHost(t, r, p, &fakeEnv{}, "http.fetch", map[string]any{"url": other}); m["code"] != "denied" {
 		t.Fatalf("undeclared host must be denied: %v", m)
 	}
+
+	// The development fetch map sends an allowed host to a fake API; the
+	// permission check still uses the original host.
+	var fakeHost string
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fakeHost = r.Host
+		_, _ = w.Write([]byte("fake"))
+	}))
+	defer fake.Close()
+	fm, err := ParseFetchMap("127.0.0.1=" + fake.URL + ", localhost=" + fake.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.FetchMap = fm
+	m = callHost(t, r, p, &fakeEnv{}, "http.fetch", map[string]any{"url": "https://127.0.0.1/api"})
+	if res, _ := m["result"].(map[string]any); res["body"] != "fake" || fakeHost != "127.0.0.1" {
+		t.Fatalf("fetch map: %v host %q", m, fakeHost)
+	}
+	if m := callHost(t, r, p, &fakeEnv{}, "http.fetch", map[string]any{"url": other}); m["code"] != "denied" {
+		t.Fatalf("a mapped host still needs the permission: %v", m)
+	}
+	if _, err := ParseFetchMap("api.example.com=ftp://x"); err == nil {
+		t.Fatal("bad map accepted")
+	}
 }
 
 func TestLimits(t *testing.T) {

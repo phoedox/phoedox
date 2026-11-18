@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/phoedox/phoedox/internal/ai"
 	"github.com/phoedox/phoedox/internal/ai/anthropic"
@@ -174,6 +175,17 @@ func Open(ctx context.Context) (*App, error) {
 		}
 		rt := plugins.NewRuntime(slog.Default(), 8)
 		rt.Code = core.PluginErrorCode
+		if cfg.PluginsFetchMap != "" {
+			if !cfg.PluginsUnsigned {
+				db.Close()
+				return nil, errors.New("PHOEDOX_PLUGINS_FETCH_MAP needs PHOEDOX_PLUGINS_ALLOW_UNSIGNED=true (development only)")
+			}
+			if rt.FetchMap, err = plugins.ParseFetchMap(cfg.PluginsFetchMap); err != nil {
+				db.Close()
+				return nil, err
+			}
+			slog.Warn("plugin fetches are redirected (development only)", "map", cfg.PluginsFetchMap)
+		}
 		svc.Plugins = core.PluginConfig{Runtime: rt, Keys: keys, AllowUnsigned: cfg.PluginsUnsigned, Version: "dev"}
 		if cfg.StoreURL != "" {
 			svc.Plugins.Store = storeclient.New(cfg.StoreURL)

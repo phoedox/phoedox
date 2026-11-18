@@ -97,6 +97,10 @@ type Runtime struct {
 	MaxResponse int64
 	// Code maps errors of Env to a code for the plugin ("forbidden", …).
 	Code func(error) string
+	// FetchMap sends fetches to a host (lowercase) to another address
+	// ("http://127.0.0.1:18191") after the permission check: development
+	// only, for fake APIs of cloud services (PHOEDOX_PLUGINS_FETCH_MAP).
+	FetchMap map[string]*url.URL
 
 	mu       sync.Mutex
 	compiled map[string]*extism.CompiledPlugin
@@ -412,10 +416,15 @@ func (r *Runtime) fetch(ctx context.Context, m Manifest, f FetchRequest, env Env
 	if method == "" {
 		method = http.MethodGet
 	}
+	host := u.Host
+	if to := r.FetchMap[strings.ToLower(u.Hostname())]; to != nil {
+		u.Scheme, u.Host = to.Scheme, to.Host
+	}
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), strings.NewReader(f.Body))
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalid, err)
 	}
+	req.Host = host
 	for k, v := range f.Headers {
 		req.Header.Set(k, v)
 	}
@@ -513,4 +522,22 @@ func configuredHost(ctx context.Context, m Manifest, env Env, host string) bool 
 		}
 	}
 	return false
+}
+
+// ParseFetchMap reads "host=http://addr:port,host2=…" (PHOEDOX_PLUGINS_FETCH_MAP).
+func ParseFetchMap(v string) (map[string]*url.URL, error) {
+	out := map[string]*url.URL{}
+	for _, part := range strings.Split(v, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		host, to, ok := strings.Cut(part, "=")
+		u, err := url.Parse(strings.TrimSpace(to))
+		if !ok || err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return nil, fmt.Errorf("PHOEDOX_PLUGINS_FETCH_MAP: %q must be host=http(s)://address", part)
+		}
+		out[strings.ToLower(strings.TrimSpace(host))] = u
+	}
+	return out, nil
 }

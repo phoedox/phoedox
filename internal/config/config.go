@@ -121,6 +121,11 @@ type Config struct {
 	// PluginsUnsigned accepts uploaded plugins without a trusted signature
 	// (PHOEDOX_PLUGINS_ALLOW_UNSIGNED, development only).
 	PluginsUnsigned bool
+	// PluginsFetchMap sends plugin fetches to fixed hosts to other
+	// addresses, "api.example.com=http://127.0.0.1:18191,…"
+	// (PHOEDOX_PLUGINS_FETCH_MAP; only with PluginsUnsigned, for fake APIs
+	// in tests and screenshots).
+	PluginsFetchMap string
 	// OIDC enables sign-in with an external identity provider.
 	OIDC OIDC
 	// HAURL enables sign-in with Home Assistant (PHOEDOX_HA_URL): the address
@@ -269,6 +274,7 @@ func FromEnv() (Config, error) {
 	c.HAInternalURL = strings.TrimRight(os.Getenv("PHOEDOX_HA_INTERNAL_URL"), "/")
 	c.HAAutoCreate = getenv("PHOEDOX_HA_AUTO_CREATE", "true") == "true"
 	c.PluginsUnsigned = os.Getenv("PHOEDOX_PLUGINS_ALLOW_UNSIGNED") == "true"
+	c.PluginsFetchMap = os.Getenv("PHOEDOX_PLUGINS_FETCH_MAP")
 	c.S3 = S3{Endpoint: os.Getenv("PHOEDOX_S3_ENDPOINT"), Bucket: os.Getenv("PHOEDOX_S3_BUCKET"), Region: os.Getenv("PHOEDOX_S3_REGION"),
 		AccessKey: os.Getenv("PHOEDOX_S3_ACCESS_KEY"), SecretKey: os.Getenv("PHOEDOX_S3_SECRET_KEY"), Prefix: os.Getenv("PHOEDOX_S3_PREFIX"),
 		Insecure: os.Getenv("PHOEDOX_S3_INSECURE") == "true"}
