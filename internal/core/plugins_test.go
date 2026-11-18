@@ -125,6 +125,9 @@ func TestPlugins(t *testing.T) {
 	if err := s.SetPluginSecrets(ctx, owner, p.Slug, "de.example.ups", map[string]string{"nut_password": "geheim"}); err != nil {
 		t.Fatal(err)
 	}
+	if last, ok := s.schedLast[p.ID+"/de.example.ups"]; !ok || !last.IsZero() {
+		t.Fatal("new settings: the plugin runs in the next scheduler round")
+	}
 	list, _ = s.ProjectPlugins(ctx, owner, p.Slug)
 	if !list[0].Secrets["nut_password"] {
 		t.Fatalf("secret flag: %+v", list[0])

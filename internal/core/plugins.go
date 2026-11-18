@@ -652,6 +652,14 @@ func (s *Service) SetPluginSecrets(ctx context.Context, a Actor, ref, id string,
 		names = append(names, n)
 	}
 	s.event(ctx, a, "plugin.secrets", p.ID, map[string]any{"plugin": id, "names": names})
+	// New settings: the next scheduler round runs the plugin at once instead
+	// of waiting for its interval (an import shows up right after saving).
+	s.schedMu.Lock()
+	if s.schedLast == nil {
+		s.schedLast = map[string]time.Time{}
+	}
+	s.schedLast[p.ID+"/"+id] = time.Time{}
+	s.schedMu.Unlock()
 	return nil
 }
 
