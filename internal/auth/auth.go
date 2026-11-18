@@ -139,8 +139,14 @@ func (a *Auth) startSession(ctx context.Context, u store.User) (*http.Cookie, er
 	return a.cookie(plain, exp.Time), nil
 }
 
+// cookie also sets Max-Age (relative), which browsers prefer over Expires:
+// it holds when the client's clock (or the server's, PHOEDOX_FAKE_NOW) is off.
 func (a *Auth) cookie(value string, exp time.Time) *http.Cookie {
-	return &http.Cookie{Name: CookieName, Value: value, Path: "/", Expires: exp, HttpOnly: true, Secure: a.SecureCookies, SameSite: http.SameSiteLaxMode}
+	c := &http.Cookie{Name: CookieName, Value: value, Path: "/", Expires: exp, HttpOnly: true, Secure: a.SecureCookies, SameSite: http.SameSiteLaxMode}
+	if s := int(exp.Sub(store.Now().Time).Seconds()); s > 0 {
+		c.MaxAge = s
+	}
+	return c
 }
 
 // Logout ends the session of the request and returns a clearing cookie.
