@@ -445,3 +445,17 @@ func TestPluginBlocks(t *testing.T) {
 		t.Fatalf("published: %q", pub)
 	}
 }
+
+func TestLicenseTerms(t *testing.T) {
+	free := parseLicenseTerms(json.RawMessage(`{"noncommercial": "free", "commercial": "free"}`))
+	if free.Paid != nil || free.Commercial != nil {
+		t.Fatalf("free: %+v", free)
+	}
+	paid := parseLicenseTerms(json.RawMessage(`{"noncommercial": "free", "commercial": {"plan": "org", "trialDays": 14}, "paid": {"plan": "pro"}}`))
+	if paid.Commercial == nil || paid.Commercial.TrialDays != 14 || paid.Paid == nil || paid.Paid.Plan != "pro" {
+		t.Fatalf("paid: %+v", paid)
+	}
+	if none := parseLicenseTerms(nil); none.Paid != nil || none.Commercial != nil {
+		t.Fatal("no license")
+	}
+}

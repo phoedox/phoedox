@@ -971,9 +971,24 @@ type LicenseFile struct {
 	Signature string `json:"signature"`
 }
 
-func (s *Service) licenseStatus(ctx context.Context, row store.Plugin, m plugins.Manifest) LicenseStatus {
+// parseLicenseTerms reads the manifest's license; "free" (a string) for
+// paid or commercial means no license is needed.
+func parseLicenseTerms(raw json.RawMessage) licenseTerms {
+	var parts map[string]json.RawMessage
 	var terms licenseTerms
-	_ = json.Unmarshal(m.License, &terms)
+	if json.Unmarshal(raw, &parts) != nil {
+		return terms
+	}
+	for key, dst := range map[string]any{"paid": &terms.Paid, "commercial": &terms.Commercial} {
+		if v := bytes.TrimSpace(parts[key]); len(v) > 0 && v[0] == '{' {
+			_ = json.Unmarshal(v, dst)
+		}
+	}
+	return terms
+}
+
+func (s *Service) licenseStatus(ctx context.Context, row store.Plugin, m plugins.Manifest) LicenseStatus {
+	terms := parseLicenseTerms(m.License)
 	st := LicenseStatus{Required: terms.Paid != nil}
 	if terms.Commercial != nil {
 		st.Hint = "commercial"
