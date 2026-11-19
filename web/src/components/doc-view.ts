@@ -39,6 +39,11 @@ export const prose = `
   .prose table { border-collapse: collapse; } .prose td, .prose th { border: 1px solid var(--line); padding: 6px 10px; }
   .prose img, .prose .ed-img img { max-width: 100%; height: auto; border-radius: 8px; vertical-align: middle; }
   .prose .ed-img { display: inline-block; max-width: 100%; }
+  /* Task lists (- [ ] / - [x]): the form rule input { width: 100% } must not
+     stretch their checkboxes; no bullet, the box in front of the text. */
+  .prose li:has(> input[type="checkbox"]), .prose li:has(> p > input[type="checkbox"]:first-child) { list-style: none; }
+  .prose li > input[type="checkbox"], .prose li > p > input[type="checkbox"]:first-child {
+    width: auto; padding: 0; margin: 0 .55em 0 -1.4em; vertical-align: -.1em; accent-color: var(--accent); }
   ${blockStyles}
 `;
 
