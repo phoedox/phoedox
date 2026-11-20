@@ -203,7 +203,7 @@ func (a *api) terminalBrowser(w http.ResponseWriter, r *http.Request) {
 
 // terminalAgent is the agent side: GET /agent/terminal/{id} with its token.
 func (a *api) terminalAgent(w http.ResponseWriter, r *http.Request) {
-	j, ctx, err := a.core.TerminalForAgent(r.Context(), strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), chi.URLParam(r, "id"))
+	j, ctx, err := a.core.TerminalForAgent(r.Context(), bearer(r), chi.URLParam(r, "id"))
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -227,7 +227,7 @@ func (a *api) terminalLog(ctx context.Context, j store.AgentJob) func() func(*re
 // Speed test endpoints for agents (token instead of a session).
 func (a *api) agentOnly(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if _, _, err := a.core.AgentFromToken(r.Context(), strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")); err != nil {
+		if _, _, err := a.core.AgentFromToken(r.Context(), bearer(r)); err != nil {
 			writeErr(w, core.ErrForbidden)
 			return
 		}

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
@@ -61,5 +62,20 @@ func TestLoginAndTokens(t *testing.T) {
 	r.Header.Set("Authorization", "Bearer phx_wrong")
 	if _, _, err := a.FromRequest(r, "mcp"); err == nil {
 		t.Fatal("wrong token accepted")
+	}
+}
+
+func TestBearerToken(t *testing.T) {
+	for h, want := range map[string]string{
+		"Bearer phx_abc": "phx_abc", "bearer phx_abc": "phx_abc", "BEARER  phx_abc ": "phx_abc",
+		"Basic abc": "", "Bearer": "", "": "", "Bearerphx_abc": "",
+	} {
+		r, _ := http.NewRequest("GET", "/", nil)
+		if h != "" {
+			r.Header.Set("Authorization", h)
+		}
+		if got, ok := BearerToken(r); got != want || ok != (want != "") {
+			t.Errorf("%q: %q %v", h, got, ok)
+		}
 	}
 }

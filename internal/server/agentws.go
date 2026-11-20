@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/coder/websocket"
@@ -31,7 +30,7 @@ type agentMsg struct {
 }
 
 func (a *api) agentWS(w http.ResponseWriter, r *http.Request) {
-	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	token := bearer(r)
 	if _, _, err := a.core.AgentFromToken(r.Context(), token); err != nil {
 		writeJSON(w, http.StatusUnauthorized, errBody("unauthorized", "Agent token not accepted."))
 		return

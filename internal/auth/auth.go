@@ -157,6 +157,17 @@ func (a *Auth) Logout(r *http.Request) *http.Cookie {
 	return &http.Cookie{Name: CookieName, Value: "", Path: "/", MaxAge: -1, HttpOnly: true, Secure: a.SecureCookies, SameSite: http.SameSiteLaxMode}
 }
 
+// BearerToken returns the token of an "Authorization: Bearer …" header.
+// The scheme is case-insensitive (RFC 7235); some clients send "bearer".
+func BearerToken(r *http.Request) (string, bool) {
+	scheme, token, ok := strings.Cut(strings.TrimSpace(r.Header.Get("Authorization")), " ")
+	if !ok || !strings.EqualFold(scheme, "Bearer") {
+		return "", false
+	}
+	token = strings.TrimSpace(token)
+	return token, token != ""
+}
+
 // FromRequest resolves the actor from a Bearer token or the session cookie.
 // via is used for token requests ("token" for REST, "mcp" for MCP). OAuth
 // access tokens are only accepted for MCP.
@@ -168,8 +179,7 @@ func (a *Auth) FromRequest(r *http.Request, via string) (core.Actor, bool, error
 // FromRequestWithExpiry is FromRequest that also returns when an OAuth
 // access token expires (zero for API tokens and sessions).
 func (a *Auth) FromRequestWithExpiry(r *http.Request, via string) (core.Actor, time.Time, bool, error) {
-	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
-		token := strings.TrimSpace(h[7:])
+	if token, ok := BearerToken(r); ok {
 		if strings.HasPrefix(token, accessPrefix) {
 			if via != "mcp" {
 				return core.Actor{}, time.Time{}, false, store.ErrNotFound

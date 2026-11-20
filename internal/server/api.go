@@ -11,7 +11,6 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -1086,7 +1085,7 @@ func (a *api) agentEnroll(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) agentJobs(w http.ResponseWriter, r *http.Request) {
 	wait, _ := strconv.Atoi(r.URL.Query().Get("wait"))
-	jobs, err := a.core.AgentJobs(r.Context(), strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), time.Duration(wait)*time.Second)
+	jobs, err := a.core.AgentJobs(r.Context(), bearer(r), time.Duration(wait)*time.Second)
 	respond(w, map[string]any{"jobs": jobs}, err)
 }
 
@@ -1099,7 +1098,7 @@ func (a *api) agentJobResult(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, &core.InvalidError{Key: "validation.json", Msg: "invalid JSON: " + err.Error()})
 		return
 	}
-	err := a.core.AgentJobResult(r.Context(), strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), chi.URLParam(r, "id"), in.OK, in.Output)
+	err := a.core.AgentJobResult(r.Context(), bearer(r), chi.URLParam(r, "id"), in.OK, in.Output)
 	respond(w, map[string]bool{"ok": true}, err)
 }
 
@@ -1154,7 +1153,7 @@ func (a *api) signAgentJob(w http.ResponseWriter, r *http.Request) {
 
 // agentRelease serves an agent binary for self-updates (agent token).
 func (a *api) agentRelease(w http.ResponseWriter, r *http.Request) {
-	file, err := a.core.AgentRelease(r.Context(), strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), chi.URLParam(r, "tag"), chi.URLParam(r, "asset"))
+	file, err := a.core.AgentRelease(r.Context(), bearer(r), chi.URLParam(r, "tag"), chi.URLParam(r, "asset"))
 	if err != nil {
 		writeErr(w, err)
 		return
@@ -1164,7 +1163,7 @@ func (a *api) agentRelease(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) agentReport(w http.ResponseWriter, r *http.Request) {
-	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	token := bearer(r)
 	// Lenient: newer agents may send more fields.
 	var in core.Report
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2<<20)).Decode(&in); err != nil {

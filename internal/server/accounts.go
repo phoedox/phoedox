@@ -42,6 +42,12 @@ func (a *api) trustedBase() string {
 	return ""
 }
 
+// bearer is the request's bearer token ("" without one).
+func bearer(r *http.Request) string {
+	t, _ := auth.BearerToken(r)
+	return t
+}
+
 // baseURL is the trusted base or the request's origin.
 func (a *api) baseURL(r *http.Request) string {
 	var appDomain func(context.Context, string) bool
