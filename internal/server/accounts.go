@@ -43,16 +43,35 @@ func (a *api) trustedBase() string {
 }
 
 // baseURL is the trusted base or the request's origin.
-func (a *api) baseURL(r *http.Request) string { return BaseURL(a.cfg)(r) }
+func (a *api) baseURL(r *http.Request) string {
+	var appDomain func(context.Context, string) bool
+	if a.core != nil {
+		appDomain = a.core.IsAppDomain
+	}
+	return BaseURL(a.cfg, appDomain)(r)
+}
 
 // BaseURL returns a function giving the public origin of a request: the
 // configured public URL or domain, else scheme and host of the request.
-func BaseURL(cfg config.Config) func(*http.Request) string {
+// A request to a verified app domain of an organization gets that domain's
+// origin, so passkeys, sign-in callbacks and the OAuth metadata for AI
+// clients work there too. appDomain may be nil; the Host header is only
+// trusted when appDomain knows it, so a forged one cannot move links.
+func BaseURL(cfg config.Config, appDomain func(ctx context.Context, host string) bool) func(*http.Request) string {
 	return func(r *http.Request) string {
-		if cfg.PublicURL != "" {
-			return cfg.PublicURL
-		}
-		if cfg.Domain != "" {
+		if cfg.PublicURL != "" || cfg.Domain != "" {
+			if appDomain != nil {
+				host := strings.ToLower(r.Host)
+				if h, _, err := net.SplitHostPort(host); err == nil {
+					host = h
+				}
+				if host != "" && host != strings.ToLower(cfg.Domain) && appDomain(r.Context(), host) {
+					return "https://" + host
+				}
+			}
+			if cfg.PublicURL != "" {
+				return cfg.PublicURL
+			}
 			return "https://" + cfg.Domain
 		}
 		scheme := "http"

@@ -5230,4 +5230,5 @@ export const en: Record<keyof typeof de, string> = {
   "plugins.cat.records": "Records & compliance",
   "plugins.cat.blocks": "Page blocks",
   "plugins.cat.other": "Other",
+  "orgdomain.signin_hint": "Sign-in with an external account (OIDC) on this address needs {url} as an additional redirect URI at the provider.",
 };

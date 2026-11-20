@@ -70,7 +70,7 @@ func oauthServer(t *testing.T) (*httptest.Server, *store.DB) {
 	}
 	svc := core.New(db)
 	cfg := config.Config{}
-	srv := httptest.NewServer(New(Deps{Config: cfg, Core: svc, Auth: au, MCP: mcp.Handler(svc, au, "test", BaseURL(cfg))}))
+	srv := httptest.NewServer(New(Deps{Config: cfg, Core: svc, Auth: au, MCP: mcp.Handler(svc, au, "test", BaseURL(cfg, nil))}))
 	t.Cleanup(srv.Close)
 	return srv, db
 }

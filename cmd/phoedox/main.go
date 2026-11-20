@@ -63,7 +63,7 @@ func main() {
 		Config:  a.Config,
 		Core:    a.Core,
 		Auth:    a.Auth,
-		MCP:     mcp.Handler(a.Core, a.Auth, server.Version, server.BaseURL(a.Config)),
+		MCP:     mcp.Handler(a.Core, a.Auth, server.Version, server.BaseURL(a.Config, a.Core.IsAppDomain)),
 		Web:     web.Dist(),
 		Publish: &publish.Site{Core: a.Core, Web: web.Dist(), Version: server.Version, AppURL: a.Core.PublicURL},
 	})

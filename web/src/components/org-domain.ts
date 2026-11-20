@@ -97,7 +97,8 @@ export class PhxOrgDomain extends LitElement {
           <button class="danger" ?disabled=${this.busy} @click=${() => confirm(t("orgdomain.remove_confirm", { name: d.domain })) && this.call("PUT", `/orgs/${this.org}/domain`, { domain: "" })}>${icon("Trash2", 14)} ${t("orgdomain.remove")}</button>
         </div>
         <p class="muted hint">${t("orgdomain.admin_hint")}</p>
-        <p class="muted hint">${t("orgdomain.passkey_hint")}</p>` : ""}
+        <p class="muted hint">${t("orgdomain.passkey_hint")}</p>
+        <p class="muted hint">${t("orgdomain.signin_hint", { url: `https://${d.domain}/api/v1/auth/oidc/callback` })}</p>` : ""}
     `;
   }
 }

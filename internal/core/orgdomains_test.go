@@ -47,7 +47,7 @@ func TestOrgDomains(t *testing.T) {
 	if err != nil || v.Domain != "docs.acme.test" || v.Verified || v.RecordName != "_phoedox.docs.acme.test" || v.Target != "app.example.org" {
 		t.Fatalf("set: %v %+v", err, v)
 	}
-	if c := s.AppContextFor(ctx, "docs.acme.test"); c.Org != nil {
+	if c := s.AppContextFor(ctx, "docs.acme.test"); c.Org != nil || s.IsAppDomain(ctx, "docs.acme.test") {
 		t.Fatal("unverified domain is active")
 	}
 	if _, err := s.VerifyOrgDomain(ctx, owner, o.Slug); invalidKey(err) != "validation.domain_unverified" {
@@ -56,6 +56,9 @@ func TestOrgDomains(t *testing.T) {
 	records["_phoedox.docs.acme.test"] = []string{"other", v.RecordText}
 	if v, err = s.VerifyOrgDomain(ctx, owner, o.Slug); err != nil || !v.Verified {
 		t.Fatalf("verify: %v %+v", err, v)
+	}
+	if !s.IsAppDomain(ctx, "docs.acme.test") || s.IsAppDomain(ctx, "evil.example") {
+		t.Fatal("IsAppDomain")
 	}
 	c := s.AppContextFor(ctx, "docs.acme.test:443")
 	if c.Org == nil || c.Org.Slug != o.Slug || c.Org.Name != "Acme" {
@@ -74,7 +77,7 @@ func TestOrgDomains(t *testing.T) {
 	if _, err := s.SetOrgDomain(ctx, owner, o.Slug, ""); err != nil {
 		t.Fatal(err)
 	}
-	if c := s.AppContextFor(ctx, "docs.acme.test"); c.Org != nil {
+	if c := s.AppContextFor(ctx, "docs.acme.test"); c.Org != nil || s.IsAppDomain(ctx, "docs.acme.test") {
 		t.Fatal("removed domain still active")
 	}
 }

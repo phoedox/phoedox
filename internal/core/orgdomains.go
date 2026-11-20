@@ -146,6 +146,14 @@ type AppOrg struct {
 	Logo string `json:"logo,omitempty"`
 }
 
+// IsAppDomain tells whether host is a verified app domain of an
+// organization that may use one (the request's origin then counts as the
+// instance's public address, server.BaseURL).
+func (s *Service) IsAppDomain(ctx context.Context, host string) bool {
+	_, err := s.DB.OrgByDomain(ctx, host)
+	return err == nil
+}
+
 // AppContextFor returns the context for a request host.
 func (s *Service) AppContextFor(ctx context.Context, host string) AppContext {
 	if h, _, err := net.SplitHostPort(host); err == nil {
