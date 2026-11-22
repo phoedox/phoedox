@@ -281,6 +281,8 @@ func (s *Service) Send(ctx context.Context, a core.Actor, ref, id string, in Inp
 
 	system := []string{resources.Prompt("chat-system"), s.context(ctx, a, p, c, in)}
 	actor := aiActor(a, c.ID)
+	plugins := s.pluginToolsFor(ctx, a, ref)
+	tools := append(append([]ai.Tool(nil), s.list...), plugins.defs...)
 	var spent int64
 	defer func() {
 		e := Event{Type: "done", CostCents: (spent + 9_999) / 10_000}
@@ -305,7 +307,7 @@ func (s *Service) Send(ctx context.Context, a core.Actor, ref, id string, in Inp
 				return nil
 			}
 		}
-		turn, err := prov.Stream(ctx, ai.Request{Model: model.Model, System: system, History: normalize(history), Tools: s.list}, func(e ai.Event) {
+		turn, err := prov.Stream(ctx, ai.Request{Model: model.Model, System: system, History: normalize(history), Tools: tools}, func(e ai.Event) {
 			emit(Event{Type: e.Type, Text: e.Text, Tool: e.Tool})
 		})
 		if err != nil {
@@ -340,7 +342,9 @@ func (s *Service) Send(ctx context.Context, a core.Actor, ref, id string, in Inp
 		}
 		results := make([]ai.ToolResult, 0, len(turn.Calls))
 		for _, call := range turn.Calls {
-			res := s.run(ctx, actor, call)
+			res := s.run(ctx, actor, call, func(name string, raw json.RawMessage) (any, bool, error) {
+				return plugins.call(ctx, s, actor, ref, name, raw)
+			})
 			results = append(results, res)
 			emit(Event{Type: "tool_done", Tool: call.Name, OK: !res.IsError})
 			if call.Name == proposeCardsTool.Name && !res.IsError {
@@ -356,12 +360,20 @@ func (s *Service) Send(ctx context.Context, a core.Actor, ref, id string, in Inp
 }
 
 // run calls one tool; failures go back to the model as error results.
-func (s *Service) run(ctx context.Context, a core.Actor, call ai.ToolCall) ai.ToolResult {
-	t, ok := s.tools[call.Name]
-	if !ok {
+// extra runs tools that exist only in this chat (the project's plugin tools).
+func (s *Service) run(ctx context.Context, a core.Actor, call ai.ToolCall, extra func(name string, raw json.RawMessage) (any, bool, error)) ai.ToolResult {
+	var v any
+	var err error
+	if t, ok := s.tools[call.Name]; ok {
+		v, err = t.call(ctx, a, call.Input)
+	} else if extra != nil {
+		var found bool
+		if v, found, err = extra(call.Name, call.Input); !found {
+			return ai.ToolResult{ID: call.ID, Content: "unknown tool " + call.Name, IsError: true}
+		}
+	} else {
 		return ai.ToolResult{ID: call.ID, Content: "unknown tool " + call.Name, IsError: true}
 	}
-	v, err := t.call(ctx, a, call.Input)
 	if err != nil {
 		return ai.ToolResult{ID: call.ID, Content: errorText(err), IsError: true}
 	}

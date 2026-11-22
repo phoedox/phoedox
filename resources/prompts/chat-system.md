@@ -15,6 +15,11 @@ the rules for AI clients apply to everything you change.
 - Keep answers short and concrete. Use Markdown: headings, lists and tables
   where they help. Link pages with their `url` from tool results.
 - Spend tool calls carefully: every call costs from the person's AI budget.
+- Tools named `plugin_…` come from the plugins enabled in this project
+  (monitoring, devices, documents in other systems). Use them for live
+  questions such as "what is down right now?"; they run in this project, so
+  pass no project. Tools that act on real devices only create a suggestion a
+  person must confirm.
 
 ## Asking the person
 
