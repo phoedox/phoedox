@@ -13,7 +13,7 @@ import "./feedback-settings";
 import "./recent-history";
 import "./secret-links";
 import "./shortcut-settings";
-import { appOrg, currentProject, currentUser, focusMode, setFocusMode, setWideReading, wideReading, isPublicPath, loginURL, navigate, signedIn } from "../state";
+import { appOrg, singleOrg, currentProject, currentUser, focusMode, setFocusMode, setWideReading, wideReading, isPublicPath, loginURL, navigate, signedIn } from "../state";
 import "./audit-log";
 import "./project-switcher";
 import "./lang-switcher";
@@ -176,8 +176,9 @@ export class PhxApp extends SignalWatcher(LitElement) {
   async connectedCallback() {
     super.connectedCallback();
     // On an organization's own domain the app carries its name.
-    void api<{ org?: { id: string; slug: string; name: string } }>("GET", "/instance").then((i) => {
+    void api<{ org?: { id: string; slug: string; name: string }; singleOrg?: { id?: string; slug?: string; name?: string } }>("GET", "/instance").then((i) => {
       if (i?.org) appOrg.set(i.org);
+      if (i?.singleOrg) singleOrg.set(i.singleOrg);
     }).catch(() => {});
     try {
       signedIn(await api<User>("GET", "/me"));

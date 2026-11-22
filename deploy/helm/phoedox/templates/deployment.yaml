@@ -55,6 +55,12 @@ spec:
             {{- with (.Values.pricing).paidFeatures }}
             - { name: PHOEDOX_PAID_FEATURES, value: {{ . | quote }} }
             {{- end }}
+            {{- if (.Values.singleOrg).enabled }}
+            - { name: PHOEDOX_SINGLE_ORG, value: "true" }
+            {{- with .Values.singleOrg.name }}
+            - { name: PHOEDOX_ORG_NAME, value: {{ . | quote }} }
+            {{- end }}
+            {{- end }}
             {{- with .Values.identityClients }}
             - { name: PHOEDOX_IDENTITY_CLIENTS, value: {{ join "," . | quote }} }
             {{- end }}

@@ -3,7 +3,7 @@ import { LitElement, css, html } from "lit";
 import { t } from "../i18n";
 import { icon } from "../icon";
 import { userAvatar } from "../pictures";
-import { currentUser } from "../state";
+import { currentUser, singleOrg } from "../state";
 import { base } from "./shared";
 
 /** Account menu in the app bar (menu button pattern, WAI-ARIA). */
@@ -114,7 +114,8 @@ export class PhxUserMenu extends SignalWatcher(LitElement) {
         ${item("/tasks", "ListChecks", t("mytasks.title"))}
         ${item("/devices", "Power", t("device.shared_title"))}
         ${item("/settings/profile", "Settings", t("sx.me.title"))}
-        ${u.isAdmin ? item("/admin/overview", "Shield", t("sx.admin.title")) : item("/orgs", "Building2", t("nav.orgs"))}
+        ${u.isAdmin ? item("/admin/overview", "Shield", t("sx.admin.title"))
+          : singleOrg.get()?.slug ? item(`/orgs/${singleOrg.get()!.slug}`, "Building2", singleOrg.get()!.name ?? t("nav.orgs")) : item("/orgs", "Building2", t("nav.orgs"))}
         <hr role="separator" />
         <button role="menuitem" tabindex="-1" @click=${this.logout}>${icon("LogOut", 15)} ${t("nav.logout")}</button>
       </div>`;

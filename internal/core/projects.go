@@ -133,6 +133,15 @@ func (s *Service) CreateProject(ctx context.Context, a Actor, in ProjectInput) (
 	if err := in.normalize(); err != nil {
 		return store.Project{}, err
 	}
+	if s.SingleOrg && (in.Org == nil || *in.Org == "") {
+		// Single-organization mode: new projects belong to the organization.
+		if err := s.JoinTheOrg(ctx, a.User); err != nil {
+			return store.Project{}, err
+		}
+		if o, ok := s.TheOrg(ctx); ok {
+			in.Org = &o.ID
+		}
+	}
 	orgID, err := s.orgFor(ctx, a, in.Org)
 	if err != nil {
 		return store.Project{}, err
@@ -192,6 +201,9 @@ func (s *Service) UpdateProject(ctx context.Context, a Actor, ref string, in Pro
 	}
 	if a.Via == "mcp" && in.AIWriteMode != p.AIWriteMode {
 		return p, ErrForbidden // AI clients cannot widen their own access
+	}
+	if in.Org != nil && *in.Org == "" && s.SingleOrg && p.OrgID != "" {
+		in.Org = nil // single-organization mode: projects stay in the organization
 	}
 	if in.Org != nil {
 		if a.Via == "mcp" {

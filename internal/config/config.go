@@ -36,6 +36,12 @@ type Config struct {
 	DataDir string
 	// MultiTenant enables the hosted mode with row-level security (PHOEDOX_MULTI_TENANT).
 	MultiTenant bool
+	// SingleOrg runs the instance for exactly one organization (ADR-0092,
+	// PHOEDOX_SINGLE_ORG): every account joins it, new projects belong to it
+	// and no further organizations can be created. SingleOrgName names it
+	// when it is created (PHOEDOX_ORG_NAME, default "Phoedox").
+	SingleOrg     bool
+	SingleOrgName string
 	// SecureCookies sets the Secure flag on cookies. Default true; set
 	// PHOEDOX_INSECURE_COOKIES=true only for local HTTP development.
 	SecureCookies bool
@@ -203,6 +209,8 @@ func FromEnv() (Config, error) {
 		DBDriver:          DBDriver(strings.ToLower(getenv("PHOEDOX_DB_DRIVER", string(DriverSQLite)))),
 		DataDir:           getenv("PHOEDOX_DATA_DIR", "./data"),
 		MultiTenant:       os.Getenv("PHOEDOX_MULTI_TENANT") == "true",
+		SingleOrg:         os.Getenv("PHOEDOX_SINGLE_ORG") == "true",
+		SingleOrgName:     strings.TrimSpace(os.Getenv("PHOEDOX_ORG_NAME")),
 		SecureCookies:     os.Getenv("PHOEDOX_INSECURE_COOKIES") != "true",
 		BehindProxy:       os.Getenv("PHOEDOX_BEHIND_PROXY") == "true",
 		PublicURL:         strings.TrimRight(os.Getenv("PHOEDOX_PUBLIC_URL"), "/"),
@@ -331,6 +339,9 @@ func (c Config) Validate() error {
 	}
 	if c.MultiTenant && c.DBDriver != DriverPostgres {
 		return fmt.Errorf("PHOEDOX_MULTI_TENANT requires PHOEDOX_DB_DRIVER=postgres")
+	}
+	if c.MultiTenant && c.SingleOrg {
+		return fmt.Errorf("PHOEDOX_SINGLE_ORG cannot be combined with PHOEDOX_MULTI_TENANT")
 	}
 	return nil
 }

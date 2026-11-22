@@ -4,7 +4,7 @@ import { ApiError, api, hasFeature, projectFeatures, shareURL, type Member, type
 import { applyProjectColor } from "../color";
 import { formatDate, t } from "../i18n";
 import { icon } from "../icon";
-import { currentProject, currentUser, docsVersion, navigate } from "../state";
+import { currentProject, currentUser, docsVersion, navigate, singleOrg } from "../state";
 import { base } from "./shared";
 import { pageHead, scard, settingsUI, srow, sswitch } from "./settings-ui";
 import "./usage";
@@ -180,6 +180,8 @@ export class PhxProjectSettings extends LitElement {
   /** Move the project into another organization (owners). */
   private orgSection() {
     const p = this.p!;
+    // Single-organization mode: projects in the organization stay there (ADR-0092).
+    if (singleOrg.get() && p.orgId) return html``;
     return html`${this.orgs.length || p.orgId ? html`<section class="scard"><header><h2>${t("settings.org")}</h2><p>${t("settings.org_hint")}</p></header><div class="body">
         <form class="row" @submit=${(e: SubmitEvent) => {
           e.preventDefault();

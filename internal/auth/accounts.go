@@ -109,6 +109,7 @@ func (a *Auth) Invite(ctx context.Context, actor core.Actor, in InviteInput, bas
 	if err != nil {
 		return LinkResult{}, err
 	}
+	a.joined(ctx, u)
 	_ = a.DB.AddEvent(ctx, actor.String(), "user.invite", u.ID, map[string]any{"admin": in.Admin})
 	return a.issueLink(ctx, actor, u, store.LinkInvite, InviteTTL, base)
 }

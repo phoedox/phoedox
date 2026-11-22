@@ -9,7 +9,7 @@ import { LitElement, css, html } from "lit";
 import { ApiError, api, type Group, type Org, type OrgDetail } from "../api";
 import { t } from "../i18n";
 import { icon } from "../icon";
-import { currentProject, currentUser, navigate } from "../state";
+import { currentProject, currentUser, navigate, singleOrg } from "../state";
 import { base } from "./shared";
 import { toast } from "./toasts";
 import "./org-domain";
@@ -66,7 +66,8 @@ export class PhxOrgs extends SignalWatcher(LitElement) {
   }
 
   render() {
-    const admin = currentUser.get()?.isAdmin;
+    // Single-organization mode: no further organizations (ADR-0092).
+    const admin = currentUser.get()?.isAdmin && !singleOrg.get();
     if (this.mode === "new") {
       return html`<div class="enter"><h1>${t("orgs.new")}</h1><p class="muted">${t("sx.admin.org_new_text")}</p>${admin ? this.form() : ""}</div>`;
     }

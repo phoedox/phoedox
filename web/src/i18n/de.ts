@@ -5231,4 +5231,5 @@ export const de = {
   "orgdomain.signin_hint": "Für die Anmeldung mit einem externen Konto (OIDC) auf dieser Adresse muss {url} beim Anbieter als weitere Redirect-URI eingetragen sein.",
   "attr.cpu": "CPU",
   "attr.cores": "Kerne",
+  "validation.single_org": "Diese Instanz läuft für eine Organisation; weitere Organisationen können nicht angelegt werden.",
 } as const;

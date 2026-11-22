@@ -9,7 +9,7 @@ import { LitElement, css, html, nothing } from "lit";
 import { api } from "../api";
 import { hasKey, t } from "../i18n";
 import { icon } from "../icon";
-import { currentUser, navigate } from "../state";
+import { currentUser, navigate, singleOrg } from "../state";
 import { base } from "./shared";
 
 export type Area = "me" | "admin" | "project";
@@ -58,10 +58,13 @@ export function areaGroups(area: Area, orgs: OrgLite[] = [], ctx?: ProjectCtx): 
         { id: "plugins", href: "/admin/plugins", icon: "Puzzle", label: t("plugins.title") },
         { id: "audit", href: "/admin/audit", icon: "ScrollText", label: t("audit.title") },
       ] },
-      { label: t("sx.group.orgs"), pages: [
-        { id: "orgs", href: "/admin/orgs", icon: "Building2", label: t("sx.admin.orgs") },
-        { id: "org-new", href: "/admin/orgs/new", icon: "Plus", label: t("sx.admin.org_new") },
-      ] },
+      // Single-organization mode: the one organization instead of the list (ADR-0092).
+      singleOrg.get()?.slug
+        ? { label: t("sx.group.orgs"), pages: [{ id: `org:${singleOrg.get()!.slug}`, href: `/admin/orgs/${singleOrg.get()!.slug}`, icon: "Building2", label: singleOrg.get()!.name ?? t("sx.admin.orgs") }] }
+        : { label: t("sx.group.orgs"), pages: [
+          { id: "orgs", href: "/admin/orgs", icon: "Building2", label: t("sx.admin.orgs") },
+          ...(singleOrg.get() ? [] : [{ id: "org-new", href: "/admin/orgs/new", icon: "Plus", label: t("sx.admin.org_new") }]),
+        ] },
     ];
   }
   const groups: SettingsGroup[] = [

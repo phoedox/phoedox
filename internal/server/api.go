@@ -114,6 +114,15 @@ func (a *api) routes(r chi.Router) {
 		if c := a.core.AppContextFor(req.Context(), req.Host); c.Org != nil {
 			info["org"] = c.Org
 		}
+		// Single-organization mode (ADR-0092): the app hides the choice of
+		// organizations and personal projects ({} before the organization exists).
+		if a.cfg.SingleOrg {
+			if o := a.core.SingleOrgInfo(req.Context()); o != nil {
+				info["singleOrg"] = o
+			} else {
+				info["singleOrg"] = map[string]any{}
+			}
+		}
 		if a.auth.OIDC != nil {
 			info["oidc"] = map[string]string{"name": a.auth.OIDC.Config.Name}
 		}

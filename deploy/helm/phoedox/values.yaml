@@ -36,6 +36,13 @@ signup:
   termsUrl: ""
   privacyUrl: ""
 
+# Single-organization mode (ADR-0092): the instance runs for one organization.
+# It is created at the first sign-in (that person becomes its admin), every
+# account joins it, new projects belong to it, no further organizations.
+singleOrg:
+  enabled: false
+  name: ""   # name of the organization when it is created (default "Phoedox")
+
 # "Sign in with Phoedox" for our own services (ADR-0058): they learn only
 # id, name and e-mail of the person. One entry per service:
 # "id|Name|https://host/callback", e.g. for the plugin store:

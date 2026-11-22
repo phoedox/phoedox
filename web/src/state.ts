@@ -7,6 +7,8 @@ export const currentUser = signal<User | null>(null);
 export const currentProject = signal<Project | null>(null);
 /** The organization whose own app domain this is (null on the instance's address). */
 export const appOrg = signal<{ id: string; slug: string; name: string } | null>(null);
+/** Single-organization mode (ADR-0092): the instance's one organization; slug is "" before it exists. */
+export const singleOrg = signal<{ id?: string; slug?: string; name?: string } | null>(null);
 /** Favorites of the current project (project-wide and the user's own). */
 export const favorites = signal<import("./api").Favorite[]>([]);
 /** Bumped when documents of the current project change, so the sidebar reloads. */

@@ -110,6 +110,10 @@ type Service struct {
 	Bot *botcheck.Service
 	// UserContent serves apps on their own domain (nil = off).
 	UserContent UserContent
+	// SingleOrg runs the instance for one organization (ADR-0092);
+	// SingleOrgName names it when it is created.
+	SingleOrg     bool
+	SingleOrgName string
 
 	vaults vaultCache
 	// RequestPolicy limits which addresses request blocks may reach.

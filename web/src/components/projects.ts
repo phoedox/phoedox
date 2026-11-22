@@ -4,7 +4,7 @@ import { ApiError, api, type Org, type Project } from "../api";
 import { continueTiles, matchProjects, relativeTime, type Tile } from "../home";
 import { locale, t } from "../i18n";
 import { icon } from "../icon";
-import { appOrg, currentProject, currentUser, navigate, projectsPath, roleKey, setShowAllProjects, showAllProjects } from "../state";
+import { appOrg, singleOrg, currentProject, currentUser, navigate, projectsPath, roleKey, setShowAllProjects, showAllProjects } from "../state";
 import "./trashed-projects";
 import { base } from "./shared";
 import { projectBadge } from "../pictures";
@@ -292,7 +292,7 @@ export class PhxProjects extends SignalWatcher(LitElement) {
         </fieldset>
         <div class="two">
           <label class="field">${t("projects.name")}<input name="name" required autocomplete="off"></label>
-          ${this.orgs.length ? html`<label class="field">${t("projects.org")}<select name="org">
+          ${this.orgs.length && !singleOrg.get() ? html`<label class="field">${t("projects.org")}<select name="org">
             <option value="">${t("projects.personal")}</option>
             ${this.orgs.map((o) => html`<option value=${o.slug} ?selected=${appOrg.get()?.slug === o.slug}>${o.name}</option>`)}
             ${this.customerOrgs.length ? html`<optgroup label=${t("prov.customers")}>${this.customerOrgs.map((o) => html`<option value=${o.slug}>${o.name}</option>`)}</optgroup>` : ""}</select></label>` : ""}

@@ -99,6 +99,9 @@ func (s *Service) CreateOrg(ctx context.Context, a Actor, in OrgInput) (store.Or
 	if !a.User.IsAdmin || s.fullUser(a) != nil {
 		return store.Org{}, ErrForbidden
 	}
+	if _, ok := s.TheOrg(ctx); ok {
+		return store.Org{}, invalid("validation.single_org", nil, "this instance runs for one organization")
+	}
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Name == "" || len(in.Name) > 100 {
 		return store.Org{}, invalid("validation.name_required", nil, "name is required")

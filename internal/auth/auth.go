@@ -14,6 +14,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -94,6 +95,9 @@ func HashSecret(plain string) string {
 // Auth bundles login, accounts and token handling.
 type Auth struct {
 	DB *store.DB
+	// OnAccount is called when an account is created or signs in (the app
+	// adds it to the organization in single-organization mode).
+	OnAccount func(ctx context.Context, u store.User) error
 	// SecureCookies sets the Secure flag (true behind HTTPS).
 	SecureCookies bool
 	// Mail sends invitations and reset links; nil or disabled means links
@@ -127,6 +131,16 @@ func (a *Auth) Login(ctx context.Context, email, password string) (LoginStep, er
 	return a.passwordStep(ctx, u)
 }
 
+// joined tells the app that an account was created or signed in
+// (single-organization mode: it joins the organization, ADR-0092).
+func (a *Auth) joined(ctx context.Context, u store.User) {
+	if a.OnAccount != nil {
+		if err := a.OnAccount(ctx, u); err != nil {
+			slog.Warn("account hook failed", "user", u.ID, "err", err)
+		}
+	}
+}
+
 // startSession creates a session for u and returns its cookie.
 func (a *Auth) startSession(ctx context.Context, u store.User) (*http.Cookie, error) {
 	plain, hash := NewSecret("")
@@ -136,6 +150,7 @@ func (a *Auth) startSession(ctx context.Context, u store.User) (*http.Cookie, er
 		return nil, err
 	}
 	_ = a.DB.TouchLogin(ctx, u.ID)
+	a.joined(ctx, u)
 	return a.cookie(plain, exp.Time), nil
 }
 
@@ -232,6 +247,9 @@ func (a *Auth) CreateUser(ctx context.Context, email, name, password string, adm
 	u, err := a.DB.CreateUser(ctx, store.User{ID: string(graph.NewID()), Email: email, Name: name, IsAdmin: admin, PasswordHash: hash})
 	if errors.Is(err, store.ErrConflict) {
 		return u, core.Invalid("validation.email_taken", nil, "a user with this email exists")
+	}
+	if err == nil {
+		a.joined(ctx, u)
 	}
 	return u, err
 }

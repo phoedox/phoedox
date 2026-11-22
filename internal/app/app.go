@@ -122,6 +122,8 @@ func Open(ctx context.Context) (*App, error) {
 	svc.Mail, svc.DefaultLocale = sender, cfg.DefaultLocale
 	svc.HashPassword, svc.VerifyPassword = auth.HashPassword, auth.VerifyPassword
 	svc.PublicURL = cfg.PublicURL
+	svc.SingleOrg, svc.SingleOrgName = cfg.SingleOrg, cfg.SingleOrgName
+	a.OnAccount = svc.JoinTheOrg
 	if smtp, ok := sender.(*mail.SMTP); ok {
 		smtp.Brand = svc.MailBrand // HTML mails in the theme of the organization or instance
 	}

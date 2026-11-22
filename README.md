@@ -108,6 +108,8 @@ make build && ./bin/phoedox
 | `PHOEDOX_BACKUP_TARGET`, `PHOEDOX_BACKUP_DIR`, `PHOEDOX_BACKUP_FILES` | `local`, `<data>/backups`, `true` | Target (`local` or `s3` in the file bucket), folder, also back up file contents |
 | `PHOEDOX_METRICS_TOKEN` | – | Enables `/metrics` (Prometheus) with this bearer token |
 | `PHOEDOX_MULTI_TENANT` | `false` | Hosted mode: multiple customers (tenants) in one Postgres database, separated by Row-Level Security; tenant from the domain (`phx admin create-tenant`). The DB user must not be a superuser. |
+| `PHOEDOX_SINGLE_ORG` | `false` | Single-organization edition (ADR-0092): the instance runs for one organization. It is created at the first sign-in (that person becomes its admin); every account joins it (system admins as admins), new projects belong to it, no further organizations can be created. Projects that existed before stay where they are. Not with `PHOEDOX_MULTI_TENANT`. Helm: `singleOrg.enabled` |
+| `PHOEDOX_ORG_NAME` | `Phoedox` | Name of that organization when it is created (renamed later in its settings). Helm: `singleOrg.name` |
 | `PHOEDOX_PLUGINS` | `true` | Run WASM plugins |
 | `PHOEDOX_STORE_URL` | `https://store.phoedox.com` | Plugin store; `off` disables it |
 | `PHOEDOX_PLUGIN_KEYS` | – | Additional trusted signing keys `id:base64,…` (e.g. your own store) |
