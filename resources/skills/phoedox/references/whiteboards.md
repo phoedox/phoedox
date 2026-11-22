@@ -62,7 +62,10 @@ flows and small tools; for a real program write an app (`create_app`).
   a screen with the same name is redrawn in place), `device` phone|tablet|desktop, `look`
   "" or `sketch` (wireframe), and `screens`: `{name, start, overlay modal|sheet, actions,
   elements}`. Elements stack from the top unless `x`/`y` (relative to the screen) are
-  given; a `navbar` goes to the bottom.
+  given; a `navbar` goes to the bottom. Screens go in a row from left to right in the order
+  given; a new sheet or modal is placed under the screen that opens it, so name the
+  `overlay` target exactly. People see the arrows of the selected screen (or all, or none),
+  and each screen has "▶ from here" to play from it.
 - **Components** (`comp`): button, link, input, textarea, checkbox, switch, radio, select,
   slider, tabs, navbar, list, card, table, toast, icon, chart, avatar, badge, progress.
   `text` is the label; `variant` primary|secondary|ghost|danger; `placeholder`, `value`,

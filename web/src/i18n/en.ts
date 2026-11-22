@@ -5282,4 +5282,9 @@ export const en: Record<keyof typeof de, string> = {
   "validation.license_from_file": "The license comes from PHOEDOX_LICENSE_FILE and cannot be changed here.",
   "orgs.sso_license": "Groups that follow the SSO sign-in need a license with “Groups from SSO” in the single-organization edition.",
   "validation.license_feature": "This needs a license with this feature (Administration → License).",
+  "proto.play_from_here": "from here",
+  "wb.flows_off": "Flows off",
+  "wb.flows_sel": "Flows: selection",
+  "wb.flows_all": "Flows: all",
+  "wb.flows_title": "Arrows between prototype screens: {mode}. Click to switch (selection – all – off).",
 };

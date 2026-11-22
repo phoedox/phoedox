@@ -5280,4 +5280,9 @@ export const de = {
   "validation.license_from_file": "Die Lizenz kommt aus PHOEDOX_LICENSE_FILE und kann hier nicht geändert werden.",
   "orgs.sso_license": "Gruppen, die der SSO-Anmeldung folgen, brauchen in der Ein-Organisations-Version eine Lizenz mit „Gruppen aus SSO“.",
   "validation.license_feature": "Dafür braucht es eine Lizenz mit dieser Funktion (Administration → Lizenz).",
+  "proto.play_from_here": "ab hier",
+  "wb.flows_off": "Flows aus",
+  "wb.flows_sel": "Flows: Auswahl",
+  "wb.flows_all": "Flows: alle",
+  "wb.flows_title": "Pfeile zwischen Prototyp-Screens: {mode}. Klicken zum Wechseln (Auswahl – alle – aus).",
 } as const;

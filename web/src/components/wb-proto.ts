@@ -10,7 +10,7 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { navigate } from "../state";
 import {
-  boxOf, type Act, type Comp, type Device, type Trigger, type WBAction, type WBComment, type WBData, type WBElement, type WBPrototype, type WBVar, type Whiteboard,
+  boxOf, flowRoute, type Act, type Comp, type Device, type Trigger, type WBAction, type WBComment, type WBData, type WBElement, type WBPrototype, type WBVar, type Whiteboard,
 } from "../whiteboard";
 import { toast } from "./toasts";
 
@@ -135,35 +135,79 @@ export function drawScreen(e: WBElement, board: Whiteboard, g: SVGGElement) {
   label.style.cssText = "font:600 14px var(--font-body);fill:var(--muted)";
   label.textContent = `${start ? "▶ " : ""}${e.text || t("proto.screen")}${p ? ` · ${p.name}` : ""}${e.screen?.overlay ? ` · ${t(`proto.overlay_${e.screen.overlay}` as any)}` : ""}`;
   g.append(label);
+  // "▶ from here": play the prototype starting on this screen.
+  if (p && !e.screen?.overlay) {
+    const text = t("proto.play_from_here"), cw = 30 + text.length * 7.2, cx = x + w - cw, cy = y - 34;
+    const chip = document.createElementNS(NS, "g");
+    chip.setAttribute("data-play", e.id);
+    chip.setAttribute("data-proto", p.id);
+    chip.style.cursor = "pointer";
+    const bg = document.createElementNS(NS, "rect");
+    for (const [k, v] of Object.entries({ x: cx, y: cy, width: cw, height: 26, rx: 13 })) bg.setAttribute(k, String(v));
+    bg.style.cssText = "fill:var(--surface);stroke:var(--line);stroke-width:1.5";
+    const tri = document.createElementNS(NS, "path");
+    tri.setAttribute("d", `M${cx + 12} ${cy + 7} l10 6 l-10 6 z`);
+    tri.style.cssText = "fill:var(--accent)";
+    const tx = document.createElementNS(NS, "text");
+    tx.setAttribute("x", String(cx + 27));
+    tx.setAttribute("y", String(cy + 18));
+    tx.style.cssText = "font:600 12px var(--font-body);fill:var(--fg)";
+    tx.textContent = text;
+    const tip = document.createElementNS(NS, "title");
+    tip.textContent = t("proto.play_here");
+    chip.append(tip, bg, tri, tx);
+    g.append(chip);
+  }
 }
 
-/** Arrows from elements to the screens their interactions open. */
-export function drawFlow(board: Whiteboard, z: number): SVGGElement {
+/** Which flow arrows the board shows (Jan, 2026-11-22): none, those of the selected screens, or all. */
+export type FlowMode = "off" | "sel" | "all";
+
+/**
+ * Arrows from elements to the screens their interactions open. They run at
+ * right angles through the gaps between screens (or in a lane above or
+ * below the row when a screen is in the way) and end at the side of the
+ * target, so no arrow crosses a screen's content. In "sel" mode only the
+ * selected screens' links are drawn: outgoing ones strong, incoming faint.
+ */
+export function drawFlow(board: Whiteboard, z: number, mode: FlowMode = "all", sel: Set<string> = new Set()): SVGGElement {
   const g = document.createElementNS(NS, "g");
   g.style.pointerEvents = "none";
+  if (mode === "off") return g;
   const byId = new Map(board.elements.map((e) => [e.id, e]));
+  const frames = board.elements.filter((e) => e.screen);
+  const entries = new Map<string, number>(); // arrows ending at a side of a screen, to fan them out
+  const lanes = { above: 0, below: 0 };
+  const next = (key: string) => { const n = entries.get(key) ?? 0; entries.set(key, n + 1); return n; };
   for (const e of board.elements) {
     for (const a of e.actions ?? []) {
       if (a.do !== "goto" && a.do !== "overlay") continue;
       const to = byId.get(a.target ?? "");
       if (!to || to.id === e.id) continue;
-      const b = e.points?.length ? ptsBox(e) : boxOf(e), tb = boxOf(to);
-      const sx = b.x + b.w, sy = b.y + b.h / 2;
-      const left = tb.x > sx;
-      const tx = left ? tb.x : tb.x + tb.w, ty = tb.y + Math.min(tb.h / 2, 120);
-      const mx = (sx + tx) / 2;
+      const from = e.screen ? e : screenOf(board, e);
+      if (from?.id === to.id) continue;
+      let faint = false;
+      if (mode === "sel") {
+        const out = !!from && sel.has(from.id), inc = sel.has(to.id);
+        if (!out && !inc) continue;
+        faint = !out;
+      }
+      const sb = e.points?.length ? ptsBox(e) : boxOf(e), fb = from ? boxOf(from) : sb, tb = boxOf(to);
+      const route = flowRoute(sb, fb, tb, frames.filter((f) => f.id !== from?.id && f.id !== to.id).map((f) => boxOf(f)), next, lanes, to.id);
       const path = document.createElementNS(NS, "path");
-      path.setAttribute("d", `M${sx} ${sy} C${mx} ${sy} ${mx} ${ty} ${tx} ${ty}`);
-      path.style.cssText = `fill:none;stroke:var(--accent);stroke-width:${2 / z};stroke-dasharray:${6 / z} ${5 / z};opacity:.7`;
-      const ang = Math.atan2(ty - ty, tx - mx), L = 10 / z, dir = left ? 1 : -1;
+      path.setAttribute("d", "M" + route.pts.map((p) => `${p[0]} ${p[1]}`).join(" L"));
+      const op = faint ? 0.3 : 0.85;
+      path.style.cssText = `fill:none;stroke:var(--accent);stroke-width:${2 / z};stroke-dasharray:${6 / z} ${5 / z};stroke-linejoin:round;opacity:${op}`;
+      const [ex, ey] = route.pts[route.pts.length - 1], [px, py] = route.pts[route.pts.length - 2];
+      const ang = Math.atan2(ey - py, ex - px), L = 10 / z;
       const head = document.createElementNS(NS, "path");
-      head.setAttribute("d", `M${tx - dir * L * Math.cos(ang - 0.5)} ${ty - L * Math.sin(ang - 0.5)} L${tx} ${ty} L${tx - dir * L * Math.cos(ang + 0.5)} ${ty + L * Math.sin(ang + 0.5)}`);
-      head.style.cssText = `fill:none;stroke:var(--accent);stroke-width:${2 / z};opacity:.7`;
+      head.setAttribute("d", `M${ex - L * Math.cos(ang - 0.5)} ${ey - L * Math.sin(ang - 0.5)} L${ex} ${ey} L${ex - L * Math.cos(ang + 0.5)} ${ey - L * Math.sin(ang + 0.5)}`);
+      head.style.cssText = `fill:none;stroke:var(--accent);stroke-width:${2 / z};opacity:${op}`;
       const dot = document.createElementNS(NS, "circle");
-      dot.setAttribute("cx", String(sx));
-      dot.setAttribute("cy", String(sy));
+      dot.setAttribute("cx", String(route.pts[0][0]));
+      dot.setAttribute("cy", String(route.pts[0][1]));
       dot.setAttribute("r", String(4 / z));
-      dot.style.cssText = "fill:var(--accent);opacity:.8";
+      dot.style.cssText = `fill:var(--accent);opacity:${op}`;
       g.append(path, head, dot);
     }
   }

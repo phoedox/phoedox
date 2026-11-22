@@ -630,3 +630,55 @@ export function fromExcalidraw(json: string): WBElement[] {
   }
   return out;
 }
+
+// ---- flow arrows between prototype screens (drawn in components/wb-proto.ts) ----
+
+export type FlowBox = { x: number; y: number; w: number; h: number };
+type Pt2 = [number, number];
+
+/**
+ * The corner points of one flow arrow from element box sb on screen fb to
+ * screen tb. others are the remaining screens (obstacles).
+ */
+export function flowRoute(sb: FlowBox, fb: FlowBox, tb: FlowBox, others: FlowBox[], next: (key: string) => number, lanes: { above: number; below: number }, target: string): { pts: Pt2[] } {
+  const GAP = 24, STEP = 10;
+  const sy = sb.y + sb.h / 2;
+  // Arrows sharing a gap are fanned out: 0, +1, -1, +2, -2 … steps.
+  const fan = (key: string) => { const k = next(key); return (k % 2 ? 1 : -1) * Math.ceil(k / 2) * STEP; };
+  const blocked = (x0: number, x1: number, y0: number, y1: number) =>
+    others.some((o) => o.x < x1 && o.x + o.w > x0 && o.y < Math.max(y0, y1) && o.y + o.h > Math.min(y0, y1));
+  // Everything in the columns from source to target, for lanes that pass all of it.
+  const span = (x0: number, x1: number) => [fb, tb, ...others.filter((o) => o.x < x1 && o.x + o.w > x0)];
+  if (tb.x >= fb.x + fb.w - 1) {
+    // Target to the right: leave at the right, enter at its left side near the top.
+    const ty = tb.y + 32 + STEP * (next(target + ":l") % 12);
+    const sx = sb.x + sb.w;
+    if (!blocked(fb.x + fb.w, tb.x, sy, ty)) {
+      const mx = (fb.x + fb.w + tb.x) / 2 + fan("gap:" + Math.round(fb.x + fb.w));
+      return { pts: [[sx, sy], [mx, sy], [mx, ty], [tb.x, ty]] };
+    }
+    const lane = Math.min(...span(fb.x, tb.x + tb.w).map((o) => o.y)) - 56 - STEP * (lanes.above++ % 8);
+    const out = fb.x + fb.w + GAP + fan("gap:" + Math.round(fb.x + fb.w)), inn = tb.x - GAP + fan("gap:" + Math.round(tb.x));
+    return { pts: [[sx, sy], [out, sy], [out, lane], [inn, lane], [inn, ty], [tb.x, ty]] };
+  }
+  if (tb.x + tb.w <= fb.x + 1) {
+    // Target to the left (back, home): leave at the left, enter at its right side.
+    const ty = tb.y + 32 + STEP * (next(target + ":r") % 12);
+    const sx = sb.x;
+    if (!blocked(tb.x + tb.w, fb.x, sy, ty)) {
+      const mx = (tb.x + tb.w + fb.x) / 2 + fan("gap:" + Math.round(tb.x + tb.w));
+      return { pts: [[sx, sy], [mx, sy], [mx, ty], [tb.x + tb.w, ty]] };
+    }
+    const lane = Math.max(...span(tb.x, fb.x + fb.w).map((o) => o.y + o.h)) + 56 + STEP * (lanes.below++ % 8);
+    const out = fb.x - GAP + fan("gap:" + Math.round(fb.x)), inn = tb.x + tb.w + GAP + fan("gap:" + Math.round(tb.x + tb.w));
+    return { pts: [[sx, sy], [out, sy], [out, lane], [inn, lane], [inn, ty], [tb.x + tb.w, ty]] };
+  }
+  // Screens above each other (a sheet under its screen): straight down or up.
+  const sx = sb.x + sb.w / 2, tx = Math.min(Math.max(sx, tb.x + 24), tb.x + tb.w - 24);
+  if (tb.y >= fb.y + fb.h) {
+    const my = (fb.y + fb.h + tb.y) / 2;
+    return { pts: [[sx, sb.y + sb.h], [sx, my], [tx, my], [tx, tb.y]] };
+  }
+  const my = (tb.y + tb.h + fb.y) / 2;
+  return { pts: [[sx, sb.y], [sx, my], [tx, my], [tx, tb.y + tb.h]] };
+}

@@ -102,6 +102,12 @@ func TestDrawScreensExportCommentAndApp(t *testing.T) {
 	if nav.Y+nav.H != cart.Y+cart.H || nav.W != cart.W {
 		t.Fatalf("navbar not at the bottom: %+v of %+v", nav, cart)
 	}
+	// The sheet stands under the screen that opens it (the flow stays short).
+	for _, e := range wb.Elements {
+		if e.ID == res.Screens["Paid"] && (e.Y < cart.Y+cart.H+50 || e.X+e.W/2 != cart.X+cart.W/2) {
+			t.Fatalf("sheet not under its screen: %+v of %+v", e, cart)
+		}
+	}
 	// Redrawing a screen by name replaces its content in place.
 	again, err := s.DrawScreens(ctx, owner, p.Slug, doc.Slug, "", "", ScreensInput{Prototype: "checkout", Screens: []ScreenInput{{Name: "Cart", Items: []ScreenElement{{Type: "text", Text: "Empty"}}}}})
 	if err != nil {

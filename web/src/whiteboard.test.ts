@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { backKey, bindingAt, bindTarget, codeLabel, diffBoards, edgePoint, embedKind, frontKey, hitTest, inFrame, linePts, playerURL, removeElement, sorted, wrapText, type WBElement, inBox, groupOf, TEMPLATES, templateEls, slides, toExcalidraw, fromExcalidraw, alignEls, distributeEls, cloneEls, snapBox, normalizeBoard, type Whiteboard } from "./whiteboard";
+import { flowRoute, backKey, bindingAt, bindTarget, codeLabel, diffBoards, edgePoint, embedKind, frontKey, hitTest, inFrame, linePts, playerURL, removeElement, sorted, wrapText, type WBElement, inBox, groupOf, TEMPLATES, templateEls, slides, toExcalidraw, fromExcalidraw, alignEls, distributeEls, cloneEls, snapBox, normalizeBoard, type Whiteboard } from "./whiteboard";
 
 const box: WBElement = { id: "a", type: "rect", x: 0, y: 0, w: 100, h: 50 };
 const oval: WBElement = { id: "b", type: "ellipse", x: 300, y: 0, w: 100, h: 50 };
@@ -167,4 +167,29 @@ test("prototypes: diff, normalize and screens hit by their label", () => {
   expect(hitTest([screen, frame], 100, -12, 4, byId)?.id).toBe("s"); // the label above a screen
   expect(hitTest([screen, frame], 100, 12, 4, byId)).toBeUndefined(); // inside: what is on it, not the screen
   expect(hitTest([screen, frame], 600, 12, 4, byId)?.id).toBe("f"); // plain frames by their title strip
+});
+
+test("flow arrows run through the gaps, never across a screen", () => {
+  const s1 = { x: 0, y: 0, w: 390, h: 844 }, s2 = { x: 510, y: 0, w: 390, h: 844 }, s3 = { x: 1020, y: 0, w: 390, h: 844 };
+  const seen = new Map<string, number>();
+  const next = (k: string) => { const n = seen.get(k) ?? 0; seen.set(k, n + 1); return n; }, lanes = { above: 0, below: 0 };
+  const btn = { x: 16, y: 700, w: 358, h: 48 };
+  // Neighbour to the right: through the gap, into its left side.
+  const r1 = flowRoute(btn, s1, s2, [s3], next, lanes, "s2").pts;
+  expect(r1[0]).toEqual([374, 724]);
+  expect(r1[1][0]).toBe(450);
+  expect(r1[r1.length - 1][0]).toBe(510);
+  // Two screens further: over a lane above the row.
+  const r2 = flowRoute(btn, s1, s3, [s2], next, lanes, "s3").pts;
+  expect(Math.min(...r2.map((p) => p[1]))).toBeLessThan(0);
+  expect(r2[r2.length - 1][0]).toBe(1020);
+  // Back to the left past a screen: under the row, into its right side.
+  const back = { x: 1036, y: 40, w: 60, h: 20 };
+  const r3 = flowRoute(back, s3, s1, [s2], next, lanes, "s1").pts;
+  expect(Math.max(...r3.map((p) => p[1]))).toBeGreaterThan(844);
+  expect(r3[r3.length - 1][0]).toBe(390);
+  // A sheet under its screen: straight down into its top.
+  const sheet = { x: 525, y: 944, w: 360, h: 360 };
+  const r4 = flowRoute({ x: 526, y: 700, w: 358, h: 48 }, s2, sheet, [], next, lanes, "sheet").pts;
+  expect(r4[r4.length - 1][1]).toBe(944);
 });

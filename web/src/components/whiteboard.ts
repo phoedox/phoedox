@@ -22,7 +22,7 @@ import {
 } from "../whiteboard";
 import { connectBoard, type Live, type Peer, type Status } from "../whiteboard-live";
 import type { Comp, Device, WBPrototype } from "../whiteboard";
-import { COMPS, DEVICES, PreviewCache, actionsView, drawFlow, drawScreen, inspector, newProtoId, protoById, screenOf, screensOf, settingsDialog, type InspectorCtx } from "./wb-proto";
+import { COMPS, DEVICES, PreviewCache, actionsView, drawFlow, drawScreen, type FlowMode, inspector, newProtoId, protoById, screenOf, screensOf, settingsDialog, type InspectorCtx } from "./wb-proto";
 import { base } from "./shared";
 import { toast } from "./toasts";
 import "./block-view";
@@ -91,7 +91,7 @@ export class PhxWhiteboard extends LitElement {
     tool: { state: true }, selId: { state: true }, sel: { state: true }, snap: { state: true }, embedWeb: { state: true }, apps: { state: true }, cards: { state: true }, mermaid: { state: true }, chartEdit: { state: true }, present: { state: true }, status: { state: true }, saved: { state: true }, peers: { state: true }, zoom: { state: true },
     pop: { state: true }, menu: { state: true }, panel: { state: true }, arrowMode: { state: true }, roundDefault: { state: true }, trail: { state: true }, laserSize: { state: true },
     entities: { state: true }, query: { state: true }, busy: { state: true }, boardVersion: { state: true },
-    uiComp: { state: true }, screenDevice: { state: true }, screenProto: { state: true }, protoDlg: { state: true }, playing: { state: true },
+    uiComp: { state: true }, screenDevice: { state: true }, screenProto: { state: true }, protoDlg: { state: true }, playing: { state: true }, flows: { state: true },
   };
 
   static styles = [base, css`
@@ -129,6 +129,7 @@ export class PhxWhiteboard extends LitElement {
     .grid { fill: var(--line); }
     .bar { position: absolute; z-index: 3; display: flex; gap: 2px; align-items: center; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 20px -12px rgb(0 0 0 / 0.35); }
     .tools { top: 10px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 20px); overflow-x: auto; }
+    .zoom button.flows { width: auto; display: inline-flex; align-items: center; gap: 6px; padding: 0 8px; font-size: 12px; white-space: nowrap; }
     .bar button { position: relative; width: 34px; height: 34px; padding: 0; display: grid; place-items: center; border: 0; background: transparent; color: var(--fg); border-radius: 7px; }
     .bar button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
     @media (hover: hover) and (pointer: fine) { .bar button:hover:not([aria-pressed="true"]) { background: var(--surface2); } }
@@ -250,6 +251,8 @@ export class PhxWhiteboard extends LitElement {
   /** Several selected elements (box, Shift-click, groups); selId is then null. */
   sel: string[] = [];
   snap = localStorage.getItem("wb.snap") === "1";
+  /** Flow arrows between prototype screens: off, of the selected screens (default) or all. */
+  flows: FlowMode = (() => { try { const v = localStorage.getItem("wb.flows"); return v === "off" || v === "all" ? v : "sel"; } catch { return "sel"; } })();
   /** Embed dialog: a live website instead of a preview card. */
   embedWeb = false;
   /** Apps of the project for the embed dialog. */
@@ -609,6 +612,23 @@ export class PhxWhiteboard extends LitElement {
     this.changed();
   }
 
+  /** Screens of the selected elements (flow arrows in "selection" mode). */
+  private selScreens(): Set<string> {
+    const out = new Set<string>();
+    for (const id of this.sel) {
+      const e = this.byId(id);
+      const s = e && screenOf(this.board, e);
+      if (s) out.add(s.id);
+    }
+    return out;
+  }
+
+  private cycleFlows() {
+    this.flows = this.flows === "sel" ? "all" : this.flows === "all" ? "off" : "sel";
+    try { localStorage.setItem("wb.flows", this.flows); } catch { /* storage blocked */ }
+    this.paint();
+  }
+
   private setSnap(on: boolean) {
     this.snap = on;
     localStorage.setItem("wb.snap", on ? "1" : "0");
@@ -626,7 +646,7 @@ export class PhxWhiteboard extends LitElement {
     // Screens are opaque: always behind what is on them.
     const all = sorted(this.els());
     layer.replaceChildren(...[...all.filter((e) => e.screen), ...all.filter((e) => !e.screen)].map((e) => this.drawEl(svg, e)));
-    if (!this.still && this.els().some((e) => e.actions?.length)) layer.append(drawFlow(this.board, this.view.z));
+    if (!this.still && this.els().some((e) => e.actions?.length)) layer.append(drawFlow(this.board, this.view.z, this.flows, this.selScreens()));
     this.previews.prune(new Set(this.els().filter((e) => e.ui).map((e) => e.id)));
     this.syncApps();
     if (this.sel.length > 1) layer.append(this.drawMulti());
@@ -1327,6 +1347,12 @@ export class PhxWhiteboard extends LitElement {
     }
     svg.setPointerCapture(ev.pointerId);
     const [x, y] = this.toWorld(ev.clientX, ev.clientY);
+    const play = target.closest?.("[data-play]") as SVGElement | null;
+    if (play) {
+      // "▶ from here" on a screen title.
+      this.playing = { proto: play.dataset.proto!, start: play.dataset.play };
+      return;
+    }
     const pin = target.closest?.("[data-pin]");
     if (pin) {
       const c = (this.board.comments ?? []).find((n) => n.id === (pin as HTMLElement).dataset.pin);
@@ -3058,6 +3084,8 @@ export class PhxWhiteboard extends LitElement {
         <button aria-label=${t("wb.zoom_out")} title=${t("wb.zoom_out")} @click=${() => this.zoomBy(1 / 1.2)}>${icon("ZoomOut", 16)}</button><span>${this.zoom} %</span>
         <button aria-label=${t("wb.zoom_in")} title=${t("wb.zoom_in")} @click=${() => this.zoomBy(1.2)}>${icon("ZoomIn", 16)}</button>
         <button aria-label=${t("wb.fit")} title=${t("wb.fit")} @click=${() => this.fit()}>${icon("Maximize", 16)}</button>
+        ${this.board.prototypes?.length ? html`<button class="flows" aria-label=${t("wb.flows_title", { mode: t(`wb.flows_${this.flows}`) })} title=${t("wb.flows_title", { mode: t(`wb.flows_${this.flows}`) })}
+          aria-pressed=${this.flows !== "off" ? "true" : "false"} @click=${() => this.cycleFlows()}>${icon("Workflow", 16)}<span>${t(`wb.flows_${this.flows}`)}</span></button>` : nothing}
         ${this.readOnly ? nothing : html`<button aria-label=${t("wb.snap")} title=${t("wb.snap")} aria-pressed=${this.snap ? "true" : "false"} @click=${() => this.setSnap(!this.snap)}>${icon("Grid3x3", 16)}</button>`}
         ${this.readOnly ? nothing : html`<span class="sep"></span>
         <button aria-label=${t("editor.undo")} title=${t("editor.undo")} @click=${() => this.live?.undo()}>${icon("Undo2", 16)}</button>

@@ -203,7 +203,9 @@ func (s *Service) DrawScreens(ctx context.Context, a Actor, ref, docRef, title, 
 			f.W, f.H = w, h
 		} else {
 			f = WBElement{ID: freeID(wb, "screen-"+sc.Name), Type: "frame", X: x, Y: top, W: w, H: h}
-			x += w + 120
+			if sc.Overlay == "" {
+				x += w + 120
+			} // overlays go under the screen that opens them (below)
 		}
 		f.Text, f.Fill, f.Order = sc.Name, sc.Fill, order()
 		f.Screen = &WBScreen{Proto: protoID, Device: in.Device, Overlay: sc.Overlay}
@@ -215,6 +217,36 @@ func (s *Service) DrawScreens(ctx context.Context, a Actor, ref, docRef, title, 
 		todo = append(todo, placed{in: sc, frame: f})
 		if sc.Start {
 			pr.Start = f.ID
+		}
+	}
+	// New sheets and modals stand under the screen that opens them, so the
+	// flow stays short; one nobody opens goes to the end of the row.
+	below := map[string]float64{}
+	for i := range todo {
+		f := &todo[i].frame
+		if !newOverlay(todo[i].in, existing) {
+			continue
+		}
+		var parent *WBElement
+		for j := range todo {
+			if j == i || todo[j].in.Overlay != "" || !opens(todo[j].in, todo[i].in.Name) {
+				continue
+			}
+			parent = &todo[j].frame
+			break
+		}
+		if parent == nil {
+			f.X = x
+			x += f.W + 120
+		} else {
+			if below[parent.ID] == 0 {
+				below[parent.ID] = parent.Y + parent.H + 100
+			}
+			f.X, f.Y = parent.X+(parent.W-f.W)/2, below[parent.ID]
+			below[parent.ID] += f.H + 80
+		}
+		if k := slices.IndexFunc(wb.Elements, func(e WBElement) bool { return e.ID == f.ID }); k >= 0 {
+			wb.Elements[k].X, wb.Elements[k].Y = f.X, f.Y
 		}
 	}
 	// Targets may name screens; give them their ids.
@@ -318,6 +350,33 @@ func (s *Service) DrawScreens(ctx context.Context, a Actor, ref, docRef, title, 
 	}
 	res.DocResult, err = s.UpdateDocument(ctx, a, p.Slug, doc.ID, DocumentPatch{Whiteboard: wb})
 	return res, err
+}
+
+// newOverlay tells whether a sheet or modal screen is new on the board.
+func newOverlay(sc ScreenInput, existing map[string]WBElement) bool {
+	_, ok := existing[strings.ToLower(strings.TrimSpace(sc.Name))]
+	return sc.Overlay != "" && !ok
+}
+
+// opens tells whether a screen has an interaction that opens the named one.
+func opens(sc ScreenInput, name string) bool {
+	has := func(acts []WBAction) bool {
+		for _, a := range acts {
+			if (a.Do == "overlay" || a.Do == "goto") && strings.EqualFold(strings.TrimSpace(a.Target), strings.TrimSpace(name)) {
+				return true
+			}
+		}
+		return false
+	}
+	if has(sc.Actions) {
+		return true
+	}
+	for _, it := range sc.Items {
+		if has(it.Actions) {
+			return true
+		}
+	}
+	return false
 }
 
 func elementBox(e WBElement) (x0, y0, x1, y1 float64) {
