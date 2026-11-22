@@ -201,6 +201,30 @@ system-upgrade-controller from Rancher).
   several instances, distribution via Postgres LISTEN/NOTIFY will come later.
 - `local-path` is on the node's disk – that is why backups go to S3.
 
+## Single-organization edition
+
+For a company that runs Phoedox for itself only (ADR-0092):
+
+1. In the chart values:
+
+   ```yaml
+   singleOrg:
+     enabled: true
+     name: "Acme Engineering"   # name of the organization (can be changed later in its settings)
+   ```
+
+   Then `helm upgrade`. The organization is created at the first sign-in; that person becomes its
+   admin. Everyone who signs in later joins it (system admins as admins), new projects belong to it,
+   and no further organizations can be created. Projects that existed before stay where they are.
+2. **License:** a system admin of the Phoedox store creates an instance license under
+   Store management → Instance licenses, naming the instance's domain (`domain` in the values). The
+   instance's system admin uploads the downloaded file under **Administration → License** – no
+   console needed. Alternatively mount it and set `PHOEDOX_LICENSE_FILE` (via `env`); it is then
+   read-only in the app.
+3. The license is checked offline (store signature, domain, end date). After its end date it keeps
+   working for its grace days with a notice in the administration; afterwards the free features
+   apply. No data is locked.
+
 ## Publications under your own domain
 
 Publications (Settings → Publications) are reachable under `https://<app-domain>/pub/<short-name>/`.
