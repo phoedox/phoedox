@@ -28,6 +28,7 @@ import type { PhxComments } from "./comments";
 import { anchorOf, blockFor, type CommentThread } from "../comments";
 import type { PhxDocShare } from "./doc-share";
 import { toast } from "./toasts";
+import { decideQueue, decideQueueParam, decideQueueValue, queueHref, queueStep } from "../decide-queue";
 import { fileURL } from "../files";
 
 export const prose = `
@@ -48,7 +49,7 @@ export const prose = `
 `;
 
 export class PhxDocView extends SignalWatcher(LitElement) {
-  static properties = { project: {}, docSlug: {}, kiosk: { type: Boolean }, zoom: { state: true }, doc: { state: true }, draft: { state: true }, showDiff: { state: true }, lang: { state: true }, mainDiff: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true }, archiving: { state: true }, choice: { state: true }, deciding: { state: true } };
+  static properties = { project: {}, docSlug: {}, kiosk: { type: Boolean }, zoom: { state: true }, doc: { state: true }, draft: { state: true }, showDiff: { state: true }, lang: { state: true }, mainDiff: { state: true }, related: { state: true }, error: { state: true }, confirming: { state: true }, archiving: { state: true }, choice: { state: true }, deciding: { state: true }, queue: { state: true } };
   static styles = [base, unsafeCSS(prose), css`
     .decide { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 18px 0; background: var(--surface); }
     .decide h2 { margin-top: 0; display: flex; gap: 8px; align-items: center; }
@@ -65,6 +66,12 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     .decide .opt.none { border-style: dashed; }
     .decide textarea { min-height: 72px; margin-top: 10px; }
     .decide .row { margin-top: 10px; }
+    .dqueue { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; margin: 0 0 16px; padding: 8px 12px;
+      border: 1px solid var(--line); border-radius: 10px; background: var(--accent-soft); font-size: 14px; }
+    .dqueue .what { display: inline-flex; gap: 8px; align-items: center; font-weight: 600; }
+    .dqueue .pos { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 400; }
+    .dqueue .row { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+    .dqueue .row a.btn, .dqueue .row button { padding: 4px 10px; font-size: 13px; }
     .answers { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 6px; font-size: 14px; }
     .answers li { display: grid; gap: 2px; padding: 8px 10px; border-left: 3px solid var(--line); background: var(--surface2); border-radius: 0 8px 8px 0; }
     .answers li.none { border-left-color: var(--signal); }
@@ -183,6 +190,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       this.doc = undefined;
       this.error = ""; // from a page loaded before (e.g. with the previous project)
       this.confirming = false;
+      this.choice = ""; // a choice made on the page before (queue: skipped)
       try {
         const proj = currentProject.get();
         this.lang = proj?.mainLocale ? contentLocale.get() || proj.mainLocale : "";
@@ -197,7 +205,9 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         if (!this.kiosk && (doc.type === "markdown" || doc.type === "floorplan") && ["editor", "owner"].includes(doc.role ?? currentProject.get()?.role ?? "")) {
           this.draft = await api<DraftInfo>("GET", `/projects/${this.project}/documents/${doc.id}/draft`).catch(() => undefined);
         }
+        const queue = doc.type === "adr" && !this.kiosk && this.queueMode() ? await this.loadQueue() : undefined;
         if (this.loaded !== key) return; // a newer load started meanwhile
+        this.queue = queue;
         this.doc = doc;
         recordView(this.project, "document", doc.id);
         // Addresses use the id, not the (main-language) slug: old links and
@@ -493,6 +503,46 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     return html`<a href="/p/${this.project}/d/${slug}">${d ? html`<span class="ref">${d.ref}</span> ${d.title}` : slug}</a>`;
   }
 
+  /** Open decisions when the page is a step of "decide one after another". */
+  queue?: Decision[];
+
+  private queueMode() {
+    return new URLSearchParams(location.search).get(decideQueueParam) === decideQueueValue;
+  }
+
+  private async loadQueue() {
+    return decideQueue(await api<Decision[]>("GET", `/projects/${this.project}/decisions`).catch(() => []));
+  }
+
+  /** After a choice in the queue: on to the next open decision, or back to the list when none is left. */
+  private async queueOn(d: Doc) {
+    const q = await this.loadQueue();
+    const next = queueStep(q, d.number ?? 0).next;
+    if (next) {
+      navigate(queueHref(this.project, next));
+      return;
+    }
+    toast(t("dq.all_done"));
+    navigate(`/p/${this.project}/decisions`);
+  }
+
+  /** Bar above a decision opened from "decide one after another". */
+  private queueBar(d: Doc) {
+    const q = this.queue;
+    if (!q || d.type !== "adr") return "";
+    const s = queueStep(q, d.number ?? 0);
+    const exit = `/p/${this.project}/d/${d.id}`;
+    return html`<nav class="dqueue" aria-label=${t("dq.label")}>
+      <span class="what">${icon("ListChecks", 16)} ${t("dq.label")}
+        <span class="pos">${s.pos ? t("dq.pos", { pos: s.pos, total: s.total }) : s.total ? t("dq.left", { count: s.total }) : t("dq.none_left")}</span></span>
+      <span class="row">
+        ${s.prev ? html`<a class="btn ghost" href=${queueHref(this.project, s.prev)} title=${s.prev.title}>${icon("ArrowLeft", 14)} ${t("dq.prev")}</a>` : ""}
+        ${s.next ? html`<a class="btn ${s.pos ? "ghost" : ""}" href=${queueHref(this.project, s.next)} title=${s.next.title}>${t(s.pos ? "dq.skip" : "dq.next")} ${icon("ArrowRight", 14)}</a>` : ""}
+        <a class="btn ghost" href=${exit} title=${t("dq.exit")} aria-label=${t("dq.exit")}>${icon("X", 14)}</a>
+      </span>
+    </nav>`;
+  }
+
   /** Chosen option id (or "none") in the decide form. */
   choice = "";
   deciding = false;
@@ -509,6 +559,10 @@ export class PhxDocView extends SignalWatcher(LitElement) {
       this.choice = "";
       form.reset();
       docsVersion.set(docsVersion.get() + 1);
+      if (this.queue) {
+        await this.queueOn(d);
+        return;
+      }
       await this.reload();
     } catch (err) {
       toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
@@ -584,6 +638,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         <button class="ghost" title=${t("comment.on_block")} aria-label=${t("comment.on_block")} @click=${this.commentBlock}>${icon("MessageSquarePlus", 15)}</button>
         <button class="ghost count" style="display:none" title=${t("comment.show_threads")} @click=${this.showThread}>${icon("MessageSquare", 13)}<span></span></button>
       </div>`}
+      ${this.queueBar(d)}
       <header>
         <div>
           <h1>${d.title}</h1>

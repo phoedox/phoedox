@@ -5,6 +5,7 @@ import { t } from "../i18n";
 import { icon } from "../icon";
 import { currentProject, docsVersion } from "../state";
 import { base } from "./shared";
+import { decideQueue, queueHref } from "../decide-queue";
 
 /** Decision log of a project: numbered, filterable by status (?status=…). */
 export class PhxDecisions extends SignalWatcher(LitElement) {
@@ -13,6 +14,8 @@ export class PhxDecisions extends SignalWatcher(LitElement) {
   static styles = [base, css`
     header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
     header p { margin: 4px 0 0; max-width: 60ch; }
+    header .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .count-pill { font-variant-numeric: tabular-nums; background: color-mix(in srgb, var(--on-color) 25%, transparent); color: inherit; border-radius: 999px; padding: 0 7px; font-size: 12px; line-height: 18px; }
     .bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 18px 0 10px; }
     .search { position: relative; flex: 1 1 240px; max-width: 360px; }
     .search .ico { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
@@ -164,10 +167,14 @@ export class PhxDecisions extends SignalWatcher(LitElement) {
     const searched = this.hits ? all.filter((d) => this.hits!.has(d.number)) : all;
     const count = (s: DecisionStatus) => searched.filter((d) => d.status === s).length;
     const canEdit = ["editor", "owner"].includes(currentProject.get()?.role ?? "");
+    const open = decideQueue(all);
     return html`<div class="enter">
       <header>
         <div><h1>${t("decisions.title")}</h1><p class="muted">${t("decisions.intro")}</p></div>
-        ${canEdit ? html`<a class="btn" href="/p/${this.project}/new/adr">${icon("Plus", 15)} ${t("decisions.new")}</a>` : ""}
+        <div class="row">
+          ${canEdit && open.length ? html`<a class="btn" href=${queueHref(this.project, open[0])} title=${t("dq.start_hint")}>${icon("ListChecks", 15)} ${t("dq.start")} <span class="count-pill">${open.length}</span></a>` : ""}
+          ${canEdit ? html`<a class=${open.length ? "btn ghost" : "btn"} href="/p/${this.project}/new/adr">${icon("Plus", 15)} ${t("decisions.new")}</a>` : ""}
+        </div>
       </header>
       ${all.length === 0 ? html`<p class="muted">${t("decisions.empty")}</p>` : html`
         <div class="bar">

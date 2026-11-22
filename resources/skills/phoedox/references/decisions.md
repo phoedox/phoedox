@@ -29,6 +29,9 @@ allowed to decide), do not pick one yourself:
 2. Tell the user to decide on the page: they pick an option (the decision becomes
    `accepted`, the option its decision text, the others its alternatives) or answer
    "nothing fits", each with an optional comment. You never decide.
+   With several open decisions, point them to "Decide one after another" on the
+   decisions page: it walks through every proposed decision with options, one after
+   another (skipping is possible).
 3. Later, `list_decisions`: `needsOptions: true` means the last answer was "nothing
    fits". Read the `responses` with `get_document` (the comments say what is
    missing) and offer new options with `update_decision` (`options` replaces the
