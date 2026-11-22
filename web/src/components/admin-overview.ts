@@ -9,12 +9,13 @@ import { formatDate, locale, t } from "../i18n";
 import { icon } from "../icon";
 import { pageHead, scard, settingsUI } from "./settings-ui";
 import { base } from "./shared";
+import { licenseNotice, type LicenseInfo } from "./license-admin";
 
 interface Backups { backups: { createdAt: string }[]; running: boolean; lastError?: string; everyHours: number }
 interface Settings { aiChat?: { enabled: boolean; usedCents: number; chargedCents?: number }; signup: boolean }
 
 export class PhxAdminOverview extends LitElement {
-  static properties = { version: { state: true }, users: { state: true }, orgs: { state: true }, backups: { state: true }, settings: { state: true } };
+  static properties = { version: { state: true }, users: { state: true }, orgs: { state: true }, backups: { state: true }, settings: { state: true }, license: { state: true } };
   static styles = [base, settingsUI, css`
     .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
     .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 4px; color: var(--fg); text-decoration: none; }
@@ -30,6 +31,7 @@ export class PhxAdminOverview extends LitElement {
   orgs?: unknown[];
   backups?: Backups;
   settings?: Settings;
+  license?: LicenseInfo;
 
   connectedCallback() {
     super.connectedCallback();
@@ -38,6 +40,7 @@ export class PhxAdminOverview extends LitElement {
     void api<unknown[]>("GET", "/orgs").then((o) => (this.orgs = o ?? [])).catch(() => (this.orgs = []));
     void api<Backups>("GET", "/admin/backups").then((b) => (this.backups = b)).catch(() => {});
     void api<Settings>("GET", "/admin/settings").then((s) => (this.settings = s)).catch(() => {});
+    void api<LicenseInfo>("GET", "/admin/license").then((l) => (this.license = l)).catch(() => {});
   }
 
   /** Hours since the newest backup, or undefined. */
@@ -55,6 +58,8 @@ export class PhxAdminOverview extends LitElement {
     const attention: { icon: string; text: string; href: string }[] = [];
     if (stale) attention.push({ icon: "TriangleAlert", text: this.backups?.lastError ? t("sx.ov.backup_failed", { error: this.backups.lastError }) : t("sx.ov.backup_old"), href: "/admin/backups" });
     if (this.settings && !this.settings.signup) { /* closed sign-up is a normal state */ }
+    const lic = licenseNotice(this.license);
+    if (lic) attention.push({ icon: "FileKey", text: lic, href: "/admin/license" });
     return html`${pageHead(t("sx.admin.overview"), this.version ? t("sx.ov.version", { version: this.version, host: location.host }) : location.host)}
       <div class="tiles">
         <a class="tile" href="/admin/users"><span class="k">${icon("Users", 14)} ${t("users.title")}</span><span class="v">${this.users?.length ?? "–"}</span>

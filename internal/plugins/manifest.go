@@ -16,9 +16,10 @@ import (
 const HostAPI = "1"
 
 // StoreKeys are the built-in trusted signing keys of store.phoedox.com
-// ("keyid:base64", comma separated). Further keys come from
-// PHOEDOX_PLUGIN_KEYS.
-const StoreKeys = ""
+// ("keyid:base64", comma separated; published at
+// https://store.phoedox.com/api/v1/keys). They verify plugin packages and
+// plugin and instance licenses. Further keys come from PHOEDOX_PLUGIN_KEYS.
+const StoreKeys = "store-2026:5K5i1OW+54l9an+hHNYIE3/3gsZS5omF654BYSREVe4="
 
 // SupportedHostAPIs lists the host API versions plugins may target.
 var SupportedHostAPIs = []string{"1"}

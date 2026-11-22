@@ -5,6 +5,7 @@ package core
 
 import (
 	"context"
+	"crypto/ed25519"
 	"errors"
 	"fmt"
 	"github.com/phoedox/phoedox/internal/ai"
@@ -114,6 +115,12 @@ type Service struct {
 	// SingleOrgName names it when it is created.
 	SingleOrg     bool
 	SingleOrgName string
+	// Instance license (ADR-0092): trusted store keys, the file from
+	// PHOEDOX_LICENSE_FILE ("" = uploaded in the app) and the domain the
+	// license must name.
+	LicenseKeys   map[string]ed25519.PublicKey
+	LicenseFile   string
+	LicenseDomain string
 
 	vaults vaultCache
 	// RequestPolicy limits which addresses request blocks may reach.

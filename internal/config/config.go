@@ -42,6 +42,10 @@ type Config struct {
 	// when it is created (PHOEDOX_ORG_NAME, default "Phoedox").
 	SingleOrg     bool
 	SingleOrgName string
+	// LicenseFile is the path of an instance license file
+	// (PHOEDOX_LICENSE_FILE, ADR-0092); without it, system admins upload
+	// the license in the app.
+	LicenseFile string
 	// SecureCookies sets the Secure flag on cookies. Default true; set
 	// PHOEDOX_INSECURE_COOKIES=true only for local HTTP development.
 	SecureCookies bool
@@ -211,6 +215,7 @@ func FromEnv() (Config, error) {
 		MultiTenant:       os.Getenv("PHOEDOX_MULTI_TENANT") == "true",
 		SingleOrg:         os.Getenv("PHOEDOX_SINGLE_ORG") == "true",
 		SingleOrgName:     strings.TrimSpace(os.Getenv("PHOEDOX_ORG_NAME")),
+		LicenseFile:       strings.TrimSpace(os.Getenv("PHOEDOX_LICENSE_FILE")),
 		SecureCookies:     os.Getenv("PHOEDOX_INSECURE_COOKIES") != "true",
 		BehindProxy:       os.Getenv("PHOEDOX_BEHIND_PROXY") == "true",
 		PublicURL:         strings.TrimRight(os.Getenv("PHOEDOX_PUBLIC_URL"), "/"),

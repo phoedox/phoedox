@@ -23,6 +23,7 @@ import "./kiosk";
 import "./shared-app";
 import "./pay";
 import "./dpa";
+import "./license-admin";
 import "./credits";
 import "./embeddings-admin";
 import "./payments";
@@ -144,6 +145,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/admin/payments", render: () => adm("payments", html`<phx-payments-admin></phx-payments-admin>`) },
     { path: "/admin/ai-credits", render: () => adm("credits", html`<phx-credits-admin></phx-credits-admin>`) },
     { path: "/admin/dpa", render: () => adm("dpa", html`<phx-dpa-admin></phx-dpa-admin>`) },
+    { path: "/admin/license", render: () => adm("license", html`<phx-license-admin></phx-license-admin>`) },
     { path: "/admin/orgs/:slug/usage", render: ({ slug }) => adm("orgs", html`<phx-usage level="org" .ref=${slug!}></phx-usage>`) },
     { path: "/orgs/:slug/usage", render: ({ slug }) => me(`org:${slug}`, html`<phx-usage level="org" .ref=${slug!}></phx-usage>`) },
     { path: "/admin", render: () => adm("") },

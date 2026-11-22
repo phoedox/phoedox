@@ -14,6 +14,7 @@ import (
 	"github.com/phoedox/phoedox/internal/preview"
 	"github.com/phoedox/phoedox/internal/scan"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -123,6 +124,23 @@ func Open(ctx context.Context) (*App, error) {
 	svc.HashPassword, svc.VerifyPassword = auth.HashPassword, auth.VerifyPassword
 	svc.PublicURL = cfg.PublicURL
 	svc.SingleOrg, svc.SingleOrgName = cfg.SingleOrg, cfg.SingleOrgName
+	// Instance license (ADR-0092): checked against the store keys and the domain.
+	if svc.LicenseKeys, err = plugins.ParseKeys(plugins.StoreKeys + "," + cfg.PluginKeys); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("PHOEDOX_PLUGIN_KEYS: %w", err)
+	}
+	svc.LicenseDomain = cfg.Domain
+	if u, perr := url.Parse(cfg.PublicURL); svc.LicenseDomain == "" && perr == nil {
+		svc.LicenseDomain = u.Hostname()
+	}
+	if cfg.LicenseFile != "" {
+		b, rerr := os.ReadFile(cfg.LicenseFile)
+		if rerr != nil {
+			db.Close()
+			return nil, fmt.Errorf("PHOEDOX_LICENSE_FILE: %w", rerr)
+		}
+		svc.LicenseFile = string(b)
+	}
 	a.OnAccount = svc.JoinTheOrg
 	if smtp, ok := sender.(*mail.SMTP); ok {
 		smtp.Brand = svc.MailBrand // HTML mails in the theme of the organization or instance
