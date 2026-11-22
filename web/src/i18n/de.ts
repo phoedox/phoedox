@@ -5229,4 +5229,6 @@ export const de = {
   "plugins.cat.blocks": "Seitenblöcke",
   "plugins.cat.other": "Sonstiges",
   "orgdomain.signin_hint": "Für die Anmeldung mit einem externen Konto (OIDC) auf dieser Adresse muss {url} beim Anbieter als weitere Redirect-URI eingetragen sein.",
+  "attr.cpu": "CPU",
+  "attr.cores": "Kerne",
 } as const;

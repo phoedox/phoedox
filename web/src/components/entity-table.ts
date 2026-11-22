@@ -55,6 +55,7 @@ export class PhxEntityTable extends LitElement {
     .wrap { overflow: auto; border: 1px solid var(--line); border-radius: 10px; max-height: 70vh; }
     table { border-collapse: collapse; width: 100%; font-size: 14px; }
     th, td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: left; white-space: nowrap; }
+    td.v { max-width: 32ch; overflow: hidden; text-overflow: ellipsis; }
     th { position: sticky; top: 0; background: var(--surface); z-index: 1; cursor: pointer; }
     td input { border: 1px solid transparent; background: transparent; padding: 2px 4px; min-width: 90px; width: 100%; }
     td input:hover, td input:focus { border-color: var(--line); background: var(--bg); }
@@ -282,7 +283,7 @@ export class PhxEntityTable extends LitElement {
     const m = this.model, k = this.kind, r = this.result;
     if (!m) return html`<p class="muted">${t("app.loading")}</p>`;
     const fields = [{ name: "name", label: t("entity.name") }, ...(k?.attrs ?? []).map((a) => ({ name: a.name, label: attrLabel(a) }))];
-    const label = (f: string) => fields.find((x) => x.name === f)?.label ?? f;
+    const label = (f: string) => fields.find((x) => x.name === f)?.label ?? attrLabel({ name: f, type: "text" });
     const rels = [...new Set([...(k?.relations ?? []).map((x) => x.rel), "located_in", "depends_on"])];
     const edit = this.canEdit;
     const sortBy = (c: string) => this.setQuery({ ...this.query, sort: this.query.sort === c ? `-${c}` : c });
@@ -296,6 +297,8 @@ export class PhxEntityTable extends LitElement {
 
   private tableBody(m: Model, k: Kind | undefined, r: QueryResult | undefined, fields: { name: string; label: string }[], label: (f: string) => string,
     rels: string[], edit: boolean, sortBy: (c: string) => void) {
+    // Long values are cut with an ellipsis; the tooltip shows the full text.
+    const cell = (v: string) => html`<td class="v" title=${v.length > 30 ? v : ""}>${v}</td>`;
     return html`
       <div class="bar">
         ${this.embedded ? "" : html`<label>${t("table.kind")} <select @change=${(e: Event) => this.setQuery({ kind: (e.target as HTMLSelectElement).value })}>
@@ -331,7 +334,8 @@ export class PhxEntityTable extends LitElement {
           ${r.columns.map((c) => {
             const a = k?.attrs.find((y) => y.name === c);
             return edit ? html`<td><input aria-label=${`${x.name}: ${label(c)}`} .value=${x.attrs[c] === undefined || x.attrs[c] === null ? "" : String(x.attrs[c])}
-              @change=${(e: Event) => this.editCell(x, c, (e.target as HTMLInputElement).value)}></td>` : html`<td>${formatValue(a, x.attrs[c])}</td>`;
+              title=${x.attrs[c] === undefined || x.attrs[c] === null ? "" : String(x.attrs[c])}
+              @change=${(e: Event) => this.editCell(x, c, (e.target as HTMLInputElement).value)}></td>` : cell(formatValue(a, x.attrs[c]));
           })}</tr>`)}</tbody></table></div>` : html`<p class="muted">${t("app.loading")}</p>`}
       ${edit && this.selected.size ? html`<form class="bulk" @submit=${this.bulkSet}>
         <b>${t("table.selected", { n: this.selected.size })}</b>

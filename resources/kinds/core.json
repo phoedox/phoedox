@@ -68,7 +68,9 @@
       {"name": "height_units", "type": "number", "unit": "U", "required": true}, {"name": "depth", "type": "number", "unit": "mm"}],
       "relations": [{"rel": "located_in", "to": ["room"]}]},
     {"id": "server", "group": "infrastructure", "icon": "Server", "attrs": [
-      {"name": "hostname", "type": "text"}, {"name": "ip", "type": "ip"}, {"name": "os", "type": "text"}, {"name": "height_units", "type": "number", "unit": "U"}],
+      {"name": "hostname", "type": "text"}, {"name": "ip", "type": "ip"}, {"name": "os", "type": "text"}, {"name": "height_units", "type": "number", "unit": "U"},
+      {"name": "manufacturer", "type": "text"}, {"name": "model", "type": "text"}, {"name": "serial", "type": "text"},
+      {"name": "cpu", "type": "text"}, {"name": "cores", "type": "number"}, {"name": "ram", "type": "number", "unit": "GB"}],
       "relations": [{"rel": "located_in", "to": ["room"]}, {"rel": "mounted_in", "to": ["rack"]}, {"rel": "wired_to", "to": ["switch", "router", "patch_panel"]}, {"rel": "powered_by", "to": ["outlet", "smart_plug"]}, {"rel": "supplied_by", "to": ["company"]}, {"rel": "supported_by", "to": ["company", "person"]}]},
     {"id": "patch_panel", "group": "infrastructure", "icon": "Cable", "attrs": [
       {"name": "ports", "type": "number", "required": true}, {"name": "category", "type": "select", "options": ["cat5e", "cat6", "cat6a", "cat7", "cat8"]}],

@@ -1,5 +1,5 @@
 import { api } from "./api";
-import { hasKey, t } from "./i18n";
+import { formatDate, formatDay, hasKey, t } from "./i18n";
 
 export type AttrType = "text" | "number" | "bool" | "date" | "ip" | "url" | "select";
 export const attrTypes: readonly AttrType[] = ["text", "number", "bool", "date", "ip", "url", "select"];
@@ -31,20 +31,34 @@ const tr = (key: string, fallback: string) => (hasKey(key) ? t(key) : fallback);
 
 export const kindName = (k: Kind | undefined, id = k?.id ?? "") => k?.name || tr(`kind.${id}`, id);
 export const groupName = (g: string) => tr(`kindgroup.${g}`, g);
-export const attrLabel = (a: Attr) => a.label || tr(`attr.${a.name}`, a.name.replace(/_/g, " "));
+/** Readable name of an attribute: own label, translation, else "last_seen" -> "Last seen". */
+export const attrLabel = (a: Attr) => a.label || tr(`attr.${a.name}`, humanize(a.name));
+const humanize = (n: string) => { const s = n.replace(/[_-]+/g, " ").trim(); return s.charAt(0).toUpperCase() + s.slice(1); };
 export const relLabel = (rel: string) => tr(`rel.${rel}`, rel.replace(/_/g, " "));
 export const optLabel = (o: string) => tr(`opt.${o}`, o);
 
 /** Value of an attribute for display, with unit and translated choices. */
 export function formatValue(a: Attr | undefined, v: unknown): string {
   if (v === null || v === undefined || v === "") return "";
-  if (!a) return typeof v === "object" ? JSON.stringify(v) : String(v);
+  if (!a) return typeof v === "object" ? JSON.stringify(v) : isoText(String(v));
   switch (a.type) {
     case "bool": return t(v ? "common.yes" : "common.no");
     case "number": return `${Number(v).toLocaleString()}${a.unit ? ` ${a.unit}` : ""}`;
     case "select": return optLabel(String(v));
+    case "date": return isoText(String(v));
+    case "text": return isoText(String(v));
     default: return String(v);
   }
+}
+
+const isoDay = /^\d{4}-\d{2}-\d{2}$/;
+const isoTime = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/;
+
+/** Dates and timestamps written as ISO text (plugins, imports) in the reader's language and time zone. */
+function isoText(v: string): string {
+  if (isoDay.test(v)) return formatDay(v);
+  if (isoTime.test(v) && !Number.isNaN(Date.parse(v))) return formatDate(v);
+  return v;
 }
 
 export const findKind = (m: Model | undefined, id: string) => m?.kinds.find((k) => k.id === id);

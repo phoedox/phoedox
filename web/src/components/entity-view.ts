@@ -324,7 +324,7 @@ export class PhxEntityView extends SignalWatcher(LitElement) {
           <h2>${t("entity.attrs")}</h2>
           ${values.length || extra.length ? html`<dl>
             ${values.map((a) => html`<dt>${attrLabel(a)}</dt><dd class=${a.type === "ip" ? "mono" : ""}>${a.type === "url" ? html`<a href=${String(e.attrs[a.name])} target="_blank" rel="noopener external">${String(e.attrs[a.name])}</a>` : formatValue(a, e.attrs[a.name])}</dd>`)}
-            ${extra.map(([n, v]) => html`<dt><code>${n}</code></dt><dd class="mono">${formatValue(undefined, v)}</dd>`)}
+            ${extra.map(([n, v]) => html`<dt title=${n}>${attrLabel({ name: n, type: "text" })}</dt><dd>${formatValue(undefined, v)}</dd>`)}
           </dl>` : html`<p class="muted">${t("entity.none")}</p>`}
           <h2 style="margin-top:12px">${t("entity.mentioned_in")}</h2>
           ${documents.length ? html`<ul>${documents.map((d) => html`<li><a href="/p/${this.project}/d/${d.id}">${icon("FileText", 14)} ${d.title}</a></li>`)}</ul>` : html`<p class="muted">${t("entity.none")}</p>`}
