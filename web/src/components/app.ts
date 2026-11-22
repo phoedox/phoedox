@@ -1,5 +1,6 @@
 import { Router } from "@lit-labs/router";
 import { SignalWatcher } from "@lit-labs/signals";
+import { windowTitle } from "../window-title";
 import { LitElement, css, html } from "lit";
 import { ApiError, api, type User } from "../api";
 import { t } from "../i18n";
@@ -176,10 +177,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     super.connectedCallback();
     // On an organization's own domain the app carries its name.
     void api<{ org?: { id: string; slug: string; name: string } }>("GET", "/instance").then((i) => {
-      if (i?.org) {
-        appOrg.set(i.org);
-        document.title = i.org.name;
-      }
+      if (i?.org) appOrg.set(i.org);
     }).catch(() => {});
     try {
       signedIn(await api<User>("GET", "/me"));
@@ -233,6 +231,8 @@ export class PhxApp extends SignalWatcher(LitElement) {
     const user = currentUser.get();
     // Shared pages and the wall display show no app header.
     const shared = location.pathname.startsWith("/s/") || location.pathname.startsWith("/kiosk/") || location.pathname.startsWith("/print/") || location.pathname.startsWith("/feedback/") || location.pathname.startsWith("/shared/") || location.pathname === "/pay";
+    // The window title names the open project, so tabs are told apart (shared pages set their own).
+    if (!shared) document.title = windowTitle(location.pathname.startsWith("/p/") ? currentProject.get()?.name : undefined, appOrg.get()?.name);
     return html`
       ${user && !shared && focusMode.get()
         ? html`<button class="ghost unfocus" @click=${() => setFocusMode(false)} title=${t("focus.leave_hint", { key: comboLabel(comboFor("focus")) })}>${icon("Minimize2", 14)} ${t("focus.leave")}</button>`
