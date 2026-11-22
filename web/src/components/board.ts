@@ -1,4 +1,5 @@
 import { LitElement, css, html } from "lit";
+import { parseCardSubtasks, subtasksShown, toggleAll, toggleCard, type CardSubtasks } from "../card-subtasks";
 import { repeat } from "lit/directives/repeat.js";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { ApiError, api, type Board, type BoardColumn, type Doc, type Member, type Task } from "../api";
@@ -36,7 +37,7 @@ export class PhxBoard extends LitElement {
   static properties = {
     project: {}, doc: {}, tasks: { state: true }, members: { state: true }, open: { state: true }, editingColumns: { state: true },
     dragging: { state: true }, dropAt: { state: true }, adding: { state: true }, desc: { state: true }, uploading: { state: true }, descEdit: { state: true },
-    showSubs: { state: true }, subs: { state: true },
+    subsView: { state: true }, subs: { state: true },
   };
   static styles = [base, css`
     :host { display: block; margin-top: 8px; white-space: normal; }
@@ -66,6 +67,13 @@ export class PhxBoard extends LitElement {
     .subs.edit input[type="date"] { width: 9.5em; flex: none; }
     .subs.edit button { flex: none; }
     .meta .progress.all { color: var(--good); }
+    .meta button.progress { all: unset; display: inline-flex; gap: 3px; align-items: center; cursor: pointer; border-radius: 4px; padding: 1px 4px; margin: -1px -4px;
+      transition: background-color var(--dur-fast) ease; }
+    .meta button.progress[aria-expanded="true"] { background: var(--surface2); }
+    @media (hover: hover) and (pointer: fine) { .meta button.progress:hover { background: var(--surface2); color: var(--fg); } }
+    .meta button.progress:focus-visible { outline: 2px solid var(--accent); }
+    .oncard { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); margin-top: 6px; cursor: pointer; }
+    .oncard input { width: 16px; height: 16px; min-height: 0; margin: 0; padding: 0; }
     /* Touch: hold a card, then drag it (no text selection or callout menu meanwhile). */
     @media (pointer: coarse) { .card { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; } }
     .lift { position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none; width: 240px; box-shadow: 0 12px 32px rgb(0 0 0 / .25);
@@ -205,7 +213,7 @@ export class PhxBoard extends LitElement {
   willUpdate() {
     if (this.doc && this.loadedFor !== this.doc.id) {
       this.loadedFor = this.doc.id;
-      try { this.showSubs = localStorage.getItem(this.subsKey()) === "1"; } catch { /* private mode */ }
+      try { this.subsView = parseCardSubtasks(localStorage.getItem(this.subsKey())); } catch { /* private mode */ }
       void this.load();
       this.listen();
       api<Member[]>("GET", `/projects/${this.project}/members`).then((m) => (this.members = m ?? []), () => {});
@@ -396,8 +404,8 @@ export class PhxBoard extends LitElement {
     }
   }
 
-  /** Subtasks on the cards: switched per board, remembered in this browser. */
-  showSubs = false;
+  /** Subtasks on the cards: switched per board and per card, remembered in this browser. */
+  subsView: CardSubtasks = { all: false, cards: {} };
   /** The checklist while the card dialog is open. */
   subs: { id?: string; title: string; done?: boolean; due?: string }[] = [];
 
@@ -405,9 +413,15 @@ export class PhxBoard extends LitElement {
     return `board.subtasks.${this.doc?.id ?? ""}`;
   }
 
-  private toggleSubs() {
-    this.showSubs = !this.showSubs;
-    try { localStorage.setItem(this.subsKey(), this.showSubs ? "1" : "0"); } catch { /* private mode */ }
+  private setSubsView(v: CardSubtasks) {
+    this.subsView = v;
+    try { localStorage.setItem(this.subsKey(), JSON.stringify(v)); } catch { /* private mode */ }
+  }
+
+  /** Shows or hides the subtasks of one card. */
+  private toggleCardSubs(e: Event, task: Task) {
+    e.stopPropagation();
+    this.setSubsView(toggleCard(this.subsView, task.id));
   }
 
   /** Ticks a subtask right on the card. */
@@ -419,7 +433,7 @@ export class PhxBoard extends LitElement {
 
   private subtaskList(task: Task) {
     const subs = task.subtasks ?? [];
-    if (!this.showSubs || !subs.length) return "";
+    if (!subtasksShown(this.subsView, task.id) || !subs.length) return "";
     return html`<ul class="subs" aria-label=${t("board.subtasks")} @click=${(e: Event) => e.stopPropagation()}>
       ${subs.map((s) => html`<li class=${s.done ? "done" : ""}><input type="checkbox" .checked=${!!s.done} ?disabled=${!this.canEdit} aria-label=${s.title}
         @click=${(e: Event) => this.tick(e, task, s.id)} @keydown=${(e: KeyboardEvent) => e.stopPropagation()}><span>${s.title}</span>${s.due ? html`<span class="due">${formatDay(s.due)}</span>` : ""}</li>`)}
@@ -580,7 +594,9 @@ export class PhxBoard extends LitElement {
         ${task.feedback?.new ? html`<span class="fbnew" title=${t("board.feedback_new", { n: task.feedback.new, topic: task.feedback.title })}>${icon("MessageSquareWarning", 12)} +${task.feedback.new}</span>` : ""}
         ${task.labels.map((l) => html`<span class="label">${l}</span>`)}
         ${task.minutes ? html`<span class="progress" title=${t("time.title")}>${icon("Timer", 12)} ${hm(task.minutes)}</span>` : ""}
-        ${task.subtasks?.length ? html`<span class=${task.subtasks.every((s) => s.done) ? "progress all" : "progress"} title=${t("board.subtasks")}>${icon("ListChecks", 12)} ${task.subtasks.filter((s) => s.done).length}/${task.subtasks.length}</span>` : ""}
+        ${task.subtasks?.length ? html`<button type="button" class=${task.subtasks.every((s) => s.done) ? "progress all" : "progress"} aria-expanded=${subtasksShown(this.subsView, task.id) ? "true" : "false"}
+          title=${t(subtasksShown(this.subsView, task.id) ? "board.subtasks_hide" : "board.subtasks_show")} aria-label=${t(subtasksShown(this.subsView, task.id) ? "board.subtasks_hide" : "board.subtasks_show")}
+          @click=${(e: Event) => this.toggleCardSubs(e, task)} @keydown=${(e: KeyboardEvent) => e.stopPropagation()}>${icon("ListChecks", 12)} ${task.subtasks.filter((s) => s.done).length}/${task.subtasks.length}</button>` : ""}
         ${task.documents?.length ? html`<span class="code" title=${task.documents.map((d) => d.title).join(", ")}>${icon("Link", 12)} ${task.documents.length}</span>` : ""}
         ${this.codeBadges(task)}
         ${task.priority ? html`<span class="prio p${task.priority}" title=${t(`board.priority.${task.priority}` as any)}>${icon("Flag", 12)}</span>` : ""}
@@ -617,7 +633,7 @@ export class PhxBoard extends LitElement {
     </section>`;
   }
 
-  private subtaskEditor(edit: boolean) {
+  private subtaskEditor(edit: boolean, task?: Task) {
     const set = (i: number, patch: Partial<{ title: string; done: boolean; due: string }>) => (this.subs = this.subs.map((s, k) => (k === i ? { ...s, ...patch } : s)));
     const add = (input: HTMLInputElement) => {
       const title = input.value.trim();
@@ -637,6 +653,8 @@ export class PhxBoard extends LitElement {
       ${edit ? html`<div class="row" style="gap:6px;margin-top:4px"><input type="text" placeholder=${t("board.subtask_new")} aria-label=${t("board.subtask_new")} style="flex:1"
         @keydown=${(e: KeyboardEvent) => { if (e.key === "Enter") { e.preventDefault(); add(e.target as HTMLInputElement); } }}>
         <button type="button" class="ghost" @click=${(e: Event) => add((e.target as HTMLElement).closest(".row")!.querySelector("input")!)}>${icon("Plus", 14)} ${t("board.subtask_add")}</button></div>` : ""}
+      ${task?.subtasks?.length ? html`<label class="oncard"><input type="checkbox" .checked=${subtasksShown(this.subsView, task.id)}
+        @change=${() => this.setSubsView(toggleCard(this.subsView, task.id))}>${t("board.subtasks_on_card")}</label>` : ""}
     </fieldset>`;
   }
 
@@ -669,7 +687,7 @@ export class PhxBoard extends LitElement {
           <label class="field">${t("board.priority")}<select name="priority" ?disabled=${!edit}>${[0, 1, 2, 3].map((p) => html`<option value=${p} ?selected=${p === task.priority}>${t(`board.priority.${p}` as any)}</option>`)}</select></label>
         </div>
         <label class="field">${t("board.labels")}<input name="labels" .value=${task.labels.join(", ")} ?disabled=${!edit} placeholder=${t("board.labels_hint")}></label>
-        ${this.subtaskEditor(edit)}
+        ${this.subtaskEditor(edit, this.open)}
         <phx-task-docs .project=${this.project} .task=${task.id} .docs=${task.documents ?? []} ?canEdit=${edit}
           @changed=${(e: CustomEvent<TaskDoc[]>) => { e.stopPropagation(); this.tasks = this.tasks?.map((x) => (x.id === task.id ? { ...x, documents: e.detail } : x)); if (this.open) this.open = { ...this.open, documents: e.detail }; }}></phx-task-docs>
         <phx-task-code .project=${this.project} .task=${task.id} ?canEdit=${edit}
@@ -695,7 +713,7 @@ export class PhxBoard extends LitElement {
       <div class="tools">
         <span class="muted">${t("board.summary", { open, total: this.tasks.length })}</span>
         <span style="flex:1"></span>
-        ${this.tasks.some((x) => x.subtasks?.length) ? html`<button class="ghost" aria-pressed=${this.showSubs ? "true" : "false"} @click=${() => this.toggleSubs()}>${icon("ListChecks", 14)} ${t("board.show_subtasks")}</button>` : ""}
+        ${this.tasks.some((x) => x.subtasks?.length) ? html`<button class="ghost" aria-pressed=${this.subsView.all ? "true" : "false"} @click=${() => this.setSubsView(toggleAll(this.subsView))}>${icon("ListChecks", 14)} ${t("board.show_subtasks")}</button>` : ""}
         ${this.tasks.some((x) => x.minutes) && currentProject.get()?.role === "owner" ? html`<a class="btn ghost" title=${t("time.report_hint")} download
           href=${`/api/v1/projects/${this.project}/time.csv?board=${this.doc.id}&from=${new Date().toISOString().slice(0, 8)}01`}>${icon("Timer", 14)} ${t("time.report")}</a>` : ""}
         ${this.canEdit && !this.editingColumns ? html`<button class="ghost" @click=${() => (this.editingColumns = true)}>${icon("Columns3", 14)} ${t("board.edit_columns")}</button>` : ""}

@@ -5296,4 +5296,7 @@ export const de = {
   "dq.next": "Nächste",
   "dq.exit": "Warteschlange verlassen",
   "dq.all_done": "Alle offenen Entscheidungen sind entschieden.",
+  "board.subtasks_show": "Unteraufgaben auf dieser Karte zeigen",
+  "board.subtasks_hide": "Unteraufgaben auf dieser Karte ausblenden",
+  "board.subtasks_on_card": "Auf der Karte zeigen",
 } as const;

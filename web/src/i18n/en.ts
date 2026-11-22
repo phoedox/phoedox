@@ -5298,4 +5298,7 @@ export const en: Record<keyof typeof de, string> = {
   "dq.next": "Next",
   "dq.exit": "Leave the queue",
   "dq.all_done": "All open decisions are decided.",
+  "board.subtasks_show": "Show subtasks on this card",
+  "board.subtasks_hide": "Hide subtasks on this card",
+  "board.subtasks_on_card": "Show on the card",
 };
