@@ -5278,4 +5278,6 @@ export const de = {
   "validation.license_domain": "Die Lizenz ist nicht für die Domain dieser Instanz ausgestellt ({domain}).",
   "validation.license_expired": "Die Lizenz ist abgelaufen.",
   "validation.license_from_file": "Die Lizenz kommt aus PHOEDOX_LICENSE_FILE und kann hier nicht geändert werden.",
+  "orgs.sso_license": "Gruppen, die der SSO-Anmeldung folgen, brauchen in der Ein-Organisations-Version eine Lizenz mit „Gruppen aus SSO“.",
+  "validation.license_feature": "Dafür braucht es eine Lizenz mit dieser Funktion (Administration → Lizenz).",
 } as const;

@@ -84,6 +84,8 @@ type SingleOrgInfo struct {
 	ID   string `json:"id"`
 	Slug string `json:"slug"`
 	Name string `json:"name"`
+	// SSOGroups: groups may follow the SSO sign-in (needs the license here).
+	SSOGroups bool `json:"ssoGroups"`
 }
 
 // SingleOrgInfo returns the instance's organization, nil outside the mode.
@@ -92,5 +94,5 @@ func (s *Service) SingleOrgInfo(ctx context.Context) *SingleOrgInfo {
 	if !ok {
 		return nil
 	}
-	return &SingleOrgInfo{ID: o.ID, Slug: o.Slug, Name: o.Name}
+	return &SingleOrgInfo{ID: o.ID, Slug: o.Slug, Name: o.Name, SSOGroups: s.SSOGroupsAllowed(ctx)}
 }

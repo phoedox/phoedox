@@ -169,7 +169,7 @@ func (a *Auth) OIDCCallback(ctx context.Context, base string, r *http.Request) (
 	if err != nil {
 		return nil, st.Return, err
 	}
-	if claim := a.OIDC.Config.GroupsClaim; claim != "" {
+	if claim := a.OIDC.Config.GroupsClaim; claim != "" && (a.SSOGroups == nil || a.SSOGroups(ctx)) {
 		var all map[string]any
 		if idt.Claims(&all) == nil {
 			if err := a.DB.SyncOIDCGroups(ctx, u.ID, claimStrings(all[claim])); err != nil {

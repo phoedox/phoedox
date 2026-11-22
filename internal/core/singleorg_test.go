@@ -77,3 +77,37 @@ func TestSingleOrgMode(t *testing.T) {
 		t.Fatalf("info: %+v", info)
 	}
 }
+
+// Groups that follow the SSO sign-in need a license with sso_groups in the
+// single-organization edition; elsewhere they stay free.
+func TestSingleOrgSSOGroupsNeedLicense(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _ := setup(t)
+	if !s.SSOGroupsAllowed(ctx) {
+		t.Fatal("free outside the mode")
+	}
+	s.SingleOrg = true
+	if err := s.JoinTheOrg(ctx, owner.User); err != nil {
+		t.Fatal(err)
+	}
+	o, _ := s.TheOrg(ctx)
+	if s.SSOGroupsAllowed(ctx) || s.SingleOrgInfo(ctx).SSOGroups {
+		t.Fatal("needs the license in the mode")
+	}
+	if _, err := s.SaveGroup(ctx, owner, o.Slug, "", GroupInput{Name: "Engineering", OIDCGroup: "eng"}); invalidKey(err) != "validation.license_feature" {
+		t.Fatalf("mapping without license: %v", err)
+	}
+	g, err := s.SaveGroup(ctx, owner, o.Slug, "", GroupInput{Name: "Engineering"})
+	if err != nil {
+		t.Fatalf("plain group: %v", err)
+	}
+	s.SingleOrg = false
+	if g, err = s.SaveGroup(ctx, owner, o.Slug, g.ID, GroupInput{Name: "Engineering", OIDCGroup: "eng"}); err != nil {
+		t.Fatal(err)
+	}
+	// A mapping that exists survives renames without the license.
+	s.SingleOrg = true
+	if _, err := s.SaveGroup(ctx, owner, o.Slug, g.ID, GroupInput{Name: "Engineering team", OIDCGroup: "eng"}); err != nil {
+		t.Fatalf("keep mapping: %v", err)
+	}
+}

@@ -289,6 +289,12 @@ func (s *Service) SaveGroup(ctx context.Context, a Actor, ref, id string, in Gro
 	if in.Name == "" || len(in.Name) > 100 || len(in.OIDCGroup) > 200 {
 		return store.Group{}, invalid("validation.name_required", nil, "name is required")
 	}
+	if in.OIDCGroup != "" && !s.SSOGroupsAllowed(ctx) {
+		// Keep a mapping that exists; only setting a new one needs the license.
+		if cur, err := s.DB.GetGroup(ctx, id); id == "" || err != nil || cur.OIDCGroup != in.OIDCGroup {
+			return store.Group{}, invalid("validation.license_feature", map[string]any{"feature": FeatureSSOGroups}, "groups from SSO need a license in the single-organization edition")
+		}
+	}
 	g := store.Group{ID: id, OrgID: o.ID, Name: in.Name, OIDCGroup: in.OIDCGroup}
 	if id == "" {
 		g.ID = newID()

@@ -178,7 +178,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
   async connectedCallback() {
     super.connectedCallback();
     // On an organization's own domain the app carries its name.
-    void api<{ org?: { id: string; slug: string; name: string }; singleOrg?: { id?: string; slug?: string; name?: string } }>("GET", "/instance").then((i) => {
+    void api<{ org?: { id: string; slug: string; name: string }; singleOrg?: { id?: string; slug?: string; name?: string; ssoGroups?: boolean } }>("GET", "/instance").then((i) => {
       if (i?.org) appOrg.set(i.org);
       if (i?.singleOrg) singleOrg.set(i.singleOrg);
     }).catch(() => {});

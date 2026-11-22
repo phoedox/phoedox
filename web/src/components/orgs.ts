@@ -95,6 +95,9 @@ export class PhxOrgs extends SignalWatcher(LitElement) {
 }
 customElements.define("phx-orgs", PhxOrgs);
 
+/** Groups may follow the SSO sign-in (single-organization edition: needs the license, ADR-0093). */
+const ssoGroupsOK = () => singleOrg.get()?.ssoGroups !== false;
+
 /** One organization: settings, members and groups (admins edit). */
 export class PhxOrg extends SignalWatcher(LitElement) {
   static properties = { slug: {}, inAdmin: { type: Boolean }, o: { state: true }, error: { state: true }, orgProjects: { state: true } };
@@ -166,10 +169,11 @@ export class PhxOrg extends SignalWatcher(LitElement) {
     return html`<div class="group card">
       <header><b>${g.name}</b>
         ${g.oidcGroup ? html`<span class="chip" title=${t("orgs.oidc_hint")}>${icon("ShieldCheck", 12)} ${g.oidcGroup}</span>` : ""}
-        ${admin ? html`<button class="ghost" style="padding:3px 8px" @click=${() => {
+        ${admin && ssoGroupsOK() ? html`<button class="ghost" style="padding:3px 8px" @click=${() => {
           const oidc = prompt(t("orgs.oidc_prompt"), g.oidcGroup);
           if (oidc !== null) this.run(() => api("PATCH", `/orgs/${this.slug}/groups/${g.id}`, { name: g.name, oidcGroup: oidc }));
-        }}>${t("orgs.oidc_set")}</button>
+        }}>${t("orgs.oidc_set")}</button>` : ""}
+        ${admin ? html`
         <button class="danger" style="padding:3px 8px" @click=${() => confirm(t("orgs.group_delete_confirm", { name: g.name })) && this.run(() => api("DELETE", `/orgs/${this.slug}/groups/${g.id}`))}>${icon("Trash2", 13)}</button>` : ""}
       </header>
       <div class="chips">${g.members.length ? g.members.map((m) => html`<span class="chip">${m.name}${m.role === "oidc" ? html` <span title=${t("orgs.from_oidc")}>${icon("ShieldCheck", 11)}</span>` : ""}
@@ -249,8 +253,9 @@ export class PhxOrg extends SignalWatcher(LitElement) {
       ${o.groups.map((g) => this.group(g, admin))}
       ${admin ? html`<form class="inline" @submit=${this.addGroup}>
         <input name="name" required maxlength="100" placeholder=${t("orgs.group_name")} aria-label=${t("orgs.group_name")}>
-        <input name="oidc" maxlength="200" placeholder=${t("orgs.oidc_optional")} aria-label=${t("orgs.oidc_optional")}>
-        <button>${icon("Plus", 13)} ${t("orgs.add_group")}</button></form>` : ""}
+        ${ssoGroupsOK() ? html`<input name="oidc" maxlength="200" placeholder=${t("orgs.oidc_optional")} aria-label=${t("orgs.oidc_optional")}>` : ""}
+        <button>${icon("Plus", 13)} ${t("orgs.add_group")}</button></form>
+        ${ssoGroupsOK() ? "" : html`<p class="muted" style="font-size:13px">${icon("Lock", 12)} ${t("orgs.sso_license")} <a href="/admin/license">${t("lic.title")}</a></p>`}` : ""}
     </div>`;
   }
 }

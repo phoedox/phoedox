@@ -98,6 +98,9 @@ type Auth struct {
 	// OnAccount is called when an account is created or signs in (the app
 	// adds it to the organization in single-organization mode).
 	OnAccount func(ctx context.Context, u store.User) error
+	// SSOGroups tells whether group memberships follow the OIDC groups
+	// claim (nil = always; the single-organization edition needs a license).
+	SSOGroups func(ctx context.Context) bool
 	// SecureCookies sets the Secure flag (true behind HTTPS).
 	SecureCookies bool
 	// Mail sends invitations and reset links; nil or disabled means links

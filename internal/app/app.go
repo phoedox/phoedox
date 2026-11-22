@@ -142,6 +142,7 @@ func Open(ctx context.Context) (*App, error) {
 		svc.LicenseFile = string(b)
 	}
 	a.OnAccount = svc.JoinTheOrg
+	a.SSOGroups = svc.SSOGroupsAllowed
 	if smtp, ok := sender.(*mail.SMTP); ok {
 		smtp.Brand = svc.MailBrand // HTML mails in the theme of the organization or instance
 	}

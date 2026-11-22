@@ -5280,4 +5280,6 @@ export const en: Record<keyof typeof de, string> = {
   "validation.license_domain": "The license is not issued for this instance's domain ({domain}).",
   "validation.license_expired": "The license has expired.",
   "validation.license_from_file": "The license comes from PHOEDOX_LICENSE_FILE and cannot be changed here.",
+  "orgs.sso_license": "Groups that follow the SSO sign-in need a license with “Groups from SSO” in the single-organization edition.",
+  "validation.license_feature": "This needs a license with this feature (Administration → License).",
 };

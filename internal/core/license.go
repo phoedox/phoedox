@@ -139,6 +139,13 @@ func (s *Service) Licensed(ctx context.Context, feature string) bool {
 		(slices.Contains(info.Features, licenseAllFeatures) || slices.Contains(info.Features, feature))
 }
 
+// SSOGroupsAllowed tells whether groups may follow the SSO sign-in (OIDC
+// group claims). Free everywhere, except in single-organization mode, where
+// it needs a license with sso_groups (Jan, 2026-11-22; ADR-0093).
+func (s *Service) SSOGroupsAllowed(ctx context.Context) bool {
+	return !s.SingleOrg || s.Licensed(ctx, FeatureSSOGroups)
+}
+
 // LicenseForAdmin returns the license state (system admins).
 func (s *Service) LicenseForAdmin(ctx context.Context, a Actor) (LicenseInfo, error) {
 	if !a.User.IsAdmin || s.fullUser(a) != nil {
