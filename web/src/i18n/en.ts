@@ -5301,4 +5301,9 @@ export const en: Record<keyof typeof de, string> = {
   "board.subtasks_show": "Show subtasks on this card",
   "board.subtasks_hide": "Hide subtasks on this card",
   "board.subtasks_on_card": "Show on the card",
+  "wb.maximize": "Maximize (Esc restores)",
+  "wb.restore": "Restore size",
+  "wb.own_page": "Open as a page of its own",
+  "wb.back_to_page": "Back to the page",
+  "wb.not_whiteboard": "This page is not a whiteboard.",
 };

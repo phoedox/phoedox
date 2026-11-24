@@ -5299,4 +5299,9 @@ export const de = {
   "board.subtasks_show": "Unteraufgaben auf dieser Karte zeigen",
   "board.subtasks_hide": "Unteraufgaben auf dieser Karte ausblenden",
   "board.subtasks_on_card": "Auf der Karte zeigen",
+  "wb.maximize": "Maximieren (Esc verkleinert)",
+  "wb.restore": "Normale Größe",
+  "wb.own_page": "Als eigene Seite öffnen",
+  "wb.back_to_page": "Zurück zur Seite",
+  "wb.not_whiteboard": "Diese Seite ist kein Whiteboard.",
 } as const;

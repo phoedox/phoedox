@@ -88,6 +88,7 @@ interface Pop { kind: "comment" | "newcomment" | "embed" | "entity"; x: number; 
 export class PhxWhiteboard extends LitElement {
   static properties = {
     project: {}, doc: { attribute: false }, canEdit: { type: Boolean }, still: { type: Boolean, reflect: true },
+    maximized: { type: Boolean, reflect: true }, standalone: { type: Boolean, reflect: true },
     tool: { state: true }, selId: { state: true }, sel: { state: true }, snap: { state: true }, embedWeb: { state: true }, apps: { state: true }, cards: { state: true }, mermaid: { state: true }, chartEdit: { state: true }, present: { state: true }, status: { state: true }, saved: { state: true }, peers: { state: true }, zoom: { state: true },
     pop: { state: true }, menu: { state: true }, panel: { state: true }, arrowMode: { state: true }, roundDefault: { state: true }, trail: { state: true }, laserSize: { state: true },
     entities: { state: true }, query: { state: true }, busy: { state: true }, boardVersion: { state: true },
@@ -97,6 +98,15 @@ export class PhxWhiteboard extends LitElement {
   static styles = [base, css`
     :host { display: block; position: relative; height: calc(100dvh - var(--header-h) - 150px); min-height: 460px; }
     :host([still]) { height: 320px; min-height: 0; }
+    /* Maximized over the app (Esc restores), or its own page (/wb/…) filling the window. */
+    :host([maximized]) { position: fixed; inset: 0; z-index: 60; height: auto; min-height: 0; }
+    :host([standalone]) { height: 100dvh; min-height: 0; }
+    :host([maximized]) .stage, :host([standalone]) .stage { border: 0; border-radius: 0; }
+    .home { left: 10px; top: 10px; gap: 4px; padding: 4px 10px 4px 4px; font-size: 13px; max-width: min(320px, 28vw); }
+    .home span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+    .bar a.ico { width: 34px; height: 34px; display: grid; place-items: center; color: var(--fg); border-radius: 7px; flex: none; }
+    @media (hover: hover) and (pointer: fine) { .bar a.ico:hover { background: var(--surface2); } }
+    .bar a.ico:focus-visible { outline: 2px solid var(--accent); }
     :host([still]) .stage { border: 0; border-radius: 0; }
     :host([still]) svg.board { pointer-events: none; }
     .stage { position: absolute; inset: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--canvas, var(--bg)); touch-action: none; }
@@ -246,6 +256,15 @@ export class PhxWhiteboard extends LitElement {
   /** Read-only picture for page embeds: the editor's own drawing, no live
    * connection and no chrome, sized to the board. */
   still = false;
+  /** Fills the browser window over the app (Esc or the button restores). */
+  maximized = false;
+  /** Shown as a page of its own (/wb/project/doc): a way back instead of maximize. */
+  standalone = false;
+
+  private setMaximized(on: boolean) {
+    this.maximized = on;
+    document.documentElement.style.overflow = on ? "hidden" : "";
+  }
   tool: Tool = "select";
   selId: string | null = null;
   /** Several selected elements (box, Shift-click, groups); selId is then null. */
@@ -337,6 +356,7 @@ export class PhxWhiteboard extends LitElement {
   disconnectedCallback() {
     removeEventListener("phx-plugin-block-drawn", this.onPluginDrawn);
     super.disconnectedCallback();
+    if (this.maximized) this.setMaximized(false); // leaving the page restores scrolling
     window.removeEventListener("keydown", this.onKey);
     window.removeEventListener("keyup", this.onKeyUp);
     window.removeEventListener("paste", this.onPaste);
@@ -1827,6 +1847,8 @@ export class PhxWhiteboard extends LitElement {
     }
     if (ev.key === "Escape") {
       if (this.clickLine) { this.finishClickLine(); this.tool = "select"; return; }
+      // Nothing else to cancel: leave the maximized view.
+      if (this.maximized && !this.pop && !this.selId && this.tool === "select") { this.setMaximized(false); return; }
       this.pop = null;
       this.select(null);
       this.setTool("select");
@@ -3076,6 +3098,7 @@ export class PhxWhiteboard extends LitElement {
         <span class="seg" role="group" aria-label=${t("wb.thickness")}>${[3, 4.5, 7].map((s, i) => html`<button aria-pressed=${this.laserSize === s ? "true" : "false"} aria-label=${[t("wb.thin"), t("wb.medium"), t("wb.bold")][i]} title=${[t("wb.thin"), t("wb.medium"), t("wb.bold")][i]}
           @click=${() => { this.laserSize = s; try { localStorage.setItem("wb.laserSize", String(s)); } catch { /* ignore */ } }}><span class="dot" style="width:${s * 2}px;height:${s * 2}px"></span></button>`)}</span>
         <span>${t("wb.hint_laser")}</span></div>` : nothing}
+      ${this.standalone && this.doc ? html`<div class="bar home"><a class="ico" href=${`/p/${this.project}/d/${this.doc.id}`} aria-label=${t("wb.back_to_page")} title=${t("wb.back_to_page")}>${icon("ArrowLeft", 16)}</a><span title=${this.doc.title}>${this.doc.title}</span></div>` : nothing}
       <div class="bar state" role="status">
         <span class="live ${this.readOnly || this.status !== "connected" ? "off" : this.saved?.state === "saving" ? "saving" : ""}"></span>${this.stateText()}
         ${this.peers.length ? html`<span class="avatars" title=${this.peers.map((p) => p.name).join(", ")}>${this.peers.map((p) => html`<span style="background:${p.color}">${p.name.slice(0, 2).toUpperCase()}</span>`)}</span>` : nothing}
@@ -3084,6 +3107,9 @@ export class PhxWhiteboard extends LitElement {
         <button aria-label=${t("wb.zoom_out")} title=${t("wb.zoom_out")} @click=${() => this.zoomBy(1 / 1.2)}>${icon("ZoomOut", 16)}</button><span>${this.zoom} %</span>
         <button aria-label=${t("wb.zoom_in")} title=${t("wb.zoom_in")} @click=${() => this.zoomBy(1.2)}>${icon("ZoomIn", 16)}</button>
         <button aria-label=${t("wb.fit")} title=${t("wb.fit")} @click=${() => this.fit()}>${icon("Maximize", 16)}</button>
+        ${this.standalone || !this.doc ? nothing : html`<button aria-label=${t(this.maximized ? "wb.restore" : "wb.maximize")} title=${t(this.maximized ? "wb.restore" : "wb.maximize")} aria-pressed=${this.maximized ? "true" : "false"}
+          @click=${() => this.setMaximized(!this.maximized)}>${icon(this.maximized ? "Minimize2" : "Maximize2", 16)}</button>
+          <a class="ico" href=${`/wb/${this.project}/${this.doc.id}`} target="_blank" rel="noopener" aria-label=${t("wb.own_page")} title=${t("wb.own_page")}>${icon("ExternalLink", 16)}</a>`}
         ${this.board.prototypes?.length ? html`<button class="flows" aria-label=${t("wb.flows_title", { mode: t(`wb.flows_${this.flows}`) })} title=${t("wb.flows_title", { mode: t(`wb.flows_${this.flows}`) })}
           aria-pressed=${this.flows !== "off" ? "true" : "false"} @click=${() => this.cycleFlows()}>${icon("Workflow", 16)}<span>${t(`wb.flows_${this.flows}`)}</span></button>` : nothing}
         ${this.readOnly ? nothing : html`<button aria-label=${t("wb.snap")} title=${t("wb.snap")} aria-pressed=${this.snap ? "true" : "false"} @click=${() => this.setSnap(!this.snap)}>${icon("Grid3x3", 16)}</button>`}

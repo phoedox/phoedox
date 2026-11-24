@@ -4,6 +4,10 @@ A whiteboard is a canvas people draw on together; changes are published at once 
 everyone on the board sees them live – also yours. Coordinates are board units (about
 pixels at 100 %), y grows downwards.
 
+People can maximize a whiteboard on its page or open it as a page of its own that
+shows only the board: `https://<instance>/wb/<project>/<document id>`. Hand out that
+link when someone wants to work on the board alone (it needs sign-in, like the page).
+
 - **Read first:** `get_whiteboard` returns each element with `id`, `type`, `text`,
   `box` [x, y, w, h] or `points`, bound ends `from`/`to`, frames with their content,
   embeds with title and status, prototypes (`prototypes` with variables and data;

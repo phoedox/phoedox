@@ -102,6 +102,8 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/shared/app/:token", render: ({ token }) => html`<phx-shared-app .token=${token!}></phx-shared-app>` },
     { path: "/identify", render: () => html`<phx-identify></phx-identify>` },
     { path: "/kiosk/:project/:doc", render: ({ project, doc }) => html`<phx-kiosk .project=${project!} .doc=${doc!}></phx-kiosk>` },
+    // A whiteboard alone, filling the window (the editor loads only when needed).
+    { path: "/wb/:project/:doc", render: ({ project, doc }) => { void import("./whiteboard-page"); return html`<phx-whiteboard-page .project=${project!} .doc=${doc!}></phx-whiteboard-page>`; } },
     { path: "/print/:project", render: ({ project }) => html`<phx-print .project=${project!}></phx-print>` },
     // The website's "Start for free" links here; signed-in people go to their projects.
     { path: "/signup", render: () => {
@@ -233,7 +235,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     if (!this.ready) return html`<p class="muted" style="padding:24px">${t("app.loading")}</p>`;
     const user = currentUser.get();
     // Shared pages and the wall display show no app header.
-    const shared = location.pathname.startsWith("/s/") || location.pathname.startsWith("/kiosk/") || location.pathname.startsWith("/print/") || location.pathname.startsWith("/feedback/") || location.pathname.startsWith("/shared/") || location.pathname === "/pay";
+    const shared = location.pathname.startsWith("/s/") || location.pathname.startsWith("/kiosk/") || location.pathname.startsWith("/wb/") || location.pathname.startsWith("/print/") || location.pathname.startsWith("/feedback/") || location.pathname.startsWith("/shared/") || location.pathname === "/pay";
     // The window title names the open project, so tabs are told apart (shared pages set their own).
     if (!shared) document.title = windowTitle(location.pathname.startsWith("/p/") ? currentProject.get()?.name : undefined, appOrg.get()?.name);
     return html`
