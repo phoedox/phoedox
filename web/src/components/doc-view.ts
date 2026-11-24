@@ -254,6 +254,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
   }
 
   updated() {
+    // A wall display lets a whiteboard fill the screen (kiosk.ts).
+    this.toggleAttribute("fill", this.kiosk && this.doc?.type === "whiteboard");
     this.markBlocks();
     // References in the text become links (decision numbers, ext refs, §6.4, own rules).
     const prose = [...this.renderRoot.querySelectorAll<HTMLElement>(".prose")];
@@ -475,7 +477,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     if (d.type === "whiteboard") {
       // The editor (with Rough.js) loads only when a whiteboard is opened.
       void import("./whiteboard");
-      return html`<phx-whiteboard .project=${this.project} .doc=${d} ?canEdit=${!this.kiosk && ["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "")}></phx-whiteboard>`;
+      // On a wall display the board fills the screen (as a page of its own).
+      return html`<phx-whiteboard ?standalone=${this.kiosk} .project=${this.project} .doc=${d} ?canEdit=${!this.kiosk && ["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "")}></phx-whiteboard>`;
     }
     if (d.type === "calendar") return html`<phx-calendar-doc .project=${this.project} .doc=${d} ?canEdit=${!this.kiosk && ["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "")} @changed=${() => this.reload()}></phx-calendar-doc>`;
     if (d.type === "app") {
@@ -630,6 +633,7 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     // The role for this page can differ from the project role (restricted or shared pages).
     const canEdit = ["editor", "owner"].includes(d.role ?? currentProject.get()?.role ?? "");
     const wide = wideReading.get();
+    if (this.kiosk && d.type === "whiteboard") return this.body(d); // the board names itself
     if (this.kiosk) return html`<article class="enter wide kiosk"><header><div><h1>${d.title}</h1></div></header>${this.body(d)}${this.zoomDialog()}</article>`;
     // Boards need the room of the whole page.
     return html`<article class=${wide || d.type === "board" || d.type === "floorplan" || d.type === "whiteboard" || d.type === "app" || d.type === "calendar" ? "enter wide" : "enter"} @click=${this.onClick}

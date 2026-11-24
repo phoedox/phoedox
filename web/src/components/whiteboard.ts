@@ -1344,6 +1344,12 @@ export class PhxWhiteboard extends LitElement {
     return dbl;
   }
 
+  /** The middle button pans the board (onDown); without this the browser
+   * starts scrolling the page instead (autoscroll). */
+  private noAutoscroll = (ev: MouseEvent) => {
+    if (ev.button === 1) ev.preventDefault();
+  };
+
   private onDown = (ev: PointerEvent) => {
     const svg = this.svgEl;
     if (this.present >= 0) {
@@ -3087,7 +3093,7 @@ export class PhxWhiteboard extends LitElement {
     const hasScreens = this.els().some((e) => e.screen);
     return html`<div class="stage" @dragover=${(e: DragEvent) => !this.readOnly && e.preventDefault()} @drop=${this.onDrop}>
       <svg class="board ${toolCls}" tabindex="0" role="application" aria-label=${this.doc?.title ?? t("wb.board")}
-        @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @contextmenu=${this.onContextMenu}
+        @pointerdown=${this.onDown} @mousedown=${this.noAutoscroll} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @contextmenu=${this.onContextMenu}
         @pointerleave=${() => { this.live?.setCursor(undefined); if (this.laserDown) { this.laserDown = false; this.laserEnd("me"); } }} @wheel=${this.onWheel}>
         <defs><pattern id="wbgrid" width="24" height="24" patternUnits="userSpaceOnUse"><circle class="grid" cx="1" cy="1" r="1"></circle></pattern></defs>
         ${this.board.background === "plain" ? nothing : html`<rect width="100%" height="100%" fill="url(#wbgrid)" style="pointer-events:none"></rect>`}

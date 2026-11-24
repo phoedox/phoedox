@@ -16,6 +16,9 @@ export class PhxKiosk extends LitElement {
   static styles = [base, css`
     :host { display: block; min-height: 100vh; background: var(--bg); }
     .page { zoom: var(--scale, 1.25); padding: 18px 28px 40px; max-width: none; }
+    /* A whiteboard fills the screen itself: no zoom, no margins, no page scrolling. */
+    .page:has(> phx-doc-view[fill]) { zoom: 1; padding: 0; }
+    :host(:has(phx-doc-view[fill])) { height: 100dvh; overflow: hidden; }
     .bar { position: fixed; top: 10px; right: 12px; z-index: 30; display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--muted);
       background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--line); border-radius: 999px; padding: 4px 6px 4px 12px;
       transition: opacity var(--dur, 200ms) ease; }
