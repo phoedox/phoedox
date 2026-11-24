@@ -572,9 +572,11 @@ export class PhxLiveEditor extends LitElement {
       return v?.q || undefined;
     }
     if (kind === "mermaid") {
-      const v = await this.askForm({ title: t("slash.mermaid"), hint: t("block.mermaid_hint"),
-        fields: [{ name: "v", label: t("block.mermaid_source"), type: "textarea", value: current || "flowchart LR\n  Internet --> Router --> Switch\n  Switch --> NAS" }] });
-      return v?.v.trim() || undefined;
+      // Full screen with a live picture of the diagram.
+      const { openBlockEditor } = await import("./block-editor");
+      const r = await openBlockEditor({ kind, title: t("slash.mermaid"), hint: t("block.mermaid_hint"), project: this.project,
+        source: current || "flowchart LR\n  Internet --> Router --> Switch\n  Switch --> NAS" });
+      return r?.source || undefined;
     }
     if (kind === "compare") {
       const v = await this.askForm({ title: t("slash.compare"), hint: t("block.compare_hint"),
@@ -588,16 +590,11 @@ export class PhxLiveEditor extends LitElement {
     }
     const def = blockDef(kind);
     if (def) {
-      const v = await this.askForm({ title: t(def.label as any), hint: t(def.hint as any),
-        fields: [{ name: "v", label: t("block.source"), type: "textarea", value: current || def.example }] });
-      const src = v?.v.trim();
-      if (!src) return undefined;
-      const { problems } = def.parse(src);
-      if (problems.length) {
-        toast(`${t("block.cannot_show")}: ${t(problems[0].key as any, problems[0].params ?? {})}`, "error");
-        return undefined;
-      }
-      return src;
+      // Full screen: a form (charts) or the source, with a live preview;
+      // it applies only a source the block can show.
+      const { openBlockEditor } = await import("./block-editor");
+      const r = await openBlockEditor({ kind, source: current || def.example, project: this.project, doc: this.doc?.id });
+      return r?.source || undefined;
     }
     if (kind === "dbmodel" || kind === "status" || kind === "entity" || kind === "calendar") {
       const preset = kind === "calendar" ? "view: list\ndays: 30" : kind === "dbmodel" ? "CREATE TABLE customers (\n  id INTEGER PRIMARY KEY,\n  name TEXT NOT NULL\n);\n\nCREATE TABLE orders (\n  id INTEGER PRIMARY KEY,\n  customer_id INTEGER REFERENCES customers(id),\n  total NUMERIC(10,2)\n);"

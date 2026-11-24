@@ -120,11 +120,6 @@ export class PhxWhiteboard extends LitElement {
     dialog.wbdlg .cardlist input[type=checkbox] { width: auto; }
     dialog.wbdlg .cardlist input[type=text] { flex: 1; }
     dialog.wbdlg.chart { width: min(1040px, 96vw); }
-    dialog.wbdlg .chartgrid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; align-items: start; }
-    dialog.wbdlg .chartgrid textarea { min-height: 420px; margin: 0; }
-    dialog.wbdlg .chartgrid phx-block { margin: 0; max-height: 60vh; overflow: auto; }
-    dialog.wbdlg .kindsel { display: flex; gap: 8px; align-items: center; font-size: 13px; margin: 6px 0; }
-    @media (max-width: 760px) { dialog.wbdlg .chartgrid { grid-template-columns: 1fr; } }
     dialog.wbdlg textarea { width: 100%; min-height: 200px; box-sizing: border-box; font: 13px/1.5 var(--font-mono); margin: 10px 0 14px; }
     dialog.wbdlg .acts { display: flex; gap: 8px; justify-content: flex-end; }
     .apps { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
@@ -287,7 +282,6 @@ export class PhxWhiteboard extends LitElement {
   mermaid?: string;
   /** The block being written in the dialog (a new one without id). */
   chartEdit?: { id?: string; kind: string; src: string };
-  private chartTimer = 0;
   /** Live state of entries (slug → ok | warn | down | fail …). */
   private entStatus = new Map<string, string>();
   /** Which websites may be embedded live (instance and organization). */
@@ -2887,12 +2881,20 @@ export class PhxWhiteboard extends LitElement {
     </dialog>`;
   }
 
+  /** Edits a block (or adds one) in the full-screen block editor. */
   private async openChart(e?: WBElement, kind = "chart") {
     const b = e ? asBlock(e) : undefined;
     const k = b?.kind ?? kind;
-    this.chartEdit = { id: b?.id, kind: k, src: b?.source ?? blockDef(k)?.example ?? "" };
-    await this.updateComplete;
-    this.renderRoot.querySelector<HTMLDialogElement>("dialog.chart")?.showModal();
+    const { openBlockEditor } = await import("./block-editor");
+    const kinds = b ? undefined : [
+      ...boardKinds().map((d) => ({ kind: d.kind, label: t(d.label as any), example: d.example })),
+      ...activePluginBlocks().filter((p) => p.board).map((p) => ({ kind: p.kind, label: p.label, example: p.example ?? "", plugin: true })),
+    ];
+    const r = await openBlockEditor({ kind: k, source: b?.source ?? blockDef(k)?.example ?? pluginBlock(k)?.example ?? "", title: b ? undefined : t("wb.block_title"),
+      project: this.project, doc: this.doc?.id, kinds, plugin: !blockDef(k) });
+    if (!r) return;
+    this.chartEdit = { id: b?.id, kind: r.kind, src: r.source };
+    this.saveChart();
   }
 
   private saveChart() {
@@ -2918,38 +2920,7 @@ export class PhxWhiteboard extends LitElement {
       this.select(el.id);
     }
     this.changed();
-    this.renderRoot.querySelector<HTMLDialogElement>("dialog.chart")?.close();
     this.chartEdit = undefined;
-  }
-
-  private chartDialog() {
-    const c = this.chartEdit;
-    if (!c) return nothing;
-    const def = blockDef(c.kind);
-    const close = () => { this.renderRoot.querySelector<HTMLDialogElement>("dialog.chart")?.close(); this.chartEdit = undefined; };
-    return html`<dialog class="chart wbdlg" aria-labelledby="wbct" @cancel=${(e: Event) => { e.preventDefault(); close(); }} @keydown=${(e: KeyboardEvent) => e.stopPropagation()}>
-      <h2 id="wbct">${t("wb.block_title")}</h2>
-      ${c.id ? nothing : html`<label class="kindsel">${t("wb.block_kind")}
-        <select @change=${(ev: Event) => { const k = (ev.target as HTMLSelectElement).value; this.chartEdit = { kind: k, src: blockDef(k)?.example ?? pluginBlock(k)?.example ?? "" }; }}>
-          ${boardKinds().map((d) => html`<option value=${d.kind} ?selected=${d.kind === c.kind}>${t(d.label as any)}</option>`)}
-          ${activePluginBlocks().filter((p) => p.board).map((p) => html`<option value=${p.kind} ?selected=${p.kind === c.kind}>${p.label}</option>`)}
-        </select></label>`}
-      <p class="muted">${def ? t(def.hint as any) : pluginBlock(c.kind)?.label ?? ""}</p>
-      <div class="chartgrid">
-        <textarea aria-label=${t("block.source")} .value=${c.src} spellcheck="false" @input=${(ev: Event) => {
-          const v = (ev.target as HTMLTextAreaElement).value;
-          clearTimeout(this.chartTimer);
-          this.chartTimer = window.setTimeout(() => { if (this.chartEdit) this.chartEdit = { ...this.chartEdit, src: v }; }, 300);
-        }}></textarea>
-        ${def ? html`<phx-block data-kind=${c.kind} data-src=${c.src} data-project=${this.project} data-doc=${this.doc?.id ?? ""}></phx-block>`
-          : html`<phx-plugin-block data-kind=${c.kind} data-src=${c.src} data-project=${this.project}></phx-plugin-block>`}
-      </div>
-      <div class="acts"><button class="ghost" @click=${close}>${t("doc.cancel")}</button><button @click=${() => {
-        const v = this.renderRoot.querySelector<HTMLTextAreaElement>("dialog.chart textarea")?.value;
-        if (v !== undefined && this.chartEdit) this.chartEdit = { ...this.chartEdit, src: v };
-        this.saveChart();
-      }}>${icon(def?.icon ?? "Shapes", 14)} ${t(c.id ? "wb.chart_save" : "wb.chart_add")}</button></div>
-    </dialog>`;
   }
 
   private async openMermaid() {
@@ -3165,7 +3136,6 @@ export class PhxWhiteboard extends LitElement {
       ${this.menuView()}
       ${this.cardsDialog()}
       ${this.mermaidDialog()}
-      ${this.chartDialog()}
       ${this.protoView()}
       ${this.present >= 0 ? html`<div class="bar present" role="toolbar" aria-label=${t("wb.present")}>
         <button aria-label=${t("wb.prev")} @click=${() => this.presentAt(Math.max(0, this.present - 1))}>${icon("ChevronLeft", 16)}</button>
