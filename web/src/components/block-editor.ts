@@ -13,7 +13,12 @@ import { base } from "./shared";
 import "./code-editor";
 import "./chart-form";
 import "./gantt-form";
-import { GANTT_EXAMPLE, isGantt, parseGantt, serializeGantt, type GanttPlan } from "../mermaid-gantt";
+import { isGantt, parseGantt, serializeGantt, type GanttPlan } from "../mermaid-gantt";
+import { GALLERY, parseMermaid, supportedKinds, writeMermaid, type Model } from "../mermaid-forms";
+import "./mermaid-form";
+
+/** Whether a Mermaid source opens in a form (Gantt or a kind with a form). */
+const mermaidHasForm = (src: string) => isGantt(src) || !!parseMermaid(src);
 import "./block-view";
 import "./blocks";
 import "./plugin-block";
@@ -50,7 +55,7 @@ export function openBlockEditor(o: BlockEditorOptions): Promise<BlockEditorResul
 }
 
 export class PhxBlockEditor extends LitElement {
-  static properties = { kind: { state: true }, src: { state: true }, view: { state: true }, preview: { state: true }, plugin: { state: true } };
+  static properties = { kind: { state: true }, src: { state: true }, view: { state: true }, preview: { state: true }, plugin: { state: true }, gallery: { state: true }, supported: { state: true } };
   static styles = [base, css`
     dialog { width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: var(--bg); color: var(--fg); }
     dialog::backdrop { background: rgb(0 0 0 / .4); }
@@ -71,6 +76,14 @@ export class PhxBlockEditor extends LitElement {
     .problem b { color: var(--bad); }
     .card { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 16px; min-height: 200px; }
     select { width: auto; }
+    .switch { margin: 0 0 10px; }
+    .switch button { font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+    .gallery { display: grid; gap: 12px; }
+    .gallery > button.ghost { justify-self: start; }
+    .kinds { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+    .kindbtn { display: grid; gap: 2px; text-align: left; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--fg); font-size: 13px; }
+    .kindbtn span { color: var(--muted); font-size: 11.5px; font-weight: 400; }
+    @media (hover: hover) and (pointer: fine) { .kindbtn:hover { border-color: var(--accent); } }
     @media (max-width: 860px) { main { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; } .left { border-right: 0; border-bottom: 1px solid var(--line); } }
   `];
   opts!: BlockEditorOptions;
@@ -79,6 +92,10 @@ export class PhxBlockEditor extends LitElement {
   plugin = false;
   /** form (charts) or source. */
   view: "form" | "source" = "form";
+  /** Mermaid: the gallery of diagram kinds is open. */
+  gallery = false;
+  /** Gallery ids this Mermaid version can draw (checked once). */
+  supported?: Set<string>;
   /** The source shown in the preview (follows the text with a short delay). */
   preview = "";
   done!: (r: BlockEditorResult | undefined) => void;
@@ -90,7 +107,7 @@ export class PhxBlockEditor extends LitElement {
     this.start = this.kind + "\n" + this.src;
     this.preview = this.src;
     // Charts and Mermaid Gantt plans open in their form, everything else as source.
-    if (!this.hasForm || (this.kind === "mermaid" && !isGantt(this.src))) this.view = "source";
+    if (!this.hasForm || (this.kind === "mermaid" && !mermaidHasForm(this.src))) this.view = "source";
   }
 
   firstUpdated() {
@@ -102,13 +119,33 @@ export class PhxBlockEditor extends LitElement {
   }
 
   /** The form side: the chart form, the Gantt form, or how to get there. */
+  /** The gallery of Mermaid diagram kinds (only those this Mermaid version draws). */
+  private galleryView() {
+    if (!this.supported) void supportedKinds().then((ok) => (this.supported = ok));
+    const ok = this.supported;
+    const current = mermaidHasForm(this.src);
+    return html`<div class="gallery">
+      <p class="hint">${t(current ? "mmd.switch_hint" : "mmd.no_form")}</p>
+      ${ok ? html`<div class="kinds">${GALLERY.filter((g) => ok.has(g.id)).map((g) => html`<button class="kindbtn" @click=${() => {
+        if (this.src.trim() && this.kind + "\n" + this.src !== this.start && !confirm(t("mmd.replace"))) return;
+        this.setSource(g.example, true);
+        this.gallery = false;
+        this.view = g.form ? "form" : "source";
+      }}><b>${t(g.label as Key)}</b>${g.form ? nothing : html`<span>${t("mmd.source_only")}</span>`}</button>`)}</div>`
+        : html`<p class="hint">${t("app.loading")}</p>`}
+      ${current ? html`<button class="ghost" @click=${() => (this.gallery = false)}>${t("doc.cancel")}</button>` : nothing}
+    </div>`;
+  }
+
   private formView(chart: ChartSpec | undefined) {
     if (this.kind === "mermaid") {
+      if (this.gallery || !mermaidHasForm(this.src)) return this.galleryView();
+      const switcher = html`<p class="switch"><button class="ghost" @click=${() => (this.gallery = true)}>${icon("Shapes", 14)} ${t("mmd.switch")}</button></p>`;
       if (isGantt(this.src)) {
-        return html`<phx-gantt-form .plan=${parseGantt(this.src)} @change=${(e: CustomEvent<GanttPlan>) => this.setSource(serializeGantt(e.detail))}></phx-gantt-form>`;
+        return html`${switcher}<phx-gantt-form .plan=${parseGantt(this.src)} @change=${(e: CustomEvent<GanttPlan>) => this.setSource(serializeGantt(e.detail))}></phx-gantt-form>`;
       }
-      return html`<div class="problem"><p style="margin:0 0 10px">${t("gantt.only_gantt")}</p>
-        <button @click=${() => { if (!this.src.trim() || confirm(t("gantt.replace"))) this.setSource(GANTT_EXAMPLE, true); }}>${icon("ChartGantt", 14)} ${t("gantt.start_plan")}</button></div>`;
+      const p = parseMermaid(this.src)!;
+      return html`${switcher}<phx-mermaid-form .kind=${p.kind} .model=${p.model} @change=${(e: CustomEvent<Model>) => this.setSource(writeMermaid(p.kind, e.detail))}></phx-mermaid-form>`;
     }
     return chart
       ? html`<phx-chart-form .spec=${chart} @change=${(e: CustomEvent<ChartSpec>) => this.setSource(chartSource(e.detail))}></phx-chart-form>`
@@ -171,7 +208,7 @@ export class PhxBlockEditor extends LitElement {
             if (!k) return;
             this.kind = k.kind;
             this.plugin = !!k.plugin;
-            this.view = k.kind === "chart" || (k.kind === "mermaid" && isGantt(k.example)) ? "form" : "source";
+            this.view = k.kind === "chart" || (k.kind === "mermaid" && mermaidHasForm(k.example)) ? "form" : "source";
             this.setSource(k.example, true);
           }}>${o.kinds.map((k) => html`<option value=${k.kind} ?selected=${k.kind === this.kind}>${k.label}</option>`)}</select>` : nothing}
           ${this.hasForm ? html`<div class="seg" role="group" aria-label=${t("blockedit.view")}>
