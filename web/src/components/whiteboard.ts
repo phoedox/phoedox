@@ -3063,6 +3063,8 @@ export class PhxWhiteboard extends LitElement {
       <g class="world"><g class="layer"></g><g class="pins"></g><g class="others"></g></g><g class="laser"></g></svg></div>`;
     const toolCls = this.tool === "hand" ? "t-hand" : this.tool === "laser" ? "t-laser" : this.tool === "comment" ? "t-comment" : this.tool === "select" ? "" : "t-draw";
     const open = this.openComments().length;
+    // Prototype controls only while screens are on the board (a prototype may outlive its last screen).
+    const hasScreens = this.els().some((e) => e.screen);
     return html`<div class="stage" @dragover=${(e: DragEvent) => !this.readOnly && e.preventDefault()} @drop=${this.onDrop}>
       <svg class="board ${toolCls}" tabindex="0" role="application" aria-label=${this.doc?.title ?? t("wb.board")}
         @pointerdown=${this.onDown} @pointermove=${this.onMove} @pointerup=${this.onUp} @pointercancel=${this.onUp} @contextmenu=${this.onContextMenu}
@@ -3110,7 +3112,7 @@ export class PhxWhiteboard extends LitElement {
         ${this.standalone || !this.doc ? nothing : html`<button aria-label=${t(this.maximized ? "wb.restore" : "wb.maximize")} title=${t(this.maximized ? "wb.restore" : "wb.maximize")} aria-pressed=${this.maximized ? "true" : "false"}
           @click=${() => this.setMaximized(!this.maximized)}>${icon(this.maximized ? "Minimize2" : "Maximize2", 16)}</button>
           <a class="ico" href=${`/wb/${this.project}/${this.doc.id}`} target="_blank" rel="noopener" aria-label=${t("wb.own_page")} title=${t("wb.own_page")}>${icon("ExternalLink", 16)}</a>`}
-        ${this.board.prototypes?.length ? html`<button class="flows" aria-label=${t("wb.flows_title", { mode: t(`wb.flows_${this.flows}`) })} title=${t("wb.flows_title", { mode: t(`wb.flows_${this.flows}`) })}
+        ${hasScreens ? html`<button class="flows" aria-label=${t("wb.flows_title", { mode: t(`wb.flows_${this.flows}`) })} title=${t("wb.flows_title", { mode: t(`wb.flows_${this.flows}`) })}
           aria-pressed=${this.flows !== "off" ? "true" : "false"} @click=${() => this.cycleFlows()}>${icon("Workflow", 16)}<span>${t(`wb.flows_${this.flows}`)}</span></button>` : nothing}
         ${this.readOnly ? nothing : html`<button aria-label=${t("wb.snap")} title=${t("wb.snap")} aria-pressed=${this.snap ? "true" : "false"} @click=${() => this.setSnap(!this.snap)}>${icon("Grid3x3", 16)}</button>`}
         ${this.readOnly ? nothing : html`<span class="sep"></span>
@@ -3125,7 +3127,7 @@ export class PhxWhiteboard extends LitElement {
           <button aria-label=${t("wb.mermaid_title")} title=${t("wb.mermaid_title")} @click=${() => void this.openMermaid()}>${icon("Workflow", 16)}</button>
           <button aria-label=${t("wb.block_title")} title=${t("wb.block_title")} @click=${() => void this.openChart()}>${icon("Shapes", 16)}</button>`}
         <button aria-label=${t("wb.present")} title=${t("wb.present")} @click=${() => this.presentAt(0)}>${icon("Presentation", 16)}</button>
-        ${(this.board.prototypes ?? []).length ? html`<button aria-label=${t("proto.prototypes")} title=${t("proto.prototypes")} @click=${() => {
+        ${hasScreens ? html`<button aria-label=${t("proto.prototypes")} title=${t("proto.prototypes")} @click=${() => {
           const list = this.board.prototypes ?? [];
           if (list.length === 1 && this.readOnly) this.playing = { proto: list[0].id };
           else void this.openProto(list[0].id);
