@@ -12,6 +12,8 @@ import { icon } from "../icon";
 import { base } from "./shared";
 import "./code-editor";
 import "./chart-form";
+import "./gantt-form";
+import { GANTT_EXAMPLE, isGantt, parseGantt, serializeGantt, type GanttPlan } from "../mermaid-gantt";
 import "./block-view";
 import "./blocks";
 import "./plugin-block";
@@ -87,7 +89,8 @@ export class PhxBlockEditor extends LitElement {
     super.connectedCallback();
     this.start = this.kind + "\n" + this.src;
     this.preview = this.src;
-    if (!this.hasForm) this.view = "source";
+    // Charts and Mermaid Gantt plans open in their form, everything else as source.
+    if (!this.hasForm || (this.kind === "mermaid" && !isGantt(this.src))) this.view = "source";
   }
 
   firstUpdated() {
@@ -95,7 +98,21 @@ export class PhxBlockEditor extends LitElement {
   }
 
   private get hasForm() {
-    return this.kind === "chart";
+    return this.kind === "chart" || this.kind === "mermaid";
+  }
+
+  /** The form side: the chart form, the Gantt form, or how to get there. */
+  private formView(chart: ChartSpec | undefined) {
+    if (this.kind === "mermaid") {
+      if (isGantt(this.src)) {
+        return html`<phx-gantt-form .plan=${parseGantt(this.src)} @change=${(e: CustomEvent<GanttPlan>) => this.setSource(serializeGantt(e.detail))}></phx-gantt-form>`;
+      }
+      return html`<div class="problem"><p style="margin:0 0 10px">${t("gantt.only_gantt")}</p>
+        <button @click=${() => { if (!this.src.trim() || confirm(t("gantt.replace"))) this.setSource(GANTT_EXAMPLE, true); }}>${icon("ChartGantt", 14)} ${t("gantt.start_plan")}</button></div>`;
+    }
+    return chart
+      ? html`<phx-chart-form .spec=${chart} @change=${(e: CustomEvent<ChartSpec>) => this.setSource(chartSource(e.detail))}></phx-chart-form>`
+      : html`<p class="problem"><b>${t("blockedit.form_needs_json")}</b></p>`;
   }
 
   /** The chart in the source, if it is valid JSON (else the form waits for the source). */
@@ -154,7 +171,7 @@ export class PhxBlockEditor extends LitElement {
             if (!k) return;
             this.kind = k.kind;
             this.plugin = !!k.plugin;
-            this.view = k.kind === "chart" ? "form" : "source";
+            this.view = k.kind === "chart" || (k.kind === "mermaid" && isGantt(k.example)) ? "form" : "source";
             this.setSource(k.example, true);
           }}>${o.kinds.map((k) => html`<option value=${k.kind} ?selected=${k.kind === this.kind}>${k.label}</option>`)}</select>` : nothing}
           ${this.hasForm ? html`<div class="seg" role="group" aria-label=${t("blockedit.view")}>
@@ -167,9 +184,7 @@ export class PhxBlockEditor extends LitElement {
         </header>
         <main>
           ${this.view === "form" && this.hasForm
-            ? html`<div class="left form">${chart
-              ? html`<phx-chart-form .spec=${chart} @change=${(e: CustomEvent<ChartSpec>) => this.setSource(chartSource(e.detail))}></phx-chart-form>`
-              : html`<p class="problem"><b>${t("blockedit.form_needs_json")}</b></p>`}</div>`
+            ? html`<div class="left form">${this.formView(chart)}</div>`
             : html`<div class="left"><phx-code-editor .lang=${lang} .label=${t("block.source")} .value=${this.src}
                 @input=${(e: Event) => this.setSource((e.target as HTMLInputElement).value)}></phx-code-editor></div>`}
           <div class="right">
