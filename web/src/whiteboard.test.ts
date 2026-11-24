@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { flowRoute, backKey, bindingAt, bindTarget, codeLabel, diffBoards, edgePoint, embedKind, frontKey, hitTest, inFrame, linePts, playerURL, removeElement, sorted, wrapText, type WBElement, inBox, groupOf, TEMPLATES, templateEls, slides, toExcalidraw, fromExcalidraw, alignEls, distributeEls, cloneEls, snapBox, normalizeBoard, type Whiteboard } from "./whiteboard";
+import { flowRoute, isCustomColor, swatchCols, backKey, bindingAt, bindTarget, codeLabel, diffBoards, edgePoint, embedKind, frontKey, hitTest, inFrame, linePts, playerURL, removeElement, sorted, wrapText, type WBElement, inBox, groupOf, TEMPLATES, templateEls, slides, toExcalidraw, fromExcalidraw, alignEls, distributeEls, cloneEls, snapBox, normalizeBoard, type Whiteboard } from "./whiteboard";
 
 const box: WBElement = { id: "a", type: "rect", x: 0, y: 0, w: 100, h: 50 };
 const oval: WBElement = { id: "b", type: "ellipse", x: 300, y: 0, w: 100, h: 50 };
@@ -192,4 +192,29 @@ test("flow arrows run through the gaps, never across a screen", () => {
   const sheet = { x: 525, y: 944, w: 360, h: 360 };
   const r4 = flowRoute({ x: 526, y: 700, w: 358, h: 48 }, s2, sheet, [], next, lanes, "sheet").pts;
   expect(r4[r4.length - 1][1]).toBe(944);
+});
+
+describe("whiteboard colours", () => {
+  test("custom colours are #rrggbb", () => {
+    expect(isCustomColor("#1a2B3c")).toBe(true);
+    expect(isCustomColor("blue")).toBe(false);
+    expect(isCustomColor("#abc")).toBe(false);
+    expect(isCustomColor("#1a2b3c;x")).toBe(false);
+    expect(isCustomColor(undefined)).toBe(false);
+  });
+
+  test("swatches fill one row or two full rows", () => {
+    expect(swatchCols(9, 9)).toBe(9);
+    expect(swatchCols(10, 9)).toBe(5);
+    expect(swatchCols(8, 7)).toBe(4);
+    expect(swatchCols(8, 8)).toBe(8);
+    expect(swatchCols(11, 9)).toBe(6); // odd and too many: no full rows possible
+  });
+
+  test("Excalidraw keeps custom colours", () => {
+    const ex = toExcalidraw({ elements: [{ id: "a", type: "rect", x: 0, y: 0, w: 10, h: 10, stroke: "#123456", fill: "#abcdef" }] } as Whiteboard);
+    const el = (JSON.parse(ex).elements as { strokeColor: string; backgroundColor: string }[])[0];
+    expect(el.strokeColor).toBe("#123456");
+    expect(el.backgroundColor).toBe("#abcdef");
+  });
 });

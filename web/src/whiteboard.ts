@@ -7,7 +7,22 @@ import type { ChartSpec } from "./chart";
 export type Pt = [number, number];
 export type ElementType = "rect" | "ellipse" | "diamond" | "line" | "arrow" | "pen" | "text" | "sticky" | "frame" | "image" | "embed" | "entity" | "ui" | "chart" | "block";
 export type Color = "gray" | "red" | "orange" | "yellow" | "green" | "blue" | "purple" | "pink";
+/** A palette colour (follows the theme) or a custom one (#rrggbb). */
+export type WBColor = Color | `#${string}`;
 export const PALETTE: Color[] = ["gray", "red", "orange", "yellow", "green", "blue", "purple", "pink"];
+
+/** A custom colour (#rrggbb), drawn as it is; palette names follow the theme. */
+export function isCustomColor(c?: string): c is `#${string}` {
+  return !!c && /^#[0-9a-fA-F]{6}$/.test(c);
+}
+
+/** Columns for n colour swatches: one row if they fit (at most max per row),
+ * else two full rows; only an odd count that fits neither leaves a gap. */
+export function swatchCols(n: number, max: number): number {
+  if (n <= max) return n;
+  if (n % 2 === 0 && n / 2 <= max) return n / 2;
+  return Math.min(max, Math.ceil(n / 2));
+}
 
 /** An arrow end bound to an element: towards its centre, or (fx/fy, 0–1 of
  * its box) to a fixed point of its outline. */
@@ -18,7 +33,7 @@ export interface WBElement {
   id: string; type: ElementType;
   x?: number; y?: number; w?: number; h?: number;
   order?: string; points?: Pt[]; text?: string;
-  stroke?: Color; fill?: Color; width?: number; dash?: "" | "dashed" | "dotted"; smooth?: boolean; opacity?: number;
+  stroke?: WBColor; fill?: WBColor; width?: number; dash?: "" | "dashed" | "dotted"; smooth?: boolean; opacity?: number;
   fontSize?: number; align?: "left" | "center" | "right";
   round?: boolean; start?: Binding; end?: Binding;
   frame?: string; groups?: string[]; locked?: boolean; seed?: number;
@@ -524,7 +539,7 @@ export function toExcalidraw(b: Whiteboard): string {
   const out: ExEl[] = [];
   const base = (e: WBElement, type: string, box: Box): ExEl => ({
     id: e.id, type, x: box.x, y: box.y, width: box.w, height: box.h, angle: 0,
-    strokeColor: EX_STROKE[(e.stroke as Color) ?? "gray"] ?? EX_STROKE.gray, backgroundColor: e.fill ? EX_FILL[e.fill as Color] ?? "transparent" : "transparent",
+    strokeColor: isCustomColor(e.stroke) ? e.stroke : EX_STROKE[(e.stroke as Color) ?? "gray"] ?? EX_STROKE.gray, backgroundColor: isCustomColor(e.fill) ? e.fill : e.fill ? EX_FILL[e.fill as Color] ?? "transparent" : "transparent",
     fillStyle: "solid", strokeWidth: e.width || 2, strokeStyle: e.dash || "solid", roughness: e.smooth ? 0 : 1, opacity: Math.round((e.opacity ?? 1) * 100),
     groupIds: e.groups ?? [], frameId: null, roundness: null, seed: e.seed || 1, version: 1, versionNonce: 0, isDeleted: false,
     boundElements: [] as { id: string; type: string }[], updated: 0, link: null, locked: !!e.locked,
@@ -559,7 +574,7 @@ export function toExcalidraw(b: Whiteboard): string {
     }
     const type = e.type === "ellipse" ? "ellipse" : e.type === "diamond" ? "diamond" : "rectangle";
     const el = base(e, type, box);
-    if (e.type === "sticky") Object.assign(el, { backgroundColor: EX_FILL[(e.fill as Color) ?? "yellow"] ?? EX_FILL.yellow, strokeColor: "transparent" });
+    if (e.type === "sticky") Object.assign(el, { backgroundColor: isCustomColor(e.fill) ? e.fill : EX_FILL[(e.fill as Color) ?? "yellow"] ?? EX_FILL.yellow, strokeColor: "transparent" });
     const label = e.text || (e.type === "entity" ? e.entity : e.type === "embed" ? e.url : e.type === "block" ? e.kind : "") || "";
     out.push(el);
     if (label) {

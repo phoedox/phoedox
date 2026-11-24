@@ -5306,4 +5306,5 @@ export const en: Record<keyof typeof de, string> = {
   "wb.own_page": "Open as a page of its own",
   "wb.back_to_page": "Back to the page",
   "wb.not_whiteboard": "This page is not a whiteboard.",
+  "wb.custom_color": "Custom colour",
 };

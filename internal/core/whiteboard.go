@@ -152,6 +152,7 @@ var (
 	wbEmbeds   = map[string]bool{"video": true, "code": true, "link": true, "web": true, "app": true}
 	wbColors   = map[string]bool{"gray": true, "red": true, "orange": true, "yellow": true, "green": true, "blue": true, "purple": true, "pink": true}
 	wbOrderRe  = regexp.MustCompile(`^[0-9A-Za-z]{0,40}$`)
+	wbHexRe    = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 	wbFileIDRe = regexp.MustCompile(`^[0-9A-Z]{26}$`)
 )
 
@@ -211,7 +212,7 @@ func whiteboardContent(wb *Whiteboard) (store.JSON, string, error) {
 		if !wbOrderRe.MatchString(e.Order) {
 			return nil, "", bad("order")
 		}
-		if (e.Stroke != "" && !wbColors[e.Stroke]) || (e.Fill != "" && !wbColors[e.Fill]) {
+		if (e.Stroke != "" && !WBColorOK(e.Stroke)) || (e.Fill != "" && !WBColorOK(e.Fill)) {
 			return nil, "", bad("colour")
 		}
 		switch e.Dash {
@@ -598,4 +599,15 @@ func errorsOnly(ps []blocks.Problem) []blocks.Problem {
 		}
 	}
 	return out
+}
+
+// WBColorOK tells whether c is a whiteboard colour: a palette name (drawn
+// with the theme's --tc-/--tb- tokens) or a custom colour #rrggbb.
+func WBColorOK(c string) bool {
+	return wbColors[c] || WBCustomColor(c)
+}
+
+// WBCustomColor tells whether c is a custom colour (#rrggbb), drawn as is.
+func WBCustomColor(c string) bool {
+	return wbHexRe.MatchString(c)
 }

@@ -16,7 +16,7 @@ import { icon, iconSVG } from "../icon";
 import { findKind, groupColor, kindName, loadModel, type Model } from "../model";
 import { currentUser, navigate } from "../state";
 import {
-  BOXY, asBlock, LINEAR, PALETTE, TEXTUAL, alignTo, backKey, bbox, bindTarget, bindingAt, boxOf, codeLabel, embedKind, extent, frontKey, hitTest, inFrame, linePts,
+  BOXY, asBlock, LINEAR, PALETTE, isCustomColor, swatchCols, type WBColor, TEXTUAL, alignTo, backKey, bbox, bindTarget, bindingAt, boxOf, codeLabel, embedKind, extent, frontKey, hitTest, inFrame, linePts,
   newId, normalizeBoard, playerURL, removeElement, sorted, wrapText, type Binding, type Color, type ElementType, type Preview, type Pt, type WBComment, type WBElement, type Whiteboard,
   alignEls, cloneEls, fromExcalidraw, slides, templateEls, toExcalidraw, TEMPLATES, type Template, type Box, distributeEls, groupOf, inBox, shiftEl, snapBox, CLIP_PREFIX, type AlignHow,
 } from "../whiteboard";
@@ -48,8 +48,8 @@ const NS = "http://www.w3.org/2000/svg";
 /** Height of the title bar of an app on the board (the app runs below it). */
 const WB_APP_BAR = 30;
 const XH = "http://www.w3.org/1999/xhtml";
-const tc = (c?: string) => `var(--tc-${c || "gray"})`;
-const tb = (c?: string) => `var(--tb-${c || "gray"})`;
+const tc = (c?: string) => (isCustomColor(c) ? c : `var(--tc-${c || "gray"})`);
+const tb = (c?: string) => (isCustomColor(c) ? c : `var(--tb-${c || "gray"})`);
 const HAND = "var(--font-hand, var(--font-body))";
 const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -159,10 +159,15 @@ export class PhxWhiteboard extends LitElement {
     .avatars span { width: 22px; height: 22px; border-radius: 50%; margin-left: -6px; border: 2px solid var(--surface); display: grid; place-items: center; font: 600 9px var(--font-body); color: var(--on-color); }
     .side { right: 10px; bottom: 10px; }
     .count { position: absolute; top: 1px; right: 1px; min-width: 15px; height: 15px; border-radius: 8px; background: var(--accent); color: var(--on-color); font: 600 10px/15px var(--font-body); }
-    .stylebar { position: absolute; z-index: 3; right: 10px; top: 56px; width: 212px; max-height: calc(100% - 120px); overflow: auto; padding: 10px; display: grid; gap: 8px;
+    .stylebar { position: absolute; z-index: 3; right: 10px; top: 56px; width: 244px; max-height: calc(100% - 120px); overflow: auto; padding: 10px; display: grid; gap: 8px;
       background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 20px -12px rgb(0 0 0 / 0.35); font-size: 12px; }
     .stylebar h4 { margin: 0; font: 600 11px var(--font-body); color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-    .swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+    /* One row, or two full rows (swatchCols). */
+    .swatches { display: grid; grid-template-columns: repeat(var(--cols, 9), auto); justify-content: start; gap: 3px; }
+    .sw.custom { position: relative; display: grid; place-items: center; background: var(--surface2); color: var(--muted); cursor: pointer; overflow: hidden; }
+    .sw.custom input { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; opacity: 0; cursor: pointer; }
+    .sw.custom.on { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .sw.custom:focus-within { outline: 2px solid var(--accent); outline-offset: 1px; }
     .sw { width: 22px; height: 22px; padding: 0; border-radius: 6px; border: 1px solid var(--line); }
     .sw[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 1px; }
     .seg2 { display: flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
@@ -320,7 +325,7 @@ export class PhxWhiteboard extends LitElement {
   private synced: Whiteboard = { elements: [], comments: [] };
   private live?: Live;
   private view = { x: 80, y: 80, z: 1 };
-  private pen: { stroke: Color; smooth: boolean } = { stroke: "blue", smooth: false };
+  private pen: { stroke: WBColor; smooth: boolean } = { stroke: "blue", smooth: false };
   private drag: Drag | null = null;
   private clickLine: string | null = null;
   /** Last copied elements, for paste without clipboard permission. */
@@ -2317,6 +2322,18 @@ export class PhxWhiteboard extends LitElement {
 
   // ---- chrome --------------------------------------------------------------------------------
 
+  /** The last swatch: a custom colour from the colour picker (#rrggbb). Its
+   * picker starts at the current colour as the theme draws it. */
+  private customSwatch(cur: string | undefined, token: "tc" | "tb", apply: (hex: WBColor) => void) {
+    const on = isCustomColor(cur);
+    const themed = getComputedStyle(this).getPropertyValue(`--${token}-${cur || "gray"}`).trim();
+    const value = (on ? cur : isCustomColor(themed) ? themed : "#808080").toLowerCase();
+    return html`<label class=${on ? "sw custom on" : "sw custom"} style=${on ? `background:${cur}` : ""} title=${t("wb.custom_color")}>
+      ${on ? nothing : icon("Pipette", 12)}
+      <input type="color" .value=${value} aria-label=${t("wb.custom_color")} @click=${(ev: Event) => ev.stopPropagation()}
+        @input=${(ev: Event) => apply((ev.target as HTMLInputElement).value as WBColor)}></label>`;
+  }
+
   private multiBar() {
     const n = this.sel.length;
     const grouped = this.selection().some((e) => e.groups?.length);
@@ -2356,10 +2373,10 @@ export class PhxWhiteboard extends LitElement {
     const lin = LINEAR.has(e.type), shape = ["rect", "ellipse", "diamond"].includes(e.type);
     const strokeable = !["frame", "image", "embed", "sticky"].includes(e.type);
     return html`<aside class="stylebar" aria-label=${t("wb.style")}>
-      ${strokeable ? html`<h4>${t("wb.stroke")}</h4><div class="swatches">${PALETTE.map((c) => html`<button class="sw" style="background:${tc(c)}" aria-label=${t(`color.${c}` as any)} aria-pressed=${(e.stroke ?? "gray") === c ? "true" : "false"}
-        @click=${() => { set({ stroke: c }); this.pen.stroke = c; }}></button>`)}</div>` : nothing}
-      ${shape || e.type === "sticky" ? html`<h4>${t("wb.fill")}</h4><div class="swatches">${PALETTE.map((c) => html`<button class="sw" style="background:${tb(c)}" aria-label=${t(`color.${c}` as any)} aria-pressed=${e.fill === c ? "true" : "false"}
-        @click=${() => set({ fill: c })}></button>`)}</div>
+      ${strokeable ? html`<h4>${t("wb.stroke")}</h4><div class="swatches" style="--cols:${swatchCols(PALETTE.length + 1, 9)}">${PALETTE.map((c) => html`<button class="sw" style="background:${tc(c)}" aria-label=${t(`color.${c}` as any)} aria-pressed=${(e.stroke ?? "gray") === c ? "true" : "false"}
+        @click=${() => { set({ stroke: c }); this.pen.stroke = c; }}></button>`)}${this.customSwatch(e.stroke ?? "gray", "tc", (hex) => { set({ stroke: hex }); this.pen.stroke = hex; })}</div>` : nothing}
+      ${shape || e.type === "sticky" ? html`<h4>${t("wb.fill")}</h4><div class="swatches" style="--cols:${swatchCols(PALETTE.length + 1, 9)}">${PALETTE.map((c) => html`<button class="sw" style="background:${tb(c)}" aria-label=${t(`color.${c}` as any)} aria-pressed=${e.fill === c ? "true" : "false"}
+        @click=${() => set({ fill: c })}></button>`)}${this.customSwatch(e.fill ?? (e.type === "sticky" ? "yellow" : "gray"), "tb", (hex) => set({ fill: hex }))}</div>
         ${shape ? html`<div class="seg2"><button aria-pressed=${!e.fill ? "true" : "false"} @click=${() => set({ fill: undefined })}>${t("wb.no_fill")}</button></div>` : nothing}` : nothing}
       ${lin ? html`<h4>${t("wb.kind")}</h4><div class="seg2"><button aria-pressed=${e.type === "arrow" ? "true" : "false"} @click=${() => set({ type: "arrow" })}>${t("wb.arrow")}</button><button aria-pressed=${e.type === "line" ? "true" : "false"} @click=${() => set({ type: "line" })}>${t("wb.line")}</button></div>
         <h4>${t("wb.corners")}</h4><div class="seg2"><button aria-pressed=${e.round ? "true" : "false"} @click=${() => { set({ round: true }); this.roundDefault = true; }}>${t("wb.round")}</button><button aria-pressed=${!e.round ? "true" : "false"} @click=${() => { set({ round: undefined }); this.roundDefault = false; }}>${t("wb.sharp")}</button></div>
@@ -3036,12 +3053,15 @@ export class PhxWhiteboard extends LitElement {
     const sw = (c: Color, bg: string, pressed: boolean, fn: () => void) => html`<button class="sw" style="background:${bg}" aria-label=${t(`color.${c}` as any)} aria-pressed=${pressed ? "true" : "false"} @click=${keep(fn)}></button>`;
     const sizeOf = (e: WBElement) => e.fontSize || (e.type === "text" ? 24 : e.type === "sticky" ? 18 : 20);
     return html`<hr role="separator"><div class="fmt">
-      ${strokeable.length || stickies.length ? html`<span class="lbl">${t("wb.menu.color")}</span><div class="swatches" role="group" aria-label=${t("wb.menu.color")}>${PALETTE.map((c) => sw(c, strokeable.length ? tc(c) : tb(c), cur === c, () => this.applySel((e) => {
+      ${strokeable.length || stickies.length ? html`<span class="lbl">${t("wb.menu.color")}</span><div class="swatches" role="group" aria-label=${t("wb.menu.color")} style="--cols:${swatchCols(PALETTE.length + 1, 9)}">${PALETTE.map((c) => sw(c, strokeable.length ? tc(c) : tb(c), cur === c, () => this.applySel((e) => {
         if (e.type === "sticky") e.fill = c;
         else if (!["frame", "image", "embed"].includes(e.type)) e.stroke = c;
-      })))}</div>` : nothing}
-      ${shapes.length ? html`<span class="lbl">${t("wb.fill")}</span><div class="swatches" role="group" aria-label=${t("wb.fill")}>${PALETTE.map((c) => sw(c, tb(c), shapes[0].fill === c, () => this.applySel((e) => { if (shapes.includes(e)) e.fill = c; })))}
-        <button class="sw none" title=${t("wb.no_fill")} aria-label=${t("wb.no_fill")} aria-pressed=${!shapes[0].fill ? "true" : "false"} @click=${() => this.applySel((e) => { if (shapes.includes(e)) delete e.fill; })}>${icon("X", 11)}</button></div>` : nothing}
+      })))}${this.customSwatch(cur, strokeable.length ? "tc" : "tb", (hex) => this.applySel((e) => {
+        if (e.type === "sticky") e.fill = hex;
+        else if (!["frame", "image", "embed"].includes(e.type)) e.stroke = hex;
+      }))}</div>` : nothing}
+      ${shapes.length ? html`<span class="lbl">${t("wb.fill")}</span><div class="swatches" role="group" aria-label=${t("wb.fill")} style="--cols:${swatchCols(PALETTE.length + 2, 9)}">${PALETTE.map((c) => sw(c, tb(c), shapes[0].fill === c, () => this.applySel((e) => { if (shapes.includes(e)) e.fill = c; })))}
+        <button class="sw none" title=${t("wb.no_fill")} aria-label=${t("wb.no_fill")} aria-pressed=${!shapes[0].fill ? "true" : "false"} @click=${() => this.applySel((e) => { if (shapes.includes(e)) delete e.fill; })}>${icon("X", 11)}</button>${this.customSwatch(shapes[0].fill ?? "gray", "tb", (hex) => this.applySel((e) => { if (shapes.includes(e)) e.fill = hex; }))}</div>` : nothing}
       ${lined.length ? html`<div class="seg2" role="group" aria-label=${t("wb.width")}>${(["", "dashed", "dotted"] as const).map((d) => html`<button aria-pressed=${(lined[0].dash ?? "") === d ? "true" : "false"}
         @click=${() => this.applySel((e) => { if (lined.includes(e)) { if (d) e.dash = d; else delete e.dash; } })}>${t(`wb.dash_${d || "solid"}` as any)}</button>`)}</div>` : nothing}
       ${texts.length ? html`<div class="seg2" role="group" aria-label=${t("wb.font_size")}>${[16, 20, 28, 40].map((z, i) => html`<button aria-pressed=${sizeOf(texts[0]) === z ? "true" : "false"}

@@ -26,7 +26,7 @@ func TestWhiteboard(t *testing.T) {
 	bad := []Whiteboard{
 		{Elements: []WBElement{{ID: "a", Type: "blob"}}},
 		{Elements: []WBElement{{ID: "a", Type: "rect"}, {ID: "a", Type: "rect"}}},
-		{Elements: []WBElement{{ID: "a", Type: "rect", Stroke: "#ff0000"}}},
+		{Elements: []WBElement{{ID: "a", Type: "rect", Stroke: "#ff00"}}},
 		{Elements: []WBElement{{ID: "a", Type: "arrow", Points: [][2]float64{{0, 0}}}}},
 		{Elements: []WBElement{{ID: "a", Type: "arrow", Points: [][2]float64{{0, 0}, {1, 1}}, Start: &WBBinding{Element: "missing"}}}},
 		{Elements: []WBElement{{ID: "b", Type: "rect"}, {ID: "a", Type: "arrow", Points: [][2]float64{{0, 0}, {1, 1}}, Start: &WBBinding{Element: "b", FX: &half}}}},

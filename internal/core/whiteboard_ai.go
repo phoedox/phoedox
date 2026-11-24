@@ -686,7 +686,7 @@ func layoutDiagram(wb *Whiteboard, in DiagramInput) []WBElement {
 			shape = "rect"
 		}
 		color := n.Color
-		if !wbColors[color] {
+		if !WBColorOK(color) {
 			color = "blue"
 		}
 		e := WBElement{ID: "n-" + n.ID, Type: shape, X: b.x, Y: b.y, W: b.w, H: b.h, Text: n.Text, Stroke: color, Entity: n.Entity, Frame: frameOf[n.Group]}

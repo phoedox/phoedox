@@ -59,11 +59,17 @@ func WhiteboardSVG(wb *core.Whiteboard, title, files string) string {
 		if c == "" {
 			c = def
 		}
+		if core.WBCustomColor(c) {
+			return c
+		}
 		return "var(--tc-" + c + ")"
 	}
 	fill := func(c string) string {
 		if c == "" {
 			return "none"
+		}
+		if core.WBCustomColor(c) {
+			return c
 		}
 		return "var(--tb-" + c + ")"
 	}

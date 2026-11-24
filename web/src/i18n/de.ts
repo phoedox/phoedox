@@ -5304,4 +5304,5 @@ export const de = {
   "wb.own_page": "Als eigene Seite öffnen",
   "wb.back_to_page": "Zurück zur Seite",
   "wb.not_whiteboard": "Diese Seite ist kein Whiteboard.",
+  "wb.custom_color": "Eigene Farbe",
 } as const;

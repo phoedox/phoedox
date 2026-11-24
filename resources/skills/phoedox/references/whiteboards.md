@@ -19,6 +19,10 @@ link when someone wants to work on the board alone (it needs sign-in, like the p
   `edges` (`from`, `to`, `label`, `dashed`, `line`), `groups` (`id`, `label` – drawn as
   frames), `direction` right|down, `title`. Phoedox places it right of what is on the
   board and binds the arrows. Without `document` it creates a new whiteboard.
+- **Colours** (`color`, `stroke`, `fill`): palette names (gray, red, orange, yellow,
+  green, blue, purple, pink) follow the light and dark theme – prefer them. A custom
+  `#rrggbb` (as people pick it in the colour picker) stays the same in both themes;
+  use it only when someone asks for that colour.
 - **Single changes:** `edit_whiteboard` with `ops`: `{op: add, element}`,
   `{op: update, id, element: {changed fields}}` (null removes a field),
   `{op: delete, id}` (arrows bound to it are unbound). An arrow's ends bind with
