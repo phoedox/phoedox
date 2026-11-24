@@ -15,6 +15,12 @@ var dist embed.FS
 //go:embed player/proto-player.js
 var ProtoPlayer string
 
+// Tokens are the design tokens (colours of both themes), read by server-side
+// drawings such as whiteboard pictures so they use the app's colours.
+//
+//go:embed src/styles/tokens.css
+var Tokens string
+
 // Dist returns the built frontend, or nil if it has not been built yet.
 func Dist() fs.FS {
 	sub, err := fs.Sub(dist, "dist")

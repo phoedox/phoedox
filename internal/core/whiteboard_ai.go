@@ -4,6 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"image"
+	_ "image/gif"  // image elements in whiteboard pictures
+	_ "image/jpeg" // image elements in whiteboard pictures
+	_ "image/png"  // image elements in whiteboard pictures
+	"io"
 	"math"
 	"math/rand/v2"
 	"regexp"
@@ -11,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	_ "golang.org/x/image/webp" // image elements in whiteboard pictures
 
 	"github.com/phoedox/phoedox/internal/store"
 )
@@ -740,4 +747,24 @@ func (s *Service) ReplyWhiteboardComment(ctx context.Context, a Actor, ref, docR
 	c := &wb.Comments[at]
 	c.Replies = append(c.Replies, WBReply{ID: fmt.Sprintf("r%d", len(c.Replies)+1+rand.IntN(1000)*100), Author: a.String(), Name: name, Text: text, At: time.Now().UTC().Format(time.RFC3339)})
 	return s.UpdateDocument(ctx, a, p.Slug, doc.ID, DocumentPatch{Whiteboard: wb})
+}
+
+// WhiteboardForPicture returns a board for a server-side picture
+// (whiteboard_screenshot) with a loader for its images; both check that the
+// actor may read the board and its files.
+func (s *Service) WhiteboardForPicture(ctx context.Context, a Actor, ref, docRef string) (*Whiteboard, string, func(file string) (image.Image, error), error) {
+	_, doc, wb, err := s.whiteboardDoc(ctx, a, ref, docRef, store.RoleReader)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	load := func(file string) (image.Image, error) {
+		fc, err := s.OpenFile(ctx, a, file, 0, false)
+		if err != nil {
+			return nil, err
+		}
+		defer fc.Reader.Close()
+		img, _, err := image.Decode(io.LimitReader(fc.Reader, 40<<20))
+		return img, err
+	}
+	return wb, doc.Title, load, nil
 }

@@ -23,6 +23,12 @@ link when someone wants to work on the board alone (it needs sign-in, like the p
   green, blue, purple, pink) follow the light and dark theme – prefer them. A custom
   `#rrggbb` (as people pick it in the colour picker) stays the same in both themes;
   use it only when someone asks for that colour.
+- **Look at it:** `whiteboard_screenshot` returns the board as a picture, drawn by
+  the server from its current content like the editor shows it (hand-drawn strokes,
+  the app's fonts and colours; `dark` for the dark theme). With `frame` (id or title)
+  it shows only one frame or prototype screen. Use it after drawing to check
+  layout, overlaps and readability; embeds, entries and blocks appear as cards, so
+  read exact content with `get_whiteboard`.
 - **Single changes:** `edit_whiteboard` with `ops`: `{op: add, element}`,
   `{op: update, id, element: {changed fields}}` (null removes a field),
   `{op: delete, id}` (arrows bound to it are unbound). An arrow's ends bind with

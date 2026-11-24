@@ -12,6 +12,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/phoedox/phoedox/internal/core"
+	"github.com/phoedox/phoedox/internal/publish"
 	"github.com/phoedox/phoedox/internal/store"
 )
 
@@ -155,6 +156,13 @@ type copyAppAssetsIn struct {
 type appScreenshotIn struct {
 	Project  string `json:"project" jsonschema:"project slug"`
 	Document string `json:"document" jsonschema:"app slug or id"`
+}
+
+type whiteboardScreenshotIn struct {
+	Project  string `json:"project" jsonschema:"project slug"`
+	Document string `json:"document" jsonschema:"whiteboard slug or id"`
+	Frame    string `json:"frame,omitempty" jsonschema:"only this frame or prototype screen: its id or title (from get_whiteboard)"`
+	Dark     bool   `json:"dark,omitempty" jsonschema:"draw in the dark theme"`
 }
 
 type waitChangesIn struct {
@@ -1053,6 +1061,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		return svc.EditApp(ctx, a, in.Project, in.Document, in.Files, in.Edits, in.Manifest)
 	})
 	appScreenshotTool(s, svc)
+	whiteboardScreenshotTool(s, svc)
 	tool(s, "upload_app_asset", "Add a binary file to an app (picture, font, sound, data file) from base64; the app loads it as assets/<name> (e.g. <img src=\"assets/logo.png\">). Needs the project's AI write mode \"direct\".", func(ctx context.Context, a core.Actor, in appAssetIn) (any, error) {
 		return svc.AddAppAssetBase64(ctx, a, in.Project, in.Document, in.Name, in.Data)
 	})
@@ -1774,6 +1783,43 @@ type replaceIn struct {
 	Apply    bool             `json:"apply,omitempty" jsonschema:"false (default): preview only; true: write the replacement"`
 	Only     map[string][]int `json:"only,omitempty" jsonschema:"document id → match numbers from the preview to replace; a document not listed gets all its matches, an empty list none"`
 	Versions map[string]int   `json:"versions,omitempty" jsonschema:"document id → version from the preview; documents changed since are skipped"`
+}
+
+// whiteboardScreenshotTool draws a whiteboard (or one frame) on the server
+// and returns it as an image, so AI clients can check what they drew.
+func whiteboardScreenshotTool(s *sdk.Server, svc *core.Service) {
+	schema, err := inputSchema[whiteboardScreenshotIn]()
+	if err != nil {
+		panic(err)
+	}
+	desc := "See a whiteboard as a picture (PNG), drawn now from its current content like the editor shows it (hand-drawn strokes, the app's fonts and colours), e.g. to check a diagram or prototype screens you drew. frame: only one frame or prototype screen (id or title). Embeds, entries and blocks appear as cards; read exact content with get_whiteboard."
+	sdk.AddTool(s, &sdk.Tool{Name: "whiteboard_screenshot", Description: desc, InputSchema: schema}, func(ctx context.Context, req *sdk.CallToolRequest, in whiteboardScreenshotIn) (*sdk.CallToolResult, any, error) {
+		a, err := actorFrom(req)
+		if err != nil {
+			return nil, nil, err
+		}
+		wb, title, load, err := svc.WhiteboardForPicture(ctx, a, in.Project, in.Document)
+		if err != nil {
+			return nil, nil, friendly(err)
+		}
+		pic, info, err := publish.WhiteboardPNG(wb, publish.PNGOptions{Frame: in.Frame, Dark: in.Dark, Image: load})
+		if errors.Is(err, publish.ErrNoFrame) {
+			return nil, nil, fmt.Errorf("there is no frame %q on %s; get_whiteboard lists the frames", in.Frame, title)
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		note := fmt.Sprintf("%s: %d×%d px, board area x %.0f, y %.0f, %.0f×%.0f units (%.2f px per unit).", title, info.Width, info.Height, info.Area[0], info.Area[1], info.Area[2], info.Area[3], info.Scale)
+		if len(info.Simplified) > 0 {
+			parts := make([]string, 0, len(info.Simplified))
+			for k, n := range info.Simplified {
+				parts = append(parts, fmt.Sprintf("%d %s", n, k))
+			}
+			slices.Sort(parts)
+			note += " Shown simplified: " + strings.Join(parts, ", ") + "."
+		}
+		return &sdk.CallToolResult{Content: []sdk.Content{&sdk.ImageContent{Data: pic, MIMEType: "image/png"}, &sdk.TextContent{Text: note}}}, nil, nil
+	})
 }
 
 // appScreenshotTool returns the latest picture of an app as an image, so AI
