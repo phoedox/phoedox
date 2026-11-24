@@ -8,6 +8,10 @@ import { icon } from "../icon";
 import { docsVersion, navigate } from "../state";
 import { base } from "./shared";
 import { toast } from "./toasts";
+import { formattable, langOf } from "../code-format";
+import { comboFor, comboLabel } from "../shortcuts";
+import "./code-editor";
+import type { PhxCodeEditor } from "./code-editor";
 import "./store-items";
 import type { AppShareView, PhxAppShare } from "./app-share";
 import "./app-share";
@@ -690,7 +694,8 @@ export class PhxAppEditor extends LitElement {
     .tabs button { border-radius: 8px 8px 0 0; background: transparent; color: var(--muted); font-weight: 500; font-size: 13px; padding: 6px 10px; border: 1px solid transparent; border-bottom: 0; white-space: nowrap; }
     .tabs button[aria-selected="true"] { background: var(--surface); color: var(--fg); border-color: var(--line); margin-bottom: -1px; }
     .tabs button.add { color: var(--accent); }
-    textarea.code { white-space: pre; overflow: auto; border: 0; border-radius: 0; resize: none; min-height: 0; height: 100%; padding: 14px; font: 13px/1.6 var(--font-mono); tab-size: 2; background: var(--surface); outline: none; }
+    phx-code-editor.code { min-height: 0; height: 100%; }
+    .tabs button.fmt { margin-left: auto; display: inline-flex; gap: 5px; align-items: center; color: var(--fg); }
     .manifest { padding: 14px; overflow: auto; display: grid; gap: 14px; align-content: start; background: var(--surface); }
     .manifest h3 { font-size: 14px; }
     .levels { display: grid; gap: 6px; }
@@ -833,14 +838,6 @@ export class PhxAppEditor extends LitElement {
     this.setManifest({ sources });
   }
 
-  private onTabKey(e: KeyboardEvent) {
-    if (e.key !== "Tab" || e.shiftKey) return;
-    e.preventDefault();
-    const ta = e.target as HTMLTextAreaElement;
-    ta.setRangeText("  ", ta.selectionStart, ta.selectionEnd, "end");
-    ta.dispatchEvent(new Event("input"));
-  }
-
   private manifest() {
     const a = this.app;
     return html`<div class="manifest">
@@ -896,10 +893,11 @@ export class PhxAppEditor extends LitElement {
               @dblclick=${() => this.removeFile(f)} title=${t("app.file_tip")}>${f}</button>`)}
             <button class="add" @click=${this.addFile} aria-label=${t("app.add_file")}>${icon("Plus", 13)}</button>
             <button role="tab" aria-selected=${this.tab === "manifest" ? "true" : "false"} @click=${() => (this.tab = "manifest")}>${icon("ShieldCheck", 13)} ${t("app.permissions")}</button>
+            ${this.tab === "code" && formattable(langOf(this.file)) ? html`<button class="fmt" title=${t("code.format_hint", { key: comboLabel(comboFor("formatCode")) || "–" })}
+              @click=${() => void this.renderRoot.querySelector<PhxCodeEditor>("phx-code-editor")?.format()}>${icon("WandSparkles", 13)} ${t("code.format")}</button>` : nothing}
           </div>
-          ${this.tab === "manifest" ? this.manifest() : html`<textarea class="code" spellcheck="false" aria-label=${this.file} .value=${this.app.files[this.file] ?? ""}
-            @keydown=${this.onTabKey}
-            @input=${(e: Event) => { this.app = { ...this.app, files: { ...this.app.files, [this.file]: (e.target as HTMLTextAreaElement).value } }; this.changed(); }}></textarea>`}
+          ${this.tab === "manifest" ? this.manifest() : html`<phx-code-editor class="code" .lang=${this.file} .label=${this.file} .value=${this.app.files[this.file] ?? ""}
+            @input=${(e: Event) => { this.app = { ...this.app, files: { ...this.app.files, [this.file]: (e.target as HTMLInputElement).value } }; this.changed(); }}></phx-code-editor>`}
         </div>
         <div class="right">
           <div class="pvbar">

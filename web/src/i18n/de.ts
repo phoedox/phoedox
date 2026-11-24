@@ -5305,4 +5305,8 @@ export const de = {
   "wb.back_to_page": "Zurück zur Seite",
   "wb.not_whiteboard": "Diese Seite ist kein Whiteboard.",
   "wb.custom_color": "Eigene Farbe",
+  "shortcut.format_code": "Code formatieren (in Code-Editoren)",
+  "code.format": "Formatieren",
+  "code.format_hint": "Code formatieren ({key}; änderbar unter Tastenkürzel)",
+  "code.format_failed": "Formatieren nicht möglich: {error}",
 } as const;

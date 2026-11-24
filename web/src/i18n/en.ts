@@ -5307,4 +5307,8 @@ export const en: Record<keyof typeof de, string> = {
   "wb.back_to_page": "Back to the page",
   "wb.not_whiteboard": "This page is not a whiteboard.",
   "wb.custom_color": "Custom colour",
+  "shortcut.format_code": "Format code (in code editors)",
+  "code.format": "Format",
+  "code.format_hint": "Format the code ({key}; changeable under keyboard shortcuts)",
+  "code.format_failed": "Could not format: {error}",
 };

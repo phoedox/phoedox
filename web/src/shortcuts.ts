@@ -17,6 +17,8 @@ export const SHORTCUT_ACTIONS: ShortcutAction[] = [
   { id: "wide", combo: "Alt+W", label: "shortcut.wide" },
   { id: "projects", combo: "Alt+P", label: "shortcut.projects" },
   { id: "sidebar", combo: "Alt+B", label: "shortcut.sidebar" },
+  // In code editors (apps, block sources): format the code (like IntelliJ).
+  { id: "formatCode", combo: "Mod+Alt+L", label: "shortcut.format_code" },
 ];
 
 /** The person's own combinations (action → combo, "" = off). */
