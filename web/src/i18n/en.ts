@@ -5784,4 +5784,7 @@ export const en: Record<keyof typeof de, string> = {
   "renderer.use_pdf_help": "The print view offers a PDF made on the server as a download; the browser's print dialog stays available.",
   "validation.renderer_missing": "No server-side browser is configured (PHOEDOX_RENDERER_URL).",
   "validation.renderer_unreachable": "The server-side browser does not answer: {msg}",
+  "print.pdf_download": "Download PDF",
+  "print.pdf_making": "Preparing the PDF…",
+  "print.pdf_failed": "The server could not make the PDF – use “Save as PDF”.",
 };

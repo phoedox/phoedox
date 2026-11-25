@@ -189,6 +189,7 @@ system-upgrade-controller from Rancher).
 | `image.variant: full` (default) | PDF previews, searchable PDFs, OCR; `""` for the minimal image |
 | `database.type: sqlite` | without Postgres – enough for small instances; backups stay portable |
 | `clamav.enabled: true` | Virus scan of all uploads (own pod, approx. 1.5 GB RAM) |
+| `renderer.enabled: true` | Server-side browser (ADR-0095 in Phoedox): a headless Chrome pod (`chromedp/headless-shell`, approx. 300 MB RAM while it works) for pictures of HTML prototype screens, apps and whiteboards and for PDF exports; a NetworkPolicy lets it talk only to Phoedox. Then switch it on in Administration → Server browser |
 | `metrics.enabled: true` | `/metrics` for Prometheus, token in the secret `phoedox-metrics`; `metrics.serviceMonitor` for the Prometheus Operator |
 | `oidc.enabled: true` | Sign-in via SSO (Authentik, Keycloak, Entra ID …) including groups |
 | `s3.enabled: true` | Files in the bucket instead of on the volume |

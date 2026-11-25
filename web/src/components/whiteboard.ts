@@ -88,7 +88,7 @@ interface Pop { kind: "comment" | "newcomment" | "embed" | "entity"; x: number; 
 
 export class PhxWhiteboard extends LitElement {
   static properties = {
-    project: {}, doc: { attribute: false }, canEdit: { type: Boolean }, still: { type: Boolean, reflect: true },
+    project: {}, doc: { attribute: false }, canEdit: { type: Boolean }, still: { type: Boolean, reflect: true }, fitTo: { attribute: "fit-to", reflect: true },
     maximized: { type: Boolean, reflect: true }, standalone: { type: Boolean, reflect: true },
     tool: { state: true }, selId: { state: true }, sel: { state: true }, snap: { state: true }, embedWeb: { state: true }, apps: { state: true }, cards: { state: true }, mermaid: { state: true }, chartEdit: { state: true }, present: { state: true }, status: { state: true }, saved: { state: true }, peers: { state: true }, zoom: { state: true },
     pop: { state: true }, menu: { state: true }, panel: { state: true }, arrowMode: { state: true }, roundDefault: { state: true }, trail: { state: true }, laserSize: { state: true },
@@ -99,6 +99,7 @@ export class PhxWhiteboard extends LitElement {
   static styles = [base, css`
     :host { display: block; position: relative; height: calc(100dvh - var(--header-h) - 150px); min-height: 460px; }
     :host([still]) { height: 320px; min-height: 0; }
+    :host([still][fit-to]) { height: 100%; }
     /* Maximized over the app (Esc restores), or its own page (/wb/…) filling the window. */
     :host([maximized]) { position: fixed; inset: 0; z-index: 60; height: auto; min-height: 0; }
     :host([standalone]) { height: 100dvh; min-height: 0; }
@@ -257,6 +258,8 @@ export class PhxWhiteboard extends LitElement {
   /** Read-only picture for page embeds: the editor's own drawing, no live
    * connection and no chrome, sized to the board. */
   still = false;
+  /** Still boards for pictures (server-side browser): "all" or a frame's id or title fills the whole element. */
+  fitTo = "";
   /** Fills the browser window over the app (Esc or the button restores). */
   maximized = false;
   /** Shown as a page of its own (/wb/project/doc): a way back instead of maximize. */
@@ -1181,6 +1184,12 @@ export class PhxWhiteboard extends LitElement {
 
   /** Still mode: the height follows the board's shape, the board fills it. */
   private fitStill() {
+    if (this.fitTo) {
+      const f = this.fitTo === "all" ? undefined : this.els().find((e) => e.id === this.fitTo || (e.type === "frame" && e.text === this.fitTo));
+      const b = f ? { x: f.x ?? 0, y: f.y ?? 0, w: f.w ?? 0, h: f.h ?? 0 } : extent(this.els(), this.byId);
+      if (b) this.fitBox(b, f ? 12 : 40);
+      return;
+    }
     const r = this.svgEl?.getBoundingClientRect(), b = extent(this.els(), this.byId);
     if (!r?.width || !b) return;
     const pad = 24, z = Math.min(1, (r.width - 2 * pad) / Math.max(b.w, 1));

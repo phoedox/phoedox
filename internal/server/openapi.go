@@ -301,6 +301,8 @@ var apiDocs = map[string]op{
 	"POST /me/ai-credits/buy":                                         {Tag: "ai", Summary: "Buy an offer of AI credits for yourself: {offer} → checkout.", In: buyCreditsIn{}, Out: core.PurchaseCheckout{}},
 	"GET /orgs/{o}/ai-credits":                                        {Tag: "ai", Summary: "An organization's AI credits (its admins).", Out: core.CreditInfo{}},
 	"POST /orgs/{o}/ai-credits/buy":                                   {Tag: "ai", Summary: "Buy an offer of AI credits for the organization (its admins): {offer} → checkout.", In: buyCreditsIn{}, Out: core.PurchaseCheckout{}},
+	"GET /renderer/uses":                                              {Tag: "account", Summary: "Which uses of the server-side browser are on (screens, apps, boards, pdf)."},
+	"GET /projects/{p}/print.pdf":                                     {Tag: "documents", Summary: "Pages as PDF, printed by the server-side browser like the print view (?doc=slug, ?category=name, ?lang); 409 when it is off."},
 	"GET /admin/renderer":                                             {Tag: "admin", Summary: "Server-side browser (ADR-0095): settings, uses and whether the service answers (system admins)."},
 	"PUT /admin/renderer":                                             {Tag: "admin", Summary: "Switch the server-side browser on or off and choose its uses (system admins).", In: core.RendererSettings{}},
 	"GET /admin/search/embeddings":                                    {Tag: "admin", Summary: "Semantic search: switched on, provider and embedding model, how many index entries have an embedding, the last error.", Out: core.EmbeddingStatus{}},

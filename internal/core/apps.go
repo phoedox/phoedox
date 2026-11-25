@@ -401,6 +401,10 @@ func (s *Service) OpenApp(ctx context.Context, a Actor, ref, docRef string) (App
 		errs = app.Build.Errors
 	}
 	url, isolated := s.frameURL(doc.ID, tok)
+	if a.Via == "render" {
+		// The server-side browser reaches only Phoedox itself (ADR-0095).
+		url, isolated = "/app-frame/"+tok+"/", false
+	}
 	level := pol.capLevel(app.Level)
 	devs, grants := s.appDeviceState(ctx, a, doc.ID, app, pol)
 	canEdit := rank[p.Role] >= rank[store.RoleEditor] && !s.readOnly(a, p)

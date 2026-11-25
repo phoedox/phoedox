@@ -35,6 +35,8 @@ release (`:X.Y.Z`, `:latest`). As long as the repo is private, first run `docker
 with a token that has `read:packages`. Every tag also exists with `-full` (e.g. `:main-full`): it
 contains poppler and tesseract for PDF previews, searchable PDFs and text recognition in scans. For
 virus scanning, run a ClamAV container (`clamav/clamav`) next to it and set `PHOEDOX_CLAMAV=clamav:3310`.
+For pictures and PDFs made on the server, run the server-side browser (`chromedp/headless-shell`,
+`docker compose --profile renderer up -d`) and switch it on in Administration → Server browser.
 
 ### Single container (SQLite)
 
@@ -103,6 +105,8 @@ make build && ./bin/phoedox
 | `PHOEDOX_SMTP_CA_FILE` | – | Extra CA certificates (PEM) for a mail server with an internal or self-signed certificate |
 | `PHOEDOX_MAX_UPLOAD_MB` | `100` | Largest file per upload (larger files upload resumably via tus) |
 | `PHOEDOX_CLAMAV` | – | clamd address for virus scanning, e.g. `clamav:3310` or `unix:/run/clamav/clamd.ctl`; without a response, uploads are rejected |
+| `PHOEDOX_RENDERER_URL` | – | DevTools address of the server-side browser, e.g. `http://renderer:9222` (a name is resolved to its IP; Chrome accepts only IPs) |
+| `PHOEDOX_RENDERER_TARGET` | public URL | Address under which that browser reaches Phoedox, e.g. `http://phoedox:8080` |
 | `PHOEDOX_OCR`, `PHOEDOX_OCR_LANGS` | `true`, `deu+eng` | Text recognition in images and scans, if tesseract is installed |
 | `PHOEDOX_BACKUP_HOURS`, `PHOEDOX_BACKUP_KEEP` | `24`, `14` | Automatic backups (0 = off) and how many are kept |
 | `PHOEDOX_BACKUP_TARGET`, `PHOEDOX_BACKUP_DIR`, `PHOEDOX_BACKUP_FILES` | `local`, `<data>/backups`, `true` | Target (`local` or `s3` in the file bucket), folder, also back up file contents |

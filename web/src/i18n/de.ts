@@ -5782,4 +5782,7 @@ export const de = {
   "renderer.use_pdf_help": "Die Druckansicht bietet ein auf dem Server erzeugtes PDF zum Herunterladen an; der Druckdialog des Browsers bleibt verfügbar.",
   "validation.renderer_missing": "Es ist kein Browser auf dem Server eingerichtet (PHOEDOX_RENDERER_URL).",
   "validation.renderer_unreachable": "Der Browser auf dem Server antwortet nicht: {msg}",
+  "print.pdf_download": "PDF herunterladen",
+  "print.pdf_making": "PDF wird vorbereitet…",
+  "print.pdf_failed": "Der Server konnte das PDF nicht erstellen – nutze „Als PDF speichern“.",
 } as const;

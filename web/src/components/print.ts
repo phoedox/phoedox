@@ -13,7 +13,7 @@ import { base } from "./shared";
  * the app (diagrams, tables, whiteboards). /print/:project?doc=slug or
  * ?category=Name. */
 export class PhxPrint extends LitElement {
-  static properties = { project: {}, proj: { state: true }, docs: { state: true }, done: { state: true }, total: { state: true }, error: { state: true } };
+  static properties = { project: {}, proj: { state: true }, docs: { state: true }, done: { state: true }, total: { state: true }, error: { state: true }, pdf: { state: true } };
   static styles = [base, unsafeCSS(prose), css`
     :host { display: block; background: var(--bg); color: var(--fg); }
     .bar { position: sticky; top: 0; z-index: 5; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
@@ -59,6 +59,10 @@ export class PhxPrint extends LitElement {
   total = 0;
   error = "";
   private q = new URLSearchParams(location.search);
+  /** The server-side browser prints this view (ADR-0095): no bar, and a ready signal. */
+  private renderMode = this.q.get("render") === "1";
+  /** A PDF made by the server-side browser, prepared while the view is open. */
+  pdf: { state: "making" | "ready" | "failed"; url?: string; name?: string } | null = null;
   private prevTheme?: string;
   private pageStyle?: HTMLStyleElement;
 
@@ -76,6 +80,7 @@ export class PhxPrint extends LitElement {
 
   disconnectedCallback() {
     super.disconnectedCallback();
+    if (this.pdf?.url) URL.revokeObjectURL(this.pdf.url);
     if (this.prevTheme === undefined) delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = this.prevTheme;
     this.pageStyle?.remove();
@@ -110,8 +115,41 @@ export class PhxPrint extends LitElement {
       await Promise.all([worker(), worker(), worker(), worker()]);
       this.docs = full;
       document.title = one ? `${full[0]?.title} – ${this.proj.name}` : `${this.proj.name}${category ? ` – ${category}` : ""}`;
+      if (this.renderMode) void this.signalReady();
+      else void this.preparePDF(one, category, lang);
     } catch (e) {
       this.error = e instanceof ApiError ? e.text : t("error.unknown");
+      if (this.renderMode) {
+        document.documentElement.dataset.error = this.error;
+        document.documentElement.dataset.ready = "1";
+      }
+    }
+  }
+
+  /** Tells the server-side browser that everything is drawn (diagrams render on their own). */
+  private async signalReady() {
+    await this.updateComplete;
+    await document.fonts.ready;
+    await new Promise((ok) => setTimeout(ok, 1800));
+    document.documentElement.dataset.ready = "1";
+  }
+
+  /** With the server-side browser on for PDFs, the PDF is made in the background; the print view stays. */
+  private async preparePDF(doc: string | null, category: string | null, lang: string) {
+    const uses = await api<Record<string, boolean>>("GET", "/renderer/uses").catch(() => ({} as Record<string, boolean>));
+    if (!uses.pdf) return;
+    this.pdf = { state: "making" };
+    const q = new URLSearchParams();
+    if (doc) q.set("doc", doc);
+    if (category !== null) q.set("category", category);
+    if (lang) q.set("lang", lang);
+    try {
+      const res = await fetch(`/api/v1/projects/${this.project}/print.pdf?${q}`, { credentials: "same-origin", headers: { "X-Phoedox": "1" } });
+      if (!res.ok) throw new Error(String(res.status));
+      const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "phoedox.pdf";
+      this.pdf = { state: "ready", url: URL.createObjectURL(await res.blob()), name };
+    } catch {
+      this.pdf = { state: "failed" };
     }
   }
 
@@ -165,12 +203,15 @@ export class PhxPrint extends LitElement {
     const category = this.q.get("category");
     const back = single ? `/p/${this.project}/d/${this.q.get("doc")}` : `/p/${this.project}`;
     let cat: string | undefined;
-    return html`<div class="bar">
+    return html`<div class="bar" ?hidden=${this.renderMode}>
         <a class="btn ghost" href=${back}>${icon("ArrowLeft", 14)} ${t("print.back")}</a>
         <span class="muted">${ready ? t("print.ready", { count: this.total }) : t("print.loading", { done: this.done, total: this.total || "…" })}</span>
         <span class="sp"></span>
         <span class="muted">${t("print.hint")}</span>
-        <button ?disabled=${!ready} @click=${() => window.print()}>${icon("FileDown", 15)} ${t("print.save")}</button>
+        ${this.pdf?.state === "ready" ? html`<a class="btn" href=${this.pdf.url!} download=${this.pdf.name!}>${icon("Download", 15)} ${t("print.pdf_download")}</a>`
+          : this.pdf?.state === "making" ? html`<button class="ghost" disabled>${icon("Loader", 15)} ${t("print.pdf_making")}</button>`
+          : this.pdf?.state === "failed" ? html`<span class="muted">${t("print.pdf_failed")}</span>` : ""}
+        <button class=${this.pdf?.state === "ready" ? "ghost" : ""} ?disabled=${!ready} @click=${() => window.print()}>${icon("FileDown", 15)} ${t("print.save")}</button>
       </div>
       <div class="paper">
         ${p && !single ? html`<div class="cover">

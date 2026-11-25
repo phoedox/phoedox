@@ -157,6 +157,7 @@ type copyAppAssetsIn struct {
 type appScreenshotIn struct {
 	Project  string `json:"project" jsonschema:"project slug"`
 	Document string `json:"document" jsonschema:"app slug or id"`
+	Dark     bool   `json:"dark,omitempty" jsonschema:"the dark theme (only when the server-side browser takes the picture)"`
 }
 
 type whiteboardScreenshotIn struct {
@@ -1799,6 +1800,21 @@ func whiteboardScreenshotTool(s *sdk.Server, svc *core.Service) {
 		if err != nil {
 			return nil, nil, err
 		}
+		// The server-side browser draws the board with the real editor (ADR-0095).
+		if svc.RendererOn(ctx, core.RenderBoards) {
+			if _, err := svc.MakeScreenPictures(ctx, a, in.Project, in.Document, in.Frame, in.Dark); err != nil {
+				slog.Warn("server-side browser: screen pictures", "err", err)
+			}
+			pic, err := svc.BoardExactPNG(ctx, a, in.Project, in.Document, in.Frame, in.Dark)
+			if errors.Is(err, core.ErrNotFound) && in.Frame != "" {
+				return nil, nil, fmt.Errorf("there is no frame %q on this whiteboard; get_whiteboard lists the frames", in.Frame)
+			}
+			if err == nil {
+				return &sdk.CallToolResult{Content: []sdk.Content{&sdk.ImageContent{Data: pic, MIMEType: "image/png"},
+					&sdk.TextContent{Text: "Drawn now by the server-side browser with the real editor (embeds, blocks and HTML screens as on the board)."}}}, nil, nil
+			}
+			slog.Warn("server-side browser: board picture", "err", err)
+		}
 		bp, err := svc.WhiteboardForPicture(ctx, a, in.Project, in.Document)
 		if err != nil {
 			return nil, nil, friendly(err)
@@ -1852,11 +1868,19 @@ func appScreenshotTool(s *sdk.Server, svc *core.Service) {
 	if err != nil {
 		panic(err)
 	}
-	desc := "See how an app looks: the latest picture of it as PNG, taken when someone who may edit it had it open in the browser after its last change. The note says which version it shows; if it is older than the current one, ask the person to open the app once."
+	desc := "See how an app looks as PNG. With the server-side browser on, the picture is taken now from the current version; otherwise it is the latest picture taken when someone who may edit it had it open in the browser after its last change. The note says which version it shows; if it is older than the current one, ask the person to open the app once."
 	sdk.AddTool(s, &sdk.Tool{Name: "app_screenshot", Description: desc, InputSchema: schema}, func(ctx context.Context, req *sdk.CallToolRequest, in appScreenshotIn) (*sdk.CallToolResult, any, error) {
 		a, err := actorFrom(req)
 		if err != nil {
 			return nil, nil, err
+		}
+		if svc.RendererOn(ctx, core.RenderApps) {
+			png, err := svc.AppExactPNG(ctx, a, in.Project, in.Document, in.Dark)
+			if err == nil {
+				return &sdk.CallToolResult{Content: []sdk.Content{&sdk.ImageContent{Data: png, MIMEType: "image/png"},
+					&sdk.TextContent{Text: "Taken now by the server-side browser (the app's current version, 1280×800)."}}}, nil, nil
+			}
+			slog.Warn("server-side browser: app picture", "err", err)
 		}
 		pic, err := svc.AppPicture(ctx, a, in.Project, in.Document)
 		if err != nil {

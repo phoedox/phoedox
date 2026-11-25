@@ -25,7 +25,9 @@ link when someone wants to work on the board alone (it needs sign-in, like the p
   use it only when someone asks for that colour.
 - **Look at it:** `whiteboard_screenshot` returns the board as a picture, drawn by
   the server from its current content like the editor shows it (hand-drawn strokes,
-  the app's fonts and colours; `dark` for the dark theme). With `frame` (id or title)
+  the app's fonts and colours; `dark` for the dark theme). With the server-side
+  browser on, the note says it was drawn by the real editor: embeds, blocks and HTML
+  screens look exactly as on the board. With `frame` (id or title)
   it shows only one frame or prototype screen. Use it after drawing to check
   layout, overlaps and readability; embeds, entries and blocks appear as cards, so
   read exact content with `get_whiteboard`.
@@ -102,8 +104,8 @@ flows and small tools; for a real program write an app (`create_app`).
   `!var`, `var=value`), `data-text="var"`, and `data-bind="var"` on inputs. Scripts in the
   HTML may call `phx.goto(name)`, `phx.set(name, value)` and `phx.state()`. The board shows
   HTML screens as still pictures. `whiteboard_screenshot` shows them as the browser drew
-  them: the pictures are made while someone who may edit the board has it open (the tool
-  waits a few seconds for new or changed screens). Without such a picture the screen shows
+  them: by the server-side browser when it is on, otherwise while someone who may edit
+  the board has it open (the tool waits a few seconds for new or changed screens). Without such a picture the screen shows
   only its text and the note names it – then ask people to open the board and look again.
 - **Text styles:** `{type: text, text, style: title|heading|subheading|body|caption|label}`
   sets size, weight and colour (caption and label are muted); texts are left-aligned.

@@ -107,10 +107,12 @@ a talk is `create_app {starter: "slides", files: {"slides.md": "# …"}}`.
 3. `edit_app` with exact `edits` `{file, old, new}` (old exactly once), whole
    `files` (null removes one) or a new `manifest`.
 
-4. `app_screenshot`: a picture of the app as it looks (PNG). It is taken
-   when someone who may edit the app has it open in the browser after a
-   change; the note says which version it shows. If it is older than the
-   current version, ask the person to open the app once.
+4. `app_screenshot`: a picture of the app as it looks (PNG). With the
+   server-side browser on (Administration → Server browser), it is taken
+   now from the current version (`dark` for the dark theme). Otherwise it is
+   the picture taken when someone who may edit the app had it open in the
+   browser after a change; the note says which version it shows. If it is
+   older than the current version, ask the person to open the app once.
 
 Every save is a version (restore with `restore_document_version`).
 

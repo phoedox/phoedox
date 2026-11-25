@@ -1,7 +1,9 @@
 package server
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -89,4 +91,32 @@ func (a *api) setAdminRenderer(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := a.core.SetAdminRenderer(r.Context(), actorOf(r), in)
 	respond(w, v, err)
+}
+
+func (a *api) rendererUses(w http.ResponseWriter, r *http.Request) {
+	respond(w, a.core.RendererUses(r.Context()), nil)
+}
+
+// printPDF returns pages as PDF, printed by the server-side browser
+// (?doc=slug or ?category=name, ?lang).
+func (a *api) printPDF(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	pdf, name, err := a.core.PrintPDF(r.Context(), actorOf(r), chi.URLParam(r, "p"), q.Get("doc"), q.Get("category"), q.Get("lang"))
+	if errors.Is(err, core.ErrRendererOff) {
+		writeJSON(w, http.StatusConflict, errBody("renderer_off", "The server-side browser is off for PDF export."))
+		return
+	}
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	file := strings.Trim(fileNameRe.ReplaceAllString(name, "-"), "-")
+	if file == "" {
+		file = "phoedox"
+	}
+	h := w.Header()
+	h.Set("Content-Type", "application/pdf")
+	h.Set("Content-Disposition", `attachment; filename="`+file+`.pdf"`)
+	h.Set("Cache-Control", "no-store")
+	_, _ = w.Write(pdf)
 }

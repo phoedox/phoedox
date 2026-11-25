@@ -266,7 +266,22 @@ func (o PageOptions) steps(u string) []chromedp.Action[chromedp.Void] {
 			return err
 		}))
 	}
-	return append(steps, settle())
+	return append(steps, settle(), pageError())
+}
+
+// pageError fails the job when the page reports a problem in
+// <html data-error="…"> (Phoedox's render pages do on errors).
+func pageError() chromedp.Action[chromedp.Void] {
+	return chromedp.Func(func(ctx context.Context, t *chromedp.Target) error {
+		msg, err := chromedp.Evaluate[string](`document.documentElement.dataset.error || ""`)(ctx, t)
+		if err != nil {
+			return err
+		}
+		if msg != "" {
+			return fmt.Errorf("render: the page reports: %s", msg)
+		}
+		return nil
+	})
 }
 
 // Page takes a picture of a page.
