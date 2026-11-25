@@ -3,6 +3,10 @@
 #
 #   docker compose up -d
 #   docker compose exec phoedox phx admin create-user --admin --email you@example.org --name "Your Name"
+#
+# Server-side browser (ADR-0095, optional): start it with
+#   docker compose --profile renderer up -d
+# and switch it on in Administration → Server browser.
 services:
   phoedox:
     # Prebuilt image (private while the repo is private: docker login ghcr.io).
@@ -19,9 +23,20 @@ services:
       PHOEDOX_BEHIND_PROXY: "true"
       # Only for plain HTTP without TLS (e.g. a LAN test on another host):
       # PHOEDOX_INSECURE_COOKIES: "true"
+      # Server-side browser (profile "renderer"); unused while it is not running.
+      PHOEDOX_RENDERER_URL: http://renderer:9222
+      PHOEDOX_RENDERER_TARGET: http://phoedox:8080
     volumes: [phoedox-data:/data]
+    networks: [default, render]
     depends_on:
       db: { condition: service_healthy }
+  renderer:
+    image: chromedp/headless-shell:159.0.8154.13
+    profiles: [renderer]
+    restart: unless-stopped
+    shm_size: 256m
+    # Only on the internal network: it reaches Phoedox and nothing else.
+    networks: [render]
   db:
     image: pgvector/pgvector:pg17
     restart: unless-stopped
@@ -37,3 +52,7 @@ services:
 volumes:
   phoedox-data:
   pg-data:
+networks:
+  default:
+  render:
+    internal: true

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -1802,9 +1803,16 @@ func whiteboardScreenshotTool(s *sdk.Server, svc *core.Service) {
 		if err != nil {
 			return nil, nil, friendly(err)
 		}
-		// HTML screens are drawn by the browser of someone who has the board
-		// open: wait a little for pictures of new or changed screens.
+		// HTML screens are drawn by the server-side browser when it is on
+		// (ADR-0095), else by the browser of someone who has the board open:
+		// wait a little for pictures of new or changed screens.
 		missing := bp.Missing(in.Frame, in.Dark)
+		if len(missing) > 0 && svc.RendererOn(ctx, core.RenderScreens) {
+			if _, err := svc.MakeScreenPictures(ctx, a, in.Project, in.Document, in.Frame, in.Dark); err != nil {
+				slog.Warn("server-side browser: screen pictures", "err", err)
+			}
+			missing = bp.Missing(in.Frame, in.Dark)
+		}
 		for i := 0; len(missing) > 0 && bp.Viewers > 0 && i < 15; i++ {
 			select {
 			case <-ctx.Done():

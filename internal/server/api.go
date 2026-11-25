@@ -179,6 +179,8 @@ func (a *api) routes(r chi.Router) {
 		r.Post("/me/payments/portal", a.paymentPortal)
 		r.Get("/me/ai-credits", a.myCredits)
 		r.Post("/me/ai-credits/buy", a.buyCredits)
+		r.Get("/admin/renderer", a.adminRenderer)
+		r.Put("/admin/renderer", a.setAdminRenderer)
 		r.Get("/admin/search/embeddings", a.adminEmbeddings)
 		r.Put("/admin/search/embeddings", a.setAdminEmbeddings)
 		r.Get("/admin/ai-credits", a.adminCredits)

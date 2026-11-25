@@ -56,6 +56,11 @@ type Config struct {
 	// https://docs.example.org (PHOEDOX_PUBLIC_URL). Derived from the request
 	// when empty.
 	PublicURL string
+	// Renderer is the DevTools address of the headless Chrome service
+	// (PHOEDOX_RENDERER_URL, ADR-0095), e.g. http://phoedox-renderer:9222;
+	// RendererTarget is the address under which that browser reaches
+	// Phoedox (PHOEDOX_RENDERER_TARGET, default: the public URL).
+	Renderer, RendererTarget string
 	// LegacyWebsite is set while PHOEDOX_WEBSITE_DOMAINS is still configured:
 	// the product website moved to its own service (ADR-0054); the server
 	// only logs a warning.
@@ -219,6 +224,8 @@ func FromEnv() (Config, error) {
 		SecureCookies:     os.Getenv("PHOEDOX_INSECURE_COOKIES") != "true",
 		BehindProxy:       os.Getenv("PHOEDOX_BEHIND_PROXY") == "true",
 		PublicURL:         strings.TrimRight(os.Getenv("PHOEDOX_PUBLIC_URL"), "/"),
+		Renderer:          strings.TrimSpace(os.Getenv("PHOEDOX_RENDERER_URL")),
+		RendererTarget:    strings.TrimRight(strings.TrimSpace(os.Getenv("PHOEDOX_RENDERER_TARGET")), "/"),
 		DefaultLocale:     getenv("PHOEDOX_DEFAULT_LOCALE", "de"),
 		Signup:            strings.ToLower(getenv("PHOEDOX_SIGNUP", "invite")),
 		TermsURL:          os.Getenv("PHOEDOX_TERMS_URL"),

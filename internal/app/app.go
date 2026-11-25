@@ -25,6 +25,7 @@ import (
 	"github.com/phoedox/phoedox/internal/core"
 	"github.com/phoedox/phoedox/internal/mail"
 	"github.com/phoedox/phoedox/internal/plugins"
+	"github.com/phoedox/phoedox/internal/render"
 	"github.com/phoedox/phoedox/internal/requests"
 	"github.com/phoedox/phoedox/internal/secret"
 	"github.com/phoedox/phoedox/internal/store"
@@ -142,6 +143,7 @@ func Open(ctx context.Context) (*App, error) {
 		svc.LicenseFile = string(b)
 	}
 	a.OnAccount = svc.JoinTheOrg
+	a.RenderPass = svc.RenderPassActor
 	a.SSOGroups = svc.SSOGroupsAllowed
 	if smtp, ok := sender.(*mail.SMTP); ok {
 		smtp.Brand = svc.MailBrand // HTML mails in the theme of the organization or instance
@@ -151,6 +153,8 @@ func Open(ctx context.Context) (*App, error) {
 	svc.SignupDefault = cfg.Signup == "open"
 	svc.PaidFeatures = cfg.PaidFeatures
 	svc.Bot = svc.NewBotCheck()
+	svc.Renderer = render.New(cfg.Renderer, 2)
+	svc.RendererTarget = cfg.RendererTarget
 	if cfg.AI.Enabled() {
 		effort := cfg.AI.Effort
 		if effort == "" {

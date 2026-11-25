@@ -26,6 +26,7 @@ import "./dpa";
 import "./license-admin";
 import "./credits";
 import "./embeddings-admin";
+import "./renderer-admin";
 import "./payments";
 import "./print";
 import "./login";
@@ -159,6 +160,7 @@ export class PhxApp extends SignalWatcher(LitElement) {
     { path: "/admin/security", render: () => adm("security", html`<phx-admin-settings section="security"></phx-admin-settings>`) },
     // Old address of the instance settings.
     { path: "/admin/settings", render: () => { queueMicrotask(() => { history.replaceState({}, "", "/admin/ai"); window.dispatchEvent(new PopStateEvent("popstate")); }); return html``; } },
+    { path: "/admin/renderer", render: () => adm("renderer", html`<phx-renderer-admin></phx-renderer-admin>`) },
     { path: "/admin/backups", render: () => adm("backups", html`<phx-backups></phx-backups>`) },
     { path: "/admin/plugins", render: () => adm("plugins", html`<phx-plugins-admin></phx-plugins-admin>`) },
     { path: "/admin/audit", render: () => adm("audit", html`<phx-audit-log page></phx-audit-log>`) },

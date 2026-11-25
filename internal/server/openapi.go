@@ -301,6 +301,8 @@ var apiDocs = map[string]op{
 	"POST /me/ai-credits/buy":                                         {Tag: "ai", Summary: "Buy an offer of AI credits for yourself: {offer} → checkout.", In: buyCreditsIn{}, Out: core.PurchaseCheckout{}},
 	"GET /orgs/{o}/ai-credits":                                        {Tag: "ai", Summary: "An organization's AI credits (its admins).", Out: core.CreditInfo{}},
 	"POST /orgs/{o}/ai-credits/buy":                                   {Tag: "ai", Summary: "Buy an offer of AI credits for the organization (its admins): {offer} → checkout.", In: buyCreditsIn{}, Out: core.PurchaseCheckout{}},
+	"GET /admin/renderer":                                             {Tag: "admin", Summary: "Server-side browser (ADR-0095): settings, uses and whether the service answers (system admins)."},
+	"PUT /admin/renderer":                                             {Tag: "admin", Summary: "Switch the server-side browser on or off and choose its uses (system admins).", In: core.RendererSettings{}},
 	"GET /admin/search/embeddings":                                    {Tag: "admin", Summary: "Semantic search: switched on, provider and embedding model, how many index entries have an embedding, the last error.", Out: core.EmbeddingStatus{}},
 	"PUT /admin/search/embeddings":                                    {Tag: "admin", Summary: "Switch semantic search on or off and choose an OpenAI-compatible instance provider and embedding model (checked with a test call).", In: core.EmbeddingSettings{}, Out: core.EmbeddingStatus{}},
 	"GET /admin/ai-credits":                                           {Tag: "admin", Summary: "Offers of AI credits and the latest grants (system admins).", Out: core.CreditAdmin{}},

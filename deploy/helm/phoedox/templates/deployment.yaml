@@ -157,6 +157,10 @@ spec:
             - { name: PHOEDOX_OIDC_DOMAINS, value: {{ .Values.oidc.domains | quote }} }
             - { name: PHOEDOX_OIDC_GROUPS_CLAIM, value: {{ .Values.oidc.groupsClaim | quote }} }
             {{- end }}
+            {{- if .Values.renderer.enabled }}
+            - { name: PHOEDOX_RENDERER_URL, value: {{ printf "http://%s-renderer:9222" $fn | quote }} }
+            - { name: PHOEDOX_RENDERER_TARGET, value: {{ printf "http://%s" $fn | quote }} }
+            {{- end }}
             {{- if .Values.clamav.enabled }}
             - { name: PHOEDOX_CLAMAV, value: {{ printf "%s-clamav:3310" $fn | quote }} }
             {{- end }}

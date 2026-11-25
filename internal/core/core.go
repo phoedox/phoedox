@@ -14,6 +14,7 @@ import (
 	"github.com/phoedox/phoedox/internal/jobs"
 	"github.com/phoedox/phoedox/internal/mail"
 	"github.com/phoedox/phoedox/internal/preview"
+	"github.com/phoedox/phoedox/internal/render"
 	"github.com/phoedox/phoedox/internal/scan"
 	"sync"
 	"sync/atomic"
@@ -93,6 +94,10 @@ func (a Actor) String() string {
 // Service bundles the core operations.
 type Service struct {
 	DB *store.DB
+	// Renderer is the headless Chrome service (ADR-0095; not configured: nil
+	// or no URL); RendererTarget is where it reaches Phoedox ("" = PublicURL).
+	Renderer       *render.Renderer
+	RendererTarget string
 	// LiveViewers counts people who have a document open in the live
 	// editor (nil: unknown, e.g. in tests).
 	LiveViewers func(documentID string) int

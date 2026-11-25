@@ -75,7 +75,13 @@ func (s *Service) SetScreenPicture(ctx context.Context, a Actor, ref, docRef, fr
 	if s.Blobs == nil {
 		return errNoBlobs
 	}
-	name := screenPictureName(*frame, theme == "dark")
+	return s.storeScreenPicture(ctx, a, p, doc, *frame, theme, png)
+}
+
+// storeScreenPicture keeps the picture of a screen and drops older ones.
+func (s *Service) storeScreenPicture(ctx context.Context, a Actor, p store.Project, doc store.Document, frame WBElement, theme string, png []byte) error {
+	frameID := frame.ID
+	name := screenPictureName(frame, theme == "dark")
 	old, _ := s.DB.ListFiles(ctx, p.ID, store.FileFilter{DocumentID: doc.ID, Purpose: purposeScreenPicture})
 	for _, o := range old {
 		if o.Name == name {

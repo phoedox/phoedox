@@ -101,6 +101,8 @@ type Auth struct {
 	// SSOGroups tells whether group memberships follow the OIDC groups
 	// claim (nil = always; the single-organization edition needs a license).
 	SSOGroups func(ctx context.Context) bool
+	// RenderPass checks a render pass of the server-side browser (ADR-0095).
+	RenderPass func(ctx context.Context, token string) (core.Actor, bool)
 	// SecureCookies sets the Secure flag (true behind HTTPS).
 	SecureCookies bool
 	// Mail sends invitations and reset links; nil or disabled means links
@@ -198,6 +200,16 @@ func (a *Auth) FromRequest(r *http.Request, via string) (core.Actor, bool, error
 // access token expires (zero for API tokens and sessions).
 func (a *Auth) FromRequestWithExpiry(r *http.Request, via string) (core.Actor, time.Time, bool, error) {
 	if token, ok := BearerToken(r); ok {
+		if strings.HasPrefix(token, core.RenderPassPrefix) {
+			if a.RenderPass == nil || via == "mcp" {
+				return core.Actor{}, time.Time{}, false, store.ErrNotFound
+			}
+			actor, ok := a.RenderPass(r.Context(), token)
+			if !ok {
+				return core.Actor{}, time.Time{}, false, store.ErrNotFound
+			}
+			return actor, time.Time{}, false, nil
+		}
 		if strings.HasPrefix(token, accessPrefix) {
 			if via != "mcp" {
 				return core.Actor{}, time.Time{}, false, store.ErrNotFound

@@ -1,0 +1,96 @@
+{{- if .Values.renderer.enabled }}
+{{- $fn := include "phoedox.fullname" . }}
+# Server-side browser (ADR-0095): a headless Chrome that Phoedox drives over
+# the DevTools protocol for pictures and PDFs. The system admin switches its
+# use on in Administration → Server browser.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fn }}-renderer
+  labels:
+    {{- include "phoedox.labels" . | nindent 4 }}
+    app.kubernetes.io/component: renderer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: renderer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: renderer
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: renderer
+          image: {{ .Values.renderer.image }}
+          ports:
+            - { name: devtools, containerPort: 9222 }
+          readinessProbe:
+            tcpSocket: { port: devtools }
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: devtools }
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+          # Chrome keeps tabs in shared memory.
+          volumeMounts:
+            - { name: shm, mountPath: /dev/shm }
+          resources:
+            {{- toYaml .Values.renderer.resources | nindent 12 }}
+      volumes:
+        - name: shm
+          emptyDir: { medium: Memory, sizeLimit: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fn }}-renderer
+  labels:
+    {{- include "phoedox.labels" . | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: renderer
+  ports:
+    - { name: devtools, port: 9222, targetPort: devtools }
+{{- if .Values.renderer.networkPolicy }}
+---
+# Only Phoedox may drive the browser, and the browser may only reach
+# Phoedox (and DNS) – no internet, nothing else in the cluster.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fn }}-renderer
+  labels:
+    {{- include "phoedox.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: renderer
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "phoedox.selector" . | nindent 14 }}
+      ports:
+        - { port: 9222, protocol: TCP }
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "phoedox.selector" . | nindent 14 }}
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels: { k8s-app: kube-dns }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+{{- end }}
+{{- end }}

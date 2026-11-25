@@ -75,3 +75,18 @@ func (a *api) setAdminEmbeddings(w http.ResponseWriter, r *http.Request) {
 	v, err := a.core.SetAdminEmbeddings(r.Context(), actorOf(r), in)
 	respond(w, v, err)
 }
+
+func (a *api) adminRenderer(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.AdminRenderer(r.Context(), actorOf(r))
+	respond(w, v, err)
+}
+
+func (a *api) setAdminRenderer(w http.ResponseWriter, r *http.Request) {
+	var in core.RendererSettings
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	v, err := a.core.SetAdminRenderer(r.Context(), actorOf(r), in)
+	respond(w, v, err)
+}

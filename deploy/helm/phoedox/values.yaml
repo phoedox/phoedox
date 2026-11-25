@@ -191,6 +191,19 @@ clamav:
     requests: { cpu: 100m, memory: 1Gi }
     limits: { memory: 2Gi }
 
+# Server-side browser (ADR-0095): a headless Chrome next to Phoedox for
+# pictures of HTML screens, apps and whiteboards and for PDFs of pages. After
+# the upgrade, a system admin switches it on in Administration → Server
+# browser. Needs about 300 MB RAM while it works.
+renderer:
+  enabled: false
+  image: chromedp/headless-shell:159.0.8154.13
+  # Lets the browser talk only to Phoedox (and DNS).
+  networkPolicy: true
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 1Gi }
+
 # Prometheus metrics at /metrics (bearer token generated into a secret).
 metrics:
   enabled: false
