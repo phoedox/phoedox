@@ -27,6 +27,12 @@ export class PhxBotAdmin extends LitElement {
   static styles = [base, settingsUI, css`
     :host { display: block; }
     .grid { display: grid; gap: 10px; }
+    /* Tables and grids in a card keep the card's inner margin. */
+    .scard > .tbl { margin: 0 18px; }
+    .scard > .grid { padding: 0 18px 16px; }
+    .scard > .tbl + .pad, .scard > .bars + .tbl { margin-top: 0; }
+    .scard > .tbl:last-child { margin-bottom: 16px; }
+    .pad { padding: 12px 18px 16px; }
     .prov { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 8px; background: var(--surface); }
     .prov header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
     .row2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; }
@@ -141,24 +147,24 @@ export class PhxBotAdmin extends LitElement {
             <option value="" ?selected=${!c.places[pl]}>${t("botadmin.off")}</option>
             ${c.policies.map((p) => html`<option value=${p.id} ?selected=${c.places[pl] === p.id}>${p.preset ? t(`botadmin.preset.${p.preset}` as any) : p.name}</option>`)}
           </select></td></tr>`)}</tbody></table></div>
-        <div style="padding:10px 16px 14px"><label class="field" style="max-width:260px">${t("botadmin.signin_failures")}<input type="number" min="1" max="20" .value=${String(c.signinFailures)} @input=${(e: Event) => (c.signinFailures = Math.max(1, Number((e.target as HTMLInputElement).value) || 3))}></label>
+        <div class="pad"><label class="field" style="max-width:260px">${t("botadmin.signin_failures")}<input type="number" min="1" max="20" .value=${String(c.signinFailures)} @input=${(e: Event) => (c.signinFailures = Math.max(1, Number((e.target as HTMLInputElement).value) || 3))}></label>
         ${!s.mail ? html`<p class="muted">${icon("CircleAlert", 13)} ${t("botadmin.no_mail")}</p>` : nothing}</div>`)}
-      ${scard(t("botadmin.policies"), t("botadmin.policies_hint"), html`<div class="grid" style="padding-bottom:14px">
+      ${scard(t("botadmin.policies"), t("botadmin.policies_hint"), html`<div class="grid">
         <div class="tbl"><table><thead><tr><th>${t("botadmin.policy")}</th><th>${t("botadmin.how")}</th></tr></thead>
           <tbody>${presets.map((p) => html`<tr><td>${t(`botadmin.preset.${p.preset}` as any)}</td><td class="muted">${t(`botadmin.preset_hint.${p.preset}` as any)}</td></tr>`)}</tbody></table></div>
-        <label class="check" style="padding:0 16px"><input type="checkbox" .checked=${this.advanced} @change=${(e: Event) => (this.advanced = (e.target as HTMLInputElement).checked)}> ${t("botadmin.advanced")}</label>
+        <label class="check"><input type="checkbox" .checked=${this.advanced} @change=${(e: Event) => (this.advanced = (e.target as HTMLInputElement).checked)}> ${t("botadmin.advanced")}</label>
         ${this.advanced ? html`${custom.map((p) => this.policyEditor(p))}
           <div><button class="ghost" @click=${() => { c.policies = [...c.policies, { id: "p" + Date.now().toString(36), name: t("botadmin.new_policy"), provider: "own", passAbove: 0.6, blockBelow: 0.15, visible: "any", emailFallback: true, difficulty: 16 }]; this.change(); }}>${icon("Plus", 14)} ${t("botadmin.add_policy")}</button></div>` : nothing}
       </div>`)}
       ${scard(t("botadmin.providers"), t("botadmin.providers_hint"), html`<div class="grid">${PROVIDERS.map(([id, name, url]) => this.provider(id, name, url))}</div>`)}
       <div class="actions" style="margin:4px 0 22px"><button ?disabled=${this.busy} @click=${this.save}>${t("doc.save")}</button></div>
       ${scard(t("botadmin.stats"), t("botadmin.stats_hint"), html`
-        <div class="muted" style="padding:10px 16px 0">${t("botadmin.hourly")}</div>
-        <div class="bars" style="padding:6px 16px" role="img" aria-label=${t("botadmin.hourly")}>${s.stats.hourly.map((n) => html`<span style="height:${(n / max) * 100}%" title=${String(n)}></span>`)}</div>
+        <div class="muted" style="padding:0 18px">${t("botadmin.hourly")}</div>
+        <div class="bars" style="padding:6px 18px 10px" role="img" aria-label=${t("botadmin.hourly")}>${s.stats.hourly.map((n) => html`<span style="height:${(n / max) * 100}%" title=${String(n)}></span>`)}</div>
         <div class="tbl"><table><thead><tr><th>${t("botadmin.place")}</th><th>${t("botadmin.policy")}</th><th class="n">${t("botadmin.passed")}</th><th class="n">${t("botadmin.challenged")}</th><th class="n">${t("botadmin.solved")}</th><th class="n">${t("botadmin.by_email")}</th><th class="n">${t("botadmin.blocked")}</th><th class="n">${t("botadmin.avg")}</th></tr></thead>
           <tbody>${s.stats.rows.length ? s.stats.rows.map((r) => html`<tr><td>${t(`botadmin.place.${r.place}` as any)}</td><td>${r.policy}</td><td class="n">${r.passed}</td><td class="n">${r.challenged}</td><td class="n">${r.solved}</td><td class="n">${r.email}</td><td class="n">${r.blocked}</td><td class="n">${r.avgSolveMs ? `${(r.avgSolveMs / 1000).toFixed(1)} s` : "–"}</td></tr>`)
             : html`<tr><td colspan="8" class="muted">${t("botadmin.no_events")}</td></tr>`}</tbody></table></div>
-        ${s.stats.blocked.length ? html`<h4 style="margin:14px 0 6px">${t("botadmin.blocked_log")}</h4><div class="tbl"><table><tbody>${s.stats.blocked.slice(0, 50).map((e) => html`<tr><td>${time(e.at)}</td><td>${t(`botadmin.place.${e.place}` as any)}</td><td>${e.reason ? t(`botadmin.reason.${e.reason}` as any) : e.outcome}</td><td class="muted"><code>${e.ipHash}</code></td></tr>`)}</tbody></table></div>` : nothing}`)}`;
+        ${s.stats.blocked.length ? html`<h4 style="margin:14px 18px 6px">${t("botadmin.blocked_log")}</h4><div class="tbl"><table><tbody>${s.stats.blocked.slice(0, 50).map((e) => html`<tr><td>${time(e.at)}</td><td>${t(`botadmin.place.${e.place}` as any)}</td><td>${e.reason ? t(`botadmin.reason.${e.reason}` as any) : e.outcome}</td><td class="muted"><code>${e.ipHash}</code></td></tr>`)}</tbody></table></div>` : nothing}`)}`;
   }
 }
 customElements.get("phx-bot-admin") || customElements.define("phx-bot-admin", PhxBotAdmin);
