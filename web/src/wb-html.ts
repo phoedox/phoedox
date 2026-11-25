@@ -65,3 +65,73 @@ export function htmlScreenImage(html: string, w: number, h: number, state: Recor
   cache.set(key, url);
   return url;
 }
+
+// ---- pictures for server-side screenshots -------------------------------------
+
+let fontCSS: Promise<string> | undefined;
+
+/** The app's body and display fonts as @font-face rules with data: URLs (pictures cannot load files). */
+function inlineFonts(): Promise<string> {
+  fontCSS ??= (async () => {
+    const cs = getComputedStyle(document.documentElement);
+    const wanted = `${cs.getPropertyValue("--font-body")},${cs.getPropertyValue("--font-display")}`.toLowerCase();
+    const rules: CSSFontFaceRule[] = [];
+    for (const sheet of [...document.styleSheets, ...(document.adoptedStyleSheets ?? [])]) {
+      let list: CSSRuleList;
+      try { list = sheet.cssRules; } catch { continue; }
+      for (const r of list) if (r instanceof CSSFontFaceRule) rules.push(r);
+    }
+    const out: string[] = [];
+    for (const r of rules) {
+      const fam = r.style.getPropertyValue("font-family").replace(/["']/g, "").trim();
+      const url = /url\(["']?([^"')]+)["']?\)/.exec(r.style.getPropertyValue("src"))?.[1];
+      if (!fam || !url || !wanted.includes(fam.toLowerCase())) continue;
+      try {
+        const b = await (await fetch(url)).blob();
+        const data = await new Promise<string>((ok) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result)); fr.readAsDataURL(b); });
+        out.push(`@font-face{font-family:"${fam}";src:url(${data}) format("woff2");font-weight:${r.style.getPropertyValue("font-weight") || "400"}}`);
+      } catch { /* the picture falls back to system fonts */ }
+    }
+    return out.join("");
+  })();
+  return fontCSS;
+}
+
+/** Whether the app shows the dark theme now. */
+export function darkTheme(): boolean {
+  const t = document.documentElement.dataset.theme;
+  return t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+}
+
+async function sha256hex(s: string): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** The server's file name of a screen's picture (internal/core/screen_pictures.go). */
+export async function screenPictureName(frameID: string, html: string, w: number, h: number, dark: boolean): Promise<string> {
+  return `screen-${(await sha256hex(frameID)).slice(0, 8)}-${(await sha256hex(`${html}|${w}x${h}`)).slice(0, 16)}-${dark ? "dark" : "light"}.png`;
+}
+
+/** A PNG of an HTML screen as the board shows it, with the app's fonts. */
+export async function screenPicturePNG(html: string, w: number, h: number, state: Record<string, unknown> = {}): Promise<Blob> {
+  const fonts = await inlineFonts();
+  const { css, body } = stillMarkup(html, state);
+  const esc = (s: string) => s.replace(/]]>/g, "]]&gt;");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><foreignObject x="0" y="0" width="${w}" height="${h}">` +
+    `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${w}px;height:${h}px;overflow:hidden">` +
+    `<style><![CDATA[${esc(fonts)}:root,body{${themeVars()}}body{margin:0;min-height:100%;font-family:var(--font-body,system-ui,sans-serif);color:var(--fg);background:var(--surface);font-size:15px;line-height:1.45}[hidden]{display:none!important}${esc(css)}]]></style>` +
+    `${body}</div></foreignObject></svg>`;
+  const img = new Image();
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  await img.decode();
+  await new Promise((r) => setTimeout(r, 60)); // fonts inside the picture
+  const c = document.createElement("canvas");
+  c.width = Math.round(w);
+  c.height = Math.round(h);
+  const g = c.getContext("2d")!;
+  g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--surface").trim() || "#fff";
+  g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(img, 0, 0, c.width, c.height);
+  return new Promise((ok, fail) => c.toBlob((b) => (b ? ok(b) : fail(new Error("no picture"))), "image/png"));
+}

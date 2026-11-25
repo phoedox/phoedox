@@ -1792,17 +1792,29 @@ func whiteboardScreenshotTool(s *sdk.Server, svc *core.Service) {
 	if err != nil {
 		panic(err)
 	}
-	desc := "See a whiteboard as a picture (PNG), drawn now from its current content like the editor shows it (hand-drawn strokes, the app's fonts and colours), e.g. to check a diagram or prototype screens you drew. frame: only one frame or prototype screen (id or title). Embeds, entries and blocks appear as cards; read exact content with get_whiteboard."
+	desc := "See a whiteboard as a picture (PNG), drawn now from its current content like the editor shows it (hand-drawn strokes, the app's fonts and colours), e.g. to check a diagram or prototype screens you drew. frame: only one frame or prototype screen (id or title). Embeds, entries and blocks appear as cards; read exact content with get_whiteboard. HTML prototype screens appear as the browser drew them: pictures are made while someone who may edit the board has it open (the tool waits a few seconds for new ones); without one the screen shows its text and the note says so."
 	sdk.AddTool(s, &sdk.Tool{Name: "whiteboard_screenshot", Description: desc, InputSchema: schema}, func(ctx context.Context, req *sdk.CallToolRequest, in whiteboardScreenshotIn) (*sdk.CallToolResult, any, error) {
 		a, err := actorFrom(req)
 		if err != nil {
 			return nil, nil, err
 		}
-		wb, title, load, err := svc.WhiteboardForPicture(ctx, a, in.Project, in.Document)
+		bp, err := svc.WhiteboardForPicture(ctx, a, in.Project, in.Document)
 		if err != nil {
 			return nil, nil, friendly(err)
 		}
-		pic, info, err := publish.WhiteboardPNG(wb, publish.PNGOptions{Frame: in.Frame, Dark: in.Dark, Image: load})
+		// HTML screens are drawn by the browser of someone who has the board
+		// open: wait a little for pictures of new or changed screens.
+		missing := bp.Missing(in.Frame, in.Dark)
+		for i := 0; len(missing) > 0 && bp.Viewers > 0 && i < 15; i++ {
+			select {
+			case <-ctx.Done():
+				return nil, nil, ctx.Err()
+			case <-time.After(time.Second):
+			}
+			missing = bp.Missing(in.Frame, in.Dark)
+		}
+		wb, title := bp.Board, bp.Title
+		pic, info, err := publish.WhiteboardPNG(wb, publish.PNGOptions{Frame: in.Frame, Dark: in.Dark, Image: bp.Image, Screen: bp.Screen})
 		if errors.Is(err, publish.ErrNoFrame) {
 			return nil, nil, fmt.Errorf("there is no frame %q on %s; get_whiteboard lists the frames", in.Frame, title)
 		}
@@ -1817,6 +1829,9 @@ func whiteboardScreenshotTool(s *sdk.Server, svc *core.Service) {
 			}
 			slices.Sort(parts)
 			note += " Shown simplified: " + strings.Join(parts, ", ") + "."
+		}
+		if len(missing) > 0 {
+			note += " HTML screens shown only as text (no picture yet: " + strings.Join(missing, ", ") + "). Pictures of HTML screens are made in the browser: ask someone who may edit the board to open it, then take the screenshot again."
 		}
 		return &sdk.CallToolResult{Content: []sdk.Content{&sdk.ImageContent{Data: pic, MIMEType: "image/png"}, &sdk.TextContent{Text: note}}}, nil, nil
 	})

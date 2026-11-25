@@ -442,6 +442,8 @@ func (a *api) routes(r chi.Router) {
 			r.Post("/documents/{d}/whiteboard/comments", a.whiteboardComment)
 			r.Get("/documents/{d}/prototypes/{id}/data", a.prototypeData)
 			r.Get("/documents/{d}/prototypes/{id}/export", a.prototypeExport)
+			r.Get("/documents/{d}/screen-pictures", a.screenPictures)
+			r.Put("/documents/{d}/screens/{frame}/picture", a.setScreenPicture)
 			r.Post("/documents/{d}/prototypes/{id}/app", a.prototypeApp)
 			r.Get("/embed-preview", a.embedPreview)
 			r.Get("/embed-policy", a.embedPolicy)

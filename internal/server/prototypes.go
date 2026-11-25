@@ -1,6 +1,7 @@
 package server
 
 import (
+	"io"
 	"net/http"
 	"regexp"
 	"strings"
@@ -68,4 +69,22 @@ func (a *api) whiteboardComment(w http.ResponseWriter, r *http.Request) {
 	}
 	v, err := a.core.CommentWhiteboard(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"), in)
 	respond(w, v, err)
+}
+
+// screenPictures lists the current pictures of a board's HTML screens.
+func (a *api) screenPictures(w http.ResponseWriter, r *http.Request) {
+	v, err := a.core.ScreenPictures(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"))
+	respond(w, map[string]any{"pictures": v}, err)
+}
+
+// setScreenPicture stores the picture of an HTML screen the browser drew
+// (?theme=light|dark, body: PNG).
+func (a *api) setScreenPicture(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 5<<20))
+	if err != nil {
+		writeErr(w, err)
+		return
+	}
+	err = a.core.SetScreenPicture(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "d"), chi.URLParam(r, "frame"), r.URL.Query().Get("theme"), body)
+	respond(w, ok{}, err)
 }

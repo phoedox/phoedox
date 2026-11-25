@@ -93,6 +93,9 @@ func (a Actor) String() string {
 // Service bundles the core operations.
 type Service struct {
 	DB *store.DB
+	// LiveViewers counts people who have a document open in the live
+	// editor (nil: unknown, e.g. in tests).
+	LiveViewers func(documentID string) int
 	// readingSeen throttles readings per series (tenant|entity|metric → time.Time).
 	readingSeen sync.Map
 	// prChecked throttles pull request checks per repository (id → time.Time).

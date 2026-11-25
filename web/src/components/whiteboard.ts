@@ -9,6 +9,7 @@ import { LitElement, css, html, nothing } from "lit";
 import rough from "roughjs";
 import { ApiError, api, type Doc, type Entity } from "../api";
 import { userColor } from "../collab";
+import { ScreenPictures } from "../wb-screen-pictures";
 import { uploadFile } from "../files";
 import { blockDef, boardKinds } from "../blocks";
 import { formatDate, locale, t } from "../i18n";
@@ -338,6 +339,8 @@ export class PhxWhiteboard extends LitElement {
   private menuFocus = false;
   private resize?: ResizeObserver;
   private readOnly = true;
+  /** Uploads pictures of HTML screens for server-side screenshots. */
+  private pictures?: ScreenPictures;
 
   // ---- lifecycle -------------------------------------------------------------
 
@@ -384,6 +387,8 @@ export class PhxWhiteboard extends LitElement {
   private start() {
     void this.live?.destroy();
     this.readOnly = !this.canEdit;
+    this.pictures?.stop();
+    this.pictures = this.canEdit ? new ScreenPictures(this.project, this.doc!.id) : undefined;
     this.tool = "select";
     this.board = normalizeBoard(this.doc!.content as Partial<Whiteboard>);
     this.synced = this.clone(this.board);
@@ -668,6 +673,7 @@ export class PhxWhiteboard extends LitElement {
     if (!this.still && this.els().some((e) => e.actions?.length)) layer.append(drawFlow(this.board, this.view.z, this.flows, this.selScreens()));
     this.previews.prune(new Set(this.els().filter((e) => e.ui).map((e) => e.id)));
     this.syncApps();
+    if (!this.readOnly && !this.still) this.pictures?.schedule(this.board);
     if (this.sel.length > 1) layer.append(this.drawMulti());
     const d = this.drag;
     if (d?.mode === "box") {

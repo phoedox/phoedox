@@ -38,6 +38,9 @@ type PNGOptions struct {
 	Max int
 	// Image loads a project file for image elements (nil: placeholders).
 	Image func(file string) (image.Image, error)
+	// Screen returns the browser-made picture of an HTML screen (false:
+	// none; the screen's text is shown instead).
+	Screen func(e core.WBElement, dark bool) (image.Image, bool)
 }
 
 // PNGInfo describes the picture.
@@ -439,8 +442,8 @@ func (p *wbPainter) draw(e core.WBElement) error {
 				b := img.Bounds()
 				s := math.Min(w/float64(b.Dx()), h/float64(b.Dy()))
 				iw, ih := float64(b.Dx())*s, float64(b.Dy())*s
-				// DrawImage takes the resolution in pixels per millimetre (board unit).
-				p.ctx.DrawImage(x+(w-iw)/2, y+(h-ih)/2+ih, img, canvas.DPMM(1/s))
+				// DrawImage takes the top left corner and the resolution in pixels per millimetre (board unit).
+				p.ctx.DrawImage(x+(w-iw)/2, y+(h-ih)/2, img, canvas.DPMM(1/s))
 				return nil
 			}
 		}
@@ -573,6 +576,16 @@ func (p *wbPainter) screen(e core.WBElement) {
 		title += " (" + e.Screen.Overlay + ")"
 	}
 	p.text(title, e.X+4, e.Y-22, e.W, 0, 12, p.th.get("muted"), canvas.Left, true, true)
+	if e.Screen.HTML != "" && p.opt.Screen != nil {
+		if img, ok := p.opt.Screen(e, p.opt.Dark); ok {
+			b := img.Bounds()
+			s := math.Min(e.W/float64(b.Dx()), e.H/float64(b.Dy()))
+			// DrawImage takes the top left corner and the resolution in pixels per millimetre (board unit).
+			p.ctx.DrawImage(e.X, e.Y, img, canvas.DPMM(1/s))
+			p.roundRect(e.X, e.Y, e.W, e.H, r, canvas.Transparent, p.th.get("line"), 1.5, nil)
+			return
+		}
+	}
 	if e.Screen.HTML != "" {
 		// HTML screens run in the browser only: their text, marked as such.
 		p.text("HTML screen – shown as text here; the browser draws it", e.X+16, e.Y+16, e.W-32, 0, 12, p.th.get("accent"), canvas.Left, true, true)

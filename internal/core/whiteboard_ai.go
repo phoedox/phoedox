@@ -749,13 +749,26 @@ func (s *Service) ReplyWhiteboardComment(ctx context.Context, a Actor, ref, docR
 	return s.UpdateDocument(ctx, a, p.Slug, doc.ID, DocumentPatch{Whiteboard: wb})
 }
 
+// BoardPicture is what a server-side picture of a board needs.
+type BoardPicture struct {
+	Board *Whiteboard
+	Title string
+	// Image loads a project file of an image element.
+	Image func(file string) (image.Image, error)
+	// Screen loads the browser-made picture of an HTML screen (false: none yet).
+	Screen func(e WBElement, dark bool) (image.Image, bool)
+	// Missing names HTML screens (in frame, or all) without a current picture.
+	Missing func(frame string, dark bool) []string
+	// Viewers: people with the board open now (they make missing pictures).
+	Viewers int
+}
+
 // WhiteboardForPicture returns a board for a server-side picture
-// (whiteboard_screenshot) with a loader for its images; both check that the
-// actor may read the board and its files.
-func (s *Service) WhiteboardForPicture(ctx context.Context, a Actor, ref, docRef string) (*Whiteboard, string, func(file string) (image.Image, error), error) {
-	_, doc, wb, err := s.whiteboardDoc(ctx, a, ref, docRef, store.RoleReader)
+// (whiteboard_screenshot) with loaders for its images and HTML screens.
+func (s *Service) WhiteboardForPicture(ctx context.Context, a Actor, ref, docRef string) (BoardPicture, error) {
+	p, doc, wb, err := s.whiteboardDoc(ctx, a, ref, docRef, store.RoleReader)
 	if err != nil {
-		return nil, "", nil, err
+		return BoardPicture{}, err
 	}
 	load := func(file string) (image.Image, error) {
 		fc, err := s.OpenFile(ctx, a, file, 0, false)
@@ -766,5 +779,12 @@ func (s *Service) WhiteboardForPicture(ctx context.Context, a Actor, ref, docRef
 		img, _, err := image.Decode(io.LimitReader(fc.Reader, 40<<20))
 		return img, err
 	}
-	return wb, doc.Title, load, nil
+	bp := BoardPicture{Board: wb, Title: doc.Title, Image: load, Screen: s.screenPictureLoader(ctx, p.ID, doc.ID),
+		Missing: func(frame string, dark bool) []string {
+			return s.missingScreenPictures(ctx, p.ID, doc.ID, wb, frame, dark)
+		}}
+	if s.LiveViewers != nil {
+		bp.Viewers = s.LiveViewers(doc.ID)
+	}
+	return bp, nil
 }

@@ -45,6 +45,7 @@ func main() {
 	hub := realtime.NewHub(a.DB)
 	a.Core.OnContentChange = hub.Reset
 	a.Core.OnDraftEnd = hub.End
+	a.Core.LiveViewers = hub.Editors
 	m := metrics.New(metrics.Sources{DB: a.DB.SQL, Version: server.Version, LiveEditors: hub.TotalEditors,
 		JobCounts: func(ctx context.Context) (map[string]int, error) { return a.DB.JobCounts(store.System(ctx)) }})
 	if a.Backups != nil {

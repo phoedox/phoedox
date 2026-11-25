@@ -101,8 +101,10 @@ flows and small tools; for a real program write an app (`create_app`).
   `data-toast="Saved"`, `data-link="https://…"`; show state with `data-show="var"` (or
   `!var`, `var=value`), `data-text="var"`, and `data-bind="var"` on inputs. Scripts in the
   HTML may call `phx.goto(name)`, `phx.set(name, value)` and `phx.state()`. The board shows
-  HTML screens as still pictures; `whiteboard_screenshot` shows only their text, so check
-  them by playing (ask people) or keep the layout simple and robust.
+  HTML screens as still pictures. `whiteboard_screenshot` shows them as the browser drew
+  them: the pictures are made while someone who may edit the board has it open (the tool
+  waits a few seconds for new or changed screens). Without such a picture the screen shows
+  only its text and the note names it – then ask people to open the board and look again.
 - **Text styles:** `{type: text, text, style: title|heading|subheading|body|caption|label}`
   sets size, weight and colour (caption and label are muted); texts are left-aligned.
 - **Check:** the result lists `warnings` (elements outside a screen or covering each
