@@ -573,6 +573,11 @@ func (p *wbPainter) screen(e core.WBElement) {
 		title += " (" + e.Screen.Overlay + ")"
 	}
 	p.text(title, e.X+4, e.Y-22, e.W, 0, 12, p.th.get("muted"), canvas.Left, true, true)
+	if e.Screen.HTML != "" {
+		// HTML screens run in the browser only: their text, marked as such.
+		p.text("HTML screen – shown as text here; the browser draws it", e.X+16, e.Y+16, e.W-32, 0, 12, p.th.get("accent"), canvas.Left, true, true)
+		p.text(core.ScreenHTMLText(e.Screen.HTML, 1200), e.X+16, e.Y+40, e.W-32, e.H-56, 14, p.th.get("fg"), canvas.Left, true, false)
+	}
 }
 
 // component: a prototype component in its box, readable rather than exact.

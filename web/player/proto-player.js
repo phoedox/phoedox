@@ -134,6 +134,8 @@ textarea.field { padding: 10px 12px; resize: none; }
 .ts-subheading { font-weight: 600; } .ts-body { line-height: 1.45; }
 .ts-caption { color: var(--pm) !important; line-height: 1.35; }
 .ts-label { color: var(--pm) !important; font-weight: 600; letter-spacing: 0.02em; }
+.html-screen { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: var(--ps); }
+.shield { position: absolute; inset: 0; display: none; } .commenting .shield { display: block; }
 .layer.scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 /* sketch look: a wireframe */
 .sketch { --pa: var(--pf); --pas: var(--ps2); font-family: var(--font-hand, "Comic Sans MS", "Segoe Print", "Bradley Hand", cursive); }
@@ -614,6 +616,58 @@ textarea.field { padding: 10px 12px; resize: none; }
     return { drawEl, fmt, fmtVal, truthy, holds, setVar, parseFor };
   }
 
+
+  // ---- HTML screens ------------------------------------------------------------
+  // A screen can be free HTML/CSS. It runs in a sandboxed frame (opaque
+  // origin: no access to Phoedox, its cookies or storage) without network
+  // (CSP), with the app's theme variables; a small bridge turns data-goto,
+  // data-overlay, data-back, data-close, data-set, data-toggle, data-inc,
+  // data-toast, data-link clicks into prototype actions and shows variables
+  // in data-show, data-text and data-bind.
+  const THEME_VARS = ["bg", "surface", "surface2", "fg", "muted", "line", "accent", "accent-soft", "on-color", "good", "bad", "warn",
+    "font-body", "font-display", "font-mono", ...Object.keys(PAL).flatMap((c) => [`tc-${c}`, `tb-${c}`])];
+  const BRIDGE = `(function(){var P=function(m){m.phxScreen=1;parent.postMessage(m,"*")};var S={};
+function truthy(v){return Array.isArray(v)?v.length>0:!!v&&v!=="false"&&v!=="0"}
+function holds(c){if(!c)return true;var n=c.charAt(0)==="!";if(n)c=c.slice(1);var i=c.indexOf("=");var r=i<0?truthy(S[c]):String(S[c.slice(0,i)]==null?"":S[c.slice(0,i)])===c.slice(i+1);return n?!r:r}
+function apply(){var q=function(s,f){Array.prototype.forEach.call(document.querySelectorAll(s),f)};
+q("[data-show]",function(el){el.hidden=!holds(el.getAttribute("data-show"))});
+q("[data-text]",function(el){var v=S[el.getAttribute("data-text")];el.textContent=Array.isArray(v)?v.join(", "):(v==null?"":String(v))});
+q("[data-bind]",function(el){if(document.activeElement===el)return;var v=S[el.getAttribute("data-bind")];if(el.type==="checkbox"||el.type==="radio")el.checked=el.type==="radio"?String(v)===el.value:truthy(v);else el.value=v==null?"":String(v)})}
+var SEL="[data-goto],[data-overlay],[data-back],[data-close],[data-link],[data-set],[data-toggle],[data-inc],[data-add],[data-toast]";
+document.addEventListener("click",function(e){var el=e.target&&e.target.closest&&e.target.closest(SEL);if(!el)return;e.preventDefault();var d=el.dataset;
+if("set" in d){var i=d.set.indexOf("=");P({do:"set",target:i<0?d.set:d.set.slice(0,i),value:i<0?"true":d.set.slice(i+1)})}
+if("toggle" in d)P({do:"toggle",target:d.toggle});if("inc" in d)P({do:"inc",target:d.inc,value:d.by||""});
+if("add" in d){var i2=d.add.indexOf("=");P({do:"add",target:i2<0?d.add:d.add.slice(0,i2),value:i2<0?"":d.add.slice(i2+1)})}
+if("toast" in d)P({do:"toast",value:d.toast});if("link" in d)P({do:"link",value:d.link});
+if("goto" in d)P({do:"goto",target:d.goto,anim:d.anim||"slide"});else if("overlay" in d)P({do:"overlay",target:d.overlay});else if("back" in d)P({do:"back"});else if("close" in d)P({do:"close"})},true);
+var bind=function(e){var el=e.target;if(!el||!el.dataset||!el.dataset.bind)return;P({do:"set",target:el.dataset.bind,value:el.type==="checkbox"?String(el.checked):el.value})};
+document.addEventListener("input",bind,true);document.addEventListener("change",bind,true);
+addEventListener("message",function(e){if(e.source!==parent||!e.data||!e.data.phxState)return;S=e.data.phxState;apply()});
+window.phx={goto:function(s,a){P({do:"goto",target:s,anim:a})},overlay:function(s){P({do:"overlay",target:s})},back:function(){P({do:"back"})},close:function(){P({do:"close"})},
+set:function(n,v){P({do:"set",target:n,value:v})},toast:function(t){P({do:"toast",value:t})},state:function(){return S}};
+P({ready:1});apply()})();`;
+
+  /** The page of an HTML screen: the theme, fonts of the instance (when there is one) and the bridge. */
+  function htmlScreenDoc(markup, host) {
+    const cs = host && typeof getComputedStyle === "function" ? getComputedStyle(host) : null;
+    const vars = cs ? THEME_VARS.map((v) => { const x = cs.getPropertyValue(`--${v}`).trim(); return x ? `--${v}:${x};` : ""; }).join("") : "";
+    const origin = typeof location !== "undefined" && /^https?:$/.test(location.protocol) ? location.origin : "";
+    const font = (w, f) => `@font-face{font-family:"IBM Plex Sans";src:url(${origin}/fonts/ibm-plex-sans-latin-${f}-normal.woff2) format("woff2");font-weight:${w};font-display:swap}`;
+    const fonts = origin ? font("400", "400") + font("500 600", "600") + font("700 900", "700") : "";
+    const csp = `default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: blob:; font-src data:${origin ? ` ${origin}/fonts/` : ""}`;
+    const head = `<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+      `<style>${fonts}:root{${vars}color-scheme:light dark}html,body{margin:0}body{font-family:var(--font-body,system-ui,sans-serif);color:var(--fg,#1f1b17);background:var(--surface,#fff);font-size:15px;line-height:1.45}` +
+      `[data-goto],[data-overlay],[data-back],[data-close],[data-link],[data-set],[data-toggle],[data-inc],[data-add],[data-toast]{cursor:pointer}[hidden]{display:none!important}</style>`;
+    const bridge = `<script>${BRIDGE}<\/script>`;
+    const src = String(markup || "");
+    if (/<html[\s>]/i.test(src)) {
+      let out = /<head[^>]*>/i.test(src) ? src.replace(/<head[^>]*>/i, (m) => m + head) : src.replace(/<html[^>]*>/i, (m) => m + "<head>" + head + "</head>");
+      out = /<\/body>/i.test(out) ? out.replace(/<\/body>/i, bridge + "</body>") : out + bridge;
+      return out;
+    }
+    return `<!doctype html><html><head>${head}</head><body>${src}${bridge}</body></html>`;
+  }
+
   // ---- the player ------------------------------------------------------------
 
   function mount(root, model, hooks) {
@@ -733,6 +787,15 @@ textarea.field { padding: 10px 12px; resize: none; }
       const ups = [];
       const timers = [];
       const sx = num(s.x), sy = num(s.y);
+      if (s.screen?.html) {
+        const fr = h("iframe", "html-screen");
+        fr.setAttribute("sandbox", "allow-scripts allow-forms");
+        fr.setAttribute("title", s.text || "");
+        fr.srcdoc = htmlScreenDoc(s.screen.html, root);
+        node.append(fr, h("div", "shield"));
+        htmlFrames.set(fr, s.id);
+        ups.push(() => fr.contentWindow?.postMessage({ phxState: JSON.parse(JSON.stringify(state)) }, "*"));
+      }
       const pinned = [];
       for (const e of info.on.get(s.id) || []) {
         const n = R.drawEl(e, sx, sy, ups);
@@ -754,8 +817,28 @@ textarea.field { padding: 10px 12px; resize: none; }
         run(s.actions, "open");
         for (const a of s.actions || []) if (a.on === "delay") timers.push(setTimeout(() => act(a), Math.max(0, num(a.delay, 1000))));
       };
-      return { id: s.id, screen: s, node, refresh, start, cleanup: () => timers.forEach(clearTimeout) };
+      return { id: s.id, screen: s, node, refresh, start, cleanup: () => { timers.forEach(clearTimeout); for (const fr of node.querySelectorAll("iframe.html-screen")) htmlFrames.delete(fr); } };
     }
+
+    // -- HTML screens talk through messages --
+    const htmlFrames = new Map();
+    const screenRef = (ref) => {
+      const r = String(ref ?? "").trim().toLowerCase();
+      return (info.screens.find((x) => x.id.toLowerCase() === r) || info.screens.find((x) => String(x.text || "").trim().toLowerCase() === r))?.id;
+    };
+    const onFrameMessage = (ev) => {
+      const d = ev.data;
+      if (!d || d.phxScreen !== 1) return;
+      let from = null;
+      for (const fr of htmlFrames.keys()) if (fr.contentWindow === ev.source) from = fr;
+      if (!from) return;
+      if (d.ready) { from.contentWindow.postMessage({ phxState: JSON.parse(JSON.stringify(state)) }, "*"); return; }
+      if (commenting) return;
+      const a = { do: String(d.do || ""), target: d.target == null ? undefined : String(d.target), value: d.value == null ? undefined : String(d.value), anim: d.anim ? String(d.anim) : undefined };
+      if (a.do === "goto" || a.do === "overlay") { a.target = screenRef(a.target); if (!a.target) return; }
+      if (["goto", "back", "overlay", "close", "set", "toggle", "inc", "add", "link", "toast"].includes(a.do)) act(a);
+    };
+    if (typeof window !== "undefined") window.addEventListener("message", onFrameMessage);
 
     // -- navigation --
     function fit() {
@@ -1010,6 +1093,7 @@ textarea.field { padding: 10px 12px; resize: none; }
       escape,
       screen: () => base && base.id,
       destroy() {
+        if (typeof window !== "undefined") window.removeEventListener("message", onFrameMessage);
         ro?.disconnect();
         clearTimeout(hintTimer);
         base?.cleanup();

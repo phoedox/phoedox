@@ -24,14 +24,17 @@ type ScreensInput struct {
 
 // ScreenInput is one screen.
 type ScreenInput struct {
-	Name    string          `json:"name"`
-	Start   bool            `json:"start,omitempty"`
-	Overlay string          `json:"overlay,omitempty"` // "" | modal | sheet
-	W       float64         `json:"w,omitempty"`
-	H       float64         `json:"h,omitempty"`
-	Fill    string          `json:"fill,omitempty"`
-	Actions []WBAction      `json:"actions,omitempty"` // on open / delay; targets by screen name
-	Items   []ScreenElement `json:"elements"`
+	Name    string     `json:"name"`
+	Start   bool       `json:"start,omitempty"`
+	Overlay string     `json:"overlay,omitempty"` // "" | modal | sheet
+	W       float64    `json:"w,omitempty"`
+	H       float64    `json:"h,omitempty"`
+	Fill    string     `json:"fill,omitempty"`
+	Actions []WBAction `json:"actions,omitempty"` // on open / delay; targets by screen name
+	// HTML makes the screen free HTML/CSS (like an artifact); elements are
+	// drawn on top of it.
+	HTML  string          `json:"html,omitempty"`
+	Items []ScreenElement `json:"elements,omitempty"`
 }
 
 // ScreenBase is a component (comp), a plain element (type: text, rect,
@@ -220,7 +223,7 @@ func (s *Service) DrawScreens(ctx context.Context, a Actor, ref, docRef, title, 
 	x := right
 	for _, sc := range in.Screens {
 		sc.Name = strings.TrimSpace(sc.Name)
-		if sc.Name == "" || len(sc.Items) > 200 {
+		if sc.Name == "" || len(sc.Items) > 200 || len(sc.HTML) > MaxScreenHTML {
 			return ScreensResult{}, badProto("screen " + sc.Name)
 		}
 		w, h := deviceSize[in.Device][0], deviceSize[in.Device][1]
@@ -246,7 +249,7 @@ func (s *Service) DrawScreens(ctx context.Context, a Actor, ref, docRef, title, 
 				navH = math.Max(navH, it.h)
 			}
 		}
-		if sc.H == 0 && sc.Overlay == "" && bottom+24+navH > h {
+		if sc.H == 0 && sc.Overlay == "" && sc.HTML == "" && bottom+24+navH > h {
 			view, h = h, math.Min(6000, math.Ceil(bottom+24+navH))
 		}
 		for i := range items {
@@ -254,7 +257,9 @@ func (s *Service) DrawScreens(ctx context.Context, a Actor, ref, docRef, title, 
 				items[i].y = h - items[i].h
 			}
 		}
-		warnings = append(warnings, layoutWarnings(sc.Name, items, w, h)...)
+		if sc.HTML == "" {
+			warnings = append(warnings, layoutWarnings(sc.Name, items, w, h)...)
+		}
 		var f WBElement
 		if old, ok := existing[strings.ToLower(sc.Name)]; ok {
 			// Redraw in place: drop what was on the screen.
@@ -268,7 +273,7 @@ func (s *Service) DrawScreens(ctx context.Context, a Actor, ref, docRef, title, 
 			} // overlays go under the screen that opens them (below)
 		}
 		f.Text, f.Fill, f.Order = sc.Name, sc.Fill, order()
-		f.Screen = &WBScreen{Proto: protoID, Device: in.Device, Overlay: sc.Overlay, View: view}
+		f.Screen = &WBScreen{Proto: protoID, Device: in.Device, Overlay: sc.Overlay, View: view, HTML: strings.TrimSpace(sc.HTML)}
 		if sc.W > 0 || sc.H > 0 {
 			f.Screen.Device = "custom"
 		}

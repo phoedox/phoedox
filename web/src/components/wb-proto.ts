@@ -13,6 +13,7 @@ import {
   boxOf, flowRoute, type Act, type Comp, type Device, type Trigger, type WBAction, type WBComment, type WBData, type WBElement, type WBPrototype, type WBVar, type Whiteboard,
 } from "../whiteboard";
 import { toast } from "./toasts";
+import { htmlScreenImage } from "../wb-html";
 
 interface PlayerController { update(model: PlayerModel): void; restart(): void; escape(): boolean; destroy(): void }
 interface PlayerModel { board: Whiteboard; proto: string; data: Record<string, unknown[]>; lang?: string; strings?: Record<string, string> }
@@ -127,6 +128,17 @@ export function drawScreen(e: WBElement, board: Whiteboard, g: SVGGElement) {
   r.style.cssText = `fill:${e.fill ? `var(--tb-${e.fill})` : "var(--surface)"};stroke:var(--line);stroke-width:1.5;filter:drop-shadow(0 6px 16px rgb(0 0 0 / .12))`;
   if (e.screen?.overlay) r.style.strokeDasharray = "8 6";
   g.append(r);
+  if (e.screen?.html && w > 0 && h > 0) {
+    // An HTML screen: its design as a still picture (it runs only when played).
+    const img = document.createElementNS(NS, "image");
+    for (const [k, v] of Object.entries({ x, y, width: w, height: h, preserveAspectRatio: "xMinYMin slice" })) img.setAttribute(k, String(v));
+    const p0 = protoById(board, e.screen.proto);
+    const start = Object.fromEntries((p0?.vars ?? []).map((v) => [v.name, v.value]));
+    img.setAttribute("href", htmlScreenImage(e.screen.html, w, h, start));
+    img.style.clipPath = `inset(0 round ${rx}px)`;
+    img.style.pointerEvents = "none";
+    g.append(img);
+  }
   const p = protoById(board, e.screen?.proto);
   const start = p && (p.start === e.id || (!p.start && screensOf(board, p.id).filter((s) => !s.screen?.overlay)[0]?.id === e.id));
   const label = document.createElementNS(NS, "text");

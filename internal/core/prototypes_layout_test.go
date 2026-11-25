@@ -93,3 +93,35 @@ func TestDrawScreensGrowsAndStyles(t *testing.T) {
 		t.Fatalf("warnings: %v", res.Warnings)
 	}
 }
+
+func TestDrawScreensHTML(t *testing.T) {
+	ctx := context.Background()
+	s, owner, _, _ := setup(t)
+	p, _ := s.CreateProject(ctx, owner, ProjectInput{Name: "Concept"})
+	page := `<style>h1{color:var(--accent)}</style><h1>Queue &amp; library</h1><script>phx.state()</script><button data-goto="Login">Sign in</button>`
+	res, err := s.DrawScreens(ctx, owner, p.Slug, "", "", "", ScreensInput{Prototype: "App", Device: "desktop", Screens: []ScreenInput{
+		{Name: "Home", HTML: page}, {Name: "Login", HTML: "<p>Login</p>"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wb, _ := WhiteboardOf(*res.Document)
+	var home WBElement
+	for _, e := range wb.Elements {
+		if e.Screen != nil && e.Text == "Home" {
+			home = e
+		}
+	}
+	if home.Screen == nil || home.Screen.HTML != page || home.W != 1440 || home.H != 900 {
+		t.Fatalf("html screen: %+v", home)
+	}
+	if _, text, err := whiteboardContent(wb); err != nil || !strings.Contains(text, "Queue & library Sign in") {
+		t.Fatalf("search text: %v %q", err, text)
+	}
+	if got := ScreenHTMLText(page, 100); got != "Queue & library Sign in" {
+		t.Fatalf("text: %q", got)
+	}
+	// Too much HTML is refused.
+	if _, err := s.DrawScreens(ctx, owner, p.Slug, "", "", "", ScreensInput{Prototype: "Big", Screens: []ScreenInput{{Name: "A", HTML: strings.Repeat("x", MaxScreenHTML+1)}}}); err == nil {
+		t.Fatal("oversized html accepted")
+	}
+}

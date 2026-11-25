@@ -335,6 +335,9 @@ func whiteboardContent(wb *Whiteboard) (store.JSON, string, error) {
 		if e.UI != nil {
 			text = append(text, e.UI.Placeholder, strings.Join(e.UI.Options, " "))
 		}
+		if e.Screen != nil && e.Screen.HTML != "" {
+			text = append(text, htmlText(e.Screen.HTML))
+		}
 		if e.Entity != "" {
 			text = append(text, "@"+e.Entity)
 		}

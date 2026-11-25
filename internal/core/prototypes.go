@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/phoedox/phoedox/internal/store"
 	"github.com/phoedox/phoedox/web"
@@ -66,6 +67,34 @@ type WBScreen struct {
 	// View: the visible height when the screen is taller than its device;
 	// the player scrolls the screen.
 	View float64 `json:"view,omitempty"`
+	// HTML: the screen is free HTML/CSS (like an artifact), played in a
+	// sandboxed frame without network; data-goto, data-overlay, data-back,
+	// data-close, data-set … attributes drive the prototype (see the skill).
+	HTML string `json:"html,omitempty"`
+}
+
+// MaxScreenHTML is the most HTML one screen may hold.
+const MaxScreenHTML = 200_000
+
+var (
+	screenTagRe   = regexp.MustCompile(`(?s)<(script|style)\b.*?</(script|style)>|<[^>]*>`)
+	screenSpaceRe = regexp.MustCompile(`\s+`)
+)
+
+// ScreenHTMLText is the visible text of a screen's HTML, cut at max runes.
+func ScreenHTMLText(h string, max int) string {
+	t := []rune(htmlText(h))
+	if len(t) > max {
+		return string(t[:max]) + "…"
+	}
+	return string(t)
+}
+
+// htmlText is the visible text of a screen's HTML (for search).
+func htmlText(h string) string {
+	t := screenTagRe.ReplaceAllString(h, " ")
+	t = html.UnescapeString(t)
+	return strings.TrimSpace(screenSpaceRe.ReplaceAllString(t, " "))
 }
 
 // WBUI describes a component. Its label is the element's text.
@@ -145,6 +174,9 @@ func checkPrototypeElement(wb *Whiteboard, e *WBElement, ids map[string]bool) er
 		case "", "modal", "sheet":
 		default:
 			return bad("overlay")
+		}
+		if len(e.Screen.HTML) > MaxScreenHTML || !utf8.ValidString(e.Screen.HTML) {
+			return bad("screen html")
 		}
 		if e.Screen.View < 0 || e.Screen.View > 6000 || math.IsNaN(e.Screen.View) || (e.Screen.View > 0 && e.Screen.View >= e.H) {
 			e.Screen.View = 0

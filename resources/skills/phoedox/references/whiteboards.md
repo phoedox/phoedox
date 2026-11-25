@@ -88,6 +88,21 @@ flows and small tools; for a real program write an app (`create_app`).
   surface behind the items with 16 px padding. Containers nest up to four levels (e.g. a
   grid of cards, each a column with a row inside). Long screens grow and scroll when played
   (the navigation bar stays at the bottom). `x`/`y` only for things that must float.
+- **Kit or HTML:** the component kit stays editable by hand on the board – use it for
+  wireframes and flows. When people want it to look like the real product (a concept, a
+  pitch, "make it look finished"), give a screen `html` instead: free HTML and CSS like an
+  artifact, at most 200 KB, drawn at the screen's size (`w`/`h`, or the device's). It runs
+  sandboxed without network: no external scripts, fonts or images (use inline SVG, data:
+  URLs and CSS); the app's theme is there as CSS variables (`--accent`, `--fg`, `--muted`,
+  `--surface`, `--surface2`, `--line`, `--bg`, `--font-body`, palette `--tb-green` …), so
+  use them and the screen follows light and dark. Make the flow work with attributes on
+  clickable elements: `data-goto="Screen name"` (`data-anim` slide|fade), `data-overlay`,
+  `data-back`, `data-close`, `data-set="var=value"`, `data-toggle="var"`, `data-inc="var"`,
+  `data-toast="Saved"`, `data-link="https://…"`; show state with `data-show="var"` (or
+  `!var`, `var=value`), `data-text="var"`, and `data-bind="var"` on inputs. Scripts in the
+  HTML may call `phx.goto(name)`, `phx.set(name, value)` and `phx.state()`. The board shows
+  HTML screens as still pictures; `whiteboard_screenshot` shows only their text, so check
+  them by playing (ask people) or keep the layout simple and robust.
 - **Text styles:** `{type: text, text, style: title|heading|subheading|body|caption|label}`
   sets size, weight and colour (caption and label are muted); texts are left-aligned.
 - **Check:** the result lists `warnings` (elements outside a screen or covering each
@@ -129,6 +144,12 @@ flows and small tools; for a real program write an app (`create_app`).
   {"name": "Paid", "overlay": "sheet", "elements": [
     {"type": "text", "text": "Thank you!", "style": "heading"},
     {"comp": "button", "text": "Close", "actions": [{"on": "click", "do": "close"}]}]}]}
+```
+
+HTML screen (inside `screens`):
+
+```json
+{"name": "Dashboard", "start": true, "html": "<style>main{padding:24px;display:grid;gap:16px}.card{background:var(--surface2);border:1px solid var(--line);border-radius:14px;padding:16px}button{background:var(--accent);color:var(--on-color);border:0;border-radius:10px;padding:10px 16px;font:inherit;font-weight:600}</style><main><h1>Queue</h1><div class=\"card\"><b>Mathematik heute 7</b><p style=\"color:var(--muted)\">212 / 318 pages</p></div><button data-goto=\"Login\">Sign in</button></main>"}
 ```
 
 ## Other tools

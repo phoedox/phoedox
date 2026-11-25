@@ -57,6 +57,8 @@ export interface WBScreen {
   proto: string; device?: Device; overlay?: "" | "modal" | "sheet";
   /** The visible height when the screen is taller than its device (it scrolls when played). */
   view?: number;
+  /** Free HTML/CSS (like an artifact): played in a sandboxed frame, a still picture on the board. */
+  html?: string;
 }
 
 export type TextStyle = "title" | "heading" | "subheading" | "body" | "caption" | "label";

@@ -178,6 +178,11 @@ func spa(web fs.FS) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
 		p := r.URL.Path
+		if strings.HasPrefix(p, "/fonts/") {
+			// Fonts are public; sandboxed frames (HTML prototype screens, apps) load them.
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Cross-Origin-Resource-Policy", "cross-origin")
+		}
 		if p != "/" {
 			if _, err := fs.Stat(web, p[1:]); err != nil {
 				r.URL.Path = "/"
