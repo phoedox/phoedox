@@ -5760,4 +5760,5 @@ export const de = {
   "form.collapse": "Zuklappen",
   "form.n_items": "{n} Einträge",
   "mmd.f.color": "Farbe",
+  "validation.screen_picture": "Ein Bildschirmbild ist ein PNG bis 4 MB, für das helle oder dunkle Design.",
 } as const;

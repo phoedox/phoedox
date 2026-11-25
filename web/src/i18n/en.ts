@@ -5762,4 +5762,5 @@ export const en: Record<keyof typeof de, string> = {
   "form.collapse": "Collapse",
   "form.n_items": "{n} items",
   "mmd.f.color": "Colour",
+  "validation.screen_picture": "A screen picture is a PNG up to 4 MB, for the light or dark theme.",
 };
