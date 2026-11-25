@@ -35,6 +35,8 @@ export interface WBElement {
   order?: string; points?: Pt[]; text?: string;
   stroke?: WBColor; fill?: WBColor; width?: number; dash?: "" | "dashed" | "dotted"; smooth?: boolean; opacity?: number;
   fontSize?: number; align?: "left" | "center" | "right";
+  /** Texts on prototype screens: title, heading, subheading, body, caption, label. */
+  textStyle?: TextStyle;
   round?: boolean; start?: Binding; end?: Binding;
   frame?: string; groups?: string[]; locked?: boolean; seed?: number;
   entity?: string; doc?: string; file?: string;
@@ -51,7 +53,29 @@ export interface WBElement {
 // ---- prototypes ---------------------------------------------------------------
 
 export type Device = "phone" | "tablet" | "desktop" | "custom";
-export interface WBScreen { proto: string; device?: Device; overlay?: "" | "modal" | "sheet" }
+export interface WBScreen {
+  proto: string; device?: Device; overlay?: "" | "modal" | "sheet";
+  /** The visible height when the screen is taller than its device (it scrolls when played). */
+  view?: number;
+}
+
+export type TextStyle = "title" | "heading" | "subheading" | "body" | "caption" | "label";
+
+/** How a text on a screen of a clean (not sketch) prototype looks on the board: the app's fonts and the text style. */
+export function screenTextLook(e: WBElement, board: Whiteboard): { font: string; weight: number; color?: string } | undefined {
+  if (!e.frame) return undefined;
+  const f = board.elements.find((x) => x.id === e.frame);
+  if (!f?.screen) return undefined;
+  const p = board.prototypes?.find((x) => x.id === f.screen!.proto);
+  if (p?.look === "sketch") return undefined;
+  const st = e.textStyle;
+  const display = st === "title" || st === "heading";
+  return {
+    font: display ? "var(--font-display, var(--font-body))" : "var(--font-body)",
+    weight: display ? 700 : st === "subheading" || st === "label" ? 600 : 400,
+    color: st === "caption" || st === "label" ? "var(--muted)" : e.stroke ? undefined : "var(--fg)",
+  };
+}
 export type Comp = "button" | "link" | "input" | "textarea" | "checkbox" | "switch" | "radio" | "select" | "slider" | "tabs" | "navbar" | "list" | "card" | "table" | "toast" | "icon" | "chart" | "avatar" | "badge" | "progress";
 export interface WBUI {
   comp: Comp; variant?: string; placeholder?: string; value?: string; options?: string[]; icon?: string;

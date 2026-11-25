@@ -17,7 +17,7 @@ import { findKind, groupColor, kindName, loadModel, type Model } from "../model"
 import { currentUser, navigate } from "../state";
 import {
   BOXY, asBlock, LINEAR, PALETTE, isCustomColor, swatchCols, type WBColor, TEXTUAL, alignTo, backKey, bbox, bindTarget, bindingAt, boxOf, codeLabel, embedKind, extent, frontKey, hitTest, inFrame, linePts,
-  newId, normalizeBoard, playerURL, removeElement, sorted, wrapText, type Binding, type Color, type ElementType, type Preview, type Pt, type WBComment, type WBElement, type Whiteboard,
+  newId, normalizeBoard, playerURL, removeElement, screenTextLook, sorted, wrapText, type Binding, type Color, type ElementType, type Preview, type Pt, type WBComment, type WBElement, type Whiteboard,
   alignEls, cloneEls, fromExcalidraw, slides, templateEls, toExcalidraw, TEMPLATES, type Template, type Box, distributeEls, groupOf, inBox, shiftEl, snapBox, CLIP_PREFIX, type AlignHow,
 } from "../whiteboard";
 import { connectBoard, type Live, type Peer, type Status } from "../whiteboard-live";
@@ -704,12 +704,12 @@ export class PhxWhiteboard extends LitElement {
     return g;
   }
 
-  private textBlock(g: Element, text: string | undefined, cx: number, cy: number, maxW: number, o: { size?: number; color?: string; anchor?: string; top?: boolean; font?: string } = {}) {
+  private textBlock(g: Element, text: string | undefined, cx: number, cy: number, maxW: number, o: { size?: number; color?: string; anchor?: string; top?: boolean; font?: string; weight?: number } = {}) {
     if (!text) return;
-    const size = o.size ?? 20, lines = wrapText(text, maxW, size), lh = size * 1.15;
+    const size = o.size ?? 20, lines = wrapText(text, maxW, size), lh = size * (o.font ? 1.3 : 1.15);
     const y0 = o.top ? cy : cy - ((lines.length - 1) * lh) / 2;
     const tx = mk("text", { x: cx, y: y0, "text-anchor": o.anchor ?? "middle", "dominant-baseline": o.top ? "hanging" : "central" }, g);
-    tx.style.font = `${size}px/1.15 ${o.font ?? HAND}`;
+    tx.style.font = `${o.weight ?? 400} ${size}px/1.15 ${o.font ?? HAND}`;
     tx.style.fill = o.color ?? "var(--fg)";
     lines.forEach((l, i) => {
       const s = mk("tspan", { x: cx, dy: i ? lh : 0 }, tx);
@@ -761,7 +761,9 @@ export class PhxWhiteboard extends LitElement {
       case "text": {
         const anchor = e.align === "center" ? "middle" : e.align === "right" ? "end" : "start";
         const ax = e.align === "center" ? x + w / 2 : e.align === "right" ? x + w : x;
-        this.textBlock(g, e.text, ax, y, Math.max(w, 60), { anchor, top: true, size: e.fontSize || 24, color: tc(e.stroke) });
+        // Texts on a screen of a clean prototype use the app's fonts and text styles.
+        const look = screenTextLook(e, this.board);
+        this.textBlock(g, e.text, ax, y, Math.max(w, 60), { anchor, top: true, size: e.fontSize || 24, color: look?.color ?? tc(e.stroke), font: look?.font, weight: look?.weight });
         break;
       }
       case "entity": this.drawEntity(rc, e, g); break;

@@ -34,10 +34,11 @@ type ScreenInput struct {
 	Items   []ScreenElement `json:"elements"`
 }
 
-// ScreenElement is a component (comp) or a plain element (type: text,
-// rect, ellipse, sticky, line) on a screen. Without a position, elements
-// stack from the top; navigation bars go to the bottom.
-type ScreenElement struct {
+// ScreenBase is a component (comp), a plain element (type: text, rect,
+// ellipse, sticky, line) or a layout container (layout: column, row, grid)
+// on a screen. Without a position, elements stack from the top; navigation
+// bars go to the bottom. Containers lay out their items (see layoutScreen).
+type ScreenBase struct {
 	Comp     string     `json:"comp,omitempty"`
 	Type     string     `json:"type,omitempty"`
 	Text     string     `json:"text,omitempty"`
@@ -50,7 +51,42 @@ type ScreenElement struct {
 	Stroke   string     `json:"stroke,omitempty"`
 	Fill     string     `json:"fill,omitempty"`
 	Actions  []WBAction `json:"actions,omitempty"`
+	// Style of a text: title, heading, subheading, body, caption, label;
+	// of a container: card (a framed surface).
+	Style string `json:"style,omitempty"`
+	// Layout makes this a container: column (stacked), row (side by side)
+	// or grid (cols columns). Gap and Pad in px; Flex is the share of a
+	// row's free width (default 1, items with w keep their width).
+	Layout string  `json:"layout,omitempty"`
+	Gap    float64 `json:"gap,omitempty"`
+	Pad    float64 `json:"pad,omitempty"`
+	Cols   int     `json:"cols,omitempty"`
+	Flex   float64 `json:"flex,omitempty"`
 	WBUI
+}
+
+// ScreenElement is an element of a screen; containers nest up to four
+// levels (ScreenElement → ScreenChild → ScreenGrandchild → ScreenLeaf).
+type ScreenElement struct {
+	ScreenBase
+	Items []ScreenChild `json:"items,omitempty"`
+}
+
+// ScreenChild is an item of a container.
+type ScreenChild struct {
+	ScreenBase
+	Items []ScreenGrandchild `json:"items,omitempty"`
+}
+
+// ScreenGrandchild is an item of a nested container.
+type ScreenGrandchild struct {
+	ScreenBase
+	Items []ScreenLeaf `json:"items,omitempty"`
+}
+
+// ScreenLeaf is an item of the innermost container (no further items).
+type ScreenLeaf struct {
+	ScreenBase
 }
 
 // ScreensResult tells where the screens are.
@@ -58,6 +94,9 @@ type ScreensResult struct {
 	DocResult
 	Prototype string            `json:"prototype"`
 	Screens   map[string]string `json:"screens"` // name → frame id
+	// Warnings: elements outside a screen or covering each other; check
+	// the result with whiteboard_screenshot.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 var deviceSize = map[string][2]float64{"phone": {390, 844}, "tablet": {820, 1180}, "desktop": {1440, 900}}
@@ -174,7 +213,9 @@ func (s *Service) DrawScreens(ctx context.Context, a Actor, ref, docRef, title, 
 	type placed struct {
 		in    ScreenInput
 		frame WBElement
+		items []laidOut
 	}
+	var warnings []string
 	var todo []placed
 	x := right
 	for _, sc := range in.Screens {
@@ -195,6 +236,25 @@ func (s *Service) DrawScreens(ctx context.Context, a Actor, ref, docRef, title, 
 		if sc.H > 0 {
 			h = math.Min(sc.H, 6000)
 		}
+		items, bottom := screenLayout(sc.Items, w)
+		// Long content: the screen grows and scrolls when played (view: the
+		// visible height of the device).
+		view := 0.0
+		navH := 0.0
+		for _, it := range items {
+			if it.Comp == "navbar" && it.Y == nil && it.x == 0 && it.w == w {
+				navH = math.Max(navH, it.h)
+			}
+		}
+		if sc.H == 0 && sc.Overlay == "" && bottom+24+navH > h {
+			view, h = h, math.Min(6000, math.Ceil(bottom+24+navH))
+		}
+		for i := range items {
+			if items[i].Comp == "navbar" && items[i].Y == nil && items[i].x == 0 && items[i].w == w {
+				items[i].y = h - items[i].h
+			}
+		}
+		warnings = append(warnings, layoutWarnings(sc.Name, items, w, h)...)
 		var f WBElement
 		if old, ok := existing[strings.ToLower(sc.Name)]; ok {
 			// Redraw in place: drop what was on the screen.
@@ -208,13 +268,13 @@ func (s *Service) DrawScreens(ctx context.Context, a Actor, ref, docRef, title, 
 			} // overlays go under the screen that opens them (below)
 		}
 		f.Text, f.Fill, f.Order = sc.Name, sc.Fill, order()
-		f.Screen = &WBScreen{Proto: protoID, Device: in.Device, Overlay: sc.Overlay}
+		f.Screen = &WBScreen{Proto: protoID, Device: in.Device, Overlay: sc.Overlay, View: view}
 		if sc.W > 0 || sc.H > 0 {
 			f.Screen.Device = "custom"
 		}
 		wb.Elements = append(wb.Elements, f)
 		screens[sc.Name] = f.ID
-		todo = append(todo, placed{in: sc, frame: f})
+		todo = append(todo, placed{in: sc, frame: f, items: items})
 		if sc.Start {
 			pr.Start = f.ID
 		}
@@ -273,17 +333,17 @@ func (s *Service) DrawScreens(ctx context.Context, a Actor, ref, docRef, title, 
 	for _, t := range todo {
 		f := t.frame
 		fid := f.ID
-		cy := 24.0
 		var add []WBElement
-		for i, it := range t.in.Items {
+		for i, it := range t.items {
 			e := WBElement{ID: freeID(&Whiteboard{Elements: append(slices.Clone(wb.Elements), add...)}, fmt.Sprintf("%s-%d", fid, i+1)), Frame: fid,
 				Text: it.Text, FontSize: it.FontSize, Align: it.Align, Stroke: it.Stroke, Fill: it.Fill, Actions: target(it.Actions)}
-			if it.Comp != "" {
+			switch {
+			case it.Comp != "":
 				e.Type = "ui"
 				u := it.WBUI
 				u.Comp = it.Comp
 				e.UI = &u
-			} else {
+			default:
 				e.Type = it.Type
 				if e.Type == "" {
 					e.Type = "text"
@@ -291,40 +351,24 @@ func (s *Service) DrawScreens(ctx context.Context, a Actor, ref, docRef, title, 
 				if e.Type == "rect" || e.Type == "ellipse" {
 					e.Smooth = true
 				}
-			}
-			hgt := it.H
-			if hgt == 0 {
-				hgt = compHeight(it)
-			}
-			wdt := it.W
-			if wdt == 0 {
-				wdt = f.W - 32
-				switch it.Comp {
-				case "icon":
-					wdt = 32
-				case "avatar":
-					wdt = 56
-				case "badge":
-					wdt = 96
-				case "navbar":
-					wdt = f.W
+				if it.bg {
+					e.Round, e.Width = true, 1
+				}
+				if e.Type == "text" {
+					if _, ok := textStyles[it.Style]; ok {
+						e.TextStyle = it.Style
+						if e.FontSize == 0 {
+							e.FontSize = textStyles[it.Style]
+						}
+					}
+					if e.Align == "" {
+						e.Align = "left"
+					}
 				}
 			}
-			ex, ey := 16.0, cy
-			if it.Comp == "navbar" && it.Y == nil {
-				ex, ey = 0, f.H-hgt
-			} else if it.Y == nil {
-				cy += hgt + 12
-			}
-			if it.X != nil {
-				ex = *it.X
-			}
-			if it.Y != nil {
-				ey = *it.Y
-			}
-			e.X, e.Y, e.W, e.H = f.X+ex, f.Y+ey, wdt, hgt
+			e.X, e.Y, e.W, e.H = f.X+it.x, f.Y+it.y, it.w, it.h
 			if e.Type == "line" {
-				e.Points = [][2]float64{{e.X, e.Y + hgt/2}, {e.X + wdt, e.Y + hgt/2}}
+				e.Points = [][2]float64{{e.X, e.Y + it.h/2}, {e.X + it.w, e.Y + it.h/2}}
 				e.X, e.Y, e.W, e.H = 0, 0, 0, 0
 			}
 			e.Order = order()
@@ -340,7 +384,7 @@ func (s *Service) DrawScreens(ctx context.Context, a Actor, ref, docRef, title, 
 			}
 		}
 	}
-	res := ScreensResult{Prototype: protoID, Screens: screens}
+	res := ScreensResult{Prototype: protoID, Screens: screens, Warnings: warnings}
 	if docRef == "" {
 		if strings.TrimSpace(title) == "" {
 			title = in.Prototype

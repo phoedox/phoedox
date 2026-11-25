@@ -59,6 +59,8 @@ type WBElement struct {
 	Opacity  float64 `json:"opacity,omitempty"`
 	FontSize float64 `json:"fontSize,omitempty"`
 	Align    string  `json:"align,omitempty"` // left | center | right
+	// TextStyle of a text: title | heading | subheading | body | caption | label.
+	TextStyle string `json:"textStyle,omitempty"`
 	// Lines and arrows: round corners through the waypoints, and the shapes
 	// the ends are bound to.
 	Round bool       `json:"round,omitempty"`
@@ -224,6 +226,9 @@ func whiteboardContent(wb *Whiteboard) (store.JSON, string, error) {
 		case "", "left", "center", "right":
 		default:
 			return nil, "", bad("align")
+		}
+		if _, ok := textStyles[e.TextStyle]; e.TextStyle != "" && !ok {
+			return nil, "", bad("text style")
 		}
 		if len(e.Text) > maxWBText {
 			return nil, "", bad("text")

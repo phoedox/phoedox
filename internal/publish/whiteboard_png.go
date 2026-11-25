@@ -399,7 +399,16 @@ func (p *wbPainter) draw(e core.WBElement) error {
 		case "right":
 			align = canvas.Right
 		}
-		p.text(e.Text, x, y, math.Max(w, 60), 0, fs, p.th.stroke(e.Stroke), align, true, false)
+		// Text styles of prototype screens: bold headings, muted captions.
+		col := p.th.stroke(e.Stroke)
+		if e.TextStyle != "" && e.Stroke == "" {
+			col = p.th.get("fg")
+		}
+		if e.TextStyle == "caption" || e.TextStyle == "label" {
+			col = p.th.get("muted")
+		}
+		bold := e.TextStyle == "title" || e.TextStyle == "heading" || e.TextStyle == "subheading" || e.TextStyle == "label"
+		p.text(e.Text, x, y, math.Max(w, 60), 0, fs, col, align, true, bold)
 	case "pen":
 		pts := e.Points
 		if len(pts) == 0 {

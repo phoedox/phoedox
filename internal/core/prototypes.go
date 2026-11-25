@@ -63,6 +63,9 @@ type WBScreen struct {
 	Device string `json:"device,omitempty"` // phone | tablet | desktop | custom
 	// Overlay: the screen opens over another one (modal or bottom sheet).
 	Overlay string `json:"overlay,omitempty"`
+	// View: the visible height when the screen is taller than its device;
+	// the player scrolls the screen.
+	View float64 `json:"view,omitempty"`
 }
 
 // WBUI describes a component. Its label is the element's text.
@@ -142,6 +145,9 @@ func checkPrototypeElement(wb *Whiteboard, e *WBElement, ids map[string]bool) er
 		case "", "modal", "sheet":
 		default:
 			return bad("overlay")
+		}
+		if e.Screen.View < 0 || e.Screen.View > 6000 || math.IsNaN(e.Screen.View) || (e.Screen.View > 0 && e.Screen.View >= e.H) {
+			e.Screen.View = 0
 		}
 	}
 	if u := e.UI; u != nil {

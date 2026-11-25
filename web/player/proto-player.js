@@ -28,6 +28,10 @@
   const tc = (c) => (c && PAL[c] ? `var(--tc-${c}, ${PAL[c][0]})` : "var(--pf)");
   const tb = (c) => (c && PAL[c] ? `var(--tb-${c}, ${PAL[c][1]})` : "transparent");
 
+  const TEXT_STYLES = new Set(["title", "heading", "subheading", "body", "caption", "label"]);
+  /** The visible height of a screen: long screens scroll inside their device. */
+  const visibleH = (s) => { const v = num(s?.screen?.view), hh = num(s?.h, 844); return v > 0 && v < hh ? v : hh; };
+
   const EASE = "cubic-bezier(0.23, 1, 0.32, 1)";
   const DRAWER = "cubic-bezier(0.32, 0.72, 0, 1)";
   const reduced = () => typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -125,6 +129,12 @@ textarea.field { padding: 10px 12px; resize: none; }
 .ico { display: inline-grid; place-items: center; flex: none; }
 .entity, .embed { border: 1px solid var(--pl); border-radius: 12px; background: var(--ps); padding: 10px 12px; display: grid; gap: 2px; align-content: center; overflow: hidden; }
 .entity .k, .embed .k { color: var(--pm); font-size: 12px; } .entity .n, .embed .n { font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
+/* text styles */
+.ts-title, .ts-heading { font-family: var(--font-display, inherit); font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; }
+.ts-subheading { font-weight: 600; } .ts-body { line-height: 1.45; }
+.ts-caption { color: var(--pm) !important; line-height: 1.35; }
+.ts-label { color: var(--pm) !important; font-weight: 600; letter-spacing: 0.02em; }
+.layer.scroll { overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 /* sketch look: a wireframe */
 .sketch { --pa: var(--pf); --pas: var(--ps2); font-family: var(--font-hand, "Comic Sans MS", "Segoe Print", "Bradley Hand", cursive); }
 .sketch .btn.primary { background: var(--pf); color: var(--ps); }
@@ -309,6 +319,7 @@ textarea.field { padding: 10px 12px; resize: none; }
       wrap.append(sh);
     } else if (t === "text") {
       const sh = h("div", "txt top");
+      if (TEXT_STYLES.has(e.textStyle)) sh.classList.add("ts-" + e.textStyle);
       Object.assign(sh.style, { color: e.stroke && e.stroke !== "gray" ? tc(e.stroke) : "var(--pf)", fontSize: num(e.fontSize, 20) + "px", padding: "0", overflow: "visible" });
       if (e.align) { sh.style.textAlign = e.align; sh.style.justifyContent = e.align === "center" ? "center" : e.align === "right" ? "flex-end" : "flex-start"; }
       label(sh);
@@ -722,9 +733,20 @@ textarea.field { padding: 10px 12px; resize: none; }
       const ups = [];
       const timers = [];
       const sx = num(s.x), sy = num(s.y);
+      const pinned = [];
       for (const e of info.on.get(s.id) || []) {
         const n = R.drawEl(e, sx, sy, ups);
         if (n) node.append(n);
+        if (n && e.ui?.comp === "navbar") pinned.push(n);
+      }
+      // A long screen scrolls; its navigation bar stays at the bottom.
+      const vh = visibleH(s);
+      if (vh < num(s.h)) {
+        node.classList.add("scroll");
+        node.style.height = vh + "px";
+        const pin = () => { for (const n of pinned) n.style.transform = `translateY(${node.scrollTop + vh - num(s.h)}px)`; };
+        node.addEventListener("scroll", pin, { passive: true });
+        pin();
       }
       const refresh = () => { for (const u of ups) u(); };
       refresh();
@@ -739,7 +761,7 @@ textarea.field { padding: 10px 12px; resize: none; }
     function fit() {
       if (!base) return;
       const s = base.screen;
-      const w = num(s.w, 390), hh = num(s.h, 844);
+      const w = num(s.w, 390), hh = visibleH(s);
       const r = view.getBoundingClientRect();
       const k = Math.min((r.width - 24) / w, (r.height - 24) / hh, s.screen?.device === "desktop" ? 1 : 1.25);
       device.style.width = w + "px";
@@ -797,7 +819,7 @@ textarea.field { padding: 10px 12px; resize: none; }
       const kind = s.screen?.overlay === "sheet" ? "sheet" : "modal";
       const layer = buildScreen(s);
       const ov = h("div", `ov ${kind}`);
-      const dw = num(base?.screen.w, 390), dh = num(base?.screen.h, 844);
+      const dw = num(base?.screen.w, 390), dh = visibleH(base?.screen);
       const w = Math.min(num(s.w), dw), hh = Math.min(num(s.h), dh);
       Object.assign(layer.node.style, kind === "sheet"
         ? { left: (dw - w) / 2 + "px", top: dh - hh + "px", width: w + "px", height: hh + "px" }

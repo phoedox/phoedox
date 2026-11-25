@@ -74,12 +74,25 @@ flows and small tools; for a real program write an app (`create_app`).
 
 - **Draw:** `draw_screens` with `prototype` (a name; an existing prototype is extended and
   a screen with the same name is redrawn in place), `device` phone|tablet|desktop, `look`
-  "" or `sketch` (wireframe), and `screens`: `{name, start, overlay modal|sheet, actions,
-  elements}`. Elements stack from the top unless `x`/`y` (relative to the screen) are
-  given; a `navbar` goes to the bottom. Screens go in a row from left to right in the order
-  given; a new sheet or modal is placed under the screen that opens it, so name the
-  `overlay` target exactly. People see the arrows of the selected screen (or all, or none),
-  and each screen has "▶ from here" to play from it.
+  "" (clean, in the app's fonts, colours and accent – the default) or `sketch` (a
+  hand-drawn wireframe: only when people ask for a wireframe or rough sketch), and
+  `screens`: `{name, start, overlay modal|sheet, actions, elements}`. Screens go in a row
+  from left to right in the order given; a new sheet or modal is placed under the screen
+  that opens it, so name the `overlay` target exactly. People see the arrows of the selected
+  screen (or all, or none), and each screen has "▶ from here" to play from it.
+- **Layout – let Phoedox place things, do not give `x`/`y`:** elements stack from the top
+  (16 px margins, 12 px gaps); a `navbar` goes to the bottom. Containers lay out their
+  `items`: `{layout: row|column|grid, items, gap, pad, cols (grid), style: card}` –
+  `row` puts items side by side (items with `w` keep their width, the rest share it by
+  `flex`, default 1), `grid` makes `cols` equal columns, `style: card` (or a `fill`) draws a
+  surface behind the items with 16 px padding. Containers nest up to four levels (e.g. a
+  grid of cards, each a column with a row inside). Long screens grow and scroll when played
+  (the navigation bar stays at the bottom). `x`/`y` only for things that must float.
+- **Text styles:** `{type: text, text, style: title|heading|subheading|body|caption|label}`
+  sets size, weight and colour (caption and label are muted); texts are left-aligned.
+- **Check:** the result lists `warnings` (elements outside a screen or covering each
+  other); fix them, then look at the screens with `whiteboard_screenshot` (`frame`: the
+  screen's name) before you tell people it is done.
 - **Components** (`comp`): button, link, input, textarea, checkbox, switch, radio, select,
   slider, tabs, navbar, list, card, table, toast, icon, chart, avatar, badge, progress.
   `text` is the label; `variant` primary|secondary|ghost|danger; `placeholder`, `value`,
@@ -106,12 +119,15 @@ flows and small tools; for a real program write an app (`create_app`).
  "vars": [{"name": "count", "type": "number", "value": 1}],
  "screens": [
   {"name": "Cart", "start": true, "elements": [
-    {"type": "text", "text": "Your cart", "fontSize": 28},
-    {"comp": "card", "text": "Coffee beans", "value": "{{count}} × 12.90 €"},
-    {"comp": "button", "text": "One more", "variant": "secondary", "actions": [{"on": "click", "do": "inc", "target": "count"}]},
+    {"type": "text", "text": "Your cart", "style": "title"},
+    {"layout": "row", "style": "card", "items": [
+      {"layout": "column", "gap": 4, "items": [
+        {"type": "text", "text": "Coffee beans", "style": "subheading"},
+        {"type": "text", "text": "{{count}} × 12.90 €", "style": "caption"}]},
+      {"comp": "button", "text": "+1", "variant": "secondary", "w": 64, "actions": [{"on": "click", "do": "inc", "target": "count"}]}]},
     {"comp": "button", "text": "Pay", "actions": [{"on": "click", "do": "overlay", "target": "Paid"}]}]},
   {"name": "Paid", "overlay": "sheet", "elements": [
-    {"type": "text", "text": "Thank you!", "fontSize": 24},
+    {"type": "text", "text": "Thank you!", "style": "heading"},
     {"comp": "button", "text": "Close", "actions": [{"on": "click", "do": "close"}]}]}]}
 ```
 
