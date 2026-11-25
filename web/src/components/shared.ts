@@ -55,3 +55,16 @@ export const base = css`
     button:active, .btn:active { transform: none; }
   }
 `;
+
+/** Collapsible form sections: <details class="sec" open><summary>${chev}…</summary><div class="body">…</div></details>. */
+export const foldCss = css`
+  details.sec { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin: 0 0 12px; }
+  details.sec > summary { list-style: none; cursor: pointer; padding: 10px 14px; font: 600 14px/1.2 var(--font-display); display: flex; gap: 8px; align-items: center; user-select: none; border-radius: 10px; }
+  details.sec > summary::-webkit-details-marker { display: none; }
+  details.sec:not([open]) > summary { color: var(--muted); }
+  details.sec > summary .count { color: var(--muted); font: 400 12.5px var(--font-body); }
+  .chev { display: inline-flex; color: var(--muted); }
+  details[open] > summary > .chev { transform: rotate(90deg); }
+  @media (hover: hover) and (pointer: fine) { details.sec > summary:hover { background: var(--hover, var(--bg)); } }
+  details.sec > .body { padding: 0 14px 14px; display: grid; gap: 10px; }
+`;

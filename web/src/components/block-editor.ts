@@ -16,6 +16,7 @@ import "./gantt-form";
 import { isGantt, parseGantt, serializeGantt, type GanttPlan } from "../mermaid-gantt";
 import { GALLERY, parseMermaid, supportedKinds, writeMermaid, type Model } from "../mermaid-forms";
 import "./mermaid-form";
+import "./zoom-pane";
 
 /** Whether a Mermaid source opens in a form (Gantt or a kind with a form). */
 const mermaidHasForm = (src: string) => isGantt(src) || !!parseMermaid(src);
@@ -74,7 +75,7 @@ export class PhxBlockEditor extends LitElement {
     .hint { color: var(--muted); font-size: 13px; margin: 0; max-width: 80ch; }
     .problem { border: 1px solid var(--line); border-left: 3px solid var(--bad); border-radius: 8px; padding: 8px 12px; background: var(--surface); font-size: 13px; }
     .problem b { color: var(--bad); }
-    .card { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 16px; min-height: 200px; }
+    .card { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 16px; min-height: 200px; --zoom-max: calc(100dvh - 170px); }
     select { width: auto; }
     .switch { margin: 0 0 10px; }
     .switch button { font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
@@ -227,7 +228,7 @@ export class PhxBlockEditor extends LitElement {
           <div class="right">
             ${(o.hint || def) && !(this.view === "form" && this.hasForm) ? html`<p class="hint">${o.hint ?? t(def!.hint as Key)}</p>` : nothing}
             ${problem ? html`<div class="problem" role="alert"><b>${t("block.cannot_show")}:</b> ${problem}</div>` : nothing}
-            <div class="card" aria-label=${t("blockedit.preview")}>${this.previewView()}</div>
+            <div class="card" aria-label=${t("blockedit.preview")}><phx-zoom-pane>${this.previewView()}</phx-zoom-pane></div>
           </div>
         </main>
       </div>

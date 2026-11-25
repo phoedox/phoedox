@@ -5753,4 +5753,13 @@ export const en: Record<keyof typeof de, string> = {
   "mmd.seq.async_dotted": "Asynchronous (dotted)",
   "mmd.seq.both": "Both ways",
   "mmd.seq.both_dotted": "Both ways (dotted)",
+  "zoom.label": "Zoom",
+  "zoom.in": "Zoom in (Ctrl +)",
+  "zoom.out": "Zoom out (Ctrl −)",
+  "zoom.reset": "Reset to 100 % (Ctrl 0)",
+  "zoom.area": "Zoomable view: Ctrl + mouse wheel zooms, drag to move",
+  "form.expand": "Expand",
+  "form.collapse": "Collapse",
+  "form.n_items": "{n} items",
+  "mmd.f.color": "Colour",
 };

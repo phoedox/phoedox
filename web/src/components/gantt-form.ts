@@ -6,18 +6,16 @@ import { LitElement, css, html, nothing } from "lit";
 import { t } from "../i18n";
 import { icon } from "../icon";
 import { ganttIds, newGanttId, type GanttPlan, type GanttSection, type GanttTag, type GanttTask } from "../mermaid-gantt";
-import { base } from "./shared";
+import { colorField, colorFieldCss } from "./color-field";
+import { base, foldCss } from "./shared";
 
 const DATE_FORMATS = ["YYYY-MM-DD", "DD.MM.YYYY", "YYYY-MM-DD HH:mm"];
 const AXIS_FORMATS: [string, string][] = [["%d.%m", "24.12"], ["%d.%m.%Y", "24.12.2026"], ["%Y-%m-%d", "2026-12-24"], ["%b %d", "Dec 24"], ["KW %V", "KW 52"], ["%b %Y", "Dec 2026"]];
 
 export class PhxGanttForm extends LitElement {
-  static properties = { plan: { attribute: false } };
-  static styles = [base, css`
+  static properties = { plan: { attribute: false }, folded: { state: true } };
+  static styles = [base, foldCss, colorFieldCss, css`
     :host { display: block; }
-    section { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin: 0 0 12px; }
-    section > h3 { margin: 0; padding: 10px 14px; font-size: 14px; display: flex; gap: 8px; align-items: center; }
-    section > .body { padding: 0 14px 14px; display: grid; gap: 10px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
     label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
     label.check { display: flex; gap: 6px; align-items: center; color: var(--fg); font-size: 13px; }
@@ -25,14 +23,17 @@ export class PhxGanttForm extends LitElement {
     .part { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: grid; gap: 8px; background: var(--bg); }
     .part header { display: flex; gap: 8px; align-items: center; }
     .part header input { flex: 1; font-weight: 600; }
+    .part header .count { color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+    .part.closed { padding-block: 6px; }
+    .fold[aria-expanded="true"] .chev { transform: rotate(90deg); }
     .task { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto auto; gap: 6px 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
     .task input, .task select { padding: 5px 8px; min-height: 0; font-size: 13px; }
     .task .name { font-weight: 500; }
     .task select { width: auto; }
     .task .ops { white-space: nowrap; }
-    .task .when { grid-column: 1 / -1; display: grid; grid-template-columns: 7em minmax(0, 1fr) 9em; gap: 8px; }
+    .task .when { grid-column: 1 / -1; display: grid; grid-template-columns: 7em minmax(0, 1fr) 9em 11em; gap: 8px; }
     .task .when label { font-size: 11.5px; }
-    @media (max-width: 620px) { .task { grid-template-columns: 1fr 1fr; } .task .when { grid-template-columns: 1fr 1fr 1fr; } }
+    @media (max-width: 620px) { .task { grid-template-columns: 1fr 1fr; } .task .when { grid-template-columns: 1fr 1fr; } }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 0 3px 4px; white-space: nowrap; }
     td { padding: 2px 3px; vertical-align: middle; }
@@ -49,6 +50,15 @@ export class PhxGanttForm extends LitElement {
     .muted { color: var(--muted); font-size: 12.5px; margin: 0; }
   `];
   plan!: GanttPlan;
+  /** Collapsed parts of the plan (by index). */
+  folded = new Set<number>();
+
+  private toggle(si: number) {
+    const f = new Set(this.folded);
+    if (f.has(si)) f.delete(si);
+    else f.add(si);
+    this.folded = f;
+  }
 
   private emit(p: GanttPlan) {
     this.plan = p;
@@ -96,7 +106,7 @@ export class PhxGanttForm extends LitElement {
     const p = this.plan;
     const ex = (p.excludes ?? "").split(/\s+/).filter(Boolean);
     const weekends = ex.includes("weekends");
-    return html`<section><h3>${icon("Settings2", 15)} ${t("chartf.general")}</h3><div class="body">
+    return html`<details class="sec" open><summary><span class="chev">${icon("ChevronRight", 14)}</span>${icon("Settings2", 15)} ${t("chartf.general")}</summary><div class="body">
       <label>${t("chartf.title")}<input .value=${p.title ?? ""} @change=${(e: Event) => this.set({ title: (e.target as HTMLInputElement).value.trim() || undefined })}></label>
       <div class="grid">
         <label>${t("gantt.date_format")}<select @change=${(e: Event) => this.set({ dateFormat: (e.target as HTMLSelectElement).value })}>
@@ -112,19 +122,23 @@ export class PhxGanttForm extends LitElement {
         this.set({ excludes: [...(on ? ["weekends"] : []), ...rest].join(" ") || undefined });
       }}>${t("gantt.weekends")}</label>
       <label class="check"><input type="checkbox" .checked=${p.todayMarker !== "off"} @change=${(e: Event) => this.set({ todayMarker: (e.target as HTMLInputElement).checked ? undefined : "off" })}>${t("gantt.today")}</label>
-    </div></section>`;
+    </div></details>`;
   }
 
   private sectionView(s: GanttSection, si: number, ids: string[]) {
     const n = this.plan.sections.length;
-    return html`<div class="part">
+    const closed = this.folded.has(si);
+    return html`<div class="part ${closed ? "closed" : ""}">
       <header>
+        <button class="icon fold" aria-expanded=${!closed} aria-label=${t(closed ? "form.expand" : "form.collapse")} title=${t(closed ? "form.expand" : "form.collapse")}
+          @click=${() => this.toggle(si)}><span class="chev">${icon("ChevronRight", 15)}</span></button>
         <input aria-label=${t("gantt.section_name")} placeholder=${t("gantt.section_name")} .value=${s.name} @change=${(e: Event) =>
           this.setSections(this.plan.sections.map((x, i) => (i === si ? { ...x, name: (e.target as HTMLInputElement).value } : x)))}>
+        ${closed ? html`<span class="count">${t("form.n_items", { n: s.tasks.length })}</span>` : nothing}
         ${n > 1 ? html`<button class="icon del" aria-label=${t("gantt.remove_section")} title=${t("gantt.remove_section")}
-          @click=${() => this.setSections(this.plan.sections.filter((_, i) => i !== si))}>${icon("Trash2", 14)}</button>` : nothing}
+          @click=${() => { this.folded = new Set([...this.folded].filter((x) => x !== si).map((x) => (x > si ? x - 1 : x))); this.setSections(this.plan.sections.filter((_, i) => i !== si)); }}>${icon("Trash2", 14)}</button>` : nothing}
       </header>
-      ${s.tasks.map((task, ti) => {
+      ${closed ? nothing : html`${s.tasks.map((task, ti) => {
         const status = task.tags.includes("done") ? "done" : task.tags.includes("active") ? "active" : "";
         const crit = task.tags.includes("crit"), ms = task.tags.includes("milestone");
         const set = (patch: Partial<GanttTask>) => this.setTask(si, ti, patch);
@@ -146,10 +160,11 @@ export class PhxGanttForm extends LitElement {
             <label title=${t("gantt.id_hint")}>${t("gantt.id")}<input placeholder="a1" .value=${task.id ?? ""} @change=${(e: Event) => set({ id: (e.target as HTMLInputElement).value.trim().replace(/[^\w-]/g, "") || undefined })}></label>
             <label>${t("gantt.start")}<input list="gantt-after" placeholder=${t("gantt.start_ph")} .value=${task.start ?? ""} @change=${(e: Event) => set({ start: (e.target as HTMLInputElement).value.trim() || undefined })}></label>
             <label>${t("gantt.duration")}<input placeholder="3d" .value=${task.end} @change=${(e: Event) => set({ end: (e.target as HTMLInputElement).value.trim() })}></label>
+            ${colorField(t("mmd.f.color"), task.color, (c) => set({ color: c || undefined, id: task.id || (c ? newGanttId(this.plan) : undefined) }))}
           </div>
         </div>`;
       })}
-      <button class="ghost add" @click=${() => this.addTask(si)}>${icon("Plus", 13)} ${t("gantt.add_task")}</button>
+      <button class="ghost add" @click=${() => this.addTask(si)}>${icon("Plus", 13)} ${t("gantt.add_task")}</button>`}
       <datalist id="gantt-after">${ids.map((id) => html`<option value=${`after ${id}`}></option>`)}</datalist>
     </div>`;
   }
@@ -159,11 +174,11 @@ export class PhxGanttForm extends LitElement {
     const ids = ganttIds(p);
     const sections = p.sections.length ? p.sections : [{ name: t("gantt.section_n", { n: 1 }), tasks: [] }];
     return html`${this.general()}
-      <section><h3>${icon("ChartGantt", 15)} ${t("gantt.plan")}</h3><div class="body">
+      <details class="sec" open><summary><span class="chev">${icon("ChevronRight", 14)}</span>${icon("ChartGantt", 15)} ${t("gantt.plan")}</summary><div class="body">
         <p class="muted">${t("gantt.hint")}</p>
         ${sections.map((s, si) => this.sectionView(s, si, ids))}
         <button class="ghost add" @click=${() => this.setSections([...sections, { name: t("gantt.section_n", { n: sections.length + 1 }), tasks: [] }])}>${icon("Plus", 13)} ${t("gantt.add_section")}</button>
-      </div></section>`;
+      </div></details>`;
   }
 }
 customElements.get("phx-gantt-form") || customElements.define("phx-gantt-form", PhxGanttForm);

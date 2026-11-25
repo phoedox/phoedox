@@ -5,7 +5,8 @@ import { LitElement, css, html, nothing, type TemplateResult } from "lit";
 import { t, type Key } from "../i18n";
 import { icon } from "../icon";
 import type { FieldDef, ListDef, MermaidKind, Model, Row } from "../mermaid-forms/core";
-import { base } from "./shared";
+import { colorField, colorFieldCss } from "./color-field";
+import { base, foldCss } from "./shared";
 
 type Path = (string | number)[];
 
@@ -27,11 +28,8 @@ const tr = (label: string, params?: Record<string, string | number>) => (label.s
 
 export class PhxMermaidForm extends LitElement {
   static properties = { kind: { attribute: false }, model: { attribute: false } };
-  static styles = [base, css`
+  static styles = [base, foldCss, colorFieldCss, css`
     :host { display: block; }
-    section { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); margin: 0 0 12px; }
-    section > h3 { margin: 0; padding: 10px 14px 6px; font-size: 14px; display: flex; gap: 8px; align-items: center; }
-    section > .body { padding: 0 14px 14px; display: grid; gap: 8px; }
     .hint { color: var(--muted); font-size: 12.5px; margin: 0; }
     .fields { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: flex-end; }
     label { display: grid; gap: 3px; font-size: 11.5px; color: var(--muted); min-width: 0; }
@@ -47,7 +45,9 @@ export class PhxMermaidForm extends LitElement {
     .item > .row > .fields { flex: 1; }
     .ops { display: flex; gap: 0; padding-top: 16px; white-space: nowrap; }
     .children { margin-left: 14px; padding-left: 12px; border-left: 2px solid var(--line); display: grid; gap: 4px; }
-    .children h4 { margin: 2px 0 0; font-size: 12px; color: var(--muted); font-weight: 600; }
+    .children > summary { list-style: none; cursor: pointer; margin: 2px 0 0; font-size: 12px; color: var(--muted); font-weight: 600; display: flex; gap: 4px; align-items: center; user-select: none; }
+    .children > summary::-webkit-details-marker { display: none; }
+    .children > summary .count { font-weight: 400; }
     button.icon { padding: 3px; border: 0; background: transparent; color: var(--muted); }
     @media (hover: hover) and (pointer: fine) { button.icon:hover { color: var(--fg); } button.icon.del:hover { color: var(--bad); } }
     button.icon:disabled { opacity: .3; }
@@ -55,6 +55,8 @@ export class PhxMermaidForm extends LitElement {
   `];
   kind!: MermaidKind;
   model!: Model;
+  /** "Further lines" starts open only when there are some. */
+  private extraOpen?: boolean;
 
   private set(path: Path, value: unknown) {
     this.model = setIn(this.model, path, value) as Model;
@@ -67,6 +69,8 @@ export class PhxMermaidForm extends LitElement {
     const p = [...path, f.key];
     const label = tr(f.label);
     switch (f.type) {
+      case "color":
+        return colorField(label, v, (x) => this.set(p, x || undefined), f.size ?? "s");
       case "check":
         return html`<label class="check"><input type="checkbox" .checked=${!!v} @change=${(e: Event) => this.set(p, (e.target as HTMLInputElement).checked)}>${label}</label>`;
       case "select":
@@ -109,8 +113,11 @@ export class PhxMermaidForm extends LitElement {
             <button class="icon del" aria-label=${t("chartf.remove")} title=${t("chartf.remove")} @click=${() => this.set(path, items.filter((_, k) => k !== i))}>${icon("X", 14)}</button>
           </span>
         </div>
-        ${l.children ? html`<div class="children"><h4>${tr(l.children.label)}</h4>
-          ${this.list(l.children, Array.isArray(row[l.children.key]) ? (row[l.children.key] as Row[]) : [], [...path, i, l.children.key])}</div>` : nothing}
+        ${l.children ? (() => {
+          const kids = Array.isArray(row[l.children!.key]) ? (row[l.children!.key] as Row[]) : [];
+          return html`<details class="children" open><summary><span class="chev">${icon("ChevronRight", 13)}</span>${tr(l.children!.label)} <span class="count">${kids.length}</span></summary>
+            ${this.list(l.children!, kids, [...path, i, l.children!.key])}</details>`;
+        })() : nothing}
       </div>`)}
       <button class="ghost add" @click=${() => this.set(path, [...items, l.make ? l.make(this.model) : {}])}>${icon("Plus", 13)} ${tr(l.add)}</button>
       ${this.datalists(l)}${l.children ? this.datalists(l.children) : nothing}`;
@@ -120,16 +127,16 @@ export class PhxMermaidForm extends LitElement {
     const k = this.kind, m = this.model;
     if (!k || !m) return nothing;
     return html`
-      ${k.fields?.length ? html`<section><h3>${icon("Settings2", 15)} ${t("chartf.general")}</h3><div class="body">
-        <div class="fields">${k.fields.map((f) => this.field(f, m, [], "root"))}</div></div></section>` : nothing}
-      ${(k.lists ?? []).map((l) => html`<section><h3>${tr(l.label)}</h3><div class="body">
+      ${k.fields?.length ? html`<details class="sec" open><summary><span class="chev">${icon("ChevronRight", 14)}</span>${icon("Settings2", 15)} ${t("chartf.general")}</summary><div class="body">
+        <div class="fields">${k.fields.map((f) => this.field(f, m, [], "root"))}</div></div></details>` : nothing}
+      ${(k.lists ?? []).map((l) => html`<details class="sec" open><summary><span class="chev">${icon("ChevronRight", 14)}</span>${tr(l.label)} <span class="count">${Array.isArray(m[l.key]) ? (m[l.key] as Row[]).length : 0}</span></summary><div class="body">
         ${l.hint ? html`<p class="hint">${tr(l.hint)}</p>` : nothing}
         ${this.list(l, Array.isArray(m[l.key]) ? (m[l.key] as Row[]) : [], [l.key])}
-      </div></section>`)}
-      <section><h3>${icon("Code", 15)} ${t("mmd.extra")}</h3><div class="body">
+      </div></details>`)}
+      <details class="sec" ?open=${(this.extraOpen ??= !!String(m.extra ?? "").trim())}><summary><span class="chev">${icon("ChevronRight", 14)}</span>${icon("Code", 15)} ${t("mmd.extra")}</summary><div class="body">
         <p class="hint">${t("mmd.extra_hint")}</p>
         <textarea rows=${Math.min(10, Math.max(2, String(m.extra ?? "").split("\n").length))} .value=${String(m.extra ?? "")} @change=${(e: Event) => this.set(["extra"], (e.target as HTMLTextAreaElement).value)}></textarea>
-      </div></section>`;
+      </div></details>`;
   }
 }
 customElements.get("phx-mermaid-form") || customElements.define("phx-mermaid-form", PhxMermaidForm);

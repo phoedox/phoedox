@@ -1,6 +1,7 @@
 // Flowcharts and their relatives (swimlanes, agent flows): nodes with a
 // shape and text, edges with line, arrow and text, groups (subgraphs, lanes,
 // flows). Statements the form does not know stay as further lines.
+import { readFlowColor, writeFlowColors } from "./colors";
 import { IND, extraLines, keep, rows, s, type FieldDef, type MermaidKind, type Model, type Row } from "./core";
 
 // [value, label key, open, close]
@@ -104,6 +105,7 @@ export function parseFlow(body: string[], o: Opts): Model {
   const extra: string[] = [];
   const nodes = new Map<string, Row>();
   const stack: string[] = [];
+  const colors: { ids: string[]; color?: string; raw: string }[] = [];
   const see = (n: FlowNode) => {
     let r = nodes.get(n.id);
     if (!r) {
@@ -131,6 +133,8 @@ export function parseFlow(body: string[], o: Opts): Model {
       if (g) g.dir = x[1];
       continue;
     }
+    const col = readFlowColor(l);
+    if (col) { colors.push({ ...col, raw }); continue; }
     if (/^(classDef|class|style|linkStyle|click|accTitle|accDescr|%%)\b/.test(l) || l.includes("&") || l.includes(":::")) { keep(extra, raw); continue; }
     // node (link node)*
     const chain: (FlowNode | FlowLink)[] = [];
@@ -157,6 +161,14 @@ export function parseFlow(body: string[], o: Opts): Model {
       const lk = chain[i] as FlowLink;
       (m.edges as Row[]).push({ from: (chain[i - 1] as FlowNode).id, to: (chain[i + 1] as FlowNode).id, text: lk.text ?? "", line: lk.line, head: lk.head });
     }
+  }
+  // Colours of nodes the form knows; anything else stays as a further line.
+  for (const c of colors) {
+    if (!c.color) continue;
+    const known = c.ids.filter((id) => nodes.has(id));
+    for (const id of known) nodes.get(id)!.color = c.color;
+    const unknown = c.ids.filter((id) => !nodes.has(id));
+    if (unknown.length) keep(extra, c.raw.replace(c.ids.join(","), unknown.join(",")));
   }
   m.extra = extra.join("\n");
   return m;
@@ -196,6 +208,7 @@ export function writeFlow(m: Model, o: Opts & { forceShape?: boolean; groupTitle
     const text = s(e.text).trim();
     out.push(`${IND}${s(e.from)} ${linkOp(e.line, e.head)}${text ? `|${/[|"]/.test(text) ? `"${text.replace(/["|]/g, "'")}"` : text}|` : ""} ${s(e.to)}`);
   }
+  out.push(...writeFlowColors(nodes.map((n) => ({ id: s(n.id), color: n.color })), IND));
   return [...out, ...extraLines(m)];
 }
 
@@ -230,6 +243,7 @@ export const flowchart: MermaidKind = {
       { key: "id", label: "mmd.f.id", size: "s" }, { key: "text", label: "mmd.f.text", size: "l" },
       { key: "shape", label: "mmd.f.shape", type: "select", options: FC_SHAPES.map(([v, k]) => [v, k]), size: "s" },
       { key: "group", label: "mmd.f.group", size: "s", suggest: groupIds },
+      { key: "color", label: "mmd.f.color", type: "color" },
     ], make: (m) => ({ id: nextId(m, "n"), text: "", shape: "rect", group: "" }) },
     { key: "edges", label: "mmd.f.edges", add: "mmd.add_edge", fields: edgeFields, make: () => ({ from: "", to: "", line: "solid", head: "arrow" }) },
     { key: "groups", label: "mmd.flow.groups", hint: "mmd.flow.groups_hint", add: "mmd.add_group", fields: [
@@ -270,6 +284,7 @@ export const swimlane: MermaidKind = {
       { key: "id", label: "mmd.f.id", size: "s" }, { key: "text", label: "mmd.f.text", size: "l" },
       { key: "shape", label: "mmd.f.shape", type: "select", options: FC_SHAPES.slice(0, 9).map(([v, k]) => [v, k]), size: "s" },
       { key: "group", label: "mmd.swimlane.lane", size: "s", suggest: groupIds },
+      { key: "color", label: "mmd.f.color", type: "color" },
     ], make: (m) => ({ id: nextId(m, "n"), text: "", shape: "rect", group: groupIds(m)[0] ?? "" }) },
     { key: "edges", label: "mmd.f.edges", add: "mmd.add_edge", fields: edgeFields, make: () => ({ from: "", to: "", line: "solid", head: "arrow" }) },
   ],

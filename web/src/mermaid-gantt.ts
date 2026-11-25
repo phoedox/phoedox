@@ -2,6 +2,8 @@
 // parse the source into sections and tasks and write it back. Lines the
 // form does not know (comments, other directives) are kept as they are.
 // Syntax: https://mermaid.js.org/syntax/gantt.html
+import { colorOk, readBarColors, readThemeCss, writeBarColors, writeThemeCss } from "./mermaid-forms/colors";
+import { splitSource } from "./mermaid-forms/core";
 
 export type GanttTag = "done" | "active" | "crit" | "milestone";
 export const GANTT_TAGS: GanttTag[] = ["done", "active", "crit", "milestone"];
@@ -14,6 +16,8 @@ export interface GanttTask {
   start?: string;
   /** A duration (3d, 2w, 12h) or an end date or "until id". */
   end: string;
+  /** Bar colour: a palette name or hex (needs an id; kept as CSS in the front matter). */
+  color?: string;
 }
 
 export interface GanttSection { name: string; tasks: GanttTask[] }
@@ -28,6 +32,10 @@ export interface GanttPlan {
   todayMarker?: string;
   /** Other lines between the header and the first section (comments, directives). */
   extra: string[];
+  /** Front matter, directives and comments before "gantt", kept as they are. */
+  pre?: string[];
+  /** themeCSS of the front matter without the bar colours of the tasks. */
+  css?: string;
   sections: GanttSection[];
 }
 
@@ -46,7 +54,7 @@ export const GANTT_EXAMPLE = `gantt
 
 /** Whether a Mermaid source is a Gantt plan. */
 export function isGantt(src: string): boolean {
-  return /^\s*(%%[^\n]*\n\s*)*gantt\b/.test(src);
+  return /^gantt\b/.test(splitSource(src).head);
 }
 
 const DIRECTIVES = ["title", "dateFormat", "axisFormat", "tickInterval", "excludes", "todayMarker"] as const;
@@ -62,16 +70,12 @@ function parseMeta(meta: string): Omit<GanttTask, "name"> {
 }
 
 export function parseGantt(src: string): GanttPlan {
-  const plan: GanttPlan = { extra: [], sections: [] };
+  const { pre, head, body } = splitSource(src);
+  const { colors, raw, rest } = readBarColors(readThemeCss(pre));
+  const plan: GanttPlan = { extra: [], sections: [], pre };
   let section: GanttSection | undefined;
-  let started = false;
-  for (const raw of src.split("\n")) {
+  for (const raw of /^gantt\b/.test(head) ? body : [head, ...body]) {
     const line = raw.trim();
-    if (!started) {
-      if (/^gantt\b/.test(line)) started = true;
-      else if (line) plan.extra.push(line);
-      continue;
-    }
     if (!line) continue;
     const dir = DIRECTIVES.find((d) => line === d || line.startsWith(d + " "));
     if (dir && !section) {
@@ -95,6 +99,15 @@ export function parseGantt(src: string): GanttPlan {
     if (!section) plan.extra.push(line);
     else section.tasks.push({ name: line, tags: [], end: "" }); // unknown: kept as a task line without metadata
   }
+  // Bar colours of known tasks go to the tasks; others stay in the CSS.
+  const unknown: string[] = [];
+  const tasks = new Map(plan.sections.flatMap((x) => x.tasks).filter((x) => x.id).map((x) => [x.id!, x]));
+  for (const [id, c] of Object.entries(colors)) {
+    const task = tasks.get(id);
+    if (task) task.color = c;
+    else unknown.push(raw[id]);
+  }
+  plan.css = [...unknown, rest].filter(Boolean).join(" ");
   return plan;
 }
 
@@ -111,7 +124,11 @@ function taskLine(t: GanttTask, prevId: string | undefined): string {
 }
 
 export function serializeGantt(p: GanttPlan): string {
-  const out = ["gantt"];
+  const colors: Record<string, string> = {};
+  for (const x of p.sections.flatMap((sec) => sec.tasks)) if (x.id && colorOk(x.color)) colors[x.id] = x.color;
+  const css = writeBarColors(colors, p.css ?? "");
+  const pre = p.pre ?? [];
+  const out = [...(readThemeCss(pre) === css ? pre : writeThemeCss(pre, css)), "gantt"];
   for (const d of DIRECTIVES) if (p[d]) out.push(`    ${d} ${p[d]}`);
   for (const e of p.extra) if (e && !/^gantt\b/.test(e)) out.push(`    ${e}`);
   let prevId: string | undefined;

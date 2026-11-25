@@ -6,6 +6,7 @@ import { ApiError, api, type Doc } from "../api";
 import { locale, t } from "../i18n";
 import { icon, iconSVG } from "../icon";
 import { attrLabel } from "../model";
+import { paletteCss } from "../mermaid-forms/colors";
 import { base } from "./shared";
 import "./chart-block";
 import "./block-view";
@@ -76,9 +77,17 @@ export class PhxMermaid extends HTMLElement {
       const mermaid = (await import("mermaid")).default;
       // suppressErrorRendering: on a syntax error Mermaid would otherwise
       // draw its error picture at the end of the page body.
-      mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: dark ? "dark" : "neutral", fontFamily: "inherit", suppressErrorRendering: true });
+      // Gantt: larger text and bars than Mermaid's 11 px default, which is hard to read once scaled to the page.
+      mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: dark ? "dark" : "neutral", fontFamily: "inherit", suppressErrorRendering: true,
+        gantt: { fontSize: 13, sectionFontSize: 13, barHeight: 24, barGap: 6 } });
       const { svg } = await mermaid.render(id, src);
-      root.innerHTML = `<style>:host{display:block;margin:.8em 0;overflow-x:auto}svg{max-width:100%;height:auto}</style>${svg}`;
+      root.innerHTML = `<style>:host{display:block;margin:.8em 0;overflow-x:auto}svg{max-width:100%;height:auto}${paletteCss(id)}</style>${svg}`;
+      // classDef phx-<colour> also lands as inline style on the shapes; drop
+      // it there so the token colours (light/dark) of paletteCss apply.
+      root.querySelectorAll<SVGElement>('g.node[class*="phx-"] > :is(rect,polygon,circle,ellipse,path)').forEach((el) => {
+        el.style.removeProperty("fill");
+        el.style.removeProperty("stroke");
+      });
     } catch (e) {
       const msg = (e instanceof Error ? e.message : String(e)).replace(/</g, "&lt;");
       root.innerHTML = `<style>:host{display:block;margin:.8em 0}.err{border:1px solid var(--line);border-left:3px solid var(--bad);border-radius:8px;padding:8px 12px;background:var(--surface)}

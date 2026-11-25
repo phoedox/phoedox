@@ -17,6 +17,7 @@ import "./floorplan";
 import "./calendar";
 import { recordView } from "../recent";
 import { blockStyles } from "./blocks";
+import "./zoom-pane";
 import { base } from "./shared";
 import "./attachments";
 import "./page-rules";
@@ -85,7 +86,10 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
     section { margin-top: 18px; }
     section h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-family: var(--font-body); margin-bottom: 4px; }
-    .prose img { cursor: zoom-in; }
+    .prose img, .prose phx-mermaid { cursor: zoom-in; }
+    dialog.zoom.diagram { width: 94vw; height: 90vh; background: var(--surface); border-radius: 12px; padding: 16px; overflow: hidden; --zoom-max: none; --zoom-height: 100%; --zoom-bar-align: start; }
+    dialog.zoom.diagram phx-zoom-pane { height: 100%; grid-template-rows: auto minmax(0, 1fr); }
+    dialog.zoom.diagram .close { top: 12px; right: 12px; }
     dialog.zoom { border: none; padding: 0; background: transparent; max-width: 94vw; max-height: 92vh; overflow: visible;
       transition: opacity var(--dur) var(--ease-out), transform var(--dur) var(--ease-out); @starting-style { opacity: 0; transform: scale(.97); } }
     dialog.zoom::backdrop { background: color-mix(in srgb, #000 70%, transparent); }
@@ -130,7 +134,8 @@ export class PhxDocView extends SignalWatcher(LitElement) {
   archiving = false;
   showDiff = false;
   /** Image shown large (click on a picture in the page). */
-  zoom?: { src: string; alt: string };
+  /** A picture (src) or a Mermaid diagram (mermaid: its source) shown large. */
+  zoom?: { src: string; alt: string; mermaid?: string };
   /** Requested language in multilingual projects. */
   lang = "";
   /** Changes of the main language since the shown translation was made. */
@@ -423,6 +428,15 @@ export class PhxDocView extends SignalWatcher(LitElement) {
         return;
       }
     }
+    const diagram = e.composedPath().find((n): n is HTMLElement => n instanceof HTMLElement && n.localName === "phx-mermaid");
+    if (diagram?.closest(".prose") && !diagram.closest("a")) {
+      const src = diagram.dataset.src ?? diagram.querySelector("pre")?.textContent ?? "";
+      if (src.trim()) {
+        this.zoom = { src: "", alt: t("picture.zoom"), mermaid: src };
+        this.updateComplete.then(() => this.renderRoot.querySelector<HTMLDialogElement>("dialog.zoom")?.showModal());
+      }
+      return;
+    }
     const img = e.composedPath().find((n): n is HTMLImageElement => n instanceof HTMLImageElement);
     if (!img || !img.closest(".prose") || img.closest("a")) return;
     this.zoom = { src: img.currentSrc || img.src, alt: img.alt };
@@ -433,6 +447,12 @@ export class PhxDocView extends SignalWatcher(LitElement) {
     const z = this.zoom;
     if (!z) return "";
     const close = () => { this.renderRoot.querySelector<HTMLDialogElement>("dialog.zoom")?.close(); };
+    if (z.mermaid !== undefined) {
+      return html`<dialog class="zoom diagram" aria-label=${z.alt} @close=${() => (this.zoom = undefined)} @click=${(e: Event) => { if (e.target === e.currentTarget) close(); }}>
+        <phx-zoom-pane><phx-mermaid data-src=${z.mermaid}></phx-mermaid></phx-zoom-pane>
+        <button class="ghost icon close" aria-label=${t("board.close")} @click=${close}>${icon("X", 16)}</button>
+      </dialog>`;
+    }
     return html`<dialog class="zoom" aria-label=${z.alt || t("picture.zoom")} @close=${() => (this.zoom = undefined)} @click=${close}>
       <figure><img src=${z.src} alt=${z.alt}>${z.alt ? html`<figcaption>${z.alt}</figcaption>` : ""}</figure>
       <button class="ghost icon close" aria-label=${t("board.close")} @click=${close}>${icon("X", 16)}</button>

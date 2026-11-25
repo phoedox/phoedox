@@ -13,7 +13,7 @@ export interface FieldDef {
   key: string;
   /** i18n key. */
   label: string;
-  type?: "text" | "number" | "select" | "check" | "lines";
+  type?: "text" | "number" | "select" | "check" | "lines" | "color";
   /** select: [value, i18n key or plain text]. */
   options?: [string, string][];
   /** select: show the value before the label (symbols like "<|--"). */

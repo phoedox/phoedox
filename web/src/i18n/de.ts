@@ -5751,4 +5751,13 @@ export const de = {
   "mmd.seq.async_dotted": "Asynchron (gepunktet)",
   "mmd.seq.both": "In beide Richtungen",
   "mmd.seq.both_dotted": "In beide Richtungen (gepunktet)",
+  "zoom.label": "Zoom",
+  "zoom.in": "Vergrößern (Strg +)",
+  "zoom.out": "Verkleinern (Strg −)",
+  "zoom.reset": "Auf 100 % zurück (Strg 0)",
+  "zoom.area": "Zoombare Ansicht: Strg + Mausrad zoomt, Ziehen verschiebt",
+  "form.expand": "Aufklappen",
+  "form.collapse": "Zuklappen",
+  "form.n_items": "{n} Einträge",
+  "mmd.f.color": "Farbe",
 } as const;
