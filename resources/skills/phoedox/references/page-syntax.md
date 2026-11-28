@@ -94,6 +94,7 @@ whiteboards and published pages) – read the one you are about to write.
 | ```calc | a calculator with inputs and formulas (plugin `com.phoedox.calc`) | `blocks/calc.md` |
 | ```quiz | a quiz or flashcards (plugin `com.phoedox.quiz`) | `blocks/quiz.md` |
 | ```mindmap | a mind map from an outline (plugin `com.phoedox.mindmap`) | `blocks/mindmap.md` |
+| ```familytree | ancestors or descendants of a relative (plugin `com.phoedox.genealogy`) | `blocks/familytree.md` |
 | ```beforeafter | two photos with a slider | `blocks/beforeafter.md` |
 | ```annotate | a photo with numbered markers | `blocks/annotate.md` |
 | ```tree | a tree of entries along one relation | `blocks/tree.md` |

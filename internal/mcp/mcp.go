@@ -139,6 +139,12 @@ func registerPluginTools(ctx context.Context, s *sdk.Server, svc *core.Service) 
 				if err != nil {
 					return nil, friendly(err)
 				}
+				// A plugin that answers with a string (Markdown, an outline)
+				// is shown as that text.
+				var text string
+				if json.Unmarshal(out, &text) == nil {
+					return &sdk.CallToolResult{Content: []sdk.Content{&sdk.TextContent{Text: text}}}, nil
+				}
 				return result(out), nil
 			})
 	}
