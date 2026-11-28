@@ -5785,4 +5785,9 @@ export const de = {
   "print.pdf_download": "PDF herunterladen",
   "print.pdf_making": "PDF wird vorbereitet…",
   "print.pdf_failed": "Der Server konnte das PDF nicht erstellen – nutze „Als PDF speichern“.",
+  "plugins.settings": "Einstellungen",
+  "plugins.settings_save": "Einstellungen speichern",
+  "plugins.settings_saved": "Einstellungen gespeichert",
+  "validation.plugin_setting": "Das Plugin hat keine Option „{name}“.",
+  "validation.plugin_setting_value": "Der Wert für „{name}“ ist nicht zulässig.",
 } as const;

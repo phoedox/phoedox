@@ -1365,7 +1365,7 @@ func registerTools(s *sdk.Server, svc *core.Service) {
 		}
 		return map[string]any{"kinds": kinds, "genericRelations": m.Generic, "kindsWithoutDefinition": m.Unknown, "icons": core.KindIcons}, nil
 	})
-	tool(s, "define_kind", "Define an own kind of entity for a project, or extend a core kind with extra attributes and relations. Replaces the project's previous definition of this kind, so repeat existing extras you want to keep.", func(ctx context.Context, a core.Actor, in defineKindIn) (any, error) {
+	tool(s, "define_kind", "Define an own kind of entity for a project, or extend a core kind or a plugin's kind with extra attributes and relations (name, description and icon of those stay). Replaces the project's previous definition of this kind, so repeat existing extras you want to keep.", func(ctx context.Context, a core.Actor, in defineKindIn) (any, error) {
 		return svc.DefineKind(ctx, a, in.Project, core.KindInput{ID: in.ID, Name: in.Name, Description: in.Description, Icon: in.Icon, Attrs: in.Attrs, Relations: in.Relations})
 	})
 	tool(s, "list_files", "List uploaded files of a project (name, type, size, where attached). Contents are not returned.", func(ctx context.Context, a core.Actor, in listFilesIn) (any, error) {

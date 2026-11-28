@@ -61,7 +61,8 @@ const Manifest = `{
     "blocks": [{ "id": "timeline", "label": "Timeline", "icon": "chart-gantt", "element": "phx-timeline", "board": true, "live": true, "size": { "w": 500, "h": 240 }, "example": "2026-01-01" }, { "id": "chart", "label": "Not mine" }],
     "mcpTools": [{ "name": "ups.runtime", "description": "Runtime of a UPS.", "input": "schemas/runtime.json" },
       { "name": "ups.switch", "description": "Switch the UPS outlet.", "control": true, "timeoutSec": 20, "target": { "arg": "ups" } }],
-    "events": ["schedule:every=60s", "entity.*"]
+    "events": ["schedule:every=60s", "entity.*"],
+    "settings": "schemas/settings.json"
   },
   "permissions": ["graph:read", "graph:write:ups", "secrets:nut_password", "net:fetch:127.0.0.1"]
 }`
@@ -73,9 +74,11 @@ func Package(t testing.TB, manifest string) []byte {
 		plugins.ManifestFile:   []byte(manifest),
 		"backend.wasm":         Wasm(t),
 		"frontend/index.js":    []byte("export default {}"),
-		"schemas/ups.json":     []byte(`{"title":"USV","type":"object","required":["kapazitaet"],"properties":{"kapazitaet":{"type":"number","title":"Kapazität","x-unit":"VA"},"ladung":{"type":"number","x-unit":"%"},"modell":{"type":"string"}}}`),
+		"schemas/ups.json":     []byte(`{"title":"USV","x-i18n":{"en":{"title":"UPS"}},"type":"object","required":["kapazitaet"],"properties":{"kapazitaet":{"type":"number","title":"Kapazität","x-unit":"VA","x-i18n":{"en":{"title":"Capacity"}}},"ladung":{"type":"number","x-unit":"%"},"modell":{"type":"string"}}}`),
 		"schemas/runtime.json": []byte(`{"type":"object","properties":{"ups":{"type":"string"}}}`),
-		"logo.svg":             []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3"/></svg>`),
+		"schemas/settings.json": []byte(`{"type":"object","properties":{"interval":{"type":"integer","title":"Interval","minimum":10,"maximum":600,"default":60},` +
+			`"mode":{"type":"string","enum":["quiet","loud"],"default":"quiet","x-i18n":{"de":{"title":"Modus","enum":{"quiet":"leise"}}}},"notify":{"type":"boolean"},"list":{"type":"array"}}}`),
+		"logo.svg": []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3"/></svg>`),
 	})
 	if e != nil {
 		t.Fatal(e)

@@ -73,6 +73,9 @@ type Contributes struct {
 	// export block_render draws them, an optional element makes them
 	// interactive.
 	Blocks []BlockDef `json:"blocks,omitempty"`
+	// Settings is a JSON Schema file of the plugin's options per project;
+	// owners set them, the backend reads them with settings.get.
+	Settings string `json:"settings,omitempty"`
 }
 
 // BlockDef is a content block kind of a plugin.

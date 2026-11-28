@@ -150,8 +150,21 @@ func (a *api) setPluginSecrets(w http.ResponseWriter, r *http.Request) {
 	respond(w, map[string]bool{"ok": true}, err)
 }
 
+// setPluginSettings stores options of a plugin in a project (owners); null
+// resets an option to its default. The answer holds all current values.
+func (a *api) setPluginSettings(w http.ResponseWriter, r *http.Request) {
+	var in map[string]any
+	if err := decode(r, &in); err != nil {
+		writeErr(w, err)
+		return
+	}
+	out, err := a.core.SetPluginSettings(r.Context(), actorOf(r), chi.URLParam(r, "p"), chi.URLParam(r, "id"), in)
+	respond(w, out, err)
+}
+
 func (a *api) pluginTool(w http.ResponseWriter, r *http.Request) {
-	args, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
+	// Up to 8 MB: imports (e.g. a GEDCOM file) go through plugin tools.
+	args, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 8<<20))
 	if err != nil {
 		writeErr(w, err)
 		return

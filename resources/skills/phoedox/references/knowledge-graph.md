@@ -12,7 +12,9 @@ Pages mention entries with `@slug`.
   work between any kinds.
 - If no kind fits, propose one with `define_kind` instead of misusing another kind.
   `define_kind` replaces the project's previous extension of that kind – repeat the
-  attributes you want to keep. People see the data model under project settings →
+  attributes you want to keep. It also extends core kinds and kinds of plugins with the
+  project's own attributes and relations (the plugin's attributes stay; a plugin's kind
+  may show translated labels). People see the data model under project settings →
   "Kinds & fields".
 
 ## Create and change entries

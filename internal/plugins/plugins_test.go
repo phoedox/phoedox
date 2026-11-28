@@ -108,6 +108,10 @@ func (f *fakeEnv) GraphApply(_ context.Context, ops Ops, allow func(string) bool
 }
 func (f *fakeEnv) Secret(_ context.Context, name string) (string, error) { return "s3cret", nil }
 func (f *fakeEnv) ConfiguredHosts(context.Context) ([]string, error)     { return f.hosts, nil }
+func (f *fakeEnv) Settings(context.Context) (any, error)                 { return map[string]any{}, nil }
+func (f *fakeEnv) GraphSubgraph(context.Context, []string) (any, error) {
+	return map[string]any{"entities": []any{}, "edges": []any{}}, nil
+}
 
 // TestConfiguredHosts: net:fetch:config allows only the hosts the owner set.
 func TestConfiguredHosts(t *testing.T) {

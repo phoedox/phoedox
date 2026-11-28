@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -296,4 +297,19 @@ func (d *DB) TenantEntitiesOfKind(ctx context.Context, kind string) ([]Entity, e
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// GraphStamp changes whenever an entity or an edge of the project is
+// added, changed or removed (pictures drawn from the graph use it as part
+// of their cache key). Changed edge attributes alone do not change it.
+func (d *DB) GraphStamp(ctx context.Context, projectID string) (string, error) {
+	var n, en int
+	var last, elast, edel sql.NullString
+	if err := d.QueryRow(ctx, `SELECT COUNT(*), MAX(updated_at) FROM entities WHERE project_id = ? AND deleted_at IS NULL`, projectID).Scan(&n, &last); err != nil {
+		return "", err
+	}
+	if err := d.QueryRow(ctx, `SELECT COUNT(e.id), MAX(e.created_at), MAX(e.deleted_at) FROM edges e JOIN entities f ON f.id = e.from_id WHERE f.project_id = ?`, projectID).Scan(&en, &elast, &edel); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%d/%s/%d/%s/%s", n, last.String, en, elast.String, edel.String), nil
 }

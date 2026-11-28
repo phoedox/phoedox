@@ -719,6 +719,7 @@ func (a *api) routes(r chi.Router) {
 			r.Post("/plugin-blocks/{kind}/render", a.renderPluginBlock)
 			r.Put("/plugins/{id}", a.setProjectPlugin)
 			r.Put("/plugins/{id}/secrets", a.setPluginSecrets)
+			r.Put("/plugins/{id}/settings", a.setPluginSettings)
 			r.Post("/plugins/{id}/tools/{tool}", a.pluginTool)
 		})
 		r.Post("/suggestions/{id}/accept", a.decide(true))

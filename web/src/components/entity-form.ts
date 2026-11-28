@@ -69,7 +69,7 @@ export class PhxEntityForm extends LitElement {
       case "select":
         return html`<label class=${cls}>${label}<select name=${name} ?required=${a.required}>
           <option value="">–</option>
-          ${(a.options ?? []).map((o) => html`<option value=${o} ?selected=${o === str}>${optLabel(o)}</option>`)}</select></label>`;
+          ${(a.options ?? []).map((o) => html`<option value=${o} ?selected=${o === str}>${optLabel(o, a)}</option>`)}</select></label>`;
       case "number":
         return html`<label class=${cls}>${label}<span class="unit"><input name=${name} type="number" step="any" inputmode="decimal" .value=${str} ?required=${a.required}>${a.unit ? html`<span>${a.unit}</span>` : ""}</span></label>`;
       case "date":

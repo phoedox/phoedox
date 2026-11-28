@@ -34,6 +34,10 @@ type Attr struct {
 	Options  []string `json:"options,omitempty"`
 	Required bool     `json:"required,omitempty"`
 	Project  bool     `json:"project,omitempty"` // added by the project (read only)
+	// Labels and OptionLabels translate attributes of plugin kinds
+	// (language -> label, language -> option -> label; read only).
+	Labels       map[string]string            `json:"labels,omitempty"`
+	OptionLabels map[string]map[string]string `json:"optionLabels,omitempty"`
 }
 
 // Relation allows edges rel from a kind to the listed kinds ("*" = any).
@@ -45,15 +49,17 @@ type Relation struct {
 
 // Kind describes a kind of entity: its attributes and allowed relations.
 type Kind struct {
-	ID          string     `json:"id"`
-	Name        string     `json:"name,omitempty"` // own kinds; core kinds are named by the client (i18n)
-	Description string     `json:"description,omitempty"`
-	Group       string     `json:"group"`
-	Icon        string     `json:"icon"`
-	Source      string     `json:"source"` // core | project | plugin:<id>
-	Attrs       []Attr     `json:"attrs"`
-	Relations   []Relation `json:"relations,omitempty"`
-	Count       int        `json:"count"`
+	ID   string `json:"id"`
+	Name string `json:"name,omitempty"` // own kinds; core kinds are named by the client (i18n)
+	// Names translate the names of plugin kinds (language -> name).
+	Names       map[string]string `json:"names,omitempty"`
+	Description string            `json:"description,omitempty"`
+	Group       string            `json:"group"`
+	Icon        string            `json:"icon"`
+	Source      string            `json:"source"` // core | project | plugin:<id>
+	Attrs       []Attr            `json:"attrs"`
+	Relations   []Relation        `json:"relations,omitempty"`
+	Count       int               `json:"count"`
 	// Rules are the project's documentation rules for this kind (ADR-0043).
 	Rules *KindRules `json:"rules,omitempty"`
 }
@@ -78,6 +84,9 @@ type KindInput struct {
 	Icon        string     `json:"icon,omitempty"`
 	Attrs       []Attr     `json:"attrs,omitempty"`
 	Relations   []Relation `json:"relations,omitempty"`
+	// Extends marks the project's extension of a plugin's kind (set by
+	// DefineKind; core kinds are always extended).
+	Extends bool `json:"extends,omitempty"`
 }
 
 // KindResult is either an applied change or a pending suggestion.
@@ -181,7 +190,7 @@ func (s *Service) model(ctx context.Context, projectID string) (Model, error) {
 		if json.Unmarshal(d.Def, &in) != nil {
 			continue
 		}
-		if _, ok := coreKind(d.Kind); ok {
+		if _, ok := coreKind(d.Kind); ok || in.Extends {
 			ext[d.Kind] = in
 			continue
 		}
@@ -208,10 +217,22 @@ func (s *Service) model(ctx context.Context, projectID string) (Model, error) {
 	sort.Slice(own, func(i, j int) bool { return strings.ToLower(own[i].Name) < strings.ToLower(own[j].Name) })
 	m.Kinds = append(m.Kinds, own...)
 	// Kinds of plugins come last; a kind the project or core defines wins.
+	// Projects may add attributes and relations to them, as to core kinds.
 	for _, pk := range s.pluginKinds(ctx, projectID) {
-		if _, taken := m.Find(pk.ID); !taken {
-			m.Kinds = append(m.Kinds, pk)
+		if _, taken := m.Find(pk.ID); taken {
+			continue
 		}
+		if in, ok := ext[pk.ID]; ok && in.Extends {
+			for _, at := range in.Attrs {
+				at.Project = true
+				pk.Attrs = append(pk.Attrs, at)
+			}
+			for _, r := range in.Relations {
+				r.Project = true
+				pk.Relations = append(pk.Relations, r)
+			}
+		}
+		m.Kinds = append(m.Kinds, pk)
 	}
 	if rules, err := s.DB.KindRules(ctx, projectID); err == nil {
 		for i := range m.Kinds {
@@ -235,6 +256,12 @@ func (in *KindInput) normalize(m Model) error {
 		return invalid("validation.kind", nil, "kind must be lowercase letters, digits and _")
 	}
 	core, isCore := coreKind(in.ID)
+	if pk, ok := m.Find(in.ID); ok && strings.HasPrefix(pk.Source, "plugin:") {
+		// The project extends a plugin's kind: its own attributes stay.
+		core, isCore, in.Extends = Kind{Attrs: slices.DeleteFunc(slices.Clone(pk.Attrs), func(a Attr) bool { return a.Project })}, true, true
+	} else {
+		in.Extends = false
+	}
 	if isCore {
 		in.Name, in.Description, in.Icon = "", "", ""
 	} else {
@@ -309,7 +336,8 @@ func (in *KindInput) normalize(m Model) error {
 	return nil
 }
 
-// DefineKind creates or replaces an own kind, or the project's extension of a core kind.
+// DefineKind creates or replaces an own kind, or the project's extension of
+// a core kind or a plugin's kind (then only attrs and relations count).
 func (s *Service) DefineKind(ctx context.Context, a Actor, ref string, in KindInput) (KindResult, error) {
 	p, err := s.project(ctx, a, ref, store.RoleEditor)
 	if err != nil {
@@ -318,9 +346,6 @@ func (s *Service) DefineKind(ctx context.Context, a Actor, ref string, in KindIn
 	m, err := s.model(ctx, p.ID)
 	if err != nil {
 		return KindResult{}, err
-	}
-	if k, ok := m.Find(strings.TrimSpace(in.ID)); ok && strings.HasPrefix(k.Source, "plugin:") {
-		return KindResult{}, invalid("validation.kind_plugin", map[string]any{"plugin": strings.TrimPrefix(k.Source, "plugin:")}, "the kind belongs to plugin %s", strings.TrimPrefix(k.Source, "plugin:"))
 	}
 	if err := in.normalize(m); err != nil {
 		return KindResult{}, err
@@ -346,7 +371,8 @@ func (s *Service) defineKind(ctx context.Context, a Actor, p store.Project, in K
 	return KindResult{Applied: true, Kind: &k}, nil
 }
 
-// DeleteKind removes an own kind (only without entities) or a core kind's extension.
+// DeleteKind removes an own kind (only without entities) or the extension
+// of a core or plugin kind.
 func (s *Service) DeleteKind(ctx context.Context, a Actor, ref, kind string) error {
 	p, err := s.project(ctx, a, ref, store.RoleEditor)
 	if err != nil {
@@ -355,7 +381,16 @@ func (s *Service) DeleteKind(ctx context.Context, a Actor, ref, kind string) err
 	if a.Via == "mcp" {
 		return ErrForbidden
 	}
-	if _, isCore := coreKind(kind); !isCore {
+	ext := false
+	if defs, err := s.DB.ProjectKinds(ctx, p.ID); err == nil {
+		for _, d := range defs {
+			var in KindInput
+			if d.Kind == kind && json.Unmarshal(d.Def, &in) == nil && in.Extends {
+				ext = true
+			}
+		}
+	}
+	if _, isCore := coreKind(kind); !isCore && !ext {
 		counts, err := s.DB.CountEntitiesByKind(ctx, p.ID)
 		if err != nil {
 			return err

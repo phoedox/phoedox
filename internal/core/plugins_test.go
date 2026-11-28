@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"log/slog"
 	"path/filepath"
@@ -114,8 +115,46 @@ func TestPlugins(t *testing.T) {
 		!k.Attrs[0].Required || k.Attrs[0].Unit != "VA" || k.Attrs[0].Label != "Kapazität" || k.Relations[0].Rel != "powers" {
 		t.Fatalf("plugin kind: %+v", k)
 	}
-	if _, err := s.DefineKind(ctx, owner, p.Slug, KindInput{ID: "ups", Name: "Meine USV"}); invalidKey(err) != "validation.kind_plugin" {
-		t.Fatalf("redefine: %v", err)
+	if k.Names["en"] != "UPS" || k.Attrs[0].Labels["en"] != "Capacity" {
+		t.Fatalf("translations from x-i18n: %+v %+v", k.Names, k.Attrs[0].Labels)
+	}
+	// Projects add own fields to the plugin's kind; its own fields stay.
+	if _, err := s.DefineKind(ctx, owner, p.Slug, KindInput{ID: "ups", Attrs: []Attr{{Name: "kapazitaet", Type: "text"}}}); invalidKey(err) != "validation.attr_duplicate" {
+		t.Fatalf("plugin field again: %v", err)
+	}
+	if _, err := s.DefineKind(ctx, owner, p.Slug, KindInput{ID: "ups", Name: "Meine USV", Attrs: []Attr{{Name: "standort", Label: "Standort", Type: "text"}}}); err != nil {
+		t.Fatalf("extend plugin kind: %v", err)
+	}
+	m, _ = s.DataModel(ctx, reader, p.Slug)
+	if k, _ = m.Find("ups"); k.Source != "plugin:de.example.ups" || k.Name != "USV" || len(k.Attrs) != 4 || !k.Attrs[3].Project || k.Attrs[3].Name != "standort" {
+		t.Fatalf("extended plugin kind: %+v", k)
+	}
+	if err := s.DeleteKind(ctx, owner, p.Slug, "ups"); err != nil {
+		t.Fatalf("remove the extension: %v", err)
+	}
+	if m, _ = s.DataModel(ctx, reader, p.Slug); len(m.Kinds[len(m.Kinds)-1].Attrs) != 3 {
+		t.Fatalf("extension removed: %+v", m.Kinds[len(m.Kinds)-1])
+	}
+
+	// Settings: declared options with defaults, checked values (owners).
+	list, _ = s.ProjectPlugins(ctx, owner, p.Slug)
+	if len(list[0].Settings) != 3 || list[0].SettingValues["interval"] != float64(60) || list[0].SettingValues["mode"] != "quiet" || list[0].Settings[1].I18n["de"].Enum["quiet"] != "leise" {
+		t.Fatalf("settings: %+v %+v", list[0].Settings, list[0].SettingValues)
+	}
+	for name, v := range map[string]any{"interval": float64(5), "mode": "shout", "notify": "yes", "other": true} {
+		if _, err := s.SetPluginSettings(ctx, owner, p.Slug, "de.example.ups", map[string]any{name: v}); err == nil {
+			t.Fatalf("setting %s=%v accepted", name, v)
+		}
+	}
+	if _, err := s.SetPluginSettings(ctx, reader, p.Slug, "de.example.ups", map[string]any{"notify": true}); err == nil {
+		t.Fatal("readers cannot change settings")
+	}
+	vals, err := s.SetPluginSettings(ctx, owner, p.Slug, "de.example.ups", map[string]any{"interval": float64(120), "notify": true})
+	if err != nil || vals["interval"] != float64(120) || vals["notify"] != true || vals["mode"] != "quiet" {
+		t.Fatalf("set settings: %v %+v", err, vals)
+	}
+	if vals, _ = s.SetPluginSettings(ctx, owner, p.Slug, "de.example.ups", map[string]any{"interval": nil}); vals["interval"] != float64(60) {
+		t.Fatalf("reset to default: %+v", vals)
 	}
 
 	// Secrets: only declared names, never returned.
@@ -443,6 +482,40 @@ func TestPluginBlocks(t *testing.T) {
 	pub := s.PubPluginBlock(ctx, p, "timeline", "x", "en")
 	if !strings.Contains(pub, "timeline:en") {
 		t.Fatalf("published: %q", pub)
+	}
+
+	// Pictures may read the graph and the settings; they are drawn again
+	// when the graph changes, and know when they are for the public.
+	drawn := func(public bool) string {
+		t.Helper()
+		if public {
+			return html.UnescapeString(s.PubPluginBlock(ctx, p, "timeline", "graph", "en"))
+		}
+		r, err := s.RenderPluginBlock(ctx, reader, p.Slug, "timeline", "graph", "en", 600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return html.UnescapeString(r.SVG)
+	}
+	if g := drawn(false); !strings.Contains(g, `"entities":0`) || !strings.Contains(g, `"mode":"quiet"`) || !strings.Contains(g, `"public":false`) {
+		t.Fatalf("graph picture: %s", g)
+	}
+	for _, slug := range []string{"usv-keller", "usv-buero"} {
+		if _, err := s.UpsertEntity(ctx, owner, p.Slug, EntityInput{Kind: "ups", Slug: slug, Name: slug, Attrs: map[string]any{"kapazitaet": 900}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.Link(ctx, owner, p.Slug, EdgeInput{From: "usv-keller", Rel: "powers", To: "usv-buero"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.SetPluginSettings(ctx, owner, p.Slug, "de.example.ups", map[string]any{"mode": "loud"}); err != nil {
+		t.Fatal(err)
+	}
+	if g := drawn(false); !strings.Contains(g, `"entities":2`) || !strings.Contains(g, `"edges":1`) || !strings.Contains(g, `"mode":"loud"`) {
+		t.Fatalf("graph picture after changes: %s", g)
+	}
+	if g := drawn(true); !strings.Contains(g, `"public":true`) || !strings.Contains(g, `"entities":2`) {
+		t.Fatalf("public picture: %s", g)
 	}
 }
 

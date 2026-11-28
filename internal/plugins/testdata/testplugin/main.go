@@ -89,8 +89,18 @@ func blockRender() int32 {
 	var in struct {
 		Kind, Source, Project, Locale string
 		Width                         int
+		Public                        bool
 	}
 	_ = json.Unmarshal(pdk.Input(), &in)
+	if in.Source == "graph" {
+		// Draws what it reads: entries, edges, an option and whether the picture is public.
+		g, _ := host("graph.subgraph", map[string]any{"kinds": []string{"ups"}})["result"].(map[string]any)
+		ents, _ := g["entities"].([]any)
+		edges, _ := g["edges"].([]any)
+		st, _ := host("settings.get", map[string]any{})["result"].(map[string]any)
+		b, _ := json.Marshal(map[string]any{"entities": len(ents), "edges": len(edges), "mode": st["mode"], "public": in.Public})
+		return output(map[string]any{"svg": `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 40"><text x="4" y="24">` + string(b) + `</text></svg>`})
+	}
 	var problems []map[string]any
 	if in.Source == "bad" {
 		problems = append(problems, map[string]any{"line": 1, "message": "bad is not a date"})

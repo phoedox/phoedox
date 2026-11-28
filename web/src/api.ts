@@ -213,5 +213,12 @@ export interface ProjectPlugin {
   kinds: string[]; tools: string[]; frontend?: string; secrets?: Record<string, boolean>; lastRun: string | null; lastError?: string;
   problem?: string; recall?: string;
   icon?: string; category?: string; logo?: string; logoDark?: string;
+  /** The plugin's options in this project and their values (owners). */
+  settings?: PluginSetting[]; settingValues?: Record<string, unknown>;
+}
+export interface PluginSetting {
+  name: string; type: "boolean" | "string" | "integer" | "number"; title?: string; description?: string;
+  enum?: string[]; default?: unknown; minimum?: number; maximum?: number;
+  i18n?: Record<string, { title?: string; description?: string; enum?: Record<string, string> }>;
 }
 export interface PluginLog { time: string; level: string; msg: string }

@@ -202,7 +202,7 @@ export class PhxDataModel extends SignalWatcher(LitElement) {
     }
   }
 
-  /** The editable part of a kind: everything for own kinds, project additions for core kinds. */
+  /** The editable part of a kind: everything for own kinds, project additions for core and plugin kinds. */
   private own(k: Kind): KindInput {
     const strip = <T extends { project?: boolean }>(xs: T[] = []) => xs.filter((x) => k.source === "project" || x.project).map(({ project: _, ...x }) => x as T);
     return k.source === "project"
@@ -342,7 +342,8 @@ export class PhxDataModel extends SignalWatcher(LitElement) {
   private sheet(k: Kind) {
     const c = groupColor[k.group] ?? "var(--accent)";
     const fromPlugin = k.source.startsWith("plugin:");
-    const edit = this.canEdit && !fromPlugin;
+    // Plugin kinds get own fields and relations like core kinds.
+    const edit = this.canEdit;
     return html`<article class="sheet" aria-labelledby="h-kind">
       <header>
         <span class="kic big" style="--c:${c}">${icon(k.icon, 22)}</span>

@@ -5787,4 +5787,9 @@ export const en: Record<keyof typeof de, string> = {
   "print.pdf_download": "Download PDF",
   "print.pdf_making": "Preparing the PDF…",
   "print.pdf_failed": "The server could not make the PDF – use “Save as PDF”.",
+  "plugins.settings": "Settings",
+  "plugins.settings_save": "Save settings",
+  "plugins.settings_saved": "Settings saved",
+  "validation.plugin_setting": "The plugin has no option “{name}”.",
+  "validation.plugin_setting_value": "The value of “{name}” is not allowed.",
 };

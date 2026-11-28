@@ -36,6 +36,12 @@ type Env interface {
 	// ConfiguredHosts are the hosts of the addresses the project owner set
 	// for the plugin (secrets "url" or "*_url"); net:fetch:config allows them.
 	ConfiguredHosts(ctx context.Context) ([]string, error)
+	// Settings are the plugin's options in the project (saved values over
+	// the schema's defaults).
+	Settings(ctx context.Context) (any, error)
+	// GraphSubgraph returns entities of the kinds (all when empty) and the
+	// edges between them.
+	GraphSubgraph(ctx context.Context, kinds []string) (any, error)
 }
 
 // Query searches entities of the project.
@@ -345,6 +351,20 @@ func (r *Runtime) dispatch(st *callState, req hostRequest) (any, error) {
 			return nil, err
 		}
 		return st.env.GraphQuery(ctx, q)
+	case "graph.subgraph":
+		if !m.CanRead("graph") {
+			return nil, fmt.Errorf("%w: graph:read", ErrDenied)
+		}
+		a, err := decode[struct{ Kinds []string }](req.Args)
+		if err != nil {
+			return nil, err
+		}
+		if len(a.Kinds) > 50 {
+			return nil, fmt.Errorf("%w: at most 50 kinds", ErrInvalid)
+		}
+		return st.env.GraphSubgraph(ctx, a.Kinds)
+	case "settings.get":
+		return st.env.Settings(ctx)
 	case "graph.apply":
 		ops, err := decode[Ops](req.Args)
 		if err != nil {

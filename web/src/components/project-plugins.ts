@@ -1,6 +1,6 @@
 import { LitElement, css, html } from "lit";
-import { ApiError, api, type ProjectPlugin } from "../api";
-import { formatDate, t } from "../i18n";
+import { ApiError, api, type PluginSetting, type ProjectPlugin } from "../api";
+import { formatDate, locale, t } from "../i18n";
 import { icon } from "../icon";
 import { pluginTile, tileStyles } from "./plugin-tile";
 import { reloadProjectPlugins } from "../plugin-host";
@@ -71,6 +71,44 @@ export class PhxProjectPlugins extends LitElement {
     }
   }
 
+  private async saveSettings(e: SubmitEvent, p: ProjectPlugin) {
+    e.preventDefault();
+    const form = e.target as HTMLFormElement;
+    const values: Record<string, unknown> = {};
+    for (const st of p.settings ?? []) {
+      const el = form.elements.namedItem(st.name) as HTMLInputElement | HTMLSelectElement | null;
+      if (!el) continue;
+      if (st.type === "boolean") values[st.name] = (el as HTMLInputElement).checked;
+      else if (st.type === "string") values[st.name] = el.value;
+      else values[st.name] = el.value === "" ? null : Number(el.value);
+    }
+    this.busy = true;
+    try {
+      await api("PUT", `/projects/${this.project}/plugins/${p.id}/settings`, values);
+      toast(t("plugins.settings_saved"));
+      await this.load();
+    } catch (err) {
+      toast(err instanceof ApiError ? err.text : t("error.unknown"), "error");
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  /** One option of a plugin, in the reader's language when the plugin translates it. */
+  private setting(st: PluginSetting, v: unknown) {
+    const tr = st.i18n?.[locale()];
+    const title = tr?.title || st.title || st.name, desc = tr?.description || st.description;
+    const hint = desc ? html`<span class="muted small">${desc}</span>` : "";
+    if (st.type === "boolean") {
+      return html`<label class="switch"><input type="checkbox" name=${st.name} .checked=${!!v}> <span>${title}${desc ? html`<br>${hint}` : ""}</span></label>`;
+    }
+    if (st.enum?.length) {
+      return html`<label>${title}<select name=${st.name}>${st.enum.map((o) => html`<option value=${o} ?selected=${o === v}>${tr?.enum?.[o] || st.i18n?.en?.enum?.[o] || o}</option>`)}</select>${hint}</label>`;
+    }
+    if (st.type === "string") return html`<label>${title}<input name=${st.name} .value=${String(v ?? "")}>${hint}</label>`;
+    return html`<label>${title}<input type="number" name=${st.name} step=${st.type === "integer" ? "1" : "any"} min=${st.minimum ?? ""} max=${st.maximum ?? ""} .value=${v === undefined || v === null ? "" : String(v)}>${hint}</label>`;
+  }
+
   private async clearSecret(p: ProjectPlugin, name: string) {
     try {
       await api("PUT", `/projects/${this.project}/plugins/${p.id}/secrets`, { [name]: "" });
@@ -102,6 +140,11 @@ export class PhxProjectPlugins extends LitElement {
               ${p.lastError ? html`<br><span class="error">${p.lastError}</span>` : ""}</p>` : ""}
           </div>
         </details>
+        ${p.enabled && p.settings?.length ? html`<form @submit=${(e: SubmitEvent) => this.saveSettings(e, p)}>
+          <strong style="font-size:13px">${t("plugins.settings")}</strong>
+          ${p.settings.map((st) => this.setting(st, p.settingValues?.[st.name]))}
+          <div><button class="ghost" ?disabled=${this.busy}>${t("plugins.settings_save")}</button></div>
+        </form>` : ""}
         ${p.enabled && secrets.length ? html`<form @submit=${(e: SubmitEvent) => this.secrets(e, p)}>
           ${secrets.map(([name, set]) => html`<label>${t("plugins.secret", { name })}
             <span style="display:flex;gap:6px"><input type="password" name=${name} autocomplete="new-password" placeholder=${set ? t("plugins.secret_set") : ""} style="flex:1">

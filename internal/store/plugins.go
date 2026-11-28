@@ -116,15 +116,17 @@ type ProjectPlugin struct {
 	EnabledBy string `json:"enabledBy"`
 	EnabledAt Time   `json:"enabledAt"`
 	Secrets   string `json:"-"` // sealed JSON object
+	// Settings are the owner's options (JSON object, contributes.settings).
+	Settings  string `json:"-"`
 	LastRun   Time   `json:"lastRun"`
 	LastError string `json:"lastError,omitempty"`
 }
 
-const ppCols = `project_id, plugin_id, enabled_by, enabled_at, secrets, last_run, last_error`
+const ppCols = `project_id, plugin_id, enabled_by, enabled_at, secrets, settings, last_run, last_error`
 
 func scanPP(r interface{ Scan(...any) error }) (ProjectPlugin, error) {
 	var p ProjectPlugin
-	err := r.Scan(&p.ProjectID, &p.PluginID, &p.EnabledBy, &p.EnabledAt, &p.Secrets, &p.LastRun, &p.LastError)
+	err := r.Scan(&p.ProjectID, &p.PluginID, &p.EnabledBy, &p.EnabledAt, &p.Secrets, &p.Settings, &p.LastRun, &p.LastError)
 	if errors.Is(err, sql.ErrNoRows) {
 		return p, ErrNotFound
 	}
@@ -167,7 +169,7 @@ func (d *DB) AllProjectPlugins(ctx context.Context) ([]TenantProjectPlugin, erro
 	out := []TenantProjectPlugin{}
 	for rows.Next() {
 		var t TenantProjectPlugin
-		if err := rows.Scan(&t.TenantID, &t.ProjectID, &t.PluginID, &t.EnabledBy, &t.EnabledAt, &t.Secrets, &t.LastRun, &t.LastError); err != nil {
+		if err := rows.Scan(&t.TenantID, &t.ProjectID, &t.PluginID, &t.EnabledBy, &t.EnabledAt, &t.Secrets, &t.Settings, &t.LastRun, &t.LastError); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -204,6 +206,18 @@ func (d *DB) GetProjectPlugin(ctx context.Context, projectID, pluginID string) (
 }
 
 // SetPluginSecrets stores the sealed secrets of a plugin in a project.
+// SetPluginSettings stores the owner's options of a plugin in a project.
+func (d *DB) SetPluginSettings(ctx context.Context, projectID, pluginID, settings string) error {
+	res, err := d.Exec(ctx, `UPDATE project_plugins SET settings = ? WHERE project_id = ? AND plugin_id = ?`, settings, projectID, pluginID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (d *DB) SetPluginSecrets(ctx context.Context, projectID, pluginID, sealed string) error {
 	res, err := d.Exec(ctx, `UPDATE project_plugins SET secrets = ? WHERE project_id = ? AND plugin_id = ?`, sealed, projectID, pluginID)
 	if err != nil {

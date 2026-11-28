@@ -133,10 +133,13 @@ func (s *Service) RenderPluginBlock(ctx context.Context, a Actor, ref, kind, sou
 	if err != nil {
 		return PluginBlockResult{}, err
 	}
-	return s.renderPluginBlock(ctx, p, kind, source, locale, width)
+	// Readers who see only shared single pages are outside the project.
+	return s.renderPluginBlock(ctx, p, kind, source, locale, width, p.Role == store.RoleDoc)
 }
 
-func (s *Service) renderPluginBlock(ctx context.Context, p store.Project, kind, source, locale string, width int) (PluginBlockResult, error) {
+// renderPluginBlock draws a block; public pictures are for readers outside
+// the project (publications, shared single pages).
+func (s *Service) renderPluginBlock(ctx context.Context, p store.Project, kind, source, locale string, width int, public bool) (PluginBlockResult, error) {
 	if len(source) > blocks.MaxSource {
 		return PluginBlockResult{}, invalid("validation.block_source", nil, "the block is larger than %d bytes", blocks.MaxSource)
 	}
@@ -157,14 +160,25 @@ func (s *Service) renderPluginBlock(ctx context.Context, p store.Project, kind, 
 	if locale == "" {
 		locale = "en"
 	}
-	h := sha256.Sum256([]byte(ap.row.SHA256 + "\x00" + kind + "\x00" + locale + "\x00" + fmt.Sprint(width) + "\x00" + p.Slug + "\x00" + source))
+	// Pictures drawn from the graph are drawn again when it changes (and
+	// at least every minute, for changed edge attributes).
+	graph := ""
+	if ap.pkg.Manifest.CanRead("graph") {
+		stamp, err := s.DB.GraphStamp(ctx, p.ID)
+		if err != nil {
+			return PluginBlockResult{}, err
+		}
+		graph = stamp + "/" + fmt.Sprint(time.Now().Unix()/60)
+	}
+	h := sha256.Sum256([]byte(ap.row.SHA256 + "\x00" + kind + "\x00" + locale + "\x00" + fmt.Sprint(width) + "\x00" + p.Slug + "\x00" + fmt.Sprint(public) + "\x00" + graph + "\x00" + ap.pp.Settings + "\x00" + source))
 	key := hex.EncodeToString(h[:])
 	if r, ok := blockCache.get(key); ok {
 		return r, nil
 	}
-	pa := Actor{Plugin: ap.row.ID}
+	env := s.pluginEnv(Actor{Plugin: ap.row.ID}, p, ap)
+	env.readAll = true
 	raw, err := s.Plugins.Runtime.CallWithin(ctx, ap.pkg, logKey(ctx, ap.row.ID), "block_render",
-		map[string]any{"kind": kind, "source": source, "project": p.Slug, "locale": locale, "width": width}, s.pluginEnv(pa, p, ap), pluginBlockTimeout)
+		map[string]any{"kind": kind, "source": source, "project": p.Slug, "locale": locale, "width": width, "public": public}, env, pluginBlockTimeout)
 	if err != nil {
 		return PluginBlockResult{}, invalid("validation.plugin_failed", map[string]any{"plugin": ap.row.ID}, "%v", err)
 	}
@@ -226,7 +240,7 @@ func (s *Service) checkPluginBlocks(ctx context.Context, p store.Project, md str
 		if !kinds[b.Lang] {
 			continue
 		}
-		r, err := s.renderPluginBlock(ctx, p, b.Lang, b.Body, "en", 720)
+		r, err := s.renderPluginBlock(ctx, p, b.Lang, b.Body, "en", 720, false)
 		if err != nil {
 			out = append(out, BlockProblem{Kind: b.Lang, Block: i + 1, Line: b.Line, Severity: "warning", Message: "the plugin could not draw the block: " + err.Error()})
 			continue
@@ -242,7 +256,7 @@ func (s *Service) checkPluginBlocks(ctx context.Context, p store.Project, md str
 // PubPluginBlock draws a plugin block of a published project ("" if the
 // kind is not a plugin block there or drawing fails).
 func (s *Service) PubPluginBlock(ctx context.Context, p store.Project, kind, source, locale string) string {
-	r, err := s.renderPluginBlock(ctx, p, kind, source, locale, 720)
+	r, err := s.renderPluginBlock(ctx, p, kind, source, locale, 720, true)
 	if err != nil {
 		return ""
 	}
@@ -263,6 +277,13 @@ func (c *renderCache) get(k string) (PluginBlockResult, bool) {
 	defer c.mu.Unlock()
 	r, ok := c.items[k]
 	return r, ok
+}
+
+// clear drops all pictures (after a plugin's settings changed).
+func (c *renderCache) clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.items, c.order = map[string]PluginBlockResult{}, nil
 }
 
 func (c *renderCache) put(k string, r PluginBlockResult) {

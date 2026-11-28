@@ -415,10 +415,13 @@ type ProjectPluginInfo struct {
 	Tools       []string        `json:"tools"`
 	Frontend    string          `json:"frontend,omitempty"` // module URL path
 	Secrets     map[string]bool `json:"secrets,omitempty"`  // name -> set
-	LastRun     store.Time      `json:"lastRun"`
-	LastError   string          `json:"lastError,omitempty"`
-	Problem     string          `json:"problem,omitempty"`
-	Recall      string          `json:"recall,omitempty"`
+	// Settings are the plugin's options and their values (owners).
+	Settings      []PluginSetting `json:"settings,omitempty"`
+	SettingValues map[string]any  `json:"settingValues,omitempty"`
+	LastRun       store.Time      `json:"lastRun"`
+	LastError     string          `json:"lastError,omitempty"`
+	Problem       string          `json:"problem,omitempty"`
+	Recall        string          `json:"recall,omitempty"`
 }
 
 type activePlugin struct {
@@ -541,6 +544,13 @@ func (s *Service) ProjectPlugins(ctx context.Context, a Actor, ref string) ([]Pr
 			}
 			for _, name := range m.Secrets() {
 				info.Secrets[name] = set[name] != ""
+			}
+			if sch := pluginSettingsSchema(pkg); len(sch) > 0 {
+				saved := ""
+				if i >= 0 {
+					saved = pps[i].Settings
+				}
+				info.Settings, info.SettingValues = sch, pluginSettingValues(sch, saved)
 			}
 		}
 		out = append(out, info)
@@ -1238,7 +1248,7 @@ func (s *Service) pluginKinds(ctx context.Context, projectID string) []Kind {
 		for _, kd := range m.Contributes.Kinds {
 			k := Kind{ID: kd.ID, Name: kd.ID, Group: "plugin", Icon: pascalIcon(kd.Icon), Source: "plugin:" + m.ID, Attrs: []Attr{}}
 			if b, ok := ap.pkg.File(kd.Schema); ok && kd.Schema != "" {
-				k.Name, k.Description, k.Attrs = schemaAttrs(b, kd.ID)
+				k.Name, k.Description, k.Attrs, k.Names = schemaAttrs(b, kd.ID)
 			}
 			for _, r := range m.Contributes.Relations {
 				if slices.Contains(r.From, kd.ID) {
@@ -1267,29 +1277,39 @@ func pascalIcon(name string) string {
 
 // schemaAttrs reads attributes from a JSON Schema (top-level properties,
 // in their order). Units come from "x-unit".
-func schemaAttrs(raw []byte, fallback string) (name, desc string, attrs []Attr) {
+func schemaAttrs(raw []byte, fallback string) (name, desc string, attrs []Attr, names map[string]string) {
 	var sch struct {
-		Title       string          `json:"title"`
-		Description string          `json:"description"`
-		Required    []string        `json:"required"`
-		Properties  json.RawMessage `json:"properties"`
+		Title       string                `json:"title"`
+		Description string                `json:"description"`
+		Required    []string              `json:"required"`
+		Properties  json.RawMessage       `json:"properties"`
+		I18n        map[string]schemaI18n `json:"x-i18n"`
 	}
 	attrs = []Attr{}
 	if json.Unmarshal(raw, &sch) != nil {
-		return fallback, "", attrs
+		return fallback, "", attrs, nil
 	}
 	name, desc = sch.Title, sch.Description
 	if name == "" {
 		name = fallback
 	}
+	for lang, tr := range sch.I18n {
+		if tr.Title != "" && validLang(lang) {
+			if names == nil {
+				names = map[string]string{}
+			}
+			names[lang] = tr.Title
+		}
+	}
 	for _, kv := range orderedObject(sch.Properties) {
 		var p struct {
-			Type   any      `json:"type"`
-			Format string   `json:"format"`
-			Enum   []any    `json:"enum"`
-			Title  string   `json:"title"`
-			Unit   string   `json:"x-unit"`
-			Items  struct{} `json:"items"`
+			Type   any           `json:"type"`
+			Format string        `json:"format"`
+			Enum   []any         `json:"enum"`
+			Title  string        `json:"title"`
+			Unit   string        `json:"x-unit"`
+			Items  struct{}      `json:"items"`
+			I18n   schemaI18nMap `json:"x-i18n"`
 		}
 		if json.Unmarshal(kv.value, &p) != nil || !validName(kv.key) {
 			continue
@@ -1315,10 +1335,46 @@ func schemaAttrs(raw []byte, fallback string) (name, desc string, attrs []Attr) 
 		case typ == "array" || typ == "object":
 			continue // not representable as a simple attribute
 		}
+		at.Labels, at.OptionLabels = p.I18n.labels()
 		attrs = append(attrs, at)
 	}
-	return name, desc, attrs
+	return name, desc, attrs, names
 }
+
+// schemaI18n translates a schema's or a property's texts (x-i18n).
+type schemaI18n struct {
+	Title       string            `json:"title"`
+	Description string            `json:"description"`
+	Enum        map[string]string `json:"enum"`
+}
+
+func validLang(l string) bool {
+	return len(l) >= 2 && len(l) <= 8 && strings.Trim(l, "abcdefghijklmnopqrstuvwxyz-") == ""
+}
+
+// labels returns the titles and option labels by language.
+func (m schemaI18nMap) labels() (labels map[string]string, opts map[string]map[string]string) {
+	for lang, tr := range m {
+		if !validLang(lang) {
+			continue
+		}
+		if tr.Title != "" {
+			if labels == nil {
+				labels = map[string]string{}
+			}
+			labels[lang] = tr.Title
+		}
+		if len(tr.Enum) > 0 {
+			if opts == nil {
+				opts = map[string]map[string]string{}
+			}
+			opts[lang] = tr.Enum
+		}
+	}
+	return labels, opts
+}
+
+type schemaI18nMap map[string]schemaI18n
 
 type keyValue struct {
 	key   string

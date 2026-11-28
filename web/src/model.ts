@@ -1,12 +1,16 @@
 import { api } from "./api";
-import { formatDate, formatDay, hasKey, t } from "./i18n";
+import { formatDate, formatDay, hasKey, locale, t } from "./i18n";
 
 export type AttrType = "text" | "number" | "bool" | "date" | "ip" | "url" | "select";
 export const attrTypes: readonly AttrType[] = ["text", "number", "bool", "date", "ip", "url", "select"];
-export interface Attr { name: string; label?: string; type: AttrType; unit?: string; options?: string[]; required?: boolean; project?: boolean }
+export interface Attr {
+  name: string; label?: string; type: AttrType; unit?: string; options?: string[]; required?: boolean; project?: boolean;
+  /** Translations from a plugin's schema: language -> label, language -> option -> label. */
+  labels?: Record<string, string>; optionLabels?: Record<string, Record<string, string>>;
+}
 export interface Relation { rel: string; to: string[]; project?: boolean }
 export interface Kind {
-  id: string; name?: string; description?: string; group: string; icon: string; source: "core" | "project" | `plugin:${string}`;
+  id: string; name?: string; names?: Record<string, string>; description?: string; group: string; icon: string; source: "core" | "project" | `plugin:${string}`;
   attrs: Attr[]; relations?: Relation[]; count: number;
   /** Documentation rules of the project for this kind (ADR-0043). */
   rules?: KindRules;
@@ -29,13 +33,14 @@ export const groupColor: Record<string, string> = {
 
 const tr = (key: string, fallback: string) => (hasKey(key) ? t(key) : fallback);
 
-export const kindName = (k: Kind | undefined, id = k?.id ?? "") => k?.name || tr(`kind.${id}`, id);
+export const kindName = (k: Kind | undefined, id = k?.id ?? "") => k?.names?.[locale()] || k?.name || tr(`kind.${id}`, id);
 export const groupName = (g: string) => tr(`kindgroup.${g}`, g);
 /** Readable name of an attribute: own label, translation, else "last_seen" -> "Last seen". */
-export const attrLabel = (a: Attr) => a.label || tr(`attr.${a.name}`, humanize(a.name));
+export const attrLabel = (a: Attr) => a.labels?.[locale()] || a.label || tr(`attr.${a.name}`, humanize(a.name));
 const humanize = (n: string) => { const s = n.replace(/[_-]+/g, " ").trim(); return s.charAt(0).toUpperCase() + s.slice(1); };
 export const relLabel = (rel: string) => tr(`rel.${rel}`, rel.replace(/_/g, " "));
-export const optLabel = (o: string) => tr(`opt.${o}`, o);
+/** Label of a choice: the plugin's translation for the attribute, else the shared table. */
+export const optLabel = (o: string, a?: Attr) => a?.optionLabels?.[locale()]?.[o] || tr(`opt.${o}`, a?.optionLabels?.en?.[o] || o);
 
 /** Value of an attribute for display, with unit and translated choices. */
 export function formatValue(a: Attr | undefined, v: unknown): string {
@@ -44,7 +49,7 @@ export function formatValue(a: Attr | undefined, v: unknown): string {
   switch (a.type) {
     case "bool": return t(v ? "common.yes" : "common.no");
     case "number": return `${Number(v).toLocaleString()}${a.unit ? ` ${a.unit}` : ""}`;
-    case "select": return optLabel(String(v));
+    case "select": return optLabel(String(v), a);
     case "date": return isoText(String(v));
     case "text": return isoText(String(v));
     default: return String(v);

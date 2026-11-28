@@ -148,6 +148,11 @@ func ReadPackage(data []byte) (*Package, error) {
 			return nil, bad("schema %s of kind %s is missing or not JSON", k.Schema, k.ID)
 		}
 	}
+	if s := m.Contributes.Settings; s != "" {
+		if b, ok := p.File(s); !ok || !json.Valid(b) {
+			return nil, bad("settings schema %s is missing or not JSON", s)
+		}
+	}
 	for _, t := range m.Contributes.MCPTools {
 		if t.Input == "" {
 			continue

@@ -24,6 +24,9 @@ type pluginEnv struct {
 	a  Actor
 	p  store.Project
 	ap activePlugin
+	// readAll lets block renders read the project's graph without a user
+	// (the picture may be for a publication); they cannot write.
+	readAll bool
 }
 
 func (s *Service) pluginEnv(a Actor, p store.Project, ap activePlugin) *pluginEnv {
@@ -64,11 +67,28 @@ func (e *pluginEnv) GraphRecord(ctx context.Context, raw json.RawMessage, allow 
 }
 
 func (e *pluginEnv) GraphGet(ctx context.Context, ref string) (any, error) {
+	if e.readAll {
+		ent, err := e.s.DB.GetEntity(ctx, e.p.ID, ref)
+		if err != nil {
+			return nil, err
+		}
+		edges, err := e.s.DB.EdgesOf(ctx, ent.ID)
+		if edges == nil {
+			edges = []store.Edge{}
+		}
+		return EntityDetail{Entity: ent, Edges: edges, Documents: []store.Document{}}, err
+	}
 	return e.s.Entity(ctx, e.a, e.p.ID, ref)
 }
 
 func (e *pluginEnv) GraphQuery(ctx context.Context, q plugins.Query) (any, error) {
-	list, err := e.s.Entities(ctx, e.a, e.p.ID, q.Kind)
+	var list []store.Entity
+	var err error
+	if e.readAll {
+		list, err = e.s.DB.ListEntities(ctx, e.p.ID, q.Kind)
+	} else {
+		list, err = e.s.Entities(ctx, e.a, e.p.ID, q.Kind)
+	}
 	if err != nil {
 		return nil, err
 	}
