@@ -337,6 +337,10 @@ export class PhxWhiteboard extends LitElement {
   private painted = false;
   private lastDown = { t: 0, x: 0, y: 0, tool: "" };
   private longPress?: { timer: number; x: number; y: number };
+  /** Fingers on the board (touch pointers by id), for pinch and pan. */
+  private touches = new Map<number, { x: number; y: number }>();
+  /** Two fingers: zoom around their middle and move with it. */
+  private pinch?: { d0: number; wx: number; wy: number; z0: number };
   /** A clicked point of the selected line or arrow (Delete removes it). */
   private selPt: { id: string; i: number } | null = null;
   private menuFocus = false;
@@ -1367,8 +1371,53 @@ export class PhxWhiteboard extends LitElement {
     this.onDown(ev);
   };
 
+  // ---- touch: pinch to zoom, one finger on empty space pans --------------------
+
+  /** Two fingers start a pinch; whatever the first finger began is dropped. */
+  private startPinch() {
+    clearTimeout(this.longPress?.timer);
+    this.longPress = undefined;
+    const d = this.drag;
+    this.drag = null;
+    if (d?.id && (d.mode === "pen" || d.mode === "create" || d.mode === "linedrag")) this.board.elements = this.els().filter((e) => e.id !== d.id);
+    else if (d && d.mode !== "pan" && d.mode !== "box" && d.moved !== false) this.changed();
+    this.svgEl.classList.remove("panning");
+    const [a, b] = [...this.touches.values()];
+    const r = this.svgEl.getBoundingClientRect(), mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
+    this.pinch = { d0: Math.max(Math.hypot(a.x - b.x, a.y - b.y), 1), wx: (mx - this.view.x) / this.view.z, wy: (my - this.view.y) / this.view.z, z0: this.view.z };
+    this.menu = null;
+    this.paint();
+  }
+
+  private movePinch() {
+    const p = this.pinch!, [a, b] = [...this.touches.values()];
+    const r = this.svgEl.getBoundingClientRect(), mx = (a.x + b.x) / 2 - r.left, my = (a.y + b.y) / 2 - r.top;
+    const z = Math.min(4, Math.max(0.15, p.z0 * Math.hypot(a.x - b.x, a.y - b.y) / p.d0));
+    // The board point that was under the fingers' middle stays under it.
+    this.view = { z, x: mx - p.wx * z, y: my - p.wy * z };
+    this.paint();
+    this.placeEditor();
+  }
+
+  /** Handles a touch pointer; true when the board's own handling is done. */
+  private touchDown(ev: PointerEvent): boolean {
+    if (ev.pointerType !== "touch") return false;
+    // The first finger of a new touch: forget fingers whose lift was missed.
+    if (ev.isPrimary) {
+      this.touches.clear();
+      this.pinch = undefined;
+    }
+    this.touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (this.touches.size < 2) return false;
+    ev.preventDefault();
+    this.svgEl.setPointerCapture(ev.pointerId);
+    if (this.touches.size === 2) this.startPinch();
+    return true;
+  }
+
   private onDown = (ev: PointerEvent) => {
     const svg = this.svgEl;
+    if (this.touchDown(ev)) return;
     if (this.present >= 0) {
       if (ev.button === 0) this.presentAt(this.present + 1);
       return;
@@ -1486,6 +1535,12 @@ export class PhxWhiteboard extends LitElement {
       }
       const h = hitTest(this.els(), x, y, 8 / this.view.z, this.byId);
       if (!h) {
+        if (ev.pointerType === "touch") {
+          // A finger on empty space moves the view (two fingers zoom).
+          this.select(null);
+          this.drag = { mode: "pan", sx: ev.clientX, sy: ev.clientY, vx: this.view.x, vy: this.view.y };
+          return;
+        }
         // Empty space: draw a box to select what lies in it.
         if (!ev.shiftKey) this.select(null);
         this.drag = { mode: "box", ox: x, oy: y, cx: x, cy: y, add: ev.shiftKey ? [...this.sel] : [] };
@@ -1551,6 +1606,13 @@ export class PhxWhiteboard extends LitElement {
   };
 
   private onMove = (ev: PointerEvent) => {
+    if (ev.pointerType === "touch" && this.touches.has(ev.pointerId)) {
+      this.touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (this.pinch) {
+        if (this.touches.size >= 2) this.movePinch();
+        return;
+      }
+    }
     if (this.longPress && Math.hypot(ev.clientX - this.longPress.x, ev.clientY - this.longPress.y) > 8) {
       clearTimeout(this.longPress.timer);
       this.longPress = undefined;
@@ -1693,7 +1755,22 @@ export class PhxWhiteboard extends LitElement {
     }
   };
 
-  private onUp = () => {
+  private onUp = (ev?: PointerEvent) => {
+    if (ev?.pointerType === "touch") {
+      this.touches.delete(ev.pointerId);
+      if (this.pinch) {
+        if (this.touches.size >= 2) {
+          this.startPinch();
+          return;
+        }
+        this.pinch = undefined;
+        // The finger that stays moves the view on.
+        const rest = [...this.touches.values()][0];
+        this.drag = rest ? { mode: "pan", sx: rest.x, sy: rest.y, vx: this.view.x, vy: this.view.y } : null;
+        this.lastDown = { t: 0, x: 0, y: 0, tool: "" };
+        return;
+      }
+    }
     clearTimeout(this.longPress?.timer);
     this.longPress = undefined;
     this.svgEl.classList.remove("panning");
